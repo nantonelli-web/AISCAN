@@ -1,0 +1,73 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { createClient } from "@/lib/supabase/server";
+import { extractPageIdentifier } from "@/lib/meta/url";
+
+const schema = z.object({
+  page_name: z.string().min(1).max(160),
+  page_url: z.string().url(),
+  country: z.string().max(8).nullable().optional(),
+  category: z.string().max(80).nullable().optional(),
+});
+
+export async function POST(req: Request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = await req.json().catch(() => null);
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+  }
+
+  // Look up user's workspace + role
+  const { data: profile } = await supabase
+    .from("mait_users")
+    .select("workspace_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.workspace_id) {
+    return NextResponse.json({ error: "No workspace" }, { status: 400 });
+  }
+  if (!["super_admin", "admin"].includes(profile.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { pageId } = extractPageIdentifier(parsed.data.page_url);
+
+  const { data, error } = await supabase
+    .from("mait_competitors")
+    .insert({
+      workspace_id: profile.workspace_id,
+      page_name: parsed.data.page_name,
+      page_url: parsed.data.page_url,
+      page_id: pageId ?? null,
+      country: parsed.data.country ?? null,
+      category: parsed.data.category ?? null,
+    })
+    .select("id")
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ id: data.id });
+}
+
+export async function DELETE(req: Request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const url = new URL(req.url);
+  const id = url.searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+
+  const { error } = await supabase.from("mait_competitors").delete().eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}
