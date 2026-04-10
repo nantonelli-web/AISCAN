@@ -6,6 +6,9 @@ import type { MaitAdExternal } from "@/types";
 export function AdCard({ ad }: { ad: MaitAdExternal }) {
   const hasVideo = !!ad.video_url;
   const hasImage = !!ad.image_url;
+  const aiTags = (ad.raw_data as Record<string, unknown> | null)?.ai_tags as
+    | { sector?: string; tone?: string; objective?: string }
+    | undefined;
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col">
@@ -46,6 +49,15 @@ export function AdCard({ ad }: { ad: MaitAdExternal }) {
             </Badge>
           ))}
         </div>
+        {aiTags && (
+          <div className="flex items-center gap-1 flex-wrap">
+            {aiTags.sector && <Badge variant="gold">{aiTags.sector}</Badge>}
+            {aiTags.tone && <Badge variant="outline">{aiTags.tone}</Badge>}
+            {aiTags.objective && (
+              <Badge variant="outline">{aiTags.objective}</Badge>
+            )}
+          </div>
+        )}
         <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border mt-1">
           <span>{formatDate(ad.start_date)}</span>
           {ad.landing_url && (

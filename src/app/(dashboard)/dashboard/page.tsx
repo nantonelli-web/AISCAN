@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdCard } from "@/components/ads/ad-card";
 import { Badge } from "@/components/ui/badge";
 import { formatNumber } from "@/lib/utils";
-import type { MaitAdExternal, MaitCompetitor } from "@/types";
+import type { MaitAdExternal } from "@/types";
 
 export const dynamic = "force-dynamic";
 

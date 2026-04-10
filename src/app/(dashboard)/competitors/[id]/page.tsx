@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AdCard } from "@/components/ads/ad-card";
+import { TagButton } from "@/components/ads/tag-button";
 import { ScanButton } from "./scan-button";
 import { FrequencySelector } from "./frequency-selector";
 import { JobHistory } from "./job-history";
@@ -83,6 +84,7 @@ export default async function CompetitorDetailPage({
         </div>
         <div className="flex gap-2 flex-wrap">
           <FrequencySelector competitorId={c.id} initial={frequency} />
+          <TagButton competitorId={c.id} />
           <Button asChild variant="outline">
             <a href={`/api/export/ads.csv?competitor_id=${c.id}`}>
               <Download className="size-4" /> Export CSV
