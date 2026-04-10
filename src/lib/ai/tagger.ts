@@ -1,7 +1,8 @@
 /**
- * AI-powered ad tagging via Anthropic Claude API.
+ * AI-powered ad tagging via OpenRouter (Claude Haiku).
  *
- * Requires ANTHROPIC_API_KEY in env. If missing, tagging is silently
+ * Uses the OpenAI-compatible endpoint at openrouter.ai.
+ * Requires OPENROUTER_API_KEY in env. If missing, tagging is silently
  * skipped — the rest of the app works fine without it.
  */
 
@@ -25,8 +26,11 @@ interface AdInput {
   landing_url: string | null;
 }
 
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const MODEL = "anthropic/claude-haiku-4-5-20251001";
+
 export async function tagAd(ad: AdInput): Promise<AdTagResult | null> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return null;
 
   const prompt = `Analyze this Meta ad and return a JSON object with exactly these keys:
@@ -49,31 +53,33 @@ Ad data:
 Return ONLY the JSON object, no markdown, no explanation.`;
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetch(OPENROUTER_URL, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
+        authorization: `Bearer ${apiKey}`,
+        "http-referer": process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+        "x-title": "MAIT - Meta Ads Intelligence Tool",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        model: MODEL,
         max_tokens: 300,
         messages: [{ role: "user", content: prompt }],
       }),
     });
 
     if (!res.ok) {
-      console.error(`Anthropic API error: ${res.status} ${res.statusText}`);
+      console.error(`OpenRouter API error: ${res.status} ${res.statusText}`);
       return null;
     }
 
     const body = await res.json();
-    const text =
-      body.content?.[0]?.type === "text" ? body.content[0].text : null;
+    const text = body.choices?.[0]?.message?.content ?? null;
     if (!text) return null;
 
-    const parsed = JSON.parse(text) as AdTagResult;
+    // Strip potential markdown fences
+    const clean = text.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
+    const parsed = JSON.parse(clean) as AdTagResult;
     return parsed;
   } catch (e) {
     console.error("AI tagging failed:", e);
@@ -96,7 +102,6 @@ export async function tagAdsBatch(
         if (tags) results.set(ad.id, tags);
       })
     );
-    // Log failures but don't block
     for (const s of settled) {
       if (s.status === "rejected") {
         console.error("Tag batch item failed:", s.reason);

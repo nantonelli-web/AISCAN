@@ -13,12 +13,12 @@ const schema = z.object({
 
 /**
  * Tag untagged ads with AI. Optionally filter by competitor.
- * Only works if ANTHROPIC_API_KEY is set.
+ * Only works if OPENROUTER_API_KEY is set.
  */
 export async function POST(req: Request) {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.OPENROUTER_API_KEY) {
     return NextResponse.json(
-      { error: "ANTHROPIC_API_KEY non configurato." },
+      { error: "OPENROUTER_API_KEY non configurato. Aggiungilo nelle Environment Variables di Vercel e ridepiega." },
       { status: 503 }
     );
   }
