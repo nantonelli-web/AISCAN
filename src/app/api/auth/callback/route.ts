@@ -12,8 +12,6 @@ export async function GET(req: Request) {
   }
 
   const supabase = await createClient();
-
-  // Exchange the OAuth code for a session
   const { data: sessionData, error: sessionError } =
     await supabase.auth.exchangeCodeForSession(code);
 
@@ -24,68 +22,33 @@ export async function GET(req: Request) {
     );
   }
 
-  // Get user from the session we just created
   const user = sessionData?.user;
   if (!user) {
-    console.error("OAuth: session created but no user returned");
     return NextResponse.redirect(`${origin}/login?error=no_user`);
   }
 
-  // Use admin client for all DB operations (bypasses RLS completely)
+  // Bootstrap via RPC (bypasses PostgREST table access issues)
   const admin = createAdminClient();
+  const name =
+    user.user_metadata?.full_name ??
+    user.user_metadata?.name ??
+    user.email?.split("@")[0] ??
+    "User";
 
-  // Check if mait_user already exists
-  const { data: existing, error: checkErr } = await admin
-    .from("mait_users")
-    .select("id")
-    .eq("id", user.id)
-    .single();
+  const { data, error: rpcErr } = await admin.rpc("mait_bootstrap_user", {
+    p_user_id: user.id,
+    p_email: user.email ?? "",
+    p_name: name,
+    p_workspace_name: `${name}'s workspace`,
+  });
 
-  if (checkErr && checkErr.code !== "PGRST116") {
-    // PGRST116 = "no rows returned" which is expected for new users
-    console.error("OAuth: check existing user failed:", checkErr.message);
+  if (rpcErr) {
+    console.error("OAuth bootstrap RPC failed:", rpcErr.message);
+    return NextResponse.redirect(
+      `${origin}/login?error=${encodeURIComponent("Bootstrap failed: " + rpcErr.message)}`
+    );
   }
 
-  if (!existing) {
-    // First-time login → bootstrap workspace + user
-    const name =
-      user.user_metadata?.full_name ??
-      user.user_metadata?.name ??
-      user.email?.split("@")[0] ??
-      "User";
-    const email = user.email ?? "";
-    const slug = `ws-${user.id.slice(0, 8)}`;
-
-    const { data: ws, error: wsErr } = await admin
-      .from("mait_workspaces")
-      .insert({ name: `${name}'s workspace`, slug })
-      .select("id")
-      .single();
-
-    if (wsErr) {
-      console.error("OAuth: workspace creation failed:", wsErr.message);
-      return NextResponse.redirect(
-        `${origin}/login?error=${encodeURIComponent("Workspace creation failed: " + wsErr.message)}`
-      );
-    }
-
-    const { error: userErr } = await admin.from("mait_users").insert({
-      id: user.id,
-      email,
-      name,
-      role: "admin",
-      workspace_id: ws.id,
-    });
-
-    if (userErr) {
-      console.error("OAuth: user creation failed:", userErr.message);
-      // Rollback workspace
-      await admin.from("mait_workspaces").delete().eq("id", ws.id);
-      return NextResponse.redirect(
-        `${origin}/login?error=${encodeURIComponent("User creation failed: " + userErr.message)}`
-      );
-    }
-  }
-
+  console.log("OAuth bootstrap result:", data);
   return NextResponse.redirect(`${origin}/dashboard`);
 }
