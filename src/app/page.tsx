@@ -1,10 +1,15 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Eye, BarChart3, Layers } from "lucide-react";
+import { OAuthCodeHandler } from "@/components/auth/code-handler";
 
 export default function LandingPage() {
   return (
     <main className="flex-1">
+      <Suspense fallback={null}>
+        <OAuthCodeHandler />
+      </Suspense>
       <section className="mx-auto max-w-6xl px-6 pt-24 pb-16">
         <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-gold mb-6">
           <span className="h-px w-8 bg-gold" />

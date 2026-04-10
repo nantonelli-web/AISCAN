@@ -4,13 +4,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * Supabase OAuth callback. After Google auth, Supabase redirects here
- * with a `code` param. We exchange it for a session, then bootstrap
- * workspace + mait_user if the user is new.
+ * (or to the Site URL) with a `code` param. We exchange it for a session,
+ * then bootstrap workspace + mait_user if the user is new.
  */
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
-  const redirectTo = url.searchParams.get("redirect") ?? "/dashboard";
   const origin = url.origin;
 
   if (!code) {
@@ -66,5 +65,5 @@ export async function GET(req: Request) {
     }
   }
 
-  return NextResponse.redirect(`${origin}${redirectTo}`);
+  return NextResponse.redirect(`${origin}/dashboard`);
 }
