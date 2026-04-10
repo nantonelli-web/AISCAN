@@ -1,22 +1,22 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 /**
  * If the page loads with ?code=... (Supabase OAuth redirect to Site URL),
- * forward to /api/auth/callback to exchange the code for a session.
+ * forward to /api/auth/callback via full page redirect (not client-side nav)
+ * so the route handler runs server-side with cookie access for PKCE exchange.
  */
 export function OAuthCodeHandler() {
   const params = useSearchParams();
-  const router = useRouter();
   const code = params.get("code");
 
   useEffect(() => {
     if (code) {
-      router.replace(`/api/auth/callback?code=${code}`);
+      window.location.href = `/api/auth/callback?code=${code}`;
     }
-  }, [code, router]);
+  }, [code]);
 
   return null;
 }
