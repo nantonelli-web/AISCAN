@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import type { MaitUser } from "@/types";
 
 export async function getSessionUser(): Promise<{
@@ -15,28 +14,22 @@ export async function getSessionUser(): Promise<{
 
   if (!user) redirect("/login");
 
-  // Use RPC to get profile (bypasses PostgREST table cache issue)
-  const admin = createAdminClient();
-  const { data: profileJson, error } = await admin.rpc("mait_get_profile", {
-    p_user_id: user.id,
-  });
+  const { data: profile, error } = await supabase
+    .from("mait_users")
+    .select("*, workspace:mait_workspaces(name)")
+    .eq("id", user.id)
+    .single();
 
-  if (error || !profileJson) {
+  if (error || !profile) {
     redirect("/login?error=no_profile");
   }
 
-  const profile: MaitUser = {
-    id: profileJson.id,
-    email: profileJson.email,
-    name: profileJson.name,
-    role: profileJson.role,
-    workspace_id: profileJson.workspace_id,
-    created_at: profileJson.created_at ?? new Date().toISOString(),
-  };
+  const wsName =
+    (profile.workspace as { name: string } | null)?.name ?? "—";
 
   return {
     authId: user.id,
-    profile,
-    workspaceName: profileJson.workspace_name ?? "—",
+    profile: profile as unknown as MaitUser,
+    workspaceName: wsName,
   };
 }

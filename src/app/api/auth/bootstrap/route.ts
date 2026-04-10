@@ -18,16 +18,33 @@ export async function POST(req: Request) {
   const { userId, email, name, workspaceName } = parsed.data;
 
   const admin = createAdminClient();
-  const { data, error } = await admin.rpc("mait_bootstrap_user", {
-    p_user_id: userId,
-    p_email: email,
-    p_name: name,
-    p_workspace_name: workspaceName,
-  });
+  const slug = `ws-${userId.slice(0, 8)}`;
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  const { data: ws, error: wsErr } = await admin
+    .from("mait_workspaces")
+    .insert({ name: workspaceName, slug })
+    .select("id")
+    .single();
+
+  if (wsErr || !ws) {
+    return NextResponse.json(
+      { error: wsErr?.message ?? "Workspace creation failed" },
+      { status: 500 }
+    );
   }
 
-  return NextResponse.json(data);
+  const { error: userErr } = await admin.from("mait_users").insert({
+    id: userId,
+    email,
+    name,
+    role: "admin",
+    workspace_id: ws.id,
+  });
+
+  if (userErr) {
+    await admin.from("mait_workspaces").delete().eq("id", ws.id);
+    return NextResponse.json({ error: userErr.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ workspaceId: ws.id });
 }

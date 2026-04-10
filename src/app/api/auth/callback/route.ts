@@ -27,28 +27,53 @@ export async function GET(req: Request) {
     return NextResponse.redirect(`${origin}/login?error=no_user`);
   }
 
-  // Bootstrap via RPC (bypasses PostgREST table access issues)
   const admin = createAdminClient();
-  const name =
-    user.user_metadata?.full_name ??
-    user.user_metadata?.name ??
-    user.email?.split("@")[0] ??
-    "User";
 
-  const { data, error: rpcErr } = await admin.rpc("mait_bootstrap_user", {
-    p_user_id: user.id,
-    p_email: user.email ?? "",
-    p_name: name,
-    p_workspace_name: `${name}'s workspace`,
-  });
+  // Check if mait_user already exists
+  const { data: existing } = await admin
+    .from("mait_users")
+    .select("id")
+    .eq("id", user.id)
+    .single();
 
-  if (rpcErr) {
-    console.error("OAuth bootstrap RPC failed:", rpcErr.message);
-    return NextResponse.redirect(
-      `${origin}/login?error=${encodeURIComponent("Bootstrap failed: " + rpcErr.message)}`
-    );
+  if (!existing) {
+    const name =
+      user.user_metadata?.full_name ??
+      user.user_metadata?.name ??
+      user.email?.split("@")[0] ??
+      "User";
+    const email = user.email ?? "";
+    const slug = `ws-${user.id.slice(0, 8)}`;
+
+    const { data: ws, error: wsErr } = await admin
+      .from("mait_workspaces")
+      .insert({ name: `${name}'s workspace`, slug })
+      .select("id")
+      .single();
+
+    if (wsErr) {
+      console.error("OAuth: workspace creation failed:", wsErr.message);
+      return NextResponse.redirect(
+        `${origin}/login?error=${encodeURIComponent("Workspace failed: " + wsErr.message)}`
+      );
+    }
+
+    const { error: userErr } = await admin.from("mait_users").insert({
+      id: user.id,
+      email,
+      name,
+      role: "admin",
+      workspace_id: ws.id,
+    });
+
+    if (userErr) {
+      console.error("OAuth: user creation failed:", userErr.message);
+      await admin.from("mait_workspaces").delete().eq("id", ws.id);
+      return NextResponse.redirect(
+        `${origin}/login?error=${encodeURIComponent("User creation failed: " + userErr.message)}`
+      );
+    }
   }
 
-  console.log("OAuth bootstrap result:", data);
   return NextResponse.redirect(`${origin}/dashboard`);
 }
