@@ -5,12 +5,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FolderHeart } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { getLocale, serverT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function CollectionsPage() {
   const { profile } = await getSessionUser();
   const admin = createAdminClient();
+  const locale = await getLocale();
+  const t = serverT(locale);
 
   const { data } = await admin
     .from("mait_collections")
@@ -31,9 +34,9 @@ export default async function CollectionsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-serif tracking-tight">Collezioni</h1>
+        <h1 className="text-2xl font-serif tracking-tight">{t("collections", "title")}</h1>
         <p className="text-sm text-muted-foreground">
-          Board di ispirazione. Salva ads dalla Creative Library o dai competitor.
+          {t("collections", "subtitle")}
         </p>
       </div>
 
@@ -41,9 +44,9 @@ export default async function CollectionsPage() {
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground">
             <FolderHeart className="size-8 mx-auto mb-3 text-muted-foreground/50" />
-            <p>Nessuna collezione creata.</p>
+            <p>{t("collections", "noCollections")}</p>
             <p className="text-xs mt-1">
-              Clicca l&apos;icona <b>segnalibro</b> su qualsiasi ad per salvarla in una collezione.
+              {t("collections", "noCollectionsHint")}
             </p>
           </CardContent>
         </Card>
@@ -65,7 +68,7 @@ export default async function CollectionsPage() {
                     <Badge variant="gold">{c.adCount} ads</Badge>
                   </div>
                   <p className="text-[10px] text-muted-foreground">
-                    Creata il {formatDate(c.created_at)}
+                    {t("collections", "createdOn")} {formatDate(c.created_at)}
                   </p>
                 </CardContent>
               </Card>

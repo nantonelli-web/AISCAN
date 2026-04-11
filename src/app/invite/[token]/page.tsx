@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AcceptInviteButton } from "./accept-button";
+import { getLocale, serverT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,8 @@ export default async function InvitePage({
 }) {
   const { token } = await params;
   const admin = createAdminClient();
+  const locale = await getLocale();
+  const t = serverT(locale);
 
   const { data: invite } = await admin
     .from("mait_invitations")
@@ -32,9 +35,9 @@ export default async function InvitePage({
       <div className="flex-1 grid place-items-center px-6 py-12">
         <Card className="max-w-md w-full">
           <CardHeader>
-            <CardTitle>Invito scaduto</CardTitle>
+            <CardTitle>{t("invitePage", "expiredTitle")}</CardTitle>
             <CardDescription>
-              Questo link di invito è scaduto. Chiedi all&apos;admin del workspace di inviartene uno nuovo.
+              {t("invitePage", "expiredDescription")}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -57,7 +60,7 @@ export default async function InvitePage({
 
   const roleLabels: Record<string, string> = {
     admin: "Admin",
-    analyst: "Analista",
+    analyst: locale === "en" ? "Analyst" : "Analista",
     viewer: "Viewer",
   };
 
@@ -71,10 +74,10 @@ export default async function InvitePage({
         </div>
         <Card>
           <CardHeader>
-            <CardTitle>Sei stato invitato</CardTitle>
+            <CardTitle>{t("invitePage", "youAreInvited")}</CardTitle>
             <CardDescription>
-              Sei stato invitato al workspace <b>{ws?.name ?? "—"}</b> con il
-              ruolo <b>{roleLabels[invite.role] ?? invite.role}</b>.
+              {t("invitePage", "invitedTo")} <b>{ws?.name ?? "\u2014"}</b> {t("invitePage", "withRole")}{" "}
+              <b>{roleLabels[invite.role] ?? invite.role}</b>.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -83,20 +86,20 @@ export default async function InvitePage({
             ) : (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  Accedi o registrati per accettare l&apos;invito.
+                  {t("invitePage", "loginOrRegister")}
                 </p>
                 <div className="flex gap-2">
                   <a
                     href={`/login?redirect=/invite/${token}`}
                     className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-9 px-4 py-2 bg-gold text-gold-foreground hover:bg-[#e5b94d] shadow-sm"
                   >
-                    Accedi
+                    {t("invitePage", "loginBtn")}
                   </a>
                   <a
                     href={`/register?redirect=/invite/${token}`}
                     className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-9 px-4 py-2 border border-border bg-transparent text-foreground hover:bg-muted"
                   >
-                    Registrati
+                    {t("invitePage", "registerBtn")}
                   </a>
                 </div>
               </div>

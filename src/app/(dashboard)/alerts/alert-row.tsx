@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
+import { useT } from "@/lib/i18n/context";
 
 interface Alert {
   id: string;
@@ -20,13 +21,14 @@ export function AlertRow({ alert }: { alert: Alert }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [dismissed, setDismissed] = useState(alert.read);
+  const { t } = useT();
 
   function dismiss() {
     setDismissed(true);
     startTransition(async () => {
       const res = await fetch(`/api/alerts/${alert.id}`, { method: "PATCH" });
       if (!res.ok) {
-        toast.error("Errore nel marcare l'alert come letto.");
+        toast.error(t("alerts", "markReadError"));
         setDismissed(false);
         return;
       }

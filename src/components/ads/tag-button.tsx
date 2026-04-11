@@ -5,14 +5,16 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n/context";
 
 export function TagButton({ competitorId }: { competitorId?: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const { t } = useT();
 
   async function onClick() {
     setLoading(true);
-    const t = toast.loading("AI tagging in corso…");
+    const toastId = toast.loading(t("tagButton", "aiTagging"));
     try {
       const res = await fetch("/api/ai/tag", {
         method: "POST",
@@ -24,13 +26,13 @@ export function TagButton({ competitorId }: { competitorId?: string }) {
       });
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error ?? "Tagging fallito.", { id: t });
+        toast.error(json.error ?? t("tagButton", "taggingFailed"), { id: toastId });
       } else {
-        toast.success(`${json.tagged} ads taggate con AI.`, { id: t });
+        toast.success(`${json.tagged} ${t("tagButton", "adsTagged")}`, { id: toastId });
         router.refresh();
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore", { id: t });
+      toast.error(e instanceof Error ? e.message : t("tagButton", "error"), { id: toastId });
     } finally {
       setLoading(false);
     }
@@ -39,7 +41,7 @@ export function TagButton({ competitorId }: { competitorId?: string }) {
   return (
     <Button onClick={onClick} disabled={loading} variant="outline">
       <Sparkles className={loading ? "size-4 animate-pulse" : "size-4"} />
-      {loading ? "Tagging…" : "AI Tag"}
+      {loading ? t("tagButton", "tagging") : t("tagButton", "aiTag")}
     </Button>
   );
 }

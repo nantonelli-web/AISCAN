@@ -5,6 +5,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AdCard } from "@/components/ads/ad-card";
 import { Card, CardContent } from "@/components/ui/card";
+import { getLocale, serverT } from "@/lib/i18n/server";
 import type { MaitAdExternal } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,8 @@ export default async function CollectionDetailPage({
   const { id } = await params;
   await getSessionUser();
   const admin = createAdminClient();
+  const locale = await getLocale();
+  const t = serverT(locale);
 
   const { data: collection } = await admin
     .from("mait_collections")
@@ -49,7 +52,7 @@ export default async function CollectionDetailPage({
         href="/collections"
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="size-4" /> Tutte le collezioni
+        <ArrowLeft className="size-4" /> {t("collections", "allCollections")}
       </Link>
 
       <div>
@@ -66,8 +69,7 @@ export default async function CollectionDetailPage({
       {ads.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground">
-            Nessuna ad in questa collezione. Usa l&apos;icona segnalibro sulle
-            card per aggiungerne.
+            {t("collections", "noAdsInCollection")}
           </CardContent>
         </Card>
       ) : (

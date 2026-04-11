@@ -5,6 +5,7 @@ import { Bookmark, Plus, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/lib/i18n/context";
 
 interface Collection {
   id: string;
@@ -18,6 +19,7 @@ export function SaveToCollection({ adId }: { adId: string }) {
   const [newName, setNewName] = useState("");
   const [loading, setLoading] = useState(false);
   const [savedIn, setSavedIn] = useState<Set<string>>(new Set());
+  const { t } = useT();
 
   useEffect(() => {
     if (open) {
@@ -37,9 +39,9 @@ export function SaveToCollection({ adId }: { adId: string }) {
     });
     if (res.ok) {
       setSavedIn((prev) => new Set([...prev, collId]));
-      toast.success("Ad salvata nella collezione.");
+      toast.success(t("saveCollection", "adSaved"));
     } else {
-      toast.error("Errore nel salvare.");
+      toast.error(t("saveCollection", "saveError"));
     }
   }
 
@@ -75,7 +77,7 @@ export function SaveToCollection({ adId }: { adId: string }) {
           setOpen(true);
         }}
         className="size-8 rounded-md border border-border bg-card/80 backdrop-blur hover:bg-muted hover:border-gold/40 grid place-items-center text-muted-foreground hover:text-gold transition-colors"
-        title="Salva in collezione"
+        title={t("saveCollection", "title")}
       >
         <Bookmark className="size-3.5" />
       </button>
@@ -91,7 +93,7 @@ export function SaveToCollection({ adId }: { adId: string }) {
       className="absolute top-2 left-2 z-10 w-56 rounded-lg border border-border bg-card shadow-lg p-3 space-y-2"
     >
       <div className="flex items-center justify-between">
-        <p className="text-xs font-medium">Salva in collezione</p>
+        <p className="text-xs font-medium">{t("saveCollection", "title")}</p>
         <button
           onClick={() => setOpen(false)}
           className="text-muted-foreground hover:text-foreground text-xs"
@@ -123,7 +125,7 @@ export function SaveToCollection({ adId }: { adId: string }) {
         })}
         {collections.length === 0 && (
           <p className="text-[10px] text-muted-foreground py-2 text-center">
-            Nessuna collezione. Creane una.
+            {t("saveCollection", "noCollections")}
           </p>
         )}
       </div>
@@ -132,7 +134,7 @@ export function SaveToCollection({ adId }: { adId: string }) {
         <Input
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          placeholder="Nuova collezione"
+          placeholder={t("saveCollection", "newCollectionPlaceholder")}
           className="text-xs h-7"
           onKeyDown={(e) => e.key === "Enter" && createAndAdd()}
         />

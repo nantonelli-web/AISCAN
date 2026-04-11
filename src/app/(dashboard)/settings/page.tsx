@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { InviteSection } from "./invite-form";
+import { getLocale, serverT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,8 @@ interface InvitationRow {
 export default async function SettingsPage() {
   const { profile } = await getSessionUser();
   const admin = createAdminClient();
+  const locale = await getLocale();
+  const t = serverT(locale);
 
   const [{ data: ws }, { data: members }, { data: invitations }] =
     await Promise.all([
@@ -49,22 +52,22 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-2xl font-serif tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">Workspace, membri e inviti.</p>
+        <h1 className="text-2xl font-serif tracking-tight">{t("settings", "title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("settings", "subtitle")}</p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Workspace</CardTitle>
-          <CardDescription>Informazioni del workspace corrente.</CardDescription>
+          <CardTitle>{t("settings", "workspaceTitle")}</CardTitle>
+          <CardDescription>{t("settings", "workspaceDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <div>
-            <span className="text-muted-foreground">Nome:</span>{" "}
+            <span className="text-muted-foreground">{t("settings", "nameLabel")}</span>{" "}
             <span className="font-medium">{ws?.name}</span>
           </div>
           <div>
-            <span className="text-muted-foreground">Slug:</span>{" "}
+            <span className="text-muted-foreground">{t("settings", "slugLabel")}</span>{" "}
             <code className="text-xs">{ws?.slug}</code>
           </div>
         </CardContent>
@@ -72,8 +75,8 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Membri ({(members ?? []).length})</CardTitle>
-          <CardDescription>Utenti con accesso a questo workspace.</CardDescription>
+          <CardTitle>{t("settings", "membersTitle")} ({(members ?? []).length})</CardTitle>
+          <CardDescription>{t("settings", "membersDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           {((members ?? []) as UserRow[]).map((m) => (

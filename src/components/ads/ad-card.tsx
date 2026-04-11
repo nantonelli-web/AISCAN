@@ -3,15 +3,19 @@ import { ExternalLink, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { SaveToCollection } from "@/components/ads/save-to-collection";
 import { formatDate } from "@/lib/utils";
+import { getLocale, serverT } from "@/lib/i18n/server";
 import type { MaitAdExternal } from "@/types";
 
-export function AdCard({
+export async function AdCard({
   ad,
   competitorId,
 }: {
   ad: MaitAdExternal;
   competitorId?: string;
 }) {
+  const locale = await getLocale();
+  const t = serverT(locale);
+
   const aiTags = (ad.raw_data as Record<string, unknown> | null)?.ai_tags as
     | { sector?: string; tone?: string; objective?: string }
     | undefined;
@@ -69,7 +73,7 @@ export function AdCard({
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 text-[10px] text-gold hover:underline mt-auto"
               >
-                <Eye className="size-3" /> Vedi creativo su Meta Ad Library
+                <Eye className="size-3" /> {t("adCard", "viewOnMeta")}
               </a>
             )}
           </div>
@@ -111,8 +115,8 @@ export function AdCard({
         )}
         {ad.platforms && ad.platforms.length > 0 && (
           <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-            <span>Su:</span>
-            <span>{ad.platforms.join(" · ")}</span>
+            <span>{t("adCard", "onPlatforms")}</span>
+            <span>{ad.platforms.join(" \u00B7 ")}</span>
           </div>
         )}
         <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border mt-auto">
