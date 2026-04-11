@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ExternalLink, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { SaveToCollection } from "@/components/ads/save-to-collection";
+import { VideoPreview } from "@/components/ads/video-preview";
 import { formatDate } from "@/lib/utils";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import type { MaitAdExternal } from "@/types";
@@ -39,15 +40,9 @@ export async function AdCard({
       {/* Preview area */}
       <MaybeLink href={detailHref} className="aspect-[4/3] bg-muted relative overflow-hidden block cursor-pointer">
         {ad.video_url ? (
-          <video
+          <VideoPreview
             src={ad.video_url}
             poster={snapshotUrl && !isSnapshotHtml ? snapshotUrl : undefined}
-            className="absolute inset-0 w-full h-full object-cover"
-            muted
-            playsInline
-            loop
-            onMouseEnter={(e) => (e.target as HTMLVideoElement).play().catch(() => {})}
-            onMouseLeave={(e) => { const v = e.target as HTMLVideoElement; v.pause(); v.currentTime = 0; }}
           />
         ) : snapshotUrl && !isSnapshotHtml ? (
           // eslint-disable-next-line @next/next/no-img-element
