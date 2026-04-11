@@ -1,9 +1,16 @@
+import Link from "next/link";
 import { ExternalLink, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
 import type { MaitAdExternal } from "@/types";
 
-export function AdCard({ ad }: { ad: MaitAdExternal }) {
+export function AdCard({
+  ad,
+  competitorId,
+}: {
+  ad: MaitAdExternal;
+  competitorId?: string;
+}) {
   const aiTags = (ad.raw_data as Record<string, unknown> | null)?.ai_tags as
     | { sector?: string; tone?: string; objective?: string }
     | undefined;
@@ -17,13 +24,16 @@ export function AdCard({ ad }: { ad: MaitAdExternal }) {
   const pageName = (raw?.pageName as string) ?? null;
   const snapshotUrl = (raw?.adSnapshotUrl as string) ?? ad.image_url;
   const isSnapshotHtml = snapshotUrl?.includes("/render_ad/");
+  const detailHref =
+    competitorId ?? ad.competitor_id
+      ? `/competitors/${competitorId ?? ad.competitor_id}/ads/${ad.id}`
+      : null;
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col">
+    <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col hover:border-gold/40 transition-colors">
       {/* Preview area */}
-      <div className="aspect-[4/3] bg-muted relative overflow-hidden">
+      <MaybeLink href={detailHref} className="aspect-[4/3] bg-muted relative overflow-hidden block cursor-pointer">
         {snapshotUrl && !isSnapshotHtml ? (
-          // Direct image URL
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={snapshotUrl}
@@ -68,7 +78,7 @@ export function AdCard({ ad }: { ad: MaitAdExternal }) {
             ACTIVE
           </Badge>
         )}
-      </div>
+      </MaybeLink>
 
       {/* Details */}
       <div className="p-4 flex-1 flex flex-col gap-2">
@@ -129,4 +139,23 @@ export function AdCard({ ad }: { ad: MaitAdExternal }) {
       </div>
     </div>
   );
+}
+
+function MaybeLink({
+  href,
+  children,
+  className,
+}: {
+  href: string | null;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  if (href) {
+    return (
+      <Link href={href} className={className}>
+        {children}
+      </Link>
+    );
+  }
+  return <div className={className}>{children}</div>;
 }
