@@ -31,7 +31,6 @@ export function LibraryFilters({
   const [pending, startTransition] = useTransition();
   const [q, setQ] = useState(initial.q ?? "");
 
-  // Keep input in sync if URL changes externally (e.g. clear)
   useEffect(() => {
     setQ(initial.q ?? "");
   }, [initial.q]);
@@ -60,8 +59,9 @@ export function LibraryFilters({
 
   return (
     <div className="space-y-4">
+      {/* Search bar */}
       <form onSubmit={onSearch} className="flex gap-2">
-        <div className="relative flex-1 max-w-md">
+        <div className="relative flex-1 max-w-lg">
           <Search className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <Input
             value={q}
@@ -80,11 +80,12 @@ export function LibraryFilters({
         )}
       </form>
 
-      <div className="flex flex-wrap gap-4">
+      {/* Filter groups in a card-style container */}
+      <div className="rounded-lg border border-border bg-card p-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <FilterGroup
-          label="Format"
+          label="Formato"
           options={[
-            { value: "image", label: "Image" },
+            { value: "image", label: "Immagine" },
             { value: "video", label: "Video" },
           ]}
           value={initial.format}
@@ -92,7 +93,7 @@ export function LibraryFilters({
         />
         {platforms.length > 0 && (
           <FilterGroup
-            label="Platform"
+            label="Piattaforma"
             options={platforms.map((p) => ({ value: p, label: p }))}
             value={initial.platform}
             onChange={(v) => update("platform", v)}
@@ -100,15 +101,15 @@ export function LibraryFilters({
         )}
         {ctas.length > 0 && (
           <FilterGroup
-            label="CTA"
-            options={ctas.slice(0, 12).map((c) => ({ value: c, label: c }))}
+            label="Call to Action"
+            options={ctas.slice(0, 8).map((c) => ({ value: c, label: c }))}
             value={initial.cta}
             onChange={(v) => update("cta", v)}
           />
         )}
         {statuses.length > 0 && (
           <FilterGroup
-            label="Status"
+            label="Stato"
             options={statuses.map((s) => ({ value: s, label: s }))}
             value={initial.status}
             onChange={(v) => update("status", v)}
@@ -131,8 +132,8 @@ function FilterGroup({
   onChange: (v: string | null) => void;
 }) {
   return (
-    <div className="space-y-1.5">
-      <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+    <div className="space-y-2">
+      <p className="text-xs font-medium text-foreground">
         {label}
       </p>
       <div className="flex flex-wrap gap-1.5">
@@ -143,10 +144,10 @@ function FilterGroup({
               key={o.value}
               onClick={() => onChange(active ? null : o.value)}
               className={cn(
-                "inline-flex items-center rounded-md border px-2.5 py-1 text-xs transition-colors",
+                "inline-flex items-center rounded-md border px-2.5 py-1.5 text-xs transition-colors",
                 active
-                  ? "bg-gold/10 text-gold border-gold/40"
-                  : "border-border text-muted-foreground hover:border-gold/30 hover:text-foreground"
+                  ? "bg-gold/15 text-gold border-gold/40 font-medium"
+                  : "bg-muted/50 border-border text-muted-foreground hover:border-gold/30 hover:text-foreground"
               )}
             >
               {o.label}
