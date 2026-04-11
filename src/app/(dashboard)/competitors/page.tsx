@@ -49,38 +49,36 @@ export default async function CompetitorsPage() {
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {list.map((c) => (
-            <Link key={c.id} href={`/competitors/${c.id}`}>
-              <Card className="hover:border-gold/50 transition-colors h-full">
-                <CardContent className="p-5 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <h3 className="font-semibold truncate">{c.page_name}</h3>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {c.page_url}
-                      </p>
-                    </div>
-                    <ExternalLink className="size-4 text-muted-foreground shrink-0" />
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {c.country && <Badge variant="muted">{c.country}</Badge>}
-                    {c.category && <Badge variant="muted">{c.category}</Badge>}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">
-                      {t("competitors", "lastScan")} {formatDate(c.last_scraped_at)}
+            <Card key={c.id} className="hover:border-gold/50 transition-colors h-full relative">
+              <Link href={`/competitors/${c.id}`} className="absolute inset-0 z-0" />
+              <CardContent className="p-5 space-y-3 relative z-10 pointer-events-none">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3 className="font-semibold truncate">{c.page_name}</h3>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {c.page_url}
                     </p>
-                    <a
-                      href={`/competitors/${c.id}/edit`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="size-7 rounded-md border border-border hover:bg-muted hover:border-gold/40 grid place-items-center text-muted-foreground hover:text-gold transition-colors"
-                      title={t("editCompetitor", "title")}
-                    >
-                      <Pencil className="size-3.5" />
-                    </a>
                   </div>
-                </CardContent>
-              </Card>
-            </Link>
+                  <ExternalLink className="size-4 text-muted-foreground shrink-0" />
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {c.country && <Badge variant="muted">{c.country}</Badge>}
+                  {c.category && <Badge variant="muted">{c.category}</Badge>}
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    {t("competitors", "lastScan")} {formatDate(c.last_scraped_at)}
+                  </p>
+                  <Link
+                    href={`/competitors/${c.id}/edit`}
+                    className="size-7 rounded-md border border-border hover:bg-muted hover:border-gold/40 grid place-items-center text-muted-foreground hover:text-gold transition-colors pointer-events-auto"
+                    title={t("editCompetitor", "title")}
+                  >
+                    <Pencil className="size-3.5" />
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}
