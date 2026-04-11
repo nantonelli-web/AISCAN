@@ -86,7 +86,7 @@ export async function scrapeMetaAds(
   const input = {
     startUrls: [{ url: startUrl }],
     maxItems: opts.maxItems ?? 200,
-    maxCostPerRun: 5,
+    maxCostPerRun: 3,
   };
 
   const actorPath = `/acts/${encodeURIComponent(ACTOR_ID)}/runs`;
