@@ -492,6 +492,7 @@ const translations = {
     },
     onPlatforms: { it: "Su:", en: "On:" },
     saveToCollection: { it: "Salva in collezione", en: "Save to collection" },
+    notAnalyzed: { it: "Non analizzata dall'AI", en: "Not analyzed by AI" },
   },
 
   // ─── Save to Collection ────────────────────────────────────
@@ -533,7 +534,14 @@ const translations = {
   tagButton: {
     aiTagging: { it: "AI tagging in corso\u2026", en: "AI tagging in progress\u2026" },
     taggingFailed: { it: "Tagging fallito.", en: "Tagging failed." },
-    adsTagged: { it: "ads taggate con AI.", en: "ads tagged with AI." },
+    adsTagged: { it: "ads taggate.", en: "ads tagged." },
+    remaining: { it: "ancora da analizzare.", en: "remaining to analyze." },
+    allTagged: { it: "Tutte le ads sono già state analizzate.", en: "All ads have already been analyzed." },
+    allTaggedBtn: { it: "Tutto analizzato", en: "All analyzed" },
+    allTaggedTooltip: { it: "Tutte le ads di questo competitor sono state analizzate dall'AI.", en: "All ads from this competitor have been analyzed by AI." },
+    toTag: { it: "ads da analizzare", en: "ads to analyze" },
+    toAnalyze: { it: "da analizzare", en: "to analyze" },
+    complete: { it: "Analisi completata", en: "Analysis complete" },
     aiTag: { it: "AI Tag", en: "AI Tag" },
     tagging: { it: "Tagging\u2026", en: "Tagging\u2026" },
     error: { it: "Errore", en: "Error" },

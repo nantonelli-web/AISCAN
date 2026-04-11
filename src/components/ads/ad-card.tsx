@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ExternalLink, Eye } from "lucide-react";
+import { ExternalLink, Eye, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { SaveToCollection } from "@/components/ads/save-to-collection";
 import { VideoPreview } from "@/components/ads/video-preview";
@@ -110,13 +110,19 @@ export async function AdCard({
             <Badge variant="muted">{ad.cta}</Badge>
           </div>
         )}
-        {aiTags && (
+        {aiTags ? (
           <div className="flex items-center gap-1 flex-wrap">
+            <Sparkles className="size-3 text-gold shrink-0" />
             {aiTags.sector && <Badge variant="gold">{aiTags.sector}</Badge>}
             {aiTags.tone && <Badge variant="outline">{aiTags.tone}</Badge>}
             {aiTags.objective && (
               <Badge variant="outline">{aiTags.objective}</Badge>
             )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-1 text-[10px] text-muted-foreground/50">
+            <Sparkles className="size-3" />
+            <span>{t("adCard", "notAnalyzed")}</span>
           </div>
         )}
         {ad.platforms && ad.platforms.length > 0 && (
