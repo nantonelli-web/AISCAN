@@ -180,6 +180,9 @@ const translations = {
     createLoading: { it: "Creazione...", en: "Creating..." },
     created: { it: "Competitor creato.", en: "Competitor created." },
     error: { it: "Errore", en: "Error" },
+    selectCategory: { it: "Seleziona categoria", en: "Select category" },
+    searchCountry: { it: "Cerca paese...", en: "Search country..." },
+    noCountryMatch: { it: "Nessun paese trovato.", en: "No country found." },
   },
 
   // ─── Scan Button ───────────────────────────────────────────
