@@ -1,7 +1,8 @@
 import { getSessionUser } from "@/lib/auth/session";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { InviteSection } from "./invite-form";
 
 export const dynamic = "force-dynamic";
 
@@ -12,24 +13,44 @@ interface UserRow {
   role: string;
 }
 
+interface InvitationRow {
+  id: string;
+  email: string;
+  role: string;
+  accepted_at: string | null;
+  expires_at: string;
+  created_at: string;
+}
+
 export default async function SettingsPage() {
   const { profile } = await getSessionUser();
-  const supabase = await createClient();
-  const { data: ws } = await supabase
-    .from("mait_workspaces")
-    .select("name, slug, created_at")
-    .eq("id", profile.workspace_id!)
-    .single();
-  const { data: members } = await supabase
-    .from("mait_users")
-    .select("id, email, name, role")
-    .eq("workspace_id", profile.workspace_id!);
+  const admin = createAdminClient();
+
+  const [{ data: ws }, { data: members }, { data: invitations }] =
+    await Promise.all([
+      admin
+        .from("mait_workspaces")
+        .select("name, slug, created_at")
+        .eq("id", profile.workspace_id!)
+        .single(),
+      admin
+        .from("mait_users")
+        .select("id, email, name, role")
+        .eq("workspace_id", profile.workspace_id!),
+      admin
+        .from("mait_invitations")
+        .select("id, email, role, accepted_at, expires_at, created_at")
+        .eq("workspace_id", profile.workspace_id!)
+        .order("created_at", { ascending: false }),
+    ]);
+
+  const isAdmin = ["super_admin", "admin"].includes(profile.role);
 
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-2xl font-serif tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">Workspace e utenti.</p>
+        <p className="text-sm text-muted-foreground">Workspace, membri e inviti.</p>
       </div>
 
       <Card>
@@ -51,7 +72,7 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Membri</CardTitle>
+          <CardTitle>Membri ({(members ?? []).length})</CardTitle>
           <CardDescription>Utenti con accesso a questo workspace.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -69,6 +90,12 @@ export default async function SettingsPage() {
           ))}
         </CardContent>
       </Card>
+
+      {isAdmin && (
+        <InviteSection
+          invitations={(invitations ?? []) as InvitationRow[]}
+        />
+      )}
     </div>
   );
 }
