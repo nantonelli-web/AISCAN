@@ -83,13 +83,14 @@ export async function scrapeMetaAds(
           active: opts.active,
         });
 
+  const maxItems = opts.maxItems ?? 200;
   const input = {
     startUrls: [{ url: startUrl }],
-    maxItems: opts.maxItems ?? 200,
-    maxCostPerRun: 3,
+    maxItems,
   };
 
-  const actorPath = `/acts/${encodeURIComponent(ACTOR_ID)}/runs`;
+  // maxItems is passed both in input AND as query param (pay-per-result billing)
+  const actorPath = `/acts/${encodeURIComponent(ACTOR_ID)}/runs?maxItems=${maxItems}`;
   const run = await apifyFetch(actorPath, {
     method: "POST",
     body: JSON.stringify(input),
