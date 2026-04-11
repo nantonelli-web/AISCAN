@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ExternalLink, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { SaveToCollection } from "@/components/ads/save-to-collection";
 import { formatDate } from "@/lib/utils";
 import type { MaitAdExternal } from "@/types";
 
@@ -78,6 +79,9 @@ export function AdCard({
             ACTIVE
           </Badge>
         )}
+        <div className="absolute top-2 left-2">
+          <SaveToCollection adId={ad.id} />
+        </div>
       </MaybeLink>
 
       {/* Details */}

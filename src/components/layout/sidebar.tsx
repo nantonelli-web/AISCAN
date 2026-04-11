@@ -10,13 +10,17 @@ import {
   Target,
   Bell,
   Settings,
+  GitCompareArrows,
+  FolderHeart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/competitors", label: "Competitors", icon: Users },
+  { href: "/competitors/compare", label: "Confronto", icon: GitCompareArrows },
   { href: "/library", label: "Creative Library", icon: Library },
+  { href: "/collections", label: "Collezioni", icon: FolderHeart },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/benchmarks", label: "Benchmarks", icon: Target },
   { href: "/alerts", label: "Alerts", icon: Bell },
