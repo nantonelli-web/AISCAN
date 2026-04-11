@@ -5,14 +5,16 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n/context";
 
 export function ScanButton({ competitorId }: { competitorId: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const { t } = useT();
 
   async function onClick() {
     setLoading(true);
-    const t = toast.loading("Scraping in corso… (può richiedere 30-90s)");
+    const toastId = toast.loading(t("scan", "scrapingInProgress"));
     try {
       const res = await fetch("/api/apify/scan", {
         method: "POST",
@@ -21,13 +23,13 @@ export function ScanButton({ competitorId }: { competitorId: string }) {
       });
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error ?? "Scrape failed", { id: t });
+        toast.error(json.error ?? "Scrape failed", { id: toastId });
       } else {
-        toast.success(`${json.records} ads sincronizzate.`, { id: t });
+        toast.success(`${json.records} ${t("scan", "adsSynced")}`, { id: toastId });
         router.refresh();
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Network error", { id: t });
+      toast.error(e instanceof Error ? e.message : "Network error", { id: toastId });
     } finally {
       setLoading(false);
     }
@@ -36,7 +38,7 @@ export function ScanButton({ competitorId }: { competitorId: string }) {
   return (
     <Button onClick={onClick} disabled={loading}>
       <RefreshCw className={loading ? "size-4 animate-spin" : "size-4"} />
-      {loading ? "Scanning…" : "Scan now"}
+      {loading ? t("scan", "scanning") : t("scan", "scanNow")}
     </Button>
   );
 }

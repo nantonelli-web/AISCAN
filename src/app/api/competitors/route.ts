@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { extractPageIdentifier } from "@/lib/meta/url";
+import { resolvePageId } from "@/lib/meta/resolve-page-id";
 
 const schema = z.object({
   page_name: z.string().min(1).max(160),
@@ -37,7 +38,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { pageId } = extractPageIdentifier(parsed.data.page_url);
+  let { pageId } = extractPageIdentifier(parsed.data.page_url);
+
+  // If URL is a username (not numeric), resolve to page ID via Apify
+  if (!pageId) {
+    const resolved = await resolvePageId(parsed.data.page_url);
+    if (resolved) pageId = resolved;
+  }
 
   const { data, error } = await supabase
     .from("mait_competitors")

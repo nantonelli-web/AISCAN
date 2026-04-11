@@ -15,6 +15,7 @@ import {
   Square,
   MinusSquare,
 } from "lucide-react";
+import { useT } from "@/lib/i18n/context";
 import type { MaitScrapeJob } from "@/types";
 
 const statusBadge: Record<
@@ -39,21 +40,22 @@ const statusBadge: Record<
   },
 };
 
-function formatRelative(d: string | null) {
-  if (!d) return "—";
-  const diffMs = Date.now() - new Date(d).getTime();
-  const diffH = diffMs / (1000 * 60 * 60);
-  if (diffH < 1) return `${Math.round(diffH * 60)}m fa`;
-  if (diffH < 24) return `${Math.round(diffH)}h fa`;
-  return `${Math.round(diffH / 24)}g fa`;
-}
-
 export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmSingle, setConfirmSingle] = useState<string | null>(null);
   const [confirmBulk, setConfirmBulk] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const { t, locale } = useT();
+
+  function formatRelative(d: string | null) {
+    if (!d) return "\u2014";
+    const diffMs = Date.now() - new Date(d).getTime();
+    const diffH = diffMs / (1000 * 60 * 60);
+    if (diffH < 1) return `${Math.round(diffH * 60)}${t("relativeTime", "minutesAgo")}`;
+    if (diffH < 24) return `${Math.round(diffH)}${t("relativeTime", "hoursAgo")}`;
+    return `${Math.round(diffH / 24)}${t("relativeTime", "daysAgo")}`;
+  }
 
   const allSelected = selected.size === jobs.length && jobs.length > 0;
   const someSelected = selected.size > 0 && !allSelected;
@@ -77,19 +79,19 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
 
   async function handleDeleteSingle(jobId: string, deleteAds: boolean) {
     setDeleting(true);
-    const t = toast.loading("Eliminazione in corso…");
+    const toastId = toast.loading(t("jobHistory", "deletingProgress"));
     try {
       const res = await fetch(
         `/api/scrape-jobs/${jobId}?deleteAds=${deleteAds}`,
         { method: "DELETE" }
       );
       if (!res.ok) {
-        const json = await res.json().catch(() => ({ error: "Errore" }));
-        toast.error(json.error, { id: t });
+        const json = await res.json().catch(() => ({ error: t("jobHistory", "error") }));
+        toast.error(json.error, { id: toastId });
       } else {
         toast.success(
-          deleteAds ? "Scan e ads eliminati." : "Scan eliminato.",
-          { id: t }
+          deleteAds ? t("jobHistory", "scanAndAdsDeleted") : t("jobHistory", "scanDeleted"),
+          { id: toastId }
         );
         setSelected((prev) => {
           const next = new Set(prev);
@@ -99,7 +101,7 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
         router.refresh();
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore", { id: t });
+      toast.error(e instanceof Error ? e.message : t("jobHistory", "error"), { id: toastId });
     } finally {
       setDeleting(false);
       setConfirmSingle(null);
@@ -109,7 +111,7 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
   async function handleBulkDelete(deleteAds: boolean) {
     setDeleting(true);
     const ids = [...selected];
-    const t = toast.loading(`Eliminazione di ${ids.length} scan…`);
+    const toastId = toast.loading(`${t("jobHistory", "deletingScanCount")} ${ids.length} scan\u2026`);
     try {
       const res = await fetch("/api/scrape-jobs/bulk", {
         method: "DELETE",
@@ -117,20 +119,20 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
         body: JSON.stringify({ ids, deleteAds }),
       });
       if (!res.ok) {
-        const json = await res.json().catch(() => ({ error: "Errore" }));
-        toast.error(json.error, { id: t });
+        const json = await res.json().catch(() => ({ error: t("jobHistory", "error") }));
+        toast.error(json.error, { id: toastId });
       } else {
         toast.success(
           deleteAds
-            ? `${ids.length} scan e ads relativi eliminati.`
-            : `${ids.length} scan eliminati.`,
-          { id: t }
+            ? `${ids.length} ${t("jobHistory", "scansAndAdsDeleted")}`
+            : `${ids.length} ${t("jobHistory", "scansDeleted")}`,
+          { id: toastId }
         );
         setSelected(new Set());
         router.refresh();
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore", { id: t });
+      toast.error(e instanceof Error ? e.message : t("jobHistory", "error"), { id: toastId });
     } finally {
       setDeleting(false);
       setConfirmBulk(false);
@@ -140,7 +142,7 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4">
-        <CardTitle className="text-sm">Cronologia scan</CardTitle>
+        <CardTitle className="text-sm">{t("jobHistory", "title")}</CardTitle>
         {selected.size > 0 && !confirmBulk && (
           <Button
             size="sm"
@@ -149,7 +151,10 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
             disabled={deleting}
           >
             <Trash2 className="size-3.5" />
-            Elimina {selected.size} selezionat{selected.size === 1 ? "o" : "i"}
+            {t("jobHistory", "deleteSelected")} {selected.size}{" "}
+            {selected.size === 1
+              ? t("jobHistory", "selectedSuffixSingular")
+              : t("jobHistory", "selectedSuffix")}
           </Button>
         )}
       </CardHeader>
@@ -158,10 +163,10 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
       {confirmBulk && (
         <div className="mx-5 mb-3 p-3 rounded-md border border-red-400/30 bg-red-400/5 space-y-2">
           <p className="text-xs text-foreground">
-            Stai per eliminare <b>{selected.size} scan</b>
+            {t("jobHistory", "bulkDeletePrompt")} <b>{selected.size} {t("jobHistory", "scansWord")}</b>
             {totalAdsSelected > 0 && (
-              <> ({totalAdsSelected} ads associate)</>
-            )}. Vuoi eliminare anche le ads?
+              <> ({totalAdsSelected} {t("jobHistory", "adsAssociated")})</>
+            )}. {t("jobHistory", "deleteAdsQuestion")}
           </p>
           <div className="flex gap-2">
             <Button
@@ -170,7 +175,7 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
               disabled={deleting}
               onClick={() => handleBulkDelete(true)}
             >
-              Elimina scan + ads
+              {t("jobHistory", "deleteScanAndAds")}
             </Button>
             <Button
               size="sm"
@@ -178,7 +183,7 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
               disabled={deleting}
               onClick={() => handleBulkDelete(false)}
             >
-              Solo gli scan
+              {t("jobHistory", "onlyScans")}
             </Button>
             <Button
               size="sm"
@@ -186,7 +191,7 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
               disabled={deleting}
               onClick={() => setConfirmBulk(false)}
             >
-              Annulla
+              {t("jobHistory", "cancel")}
             </Button>
           </div>
         </div>
@@ -198,7 +203,7 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
           <button
             onClick={toggleAll}
             className="text-muted-foreground hover:text-foreground transition-colors"
-            title={allSelected ? "Deseleziona tutti" : "Seleziona tutti"}
+            title={allSelected ? t("jobHistory", "deselectAll") : t("jobHistory", "selectAll")}
           >
             {allSelected ? (
               <CheckSquare className="size-4 text-gold" />
@@ -210,7 +215,7 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
           </button>
           <span>
             {selected.size > 0
-              ? `${selected.size} di ${jobs.length} selezionati`
+              ? `${selected.size} ${t("jobHistory", "ofTotal")} ${jobs.length} ${t("jobHistory", "selectedLabel")}`
               : `${jobs.length} scan`}
           </span>
         </div>
@@ -261,8 +266,8 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
                       }
                       disabled={deleting}
                       className="size-7 rounded-md border border-border hover:bg-muted hover:border-red-400/40 grid place-items-center text-muted-foreground hover:text-red-400 transition-colors disabled:opacity-50"
-                      aria-label="Elimina scan"
-                      title="Elimina scan"
+                      aria-label={t("jobHistory", "deleteScanLabel")}
+                      title={t("jobHistory", "deleteScanLabel")}
                     >
                       <Trash2 className="size-3.5" />
                     </button>
@@ -272,8 +277,7 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
                 {isConfirming && (
                   <div className="mt-3 ml-7 p-3 rounded-md border border-border bg-muted/50 space-y-2">
                     <p className="text-xs text-foreground">
-                      Vuoi eliminare anche le <b>{j.records_count} ads</b>{" "}
-                      raccolte da questo scan?
+                      {t("jobHistory", "confirmDeleteAds")} <b>{j.records_count} {t("jobHistory", "adsCollected")}</b>
                     </p>
                     <div className="flex gap-2">
                       <Button
@@ -282,7 +286,7 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
                         disabled={deleting}
                         onClick={() => handleDeleteSingle(j.id, true)}
                       >
-                        Scan + ads
+                        {t("jobHistory", "scanPlusAds")}
                       </Button>
                       <Button
                         size="sm"
@@ -290,7 +294,7 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
                         disabled={deleting}
                         onClick={() => handleDeleteSingle(j.id, false)}
                       >
-                        Solo scan
+                        {t("jobHistory", "scanOnly")}
                       </Button>
                       <Button
                         size="sm"
@@ -298,7 +302,7 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
                         disabled={deleting}
                         onClick={() => setConfirmSingle(null)}
                       >
-                        Annulla
+                        {t("jobHistory", "cancel")}
                       </Button>
                     </div>
                   </div>

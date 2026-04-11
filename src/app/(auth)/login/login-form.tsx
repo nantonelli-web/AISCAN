@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { GoogleIcon } from "@/components/ui/google-icon";
+import { useT } from "@/lib/i18n/context";
 
 export function LoginForm() {
   const router = useRouter();
@@ -17,6 +18,7 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const { t } = useT();
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,7 +33,7 @@ export function LoginForm() {
       toast.error(error.message);
       return;
     }
-    toast.success("Bentornato.");
+    toast.success(t("auth", "welcomeBack"));
     router.push(redirect);
     router.refresh();
   }
@@ -62,7 +64,7 @@ export function LoginForm() {
         disabled={googleLoading}
       >
         <GoogleIcon className="size-4" />
-        {googleLoading ? "Redirect..." : "Continua con Google"}
+        {googleLoading ? t("auth", "redirect") : t("auth", "continueGoogle")}
       </Button>
 
       <div className="relative">
@@ -70,13 +72,13 @@ export function LoginForm() {
           <span className="w-full border-t border-border" />
         </div>
         <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-card px-2 text-muted-foreground">oppure</span>
+          <span className="bg-card px-2 text-muted-foreground">{t("auth", "orDivider")}</span>
         </div>
       </div>
 
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">{t("auth", "emailLabel")}</Label>
           <Input
             id="email"
             type="email"
@@ -87,7 +89,7 @@ export function LoginForm() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
+          <Label htmlFor="password">{t("auth", "passwordLabel")}</Label>
           <Input
             id="password"
             type="password"
@@ -97,7 +99,7 @@ export function LoginForm() {
           />
         </div>
         <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "Accesso..." : "Accedi con email"}
+          {loading ? t("auth", "loginLoading") : t("auth", "loginSubmit")}
         </Button>
       </form>
     </div>

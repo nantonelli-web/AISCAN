@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/context";
 import type { MaitCompetitor } from "@/types";
 
 interface CompStats {
@@ -36,6 +37,7 @@ export function CompareView({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [stats, setStats] = useState<CompStats[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const { t } = useT();
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -69,7 +71,7 @@ export function CompareView({
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">
-            Seleziona competitor ({selected.size}/3)
+            {t("compare", "selectCompetitors")} ({selected.size}/3)
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -91,7 +93,7 @@ export function CompareView({
           </div>
           {competitors.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              Nessun competitor nel workspace.
+              {t("compare", "noCompetitorsInWorkspace")}
             </p>
           )}
         </CardContent>
@@ -99,65 +101,65 @@ export function CompareView({
 
       {selected.size < 2 && (
         <p className="text-sm text-muted-foreground text-center py-8">
-          Seleziona almeno 2 competitor per vedere il confronto.
+          {t("compare", "selectAtLeast2")}
         </p>
       )}
 
       {loading && (
         <p className="text-sm text-muted-foreground text-center py-8">
-          Calcolo in corso…
+          {t("compare", "calculating")}
         </p>
       )}
 
       {/* Comparison table */}
       {stats && stats.length >= 2 && (
         <div className="space-y-4">
-          <CompareTable label="Ads totali" stats={stats} render={(s) => String(s.totalAds)} />
-          <CompareTable label="Ads attive" stats={stats} render={(s) => String(s.activeAds)} highlight />
+          <CompareTable label={t("compare", "totalAds")} stats={stats} render={(s) => String(s.totalAds)} />
+          <CompareTable label={t("compare", "activeAds")} stats={stats} render={(s) => String(s.activeAds)} highlight />
           <CompareTable
-            label="Format mix"
+            label={t("compare", "formatMix")}
             stats={stats}
             render={(s) => {
               const total = s.imageCount + s.videoCount;
-              if (total === 0) return "—";
+              if (total === 0) return "\u2014";
               const imgPct = Math.round((s.imageCount / total) * 100);
-              return `${imgPct}% img · ${100 - imgPct}% video`;
+              return `${imgPct}% img \u00B7 ${100 - imgPct}% video`;
             }}
           />
           <CompareTable
-            label="Top CTA"
+            label={t("compare", "topCta")}
             stats={stats}
             render={(s) =>
               s.topCtas
                 .slice(0, 3)
                 .map((c) => c.name)
-                .join(", ") || "—"
+                .join(", ") || "\u2014"
             }
           />
           <CompareTable
-            label="Piattaforme"
+            label={t("compare", "platformsLabel")}
             stats={stats}
             render={(s) =>
-              s.platforms.map((p) => p.name).join(", ") || "—"
+              s.platforms.map((p) => p.name).join(", ") || "\u2014"
             }
           />
           <CompareTable
-            label="Durata media"
+            label={t("compare", "avgDuration")}
             stats={stats}
-            render={(s) => (s.avgDuration > 0 ? `${s.avgDuration} gg` : "—")}
+            render={(s) => (s.avgDuration > 0 ? `${s.avgDuration} ${t("compare", "avgDurationDays")}` : "\u2014")}
           />
           <CompareTable
-            label="Lungh. media copy"
+            label={t("compare", "avgCopyLength")}
             stats={stats}
             render={(s) =>
-              s.avgCopyLength > 0 ? `${s.avgCopyLength} chr` : "—"
+              s.avgCopyLength > 0 ? `${s.avgCopyLength} ${t("compare", "avgCopyChars")}` : "\u2014"
             }
           />
           <CompareTable
-            label="Refresh rate (90gg)"
+            label={t("compare", "refreshRate")}
             stats={stats}
             render={(s) =>
-              s.adsPerWeek > 0 ? `${s.adsPerWeek} ads/sett.` : "—"
+              s.adsPerWeek > 0 ? `${s.adsPerWeek} ${t("compare", "adsPerWeek")}` : "\u2014"
             }
             highlight
           />
@@ -165,7 +167,7 @@ export function CompareView({
           {/* Latest ads preview */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Ultime ads</CardTitle>
+              <CardTitle className="text-sm">{t("compare", "latestAds")}</CardTitle>
             </CardHeader>
             <CardContent>
               <div

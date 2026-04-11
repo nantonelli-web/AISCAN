@@ -1,6 +1,7 @@
 import { getSessionUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { CompareView } from "./compare-view";
+import { getLocale, serverT } from "@/lib/i18n/server";
 import type { MaitCompetitor } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -8,6 +9,8 @@ export const dynamic = "force-dynamic";
 export default async function ComparePage() {
   const { profile } = await getSessionUser();
   const supabase = await createClient();
+  const locale = await getLocale();
+  const t = serverT(locale);
 
   const { data: competitors } = await supabase
     .from("mait_competitors")
@@ -19,10 +22,10 @@ export default async function ComparePage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-serif tracking-tight">
-          Confronto competitor
+          {t("compare", "title")}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Seleziona 2 o 3 competitor per confrontarli side-by-side.
+          {t("compare", "subtitle")}
         </p>
       </div>
       <CompareView

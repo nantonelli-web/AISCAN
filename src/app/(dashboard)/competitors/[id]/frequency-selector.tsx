@@ -4,12 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Calendar } from "lucide-react";
-
-const options = [
-  { value: "manual", label: "Manuale" },
-  { value: "daily", label: "Giornaliera" },
-  { value: "weekly", label: "Settimanale" },
-] as const;
+import { useT } from "@/lib/i18n/context";
 
 export function FrequencySelector({
   competitorId,
@@ -21,6 +16,13 @@ export function FrequencySelector({
   const router = useRouter();
   const [value, setValue] = useState(initial);
   const [pending, startTransition] = useTransition();
+  const { t } = useT();
+
+  const options = [
+    { value: "manual" as const, label: t("frequency", "manual") },
+    { value: "daily" as const, label: t("frequency", "daily") },
+    { value: "weekly" as const, label: t("frequency", "weekly") },
+  ];
 
   function onChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const next = e.target.value as typeof value;
@@ -32,14 +34,16 @@ export function FrequencySelector({
         body: JSON.stringify({ frequency: next }),
       });
       if (!res.ok) {
-        toast.error("Impossibile aggiornare la frequenza.");
+        toast.error(t("frequency", "updateError"));
         setValue(initial);
         return;
       }
       toast.success(
         next === "manual"
-          ? "Schedule disattivato — solo scan manuali."
-          : `Scraping ${next === "daily" ? "giornaliero" : "settimanale"} attivo.`
+          ? t("frequency", "scheduleDisabled")
+          : next === "daily"
+            ? t("frequency", "dailyActive")
+            : t("frequency", "weeklyActive")
       );
       router.refresh();
     });
@@ -48,7 +52,7 @@ export function FrequencySelector({
   return (
     <label className="inline-flex items-center gap-2 text-sm rounded-md border border-border bg-card px-3 h-9 hover:border-gold/50 transition-colors">
       <Calendar className="size-4 text-muted-foreground" />
-      <span className="text-muted-foreground">Schedule:</span>
+      <span className="text-muted-foreground">{t("frequency", "schedule")}</span>
       <select
         value={value}
         onChange={onChange}

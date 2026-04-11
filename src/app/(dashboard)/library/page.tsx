@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AdCard } from "@/components/ads/ad-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { LibraryFilters } from "./filters";
+import { getLocale, serverT } from "@/lib/i18n/server";
 import type { MaitAdExternal } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,8 @@ export default async function LibraryPage({
   const sp = await searchParams;
   const { profile } = await getSessionUser();
   const supabase = await createClient();
+  const locale = await getLocale();
+  const t = serverT(locale);
 
   let query = supabase
     .from("mait_ads_external")
@@ -70,9 +73,9 @@ export default async function LibraryPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-serif tracking-tight">Creative Library</h1>
+        <h1 className="text-2xl font-serif tracking-tight">{t("library", "title")}</h1>
         <p className="text-sm text-muted-foreground">
-          Tutte le creatività raccolte nel workspace.
+          {t("library", "subtitle")}
         </p>
       </div>
 
@@ -86,13 +89,13 @@ export default async function LibraryPage({
       {ads.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground">
-            Nessuna ad trovata con questi filtri.
+            {t("library", "noAdsFiltered")}
           </CardContent>
         </Card>
       ) : (
         <>
           <p className="text-sm text-muted-foreground">
-            {ads.length} risultati (max 120)
+            {ads.length} {t("library", "resultsMax")}
           </p>
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {ads.map((a) => (

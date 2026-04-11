@@ -10,6 +10,7 @@ import {
   HorizontalBarChart,
   PlatformChart,
 } from "@/components/dashboard/benchmark-charts";
+import { getLocale, serverT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -17,20 +18,21 @@ export default async function BenchmarksPage() {
   const { profile } = await getSessionUser();
   const supabase = await createClient();
   const data = await computeBenchmarks(supabase, profile.workspace_id!);
+  const locale = await getLocale();
+  const t = serverT(locale);
 
   if (data.totals.totalAds === 0) {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-serif tracking-tight">Benchmarks</h1>
+          <h1 className="text-2xl font-serif tracking-tight">{t("benchmarks", "title")}</h1>
           <p className="text-sm text-muted-foreground">
-            Confronto competitivo basato sulle ads scrappate.
+            {t("benchmarks", "subtitle")}
           </p>
         </div>
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground">
-            Nessun dato disponibile. Aggiungi dei competitor e lancia almeno uno
-            scan per popolare i benchmark.
+            {t("benchmarks", "noData")}
           </CardContent>
         </Card>
       </div>
@@ -40,23 +42,23 @@ export default async function BenchmarksPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-serif tracking-tight">Benchmarks</h1>
+        <h1 className="text-2xl font-serif tracking-tight">{t("benchmarks", "title")}</h1>
         <p className="text-sm text-muted-foreground">
-          Analisi comparativa su {formatNumber(data.totals.totalAds)} ads di{" "}
-          {data.competitors.length} competitor.
+          {t("benchmarks", "comparativeAnalysis")} {formatNumber(data.totals.totalAds)} {t("benchmarks", "adsOf")}{" "}
+          {data.competitors.length} {t("benchmarks", "competitorsWord")}
         </p>
       </div>
 
       {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Ads totali" value={formatNumber(data.totals.totalAds)} />
-        <Stat label="Ads attive" value={formatNumber(data.totals.activeAds)} />
+        <Stat label={t("benchmarks", "totalAds")} value={formatNumber(data.totals.totalAds)} />
+        <Stat label={t("benchmarks", "activeAds")} value={formatNumber(data.totals.activeAds)} />
         <Stat
-          label="Durata media campagna"
+          label={t("benchmarks", "avgCampaignDuration")}
           value={`${data.totals.avgDuration}gg`}
         />
         <Stat
-          label="Lungh. media copy"
+          label={t("benchmarks", "avgCopyLength")}
           value={`${data.totals.avgCopyLength} chr`}
         />
       </div>
@@ -65,7 +67,7 @@ export default async function BenchmarksPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Volume ads per competitor</CardTitle>
+            <CardTitle>{t("benchmarks", "volumePerCompetitor")}</CardTitle>
           </CardHeader>
           <CardContent>
             <VolumeChart data={data.volumeByCompetitor} />
@@ -74,7 +76,7 @@ export default async function BenchmarksPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Format mix (globale)</CardTitle>
+            <CardTitle>{t("benchmarks", "globalFormatMix")}</CardTitle>
           </CardHeader>
           <CardContent>
             <FormatPieChart data={data.formatMix} />
@@ -85,7 +87,7 @@ export default async function BenchmarksPage() {
       {/* Format per competitor */}
       <Card>
         <CardHeader>
-          <CardTitle>Format mix per competitor</CardTitle>
+          <CardTitle>{t("benchmarks", "formatPerCompetitor")}</CardTitle>
         </CardHeader>
         <CardContent>
           <FormatStackedChart data={data.formatByCompetitor} />
@@ -96,20 +98,20 @@ export default async function BenchmarksPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Top CTA</CardTitle>
+            <CardTitle>{t("benchmarks", "topCta")}</CardTitle>
           </CardHeader>
           <CardContent>
             <HorizontalBarChart
               data={data.topCtas}
               dataKey="count"
-              label="Ads"
+              label={t("benchmarks", "adsLabel")}
             />
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Distribuzione piattaforma</CardTitle>
+            <CardTitle>{t("benchmarks", "platformDistribution")}</CardTitle>
           </CardHeader>
           <CardContent>
             <PlatformChart data={data.platformDistribution} />
@@ -121,13 +123,13 @@ export default async function BenchmarksPage() {
       <div className="grid gap-6 lg:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardTitle>Durata media campagna</CardTitle>
+            <CardTitle>{t("benchmarks", "avgCampaignDurationChart")}</CardTitle>
           </CardHeader>
           <CardContent>
             <HorizontalBarChart
               data={data.avgDurationByCompetitor}
               dataKey="days"
-              label="Giorni"
+              label={t("benchmarks", "daysLabel")}
               color="#5b7ea3"
             />
           </CardContent>
@@ -135,13 +137,13 @@ export default async function BenchmarksPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Lunghezza media copy</CardTitle>
+            <CardTitle>{t("benchmarks", "avgCopyLengthChart")}</CardTitle>
           </CardHeader>
           <CardContent>
             <HorizontalBarChart
               data={data.avgCopyLengthByCompetitor}
               dataKey="chars"
-              label="Caratteri"
+              label={t("benchmarks", "charsLabel")}
               color="#6b8e6b"
             />
           </CardContent>
@@ -149,13 +151,13 @@ export default async function BenchmarksPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Refresh rate (90gg)</CardTitle>
+            <CardTitle>{t("benchmarks", "refreshRateChart")}</CardTitle>
           </CardHeader>
           <CardContent>
             <HorizontalBarChart
               data={data.refreshRate}
               dataKey="adsPerWeek"
-              label="Ads/settimana"
+              label={t("benchmarks", "adsPerWeekLabel")}
               color="#a06b5b"
             />
           </CardContent>

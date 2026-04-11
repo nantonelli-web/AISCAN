@@ -1,20 +1,24 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { NewCompetitorForm } from "./form";
+import { getLocale, serverT } from "@/lib/i18n/server";
 
-export default function NewCompetitorPage() {
+export default async function NewCompetitorPage() {
+  const locale = await getLocale();
+  const t = serverT(locale);
+
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-serif tracking-tight">Aggiungi competitor</h1>
+        <h1 className="text-2xl font-serif tracking-tight">{t("newCompetitor", "title")}</h1>
         <p className="text-sm text-muted-foreground">
-          Inserisci l&apos;URL pagina Facebook o Meta Ad Library del competitor.
+          {t("newCompetitor", "subtitle")}
         </p>
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>Dettagli</CardTitle>
+          <CardTitle>{t("newCompetitor", "detailsTitle")}</CardTitle>
           <CardDescription>
-            Il primo scraping può essere lanciato dopo la creazione.
+            {t("newCompetitor", "detailsDescription")}
           </CardDescription>
         </CardHeader>
         <CardContent>

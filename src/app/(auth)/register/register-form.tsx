@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { GoogleIcon } from "@/components/ui/google-icon";
+import { useT } from "@/lib/i18n/context";
 
 export function RegisterForm() {
   const router = useRouter();
@@ -17,6 +18,7 @@ export function RegisterForm() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const { t } = useT();
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -32,7 +34,7 @@ export function RegisterForm() {
 
     if (error || !data.user) {
       setLoading(false);
-      toast.error(error?.message ?? "Errore durante la registrazione.");
+      toast.error(error?.message ?? t("auth", "registerError"));
       return;
     }
 
@@ -51,11 +53,11 @@ export function RegisterForm() {
 
     if (!res.ok) {
       const { error: bootErr } = await res.json().catch(() => ({ error: "Unknown" }));
-      toast.error(`Bootstrap fallito: ${bootErr}`);
+      toast.error(`${t("auth", "bootstrapFailed")} ${bootErr}`);
       return;
     }
 
-    toast.success("Account creato.");
+    toast.success(t("auth", "accountCreated"));
     router.push("/dashboard");
     router.refresh();
   }
@@ -86,7 +88,7 @@ export function RegisterForm() {
         disabled={googleLoading}
       >
         <GoogleIcon className="size-4" />
-        {googleLoading ? "Redirect..." : "Registrati con Google"}
+        {googleLoading ? t("auth", "redirect") : t("auth", "registerGoogle")}
       </Button>
 
       <div className="relative">
@@ -94,13 +96,13 @@ export function RegisterForm() {
           <span className="w-full border-t border-border" />
         </div>
         <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-card px-2 text-muted-foreground">oppure</span>
+          <span className="bg-card px-2 text-muted-foreground">{t("auth", "orDivider")}</span>
         </div>
       </div>
 
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="name">Nome completo</Label>
+          <Label htmlFor="name">{t("auth", "fullNameLabel")}</Label>
           <Input
             id="name"
             required
@@ -109,17 +111,17 @@ export function RegisterForm() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="workspace">Nome workspace</Label>
+          <Label htmlFor="workspace">{t("auth", "workspaceNameLabel")}</Label>
           <Input
             id="workspace"
             required
             value={workspaceName}
             onChange={(e) => setWorkspaceName(e.target.value)}
-            placeholder="Es. NIMA Core"
+            placeholder={t("auth", "workspacePlaceholder")}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">{t("auth", "emailLabel")}</Label>
           <Input
             id="email"
             type="email"
@@ -129,7 +131,7 @@ export function RegisterForm() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
+          <Label htmlFor="password">{t("auth", "passwordLabel")}</Label>
           <Input
             id="password"
             type="password"
@@ -140,7 +142,7 @@ export function RegisterForm() {
           />
         </div>
         <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "Creazione..." : "Crea account con email"}
+          {loading ? t("auth", "registerLoading") : t("auth", "registerSubmit")}
         </Button>
       </form>
     </div>

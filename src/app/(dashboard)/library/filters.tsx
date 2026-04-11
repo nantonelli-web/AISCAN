@@ -6,6 +6,7 @@ import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/context";
 
 interface Initial {
   q?: string;
@@ -30,6 +31,7 @@ export function LibraryFilters({
   const params = useSearchParams();
   const [pending, startTransition] = useTransition();
   const [q, setQ] = useState(initial.q ?? "");
+  const { t } = useT();
 
   useEffect(() => {
     setQ(initial.q ?? "");
@@ -66,12 +68,12 @@ export function LibraryFilters({
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Cerca in headline, copy, description…"
+            placeholder={t("library", "searchPlaceholder")}
             className="pl-9"
           />
         </div>
         <Button type="submit" disabled={pending}>
-          Cerca
+          {t("library", "searchBtn")}
         </Button>
         {hasFilters && (
           <Button type="button" variant="outline" onClick={clearAll}>
@@ -83,17 +85,17 @@ export function LibraryFilters({
       {/* Filter groups in a card-style container */}
       <div className="rounded-lg border border-border bg-card p-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <FilterGroup
-          label="Formato"
+          label={t("library", "formatLabel")}
           options={[
-            { value: "image", label: "Immagine" },
-            { value: "video", label: "Video" },
+            { value: "image", label: t("library", "formatImage") },
+            { value: "video", label: t("library", "formatVideo") },
           ]}
           value={initial.format}
           onChange={(v) => update("format", v)}
         />
         {platforms.length > 0 && (
           <FilterGroup
-            label="Piattaforma"
+            label={t("library", "platformLabel")}
             options={platforms.map((p) => ({ value: p, label: p }))}
             value={initial.platform}
             onChange={(v) => update("platform", v)}
@@ -101,7 +103,7 @@ export function LibraryFilters({
         )}
         {ctas.length > 0 && (
           <FilterGroup
-            label="Call to Action"
+            label={t("library", "ctaLabel")}
             options={ctas.slice(0, 8).map((c) => ({ value: c, label: c }))}
             value={initial.cta}
             onChange={(v) => update("cta", v)}
@@ -109,7 +111,7 @@ export function LibraryFilters({
         )}
         {statuses.length > 0 && (
           <FilterGroup
-            label="Stato"
+            label={t("library", "statusLabel")}
             options={statuses.map((s) => ({ value: s, label: s }))}
             value={initial.status}
             onChange={(v) => update("status", v)}

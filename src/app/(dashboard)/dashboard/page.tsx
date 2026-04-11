@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdCard } from "@/components/ads/ad-card";
 import { Badge } from "@/components/ui/badge";
 import { formatNumber } from "@/lib/utils";
+import { getLocale, serverT } from "@/lib/i18n/server";
 import type { MaitAdExternal } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,8 @@ export default async function DashboardPage() {
   const { profile } = await getSessionUser();
   const supabase = await createClient();
   const wsId = profile.workspace_id!;
+  const locale = await getLocale();
+  const t = serverT(locale);
 
   const [
     { count: totalAds },
@@ -62,7 +65,7 @@ export default async function DashboardPage() {
     counts.set(row.competitor_id, (counts.get(row.competitor_id) ?? 0) + 1);
   }
   const topComps = [...counts.entries()]
-    .map(([id, n]) => ({ id, n, name: compMap.get(id) ?? "—" }))
+    .map(([id, n]) => ({ id, n, name: compMap.get(id) ?? "\u2014" }))
     .sort((a, b) => b.n - a.n)
     .slice(0, 5);
 
@@ -70,27 +73,27 @@ export default async function DashboardPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-serif tracking-tight">
-          Buongiorno{profile.name ? `, ${profile.name.split(" ")[0]}` : ""}.
+          {t("dashboard", "greeting")}{profile.name ? `, ${profile.name.split(" ")[0]}` : ""}.
         </h1>
         <p className="text-sm text-muted-foreground">
-          Panoramica del tuo workspace MAIT.
+          {t("dashboard", "subtitle")}
         </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Stat
           icon={<Eye className="size-4 text-gold" />}
-          label="Ads totali"
+          label={t("dashboard", "totalAds")}
           value={formatNumber(totalAds ?? 0)}
         />
         <Stat
           icon={<Sparkles className="size-4 text-gold" />}
-          label="Ads attive"
+          label={t("dashboard", "activeAds")}
           value={formatNumber(activeAds ?? 0)}
         />
         <Stat
           icon={<Users className="size-4 text-gold" />}
-          label="Competitor monitorati"
+          label={t("dashboard", "monitoredCompetitors")}
           value={formatNumber(competitorsCount ?? 0)}
         />
       </div>
@@ -98,18 +101,18 @@ export default async function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Latest ads</CardTitle>
+            <CardTitle>{t("dashboard", "latestAds")}</CardTitle>
             <Link
               href="/library"
               className="text-xs text-gold hover:underline flex items-center gap-1"
             >
-              Vedi tutto <ArrowRight className="size-3" />
+              {t("dashboard", "viewAll")} <ArrowRight className="size-3" />
             </Link>
           </CardHeader>
           <CardContent>
             {(!recentAds || recentAds.length === 0) ? (
               <div className="py-12 text-center text-sm text-muted-foreground">
-                Nessuna ad ancora. Aggiungi un competitor e lancia uno scan.
+                {t("dashboard", "noAdsYet")}
               </div>
             ) : (
               <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
@@ -123,12 +126,12 @@ export default async function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Top 5 competitor (active)</CardTitle>
+            <CardTitle>{t("dashboard", "topCompetitors")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {topComps.length === 0 && (
               <p className="text-sm text-muted-foreground">
-                Nessun dato ancora.
+                {t("dashboard", "noDataYet")}
               </p>
             )}
             {topComps.map((tc) => (

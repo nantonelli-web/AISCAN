@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
+import { getLocale, serverT } from "@/lib/i18n/server";
 import type { MaitCompetitor } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,8 @@ export const dynamic = "force-dynamic";
 export default async function CompetitorsPage() {
   const { profile } = await getSessionUser();
   const supabase = await createClient();
+  const locale = await getLocale();
+  const t = serverT(locale);
   const { data: competitors } = await supabase
     .from("mait_competitors")
     .select("*")
@@ -25,14 +28,14 @@ export default async function CompetitorsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-serif tracking-tight">Competitors</h1>
+          <h1 className="text-2xl font-serif tracking-tight">{t("competitors", "title")}</h1>
           <p className="text-sm text-muted-foreground">
-            Brand monitorati nel tuo workspace.
+            {t("competitors", "subtitle")}
           </p>
         </div>
         <Button asChild>
           <Link href="/competitors/new">
-            <Plus className="size-4" /> Aggiungi competitor
+            <Plus className="size-4" /> {t("competitors", "addCompetitor")}
           </Link>
         </Button>
       </div>
@@ -40,8 +43,7 @@ export default async function CompetitorsPage() {
       {list.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground">
-            Nessun competitor configurato. Clicca <b>Aggiungi competitor</b> per
-            iniziare.
+            {t("competitors", "noCompetitors")} {t("competitors", "noCompetitorsClickAdd")}
           </CardContent>
         </Card>
       ) : (
@@ -64,7 +66,7 @@ export default async function CompetitorsPage() {
                     {c.category && <Badge variant="muted">{c.category}</Badge>}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Ultimo scan: {formatDate(c.last_scraped_at)}
+                    {t("competitors", "lastScan")} {formatDate(c.last_scraped_at)}
                   </p>
                 </CardContent>
               </Card>

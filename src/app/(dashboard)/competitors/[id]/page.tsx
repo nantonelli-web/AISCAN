@@ -12,6 +12,7 @@ import { ScanButton } from "./scan-button";
 import { FrequencySelector } from "./frequency-selector";
 import { JobHistory } from "./job-history";
 import { formatDate } from "@/lib/utils";
+import { getLocale, serverT } from "@/lib/i18n/server";
 import type { MaitAdExternal, MaitCompetitor, MaitScrapeJob } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,8 @@ export default async function CompetitorDetailPage({
   const { id } = await params;
   await getSessionUser();
   const supabase = await createClient();
+  const locale = await getLocale();
+  const t = serverT(locale);
 
   const { data: competitor } = await supabase
     .from("mait_competitors")
@@ -60,7 +63,7 @@ export default async function CompetitorDetailPage({
         href="/competitors"
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="size-4" /> Tutti i competitor
+        <ArrowLeft className="size-4" /> {t("competitors", "allCompetitors")}
       </Link>
 
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -79,7 +82,7 @@ export default async function CompetitorDetailPage({
             {c.category && <Badge variant="muted">{c.category}</Badge>}
           </div>
           <p className="text-xs text-muted-foreground">
-            Ultimo scan: {formatDate(c.last_scraped_at)}
+            {t("competitors", "lastScan")} {formatDate(c.last_scraped_at)}
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -87,7 +90,7 @@ export default async function CompetitorDetailPage({
           <TagButton competitorId={c.id} />
           <Button asChild variant="outline">
             <a href={`/api/export/ads.csv?competitor_id=${c.id}`}>
-              <Download className="size-4" /> Export CSV
+              <Download className="size-4" /> {t("competitors", "exportCsv")}
             </a>
           </Button>
           <ScanButton competitorId={c.id} />
@@ -99,14 +102,13 @@ export default async function CompetitorDetailPage({
       {adsList.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground">
-            Nessuna ad ancora raccolta. Lancia uno <b>Scan now</b> per popolare
-            la libreria.
+            {t("competitors", "noAdsCollected")}
           </CardContent>
         </Card>
       ) : (
         <>
           <p className="text-sm text-muted-foreground">
-            {adsList.length} ads (max 120 più recenti)
+            {adsList.length} {t("competitors", "adsCount")}
           </p>
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {adsList.map((ad) => (

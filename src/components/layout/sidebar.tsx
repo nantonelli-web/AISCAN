@@ -14,21 +14,23 @@ import {
   FolderHeart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/context";
 
-const items = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/competitors", label: "Competitors", icon: Users },
-  { href: "/competitors/compare", label: "Confronto", icon: GitCompareArrows },
-  { href: "/library", label: "Creative Library", icon: Library },
-  { href: "/collections", label: "Collezioni", icon: FolderHeart },
-  { href: "/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/benchmarks", label: "Benchmarks", icon: Target },
-  { href: "/alerts", label: "Alerts", icon: Bell },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
+const itemDefs = [
+  { href: "/dashboard", key: "dashboard", icon: LayoutDashboard },
+  { href: "/competitors", key: "competitors", icon: Users },
+  { href: "/competitors/compare", key: "compare", icon: GitCompareArrows },
+  { href: "/library", key: "library", icon: Library },
+  { href: "/collections", key: "collections", icon: FolderHeart },
+  { href: "/benchmarks", key: "benchmarks", icon: Target },
+  { href: "/alerts", key: "alerts", icon: Bell },
+  { href: "/settings", key: "settings", icon: Settings },
+] as const;
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { t } = useT();
+
   return (
     <aside className="hidden md:flex md:w-60 md:flex-col border-r border-border bg-card">
       <div className="h-16 flex items-center px-6 border-b border-border">
@@ -42,7 +44,7 @@ export function Sidebar() {
         </Link>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {items.map(({ href, label, icon: Icon }) => {
+        {itemDefs.map(({ href, key, icon: Icon }) => {
           const active =
             pathname === href || pathname.startsWith(`${href}/`);
           return (
@@ -57,13 +59,13 @@ export function Sidebar() {
               )}
             >
               <Icon className="size-4" />
-              {label}
+              {t("sidebar", key)}
             </Link>
           );
         })}
       </nav>
       <div className="p-4 border-t border-border text-[10px] uppercase tracking-widest text-muted-foreground">
-        NIMA Digital · v0.1
+        {t("sidebar", "footer")}
       </div>
     </aside>
   );

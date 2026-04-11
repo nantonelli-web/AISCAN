@@ -6,6 +6,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDate } from "@/lib/utils";
+import { getLocale, serverT } from "@/lib/i18n/server";
 import type { MaitAdExternal } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,8 @@ export default async function AdDetailPage({
   const { id: competitorId, adId } = await params;
   await getSessionUser();
   const supabase = await createClient();
+  const locale = await getLocale();
+  const t = serverT(locale);
 
   const { data } = await supabase
     .from("mait_ads_external")
@@ -52,13 +55,22 @@ export default async function AdDetailPage({
     durationDays = Math.max(1, Math.round((end - start) / 86_400_000));
   }
 
+  const aiTagLabels: Record<string, string> = {
+    sector: t("adDetail", "aiTagSector"),
+    creative_format: t("adDetail", "aiTagFormat"),
+    tone: t("adDetail", "aiTagTone"),
+    objective: t("adDetail", "aiTagObjective"),
+    seasonality: t("adDetail", "aiTagSeasonality"),
+    language: t("adDetail", "aiTagLanguage"),
+  };
+
   return (
     <div className="space-y-6 max-w-5xl">
       <Link
         href={`/competitors/${competitorId}`}
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="size-4" /> Torna al competitor
+        <ArrowLeft className="size-4" /> {t("adDetail", "backToCompetitor")}
       </Link>
 
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -110,7 +122,7 @@ export default async function AdDetailPage({
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">
-                  Varianti creative ({cards.length})
+                  {t("adDetail", "creativeVariants")} ({cards.length})
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -124,7 +136,7 @@ export default async function AdDetailPage({
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={imgUrl}
-                            alt={`Variante ${i + 1}`}
+                            alt={`${t("adDetail", "variantLabel")} ${i + 1}`}
                             className="w-full rounded-lg border border-border"
                           />
                         )}
@@ -147,18 +159,18 @@ export default async function AdDetailPage({
           {/* Full ad text */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Testo completo</CardTitle>
+              <CardTitle className="text-sm">{t("adDetail", "fullText")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {ad.headline && (
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Headline</p>
+                  <p className="text-xs text-muted-foreground mb-1">{t("adDetail", "headline")}</p>
                   <p className="font-medium">{ad.headline}</p>
                 </div>
               )}
               {ad.ad_text && (
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Copy</p>
+                  <p className="text-xs text-muted-foreground mb-1">{t("adDetail", "copy")}</p>
                   <p className="text-sm whitespace-pre-wrap leading-relaxed">
                     {ad.ad_text}
                   </p>
@@ -167,7 +179,7 @@ export default async function AdDetailPage({
               {ad.description && (
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">
-                    Descrizione
+                    {t("adDetail", "descriptionLabel")}
                   </p>
                   <p className="text-sm">{ad.description}</p>
                 </div>
@@ -180,24 +192,24 @@ export default async function AdDetailPage({
         <div className="lg:col-span-2 space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Dettagli</CardTitle>
+              <CardTitle className="text-sm">{t("adDetail", "details")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <DetailRow
                 icon={<Calendar className="size-4" />}
-                label="Data inizio"
+                label={t("adDetail", "startDate")}
                 value={formatDate(ad.start_date)}
               />
               <DetailRow
                 icon={<Calendar className="size-4" />}
-                label="Data fine"
-                value={ad.end_date ? formatDate(ad.end_date) : "Ancora attiva"}
+                label={t("adDetail", "endDate")}
+                value={ad.end_date ? formatDate(ad.end_date) : t("adDetail", "stillActive")}
               />
               {durationDays && (
                 <DetailRow
                   icon={<Clock className="size-4" />}
-                  label="Durata"
-                  value={`${durationDays} giorni`}
+                  label={t("adDetail", "duration")}
+                  value={`${durationDays} ${t("adDetail", "daysUnit")}`}
                 />
               )}
               {ad.cta && (
@@ -211,7 +223,7 @@ export default async function AdDetailPage({
                 <div className="flex items-start gap-3">
                   <Globe className="size-4 text-muted-foreground mt-0.5 shrink-0" />
                   <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground">Landing page</p>
+                    <p className="text-xs text-muted-foreground">{t("adDetail", "landingPage")}</p>
                     <a
                       href={ad.landing_url}
                       target="_blank"
@@ -229,7 +241,7 @@ export default async function AdDetailPage({
           {ad.platforms && ad.platforms.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">Piattaforme</CardTitle>
+                <CardTitle className="text-sm">{t("adDetail", "platforms")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-1.5">
@@ -253,18 +265,10 @@ export default async function AdDetailPage({
               <CardContent className="space-y-2">
                 {Object.entries(aiTags).map(([key, value]) => {
                   if (!value || typeof value !== "string") return null;
-                  const labels: Record<string, string> = {
-                    sector: "Settore",
-                    creative_format: "Formato",
-                    tone: "Tono",
-                    objective: "Obiettivo",
-                    seasonality: "Stagionalità",
-                    language: "Lingua",
-                  };
                   return (
                     <div key={key} className="flex justify-between text-sm">
                       <span className="text-muted-foreground">
-                        {labels[key] ?? key}
+                        {aiTagLabels[key] ?? key}
                       </span>
                       <Badge variant="gold">{value}</Badge>
                     </div>

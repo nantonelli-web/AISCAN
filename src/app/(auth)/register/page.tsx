@@ -1,22 +1,26 @@
 import Link from "next/link";
 import { RegisterForm } from "./register-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { getLocale, serverT } from "@/lib/i18n/server";
 
-export default function RegisterPage() {
+export default async function RegisterPage() {
+  const locale = await getLocale();
+  const t = serverT(locale);
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-xl">Crea il tuo account</CardTitle>
+        <CardTitle className="text-xl">{t("auth", "registerTitle")}</CardTitle>
         <CardDescription>
-          Inserisci i tuoi dati. Ti verrà assegnato un nuovo workspace.
+          {t("auth", "registerDescription")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <RegisterForm />
         <p className="text-xs text-muted-foreground text-center">
-          Hai già un account?{" "}
+          {t("auth", "hasAccount")}{" "}
           <Link href="/login" className="text-gold hover:underline">
-            Accedi
+            {t("auth", "loginLink")}
           </Link>
         </p>
       </CardContent>

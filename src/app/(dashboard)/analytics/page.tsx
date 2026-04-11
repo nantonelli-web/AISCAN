@@ -1,23 +1,27 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { getLocale, serverT } from "@/lib/i18n/server";
 
-export default function AnalyticsPage() {
+export default async function AnalyticsPage() {
+  const locale = await getLocale();
+  const t = serverT(locale);
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-serif tracking-tight">Performance Analytics</h1>
+        <h1 className="text-2xl font-serif tracking-tight">{t("analytics", "title")}</h1>
         <p className="text-sm text-muted-foreground">
-          KPI campagne gestite via Meta Marketing API.
+          {t("analytics", "subtitle")}
         </p>
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>In arrivo (Phase 1.1)</CardTitle>
+          <CardTitle>{t("analytics", "comingSoon")}</CardTitle>
           <CardDescription>
-            Connessione OAuth Meta Business Manager + sync automatico ogni 6h.
+            {t("analytics", "comingSoonDescription")}
           </CardDescription>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          Sezione disponibile dopo aver collegato un Ad Account Meta.
+          {t("analytics", "availableAfter")}
         </CardContent>
       </Card>
     </div>
