@@ -1,11 +1,15 @@
 import { buildAdLibraryUrl } from "@/lib/meta/url";
 
 /**
- * Service layer for the Apify Meta Ads Scraper actor.
- * Uses the Apify REST API directly (no apify-client SDK) to avoid
- * native dependency issues on Vercel serverless.
+ * Service layer for the leadsbrary/meta-ads-library-scraper Apify actor.
+ * Uses the Apify REST API directly (no SDK) to avoid native dep issues on Vercel.
  *
- * API docs: https://docs.apify.com/api/v2
+ * Actor output fields (verified):
+ *   adArchiveID, pageID, pageName, pageURL, pageCategory, pageLikes,
+ *   pageVerified, pageInstagramUser, pageInstagramFollowers, adText,
+ *   adCreativeBodies, publisherPlatforms, adStatus, languages,
+ *   startDate, endDate, adCreationTime, adLibraryURL, adSnapshotUrl,
+ *   ctaDomain, ctaHeadline, ctaDescription, estimatedAudienceSize
  */
 
 const APIFY_BASE = "https://api.apify.com/v2";
@@ -13,16 +17,13 @@ const ACTOR_ID = process.env.APIFY_ACTOR_ID || "leadsbrary/meta-ads-library-scra
 
 function getToken(): string {
   const token = process.env.APIFY_API_TOKEN;
-  if (!token) {
-    throw new Error("APIFY_API_TOKEN missing.");
-  }
+  if (!token) throw new Error("APIFY_API_TOKEN missing.");
   return token;
 }
 
 async function apifyFetch(path: string, init?: RequestInit) {
   const token = getToken();
-  const url = `${APIFY_BASE}${path}`;
-  const res = await fetch(url, {
+  const res = await fetch(`${APIFY_BASE}${path}`, {
     ...init,
     headers: {
       "content-type": "application/json",
@@ -68,28 +69,29 @@ export interface ScrapeOptions {
   active?: boolean;
 }
 
-/** Run the configured actor and normalize results. */
 export async function scrapeMetaAds(
   opts: ScrapeOptions
 ): Promise<ScrapeResult> {
+  // Build the Ad Library URL. The actor requires a full Ad Library URL
+  // with view_all_page_id for page-specific scraping.
   const startUrl =
     opts.pageUrl?.includes("ads/library")
       ? opts.pageUrl
       : buildAdLibraryUrl({
           pageId: opts.pageId,
-          country: opts.country,
+          country: opts.country ? opts.country.split(",")[0].trim() : undefined,
           active: opts.active,
         });
 
   const input = {
     startUrls: [{ url: startUrl }],
-    urls: [startUrl],
-    maxItems: opts.maxItems ?? 200,
-    countryCode: opts.country ?? "ALL",
+    maxResults: opts.maxItems ?? 200,
     activeStatus: opts.active === false ? "ALL" : "ACTIVE",
+    scrapeAdDetails: true,
+    includeAboutPage: true,
   };
 
-  // Start the actor run (synchronous — waits for completion)
+  // Start the actor run
   const actorPath = `/acts/${encodeURIComponent(ACTOR_ID)}/runs`;
   const run = await apifyFetch(actorPath, {
     method: "POST",
@@ -144,36 +146,41 @@ export async function scrapeMetaAds(
   return { runId, records, costCu };
 }
 
+// ------- Raw ad shape from leadsbrary actor -------
 interface RawAd {
   adArchiveID?: string;
-  ad_archive_id?: string;
-  adId?: string;
   adText?: string;
+  adCreativeBodies?: string[];
+  ctaHeadline?: string;
+  ctaDescription?: string;
+  ctaDomain?: string;
+  adSnapshotUrl?: string;
+  adLibraryURL?: string;
+  publisherPlatforms?: string[];
+  languages?: string[] | null;
+  startDate?: string;
+  endDate?: string | null;
+  adStatus?: string;
+  // Page info
+  pageID?: string;
+  pageName?: string;
+  pageURL?: string;
+  pageCategory?: string;
+  // Fallback fields from other actors
+  ad_archive_id?: string;
   body?: string;
   headline?: string;
   description?: string;
   callToAction?: string;
-  cta_text?: string;
   originalImageUrl?: string;
   imageUrl?: string;
   videoHdUrl?: string;
   videoSdUrl?: string;
-  videoUrl?: string;
   linkUrl?: string;
-  landingPage?: string;
-  publisherPlatforms?: string[];
-  platforms?: string[];
-  languages?: string[];
-  startDate?: string | number;
-  startDateString?: string;
-  endDate?: string | number;
-  endDateString?: string;
-  adStatus?: string;
-  isActive?: boolean;
   [k: string]: unknown;
 }
 
-function toIso(v: string | number | undefined): string | null {
+function toIso(v: string | number | undefined | null): string | null {
   if (v == null) return null;
   if (typeof v === "number") {
     const ms = v < 1e12 ? v * 1000 : v;
@@ -184,26 +191,26 @@ function toIso(v: string | number | undefined): string | null {
 }
 
 function normalize(ad: RawAd): NormalizedAd {
+  // adText from this actor is often duplicated across variants; use first creative body
+  const primaryText =
+    ad.adCreativeBodies?.[0] ?? ad.adText ?? ad.body ?? null;
+
   return {
-    ad_archive_id: String(ad.adArchiveID ?? ad.ad_archive_id ?? ad.adId ?? ""),
-    ad_text: ad.adText ?? ad.body ?? null,
-    headline: ad.headline ?? null,
-    description: ad.description ?? null,
-    cta: ad.callToAction ?? ad.cta_text ?? null,
-    image_url: ad.originalImageUrl ?? ad.imageUrl ?? null,
-    video_url: ad.videoHdUrl ?? ad.videoSdUrl ?? ad.videoUrl ?? null,
-    landing_url: ad.linkUrl ?? ad.landingPage ?? null,
-    platforms: ad.publisherPlatforms ?? ad.platforms ?? [],
-    languages: ad.languages ?? [],
-    start_date: toIso(ad.startDate ?? ad.startDateString),
-    end_date: toIso(ad.endDate ?? ad.endDateString),
-    status:
-      ad.adStatus ??
-      (typeof ad.isActive === "boolean"
-        ? ad.isActive
-          ? "ACTIVE"
-          : "INACTIVE"
-        : null),
+    ad_archive_id: String(ad.adArchiveID ?? ad.ad_archive_id ?? ""),
+    ad_text: primaryText,
+    headline: ad.ctaHeadline ?? ad.headline ?? null,
+    description: ad.ctaDescription ?? ad.description ?? null,
+    cta: ad.ctaDomain ?? ad.callToAction ?? null,
+    image_url: ad.adSnapshotUrl ?? ad.originalImageUrl ?? ad.imageUrl ?? null,
+    video_url: ad.videoHdUrl ?? ad.videoSdUrl ?? null,
+    landing_url: ad.ctaDomain
+      ? `https://${ad.ctaDomain}`
+      : ad.linkUrl ?? null,
+    platforms: ad.publisherPlatforms ?? [],
+    languages: Array.isArray(ad.languages) ? ad.languages : [],
+    start_date: toIso(ad.startDate),
+    end_date: toIso(ad.endDate),
+    status: ad.adStatus ?? null,
     raw_data: ad as Record<string, unknown>,
   };
 }
