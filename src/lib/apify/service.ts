@@ -9,7 +9,7 @@ import { buildAdLibraryUrl } from "@/lib/meta/url";
  */
 
 const APIFY_BASE = "https://api.apify.com/v2";
-const ACTOR_ID = process.env.APIFY_ACTOR_ID || "apify/meta-ads-scraper";
+const ACTOR_ID = process.env.APIFY_ACTOR_ID || "leadsbrary/meta-ads-library-scraper";
 
 function getToken(): string {
   const token = process.env.APIFY_API_TOKEN;
