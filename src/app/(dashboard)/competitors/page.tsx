@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, ExternalLink } from "lucide-react";
+import { Plus, ExternalLink, Pencil } from "lucide-react";
 import { getSessionUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
@@ -65,9 +65,19 @@ export default async function CompetitorsPage() {
                     {c.country && <Badge variant="muted">{c.country}</Badge>}
                     {c.category && <Badge variant="muted">{c.category}</Badge>}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {t("competitors", "lastScan")} {formatDate(c.last_scraped_at)}
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">
+                      {t("competitors", "lastScan")} {formatDate(c.last_scraped_at)}
+                    </p>
+                    <Link
+                      href={`/competitors/${c.id}/edit`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="size-7 rounded-md border border-border hover:bg-muted hover:border-gold/40 grid place-items-center text-muted-foreground hover:text-gold transition-colors"
+                      title={t("editCompetitor", "title")}
+                    >
+                      <Pencil className="size-3.5" />
+                    </Link>
+                  </div>
                 </CardContent>
               </Card>
             </Link>

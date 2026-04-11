@@ -185,6 +185,24 @@ const translations = {
     noCountryMatch: { it: "Nessun paese trovato.", en: "No country found." },
   },
 
+  // ─── Edit Competitor ────────────────────────────────────────
+  editCompetitor: {
+    title: { it: "Modifica competitor", en: "Edit competitor" },
+    detailsTitle: { it: "Dettagli", en: "Details" },
+    detailsDescription: { it: "Modifica le informazioni del competitor.", en: "Edit competitor information." },
+    save: { it: "Salva modifiche", en: "Save changes" },
+    saving: { it: "Salvataggio...", en: "Saving..." },
+    saved: { it: "Competitor aggiornato.", en: "Competitor updated." },
+    deleteBtn: { it: "Elimina competitor", en: "Delete competitor" },
+    deleteConfirm: { it: "Sei sicuro di voler eliminare", en: "Are you sure you want to delete" },
+    deleteWarning: { it: "Tutte le ads e gli scan associati verranno eliminati.", en: "All associated ads and scans will be deleted." },
+    confirmDelete: { it: "Elimina definitivamente", en: "Delete permanently" },
+    deletingProgress: { it: "Eliminazione...", en: "Deleting..." },
+    deleted: { it: "Competitor eliminato.", en: "Competitor deleted." },
+    deleteError: { it: "Errore nell'eliminazione.", en: "Error deleting." },
+    cancel: { it: "Annulla", en: "Cancel" },
+  },
+
   // ─── Scan Button ───────────────────────────────────────────
   scan: {
     scanNow: { it: "Scan now", en: "Scan now" },

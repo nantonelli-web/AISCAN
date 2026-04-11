@@ -3,8 +3,14 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 
 const patchSchema = z.object({
+  // Monitor config fields
   frequency: z.enum(["manual", "daily", "weekly"]).optional(),
   max_items: z.number().int().min(10).max(1000).optional(),
+  // Editable competitor fields
+  page_name: z.string().min(1).max(160).optional(),
+  page_url: z.string().url().optional(),
+  country: z.string().max(200).nullable().optional(),
+  category: z.string().max(80).nullable().optional(),
 });
 
 export async function PATCH(
@@ -24,21 +30,38 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  // Read current monitor_config to merge
-  const { data: current } = await supabase
-    .from("mait_competitors")
-    .select("monitor_config")
-    .eq("id", id)
-    .single();
+  const { frequency, max_items, page_name, page_url, country, category } =
+    parsed.data;
 
-  const merged = {
-    ...(current?.monitor_config ?? {}),
-    ...parsed.data,
-  };
+  // Separate monitor_config fields from direct fields
+  const directUpdate: Record<string, unknown> = {};
+  if (page_name !== undefined) directUpdate.page_name = page_name;
+  if (page_url !== undefined) directUpdate.page_url = page_url;
+  if (country !== undefined) directUpdate.country = country;
+  if (category !== undefined) directUpdate.category = category;
+
+  // Handle monitor_config merge if frequency or max_items changed
+  if (frequency !== undefined || max_items !== undefined) {
+    const { data: current } = await supabase
+      .from("mait_competitors")
+      .select("monitor_config")
+      .eq("id", id)
+      .single();
+
+    directUpdate.monitor_config = {
+      ...(current?.monitor_config ?? {}),
+      ...(frequency !== undefined ? { frequency } : {}),
+      ...(max_items !== undefined ? { max_items } : {}),
+    };
+  }
+
+  if (Object.keys(directUpdate).length === 0) {
+    return NextResponse.json({ ok: true });
+  }
 
   const { error } = await supabase
     .from("mait_competitors")
-    .update({ monitor_config: merged })
+    .update(directUpdate)
     .eq("id", id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
