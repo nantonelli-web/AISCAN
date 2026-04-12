@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ExternalLink, Eye, Sparkles } from "lucide-react";
+import { ExternalLink, Eye, Sparkles, Play, ImageIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { SaveToCollection } from "@/components/ads/save-to-collection";
 import { VideoPreview } from "@/components/ads/video-preview";
@@ -91,6 +91,17 @@ export async function AdCard({
         )}
         <div className="absolute top-2 left-2">
           <SaveToCollection adId={ad.id} />
+        </div>
+        <div className="absolute bottom-2 left-2">
+          {ad.video_url ? (
+            <span className="inline-flex items-center gap-1 rounded bg-black/70 backdrop-blur-sm px-1.5 py-0.5 text-[10px] font-medium text-white">
+              <Play className="size-3" /> VIDEO
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded bg-black/70 backdrop-blur-sm px-1.5 py-0.5 text-[10px] font-medium text-white">
+              <ImageIcon className="size-3" /> IMAGE
+            </span>
+          )}
         </div>
       </MaybeLink>
 
