@@ -220,6 +220,11 @@ const translations = {
     allAds: { it: "Tutte (attive + inattive)", en: "All (active + inactive)" },
     resetFilters: { it: "Reset filtri", en: "Reset filters" },
     launchScan: { it: "Lancia scan", en: "Launch scan" },
+    scanAll: { it: "Scan tutti i brand", en: "Scan all brands" },
+    scanAllLaunch: { it: "Lancia scan globale", en: "Launch global scan" },
+    scanAllProgress: { it: "Scanning brand", en: "Scanning brands" },
+    scanAllDone: { it: "Scan completato!", en: "Scan completed!" },
+    scanAllPartial: { it: "brand completati", en: "brands completed" },
   },
 
   // ─── Frequency Selector ────────────────────────────────────

@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
 import { getLocale, serverT } from "@/lib/i18n/server";
+import { ScanAllButton } from "./scan-all-button";
 import type { MaitCompetitor } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -33,11 +34,18 @@ export default async function CompetitorsPage() {
             {t("competitors", "subtitle")}
           </p>
         </div>
-        <Button asChild>
-          <Link href="/competitors/new">
-            <Plus className="size-4" /> {t("competitors", "addCompetitor")}
-          </Link>
-        </Button>
+        <div className="flex items-center gap-3">
+          {list.length > 0 && (
+            <ScanAllButton
+              competitors={list.map((c) => ({ id: c.id, page_name: c.page_name }))}
+            />
+          )}
+          <Button asChild>
+            <Link href="/competitors/new">
+              <Plus className="size-4" /> {t("competitors", "addCompetitor")}
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {list.length === 0 ? (
