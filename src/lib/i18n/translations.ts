@@ -694,6 +694,8 @@ const translations = {
     recommendations: { it: "Raccomandazioni", en: "Recommendations" },
     launchAnalysis: { it: "Analisi AI Creativa", en: "AI Creative Analysis" },
     close: { it: "Chiudi", en: "Close" },
+    copywriterFailed: { it: "L'analisi del copywriter non \u00E8 disponibile. Il modello AI potrebbe essere temporaneamente offline.", en: "Copywriter analysis is not available. The AI model may be temporarily offline." },
+    creativeDirectorFailed: { it: "L'analisi del direttore creativo non \u00E8 disponibile. Il modello AI potrebbe essere temporaneamente offline.", en: "Creative director analysis is not available. The AI model may be temporarily offline." },
   },
 
   // ─── Common ────────────────────────────────────────────────

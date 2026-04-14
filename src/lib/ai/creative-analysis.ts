@@ -279,8 +279,9 @@ Important:
     clearTimeout(timeout);
 
     if (!res.ok) {
+      const errText = await res.text().catch(() => "");
       console.error(
-        `Creative Director agent error: ${res.status} ${res.statusText}`
+        `Creative Director agent error: ${res.status} ${res.statusText} — ${errText.slice(0, 500)}`
       );
       return null;
     }

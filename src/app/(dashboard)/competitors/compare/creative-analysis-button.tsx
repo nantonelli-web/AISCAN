@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n/context";
 import { AnalysisReport } from "./analysis-report";
@@ -45,27 +46,33 @@ export function CreativeAnalysisButton({
     }
   }
 
+  if (disabled) return null;
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
+      {!result && (
         <Button
           onClick={handleClick}
-          disabled={disabled || loading}
-          variant="outline"
-          size="sm"
+          disabled={loading}
+          size="lg"
+          className="w-full"
         >
-          {loading
-            ? t("creativeAnalysis", "analyzing")
-            : t("creativeAnalysis", "launchAnalysis")}
+          {loading ? (
+            <>
+              <Loader2 className="size-4 animate-spin" />
+              {t("creativeAnalysis", "analyzing")}
+            </>
+          ) : (
+            <>
+              <Sparkles className="size-4" />
+              {t("creativeAnalysis", "launchAnalysis")}
+            </>
+          )}
         </Button>
-        {error && <p className="text-xs text-destructive">{error}</p>}
-        {loading && (
-          <p className="text-xs text-muted-foreground">
-            {t("creativeAnalysis", "analyzing")}
-          </p>
-        )}
-      </div>
-
+      )}
+      {error && (
+        <p className="text-xs text-destructive text-center">{error}</p>
+      )}
       {result && (
         <AnalysisReport result={result} onClose={() => setResult(null)} />
       )}
