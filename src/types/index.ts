@@ -19,9 +19,18 @@ export interface MaitUser {
   created_at: string;
 }
 
+export interface MaitClient {
+  id: string;
+  workspace_id: string;
+  name: string;
+  color: string;
+  created_at: string;
+}
+
 export interface MaitCompetitor {
   id: string;
   workspace_id: string;
+  client_id: string | null;
   page_name: string;
   page_id: string | null;
   page_url: string;

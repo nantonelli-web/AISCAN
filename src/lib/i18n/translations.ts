@@ -599,6 +599,16 @@ const translations = {
     },
   },
 
+  // ─── Clients ───────────────────────────────────────────────
+  clients: {
+    clientLabel: { it: "Cliente", en: "Client" },
+    noClient: { it: "Nessun cliente (non assegnato)", en: "No client (unassigned)" },
+    newClientPlaceholder: { it: "Nuovo cliente...", en: "New client..." },
+    created: { it: "Cliente creato.", en: "Client created." },
+    unassigned: { it: "Non assegnati", en: "Unassigned" },
+    emptyClient: { it: "Nessun brand in questa cartella.", en: "No brands in this folder." },
+  },
+
   // ─── Common ────────────────────────────────────────────────
   common: {
     error: { it: "Errore", en: "Error" },

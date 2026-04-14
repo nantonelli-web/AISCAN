@@ -7,8 +7,9 @@ import { resolvePageId } from "@/lib/meta/resolve-page-id";
 const schema = z.object({
   page_name: z.string().min(1).max(160),
   page_url: z.string().url(),
-  country: z.string().max(60).nullable().optional(),
+  country: z.string().max(200).nullable().optional(),
   category: z.string().max(80).nullable().optional(),
+  client_id: z.string().uuid().nullable().optional(),
 });
 
 export async function POST(req: Request) {
@@ -55,6 +56,7 @@ export async function POST(req: Request) {
       page_id: pageId ?? null,
       country: parsed.data.country ?? null,
       category: parsed.data.category ?? null,
+      client_id: parsed.data.client_id ?? null,
     })
     .select("id")
     .single();

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { X } from "lucide-react";
+import { X, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -74,14 +74,30 @@ const CATEGORIES = [
   "Non-Profit",
 ];
 
+interface ClientOption {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export function NewCompetitorForm() {
   const router = useRouter();
   const [pageName, setPageName] = useState("");
   const [pageUrl, setPageUrl] = useState("");
   const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
   const [category, setCategory] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [clients, setClients] = useState<ClientOption[]>([]);
+  const [newClientName, setNewClientName] = useState("");
   const [loading, setLoading] = useState(false);
   const [countrySearch, setCountrySearch] = useState("");
+
+  useEffect(() => {
+    fetch("/api/clients")
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d)) setClients(d); })
+      .catch(() => {});
+  }, []);
   const { t } = useT();
 
   function toggleCountry(code: string) {
@@ -100,6 +116,22 @@ export function NewCompetitorForm() {
       c.code.toLowerCase().includes(countrySearch.toLowerCase())
   );
 
+  async function createClient() {
+    if (!newClientName.trim()) return;
+    const res = await fetch("/api/clients", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: newClientName.trim() }),
+    });
+    const json = await res.json();
+    if (res.ok && json.id) {
+      setClients((prev) => [...prev, json]);
+      setClientId(json.id);
+      setNewClientName("");
+      toast.success(`${t("clients", "created")}`);
+    }
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -111,6 +143,7 @@ export function NewCompetitorForm() {
         page_url: pageUrl,
         country: selectedCountries.length > 0 ? selectedCountries.join(", ") : null,
         category: category || null,
+        client_id: clientId || null,
       }),
     });
     setLoading(false);
@@ -174,6 +207,44 @@ export function NewCompetitorForm() {
                 </option>
               ))}
             </select>
+          </div>
+          <div className="space-y-2">
+            <Label>{t("clients", "clientLabel")}</Label>
+            <div className="flex gap-2">
+              <select
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-border bg-muted px-3 py-1 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+              >
+                <option value="" className="bg-card">
+                  — {t("clients", "noClient")}
+                </option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id} className="bg-card">
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-1.5">
+              <Input
+                value={newClientName}
+                onChange={(e) => setNewClientName(e.target.value)}
+                placeholder={t("clients", "newClientPlaceholder")}
+                className="text-xs h-8"
+                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), createClient())}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 px-2 shrink-0"
+                onClick={createClient}
+                disabled={!newClientName.trim()}
+              >
+                <Plus className="size-3" />
+              </Button>
+            </div>
           </div>
         </div>
 

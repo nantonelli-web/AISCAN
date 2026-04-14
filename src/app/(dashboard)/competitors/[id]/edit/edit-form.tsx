@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { X, Trash2 } from "lucide-react";
+import { X, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -95,9 +95,19 @@ export function EditCompetitorForm({
     parseCountries(competitor.country)
   );
   const [category, setCategory] = useState(competitor.category ?? "");
+  const [clientId, setClientId] = useState(competitor.client_id ?? "");
+  const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
+  const [newClientName, setNewClientName] = useState("");
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/clients")
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d)) setClients(d); })
+      .catch(() => {});
+  }, []);
   const [countrySearch, setCountrySearch] = useState("");
   const { t } = useT();
 
@@ -128,6 +138,7 @@ export function EditCompetitorForm({
         page_url: pageUrl,
         country: selectedCountries.length > 0 ? selectedCountries.join(", ") : null,
         category: category || null,
+        client_id: clientId || null,
       }),
     });
     setLoading(false);
@@ -197,6 +208,75 @@ export function EditCompetitorForm({
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="space-y-2">
+              <Label>{t("clients", "clientLabel")}</Label>
+              <select
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-border bg-muted px-3 py-1 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+              >
+                <option value="" className="bg-card">
+                  — {t("clients", "noClient")}
+                </option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id} className="bg-card">
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <div className="flex gap-1.5">
+                <Input
+                  value={newClientName}
+                  onChange={(e) => setNewClientName(e.target.value)}
+                  placeholder={t("clients", "newClientPlaceholder")}
+                  className="text-xs h-8"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (!newClientName.trim()) return;
+                      fetch("/api/clients", {
+                        method: "POST",
+                        headers: { "content-type": "application/json" },
+                        body: JSON.stringify({ name: newClientName.trim() }),
+                      })
+                        .then((r) => r.json())
+                        .then((json) => {
+                          if (json.id) {
+                            setClients((prev) => [...prev, json]);
+                            setClientId(json.id);
+                            setNewClientName("");
+                          }
+                        });
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 px-2 shrink-0"
+                  onClick={() => {
+                    if (!newClientName.trim()) return;
+                    fetch("/api/clients", {
+                      method: "POST",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({ name: newClientName.trim() }),
+                    })
+                      .then((r) => r.json())
+                      .then((json) => {
+                        if (json.id) {
+                          setClients((prev) => [...prev, json]);
+                          setClientId(json.id);
+                          setNewClientName("");
+                        }
+                      });
+                  }}
+                  disabled={!newClientName.trim()}
+                >
+                  <Plus className="size-3" />
+                </Button>
+              </div>
             </div>
           </div>
 
