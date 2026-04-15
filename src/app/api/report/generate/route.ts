@@ -274,6 +274,9 @@ export async function POST(req: Request) {
       },
       logoBase64: base.logoBase64 ?? null,
       logoMimeType: base.logoMimeType ?? null,
+      coverImageBase64: base.coverImageBase64 ?? null,
+      coverImageMimeType: base.coverImageMimeType ?? null,
+      contentBackground: base.contentBackground ?? null,
     };
   }
 

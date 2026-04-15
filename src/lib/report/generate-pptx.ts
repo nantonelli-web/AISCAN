@@ -85,6 +85,11 @@ const SW = 10;
 const SH = 5.63;
 const PAD = 0.3; // padding
 
+/** Get the content slide background color, preferring template contentBackground over theme bg */
+function contentBg(theme: ThemeConfig): string {
+  return theme.contentBackground ?? theme.colors.background;
+}
+
 /** Truncate text to max characters */
 function trunc(text: string | null | undefined, max: number): string {
   if (!text) return "\u2014";
@@ -122,17 +127,21 @@ function singleCover(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
-  slide.background = { color: hex(theme.colors.background) };
 
-  // Full bleed accent bar at top
-  slide.addShape(pptx.ShapeType.rect, {
-    x: 0,
-    y: 0,
-    w: SW,
-    h: 0.06,
-    fill: { color: hex(theme.colors.primary) },
-    line: { type: "none" },
-  });
+  // Cover: use template background image if available, otherwise flat color
+  if (theme.coverImageBase64 && theme.coverImageMimeType) {
+    slide.background = {
+      data: `data:${theme.coverImageMimeType};base64,${theme.coverImageBase64}`,
+    };
+  } else {
+    slide.background = { color: hex(contentBg(theme)) };
+    // Accent bar only when no cover image
+    slide.addShape(pptx.ShapeType.rect, {
+      x: 0, y: 0, w: SW, h: 0.06,
+      fill: { color: hex(theme.colors.primary) },
+      line: { type: "none" },
+    });
+  }
 
   // Logo
   if (theme.logoBase64 && theme.logoMimeType) {
@@ -200,7 +209,7 @@ function singleDashboard(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
-  slide.background = { color: hex(theme.colors.background) };
+  slide.background = { color: hex(contentBg(theme)) };
 
   // Title
   slide.addText(label(locale, "Dashboard", "Dashboard"), {
@@ -220,7 +229,7 @@ function singleDashboard(
   const vidPct = total > 0 ? Math.round((brand.videoCount / total) * 100) : 0;
   const carPct = total > 0 ? Math.round((brand.carouselCount / total) * 100) : 0;
 
-  const cardBg = lighten(theme.colors.background, 0.12);
+  const cardBg = lighten(contentBg(theme), 0.12);
   const statCards = [
     { lbl: label(locale, "Ads totali", "Total ads"), val: String(brand.totalAds) },
     { lbl: label(locale, "Ads attive", "Active ads"), val: String(brand.activeAds) },
@@ -318,7 +327,7 @@ function singleObjectiveAndFormat(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
-  slide.background = { color: hex(theme.colors.background) };
+  slide.background = { color: hex(contentBg(theme)) };
 
   // Title
   slide.addText(label(locale, "Obiettivo & Formati", "Objective & Formats"), {
@@ -336,7 +345,7 @@ function singleObjectiveAndFormat(
   const leftW = (SW - 2 * PAD) * 0.55;
   const rightW = (SW - 2 * PAD) * 0.4;
   const rightX = PAD + leftW + (SW - 2 * PAD) * 0.05;
-  const cardBg = lighten(theme.colors.background, 0.12);
+  const cardBg = lighten(contentBg(theme), 0.12);
 
   // LEFT: Objective
   addCardBg(slide, pptx, PAD, 0.7, leftW, 4.6, cardBg);
@@ -463,7 +472,7 @@ function singleLatestAds(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
-  slide.background = { color: hex(theme.colors.background) };
+  slide.background = { color: hex(contentBg(theme)) };
 
   slide.addText(label(locale, "Ultime Ads", "Latest Ads"), {
     x: PAD,
@@ -494,7 +503,7 @@ function singleLatestAds(
   const cols = 3;
   const cardW = (SW - 2 * PAD - 0.2 * (cols - 1)) / cols;
   const cardH = 1.8;
-  const cardBg = lighten(theme.colors.background, 0.12);
+  const cardBg = lighten(contentBg(theme), 0.12);
 
   ads.forEach((ad, i) => {
     const col = i % cols;
@@ -549,7 +558,7 @@ function addCopyAnalysisSlide(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
-  slide.background = { color: hex(theme.colors.background) };
+  slide.background = { color: hex(contentBg(theme)) };
 
   slide.addText(label(locale, "Analisi Copy (AI)", "Copy Analysis (AI)"), {
     x: PAD,
@@ -562,7 +571,7 @@ function addCopyAnalysisSlide(
     bold: true,
   });
 
-  const cardBg = lighten(theme.colors.background, 0.12);
+  const cardBg = lighten(contentBg(theme), 0.12);
   const numBrands = analyses.length;
   const colW = (SW - 2 * PAD - 0.15 * (numBrands - 1)) / numBrands;
 
@@ -660,7 +669,7 @@ function addVisualAnalysisSlide(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
-  slide.background = { color: hex(theme.colors.background) };
+  slide.background = { color: hex(contentBg(theme)) };
 
   slide.addText(label(locale, "Analisi Creativa (AI)", "Creative Analysis (AI)"), {
     x: PAD,
@@ -673,7 +682,7 @@ function addVisualAnalysisSlide(
     bold: true,
   });
 
-  const cardBg = lighten(theme.colors.background, 0.12);
+  const cardBg = lighten(contentBg(theme), 0.12);
   const numBrands = analyses.length;
   const colW = (SW - 2 * PAD - 0.15 * (numBrands - 1)) / numBrands;
 
@@ -773,17 +782,20 @@ function compCover(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
-  slide.background = { color: hex(theme.colors.background) };
 
-  // Full bleed accent bar at top
-  slide.addShape(pptx.ShapeType.rect, {
-    x: 0,
-    y: 0,
-    w: SW,
-    h: 0.06,
-    fill: { color: hex(theme.colors.primary) },
-    line: { type: "none" },
-  });
+  // Cover: use template background image if available, otherwise flat color
+  if (theme.coverImageBase64 && theme.coverImageMimeType) {
+    slide.background = {
+      data: `data:${theme.coverImageMimeType};base64,${theme.coverImageBase64}`,
+    };
+  } else {
+    slide.background = { color: hex(contentBg(theme)) };
+    slide.addShape(pptx.ShapeType.rect, {
+      x: 0, y: 0, w: SW, h: 0.06,
+      fill: { color: hex(theme.colors.primary) },
+      line: { type: "none" },
+    });
+  }
 
   // Logo
   if (theme.logoBase64 && theme.logoMimeType) {
@@ -851,7 +863,7 @@ function compOverviewDashboard(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
-  slide.background = { color: hex(theme.colors.background) };
+  slide.background = { color: hex(contentBg(theme)) };
 
   slide.addText(label(locale, "Panoramica Comparativa", "Comparative Overview"), {
     x: PAD,
@@ -907,7 +919,7 @@ function compOverviewDashboard(
     [label(locale, "Format mix", "Format mix"), fmtMix],
   ];
 
-  const altBg = lighten(theme.colors.background, 0.08);
+  const altBg = lighten(contentBg(theme), 0.08);
 
   const dataRows: PptxGenJS.TableRow[] = metrics.map(([lbl, fn], idx) => [
     {
@@ -955,7 +967,7 @@ function compObjectivesAndFormat(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
-  slide.background = { color: hex(theme.colors.background) };
+  slide.background = { color: hex(contentBg(theme)) };
 
   slide.addText(label(locale, "Obiettivi & Formati", "Objectives & Formats"), {
     x: PAD,
@@ -968,7 +980,7 @@ function compObjectivesAndFormat(
     bold: true,
   });
 
-  const cardBg = lighten(theme.colors.background, 0.12);
+  const cardBg = lighten(contentBg(theme), 0.12);
 
   // TOP HALF: Objectives side by side
   const topH = 2.2;
@@ -1105,7 +1117,7 @@ function compCtaAndPlatforms(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
-  slide.background = { color: hex(theme.colors.background) };
+  slide.background = { color: hex(contentBg(theme)) };
 
   slide.addText(label(locale, "CTA & Piattaforme", "CTAs & Platforms"), {
     x: PAD,
@@ -1122,7 +1134,7 @@ function compCtaAndPlatforms(
   const leftW = (SW - 2 * PAD) * 0.6;
   const rightW = (SW - 2 * PAD) * 0.35;
   const rightX = PAD + leftW + (SW - 2 * PAD) * 0.05;
-  const cardBg = lighten(theme.colors.background, 0.12);
+  const cardBg = lighten(contentBg(theme), 0.12);
 
   // CTA section — stacked bars per brand
   slide.addText(label(locale, "Top CTA per brand", "Top CTAs per brand"), {
@@ -1244,7 +1256,7 @@ function compLatestAds(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
-  slide.background = { color: hex(theme.colors.background) };
+  slide.background = { color: hex(contentBg(theme)) };
 
   slide.addText(label(locale, "Ultime Ads", "Latest Ads"), {
     x: PAD,
@@ -1257,7 +1269,7 @@ function compLatestAds(
     bold: true,
   });
 
-  const cardBg = lighten(theme.colors.background, 0.12);
+  const cardBg = lighten(contentBg(theme), 0.12);
   const colW = (SW - 2 * PAD - 0.15 * (brands.length - 1)) / brands.length;
 
   brands.forEach((b, i) => {
@@ -1323,7 +1335,7 @@ function closingSlide(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
-  slide.background = { color: hex(theme.colors.background) };
+  slide.background = { color: hex(contentBg(theme)) };
 
   // Accent bar
   slide.addShape(pptx.ShapeType.rect, {
