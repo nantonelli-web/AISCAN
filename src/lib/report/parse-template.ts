@@ -110,26 +110,66 @@ export async function parseTemplate(buffer: ArrayBuffer): Promise<ThemeConfig> {
     let fonts = { ...DEFAULT_THEME.fonts };
 
     if (themeXml) {
-      colors = {
-        primary: extractSrgbColor(themeXml, "accent1", DEFAULT_THEME.colors.primary),
-        secondary: extractSrgbColor(themeXml, "accent2", DEFAULT_THEME.colors.secondary),
-        background: extractSrgbColor(themeXml, "dk1", DEFAULT_THEME.colors.background),
-        text: extractSrgbColor(themeXml, "lt1", DEFAULT_THEME.colors.text),
-        accent: extractSrgbColor(themeXml, "accent3", DEFAULT_THEME.colors.accent),
-      };
+      const dk1 = extractSrgbColor(themeXml, "dk1", "#000000");
+      const lt1 = extractSrgbColor(themeXml, "lt1", "#FFFFFF");
+
       fonts = {
         heading: extractFont(themeXml, "majorFont", DEFAULT_THEME.fonts.heading),
         body: extractFont(themeXml, "minorFont", DEFAULT_THEME.fonts.body),
       };
+
+      // Determine if template is light or dark based on slide 2.
+      // If slide 2 has no explicit <p:bg>, it's a light template (white default).
+      // If slide 2 has a dark <p:bg>, it's a dark template.
+      let isDarkTemplate = false;
+      const slide2File = zip.file("ppt/slides/slide2.xml");
+      if (slide2File) {
+        const s2Xml = await slide2File.async("text");
+        const hasBg = /<p:bg>/.test(s2Xml);
+        if (hasBg) {
+          // Has explicit background — check if it's dark
+          const bgColor = s2Xml.match(/<p:bg>[\s\S]*?<a:srgbClr val="([A-Fa-f0-9]{6})"/i);
+          if (bgColor) {
+            const r = parseInt(bgColor[1].slice(0, 2), 16);
+            const g = parseInt(bgColor[1].slice(2, 4), 16);
+            const b = parseInt(bgColor[1].slice(4, 6), 16);
+            isDarkTemplate = (r + g + b) / 3 < 128;
+          }
+        }
+        // No <p:bg> = default white background = light template
+      }
+
+      if (isDarkTemplate) {
+        // Dark template: dk1 = background, lt1 = text
+        colors = {
+          primary: extractSrgbColor(themeXml, "accent1", DEFAULT_THEME.colors.primary),
+          secondary: extractSrgbColor(themeXml, "accent2", DEFAULT_THEME.colors.secondary),
+          background: dk1,
+          text: lt1,
+          accent: extractSrgbColor(themeXml, "accent3", DEFAULT_THEME.colors.accent),
+        };
+      } else {
+        // Light template: lt1 = background (white), dk1 = text (black)
+        colors = {
+          primary: extractSrgbColor(themeXml, "accent1", "#4285F4"),
+          secondary: extractSrgbColor(themeXml, "accent2", "#212121"),
+          background: lt1,  // White or light color
+          text: dk1,         // Black or dark color
+          accent: extractSrgbColor(themeXml, "accent3", "#78909C"),
+        };
+      }
     }
 
-    // Extract content slide background color (slide 2)
+    // Content background: explicit from slide 2 bg, or inferred from theme
     let contentBackground: string | null = null;
-    const slide2File = zip.file("ppt/slides/slide2.xml");
-    if (slide2File) {
-      const s2Xml = await slide2File.async("text");
-      const bgMatch = s2Xml.match(/<a:srgbClr val="([A-Fa-f0-9]{6})"/i);
-      if (bgMatch) contentBackground = `#${bgMatch[1].toUpperCase()}`;
+    const slide2ForBg = zip.file("ppt/slides/slide2.xml");
+    if (slide2ForBg) {
+      const s2Xml = await slide2ForBg.async("text");
+      const bgMatch = s2Xml.match(/<p:bg>[\s\S]*?<a:srgbClr val="([A-Fa-f0-9]{6})"/i);
+      if (bgMatch) {
+        contentBackground = `#${bgMatch[1].toUpperCase()}`;
+      }
+      // If no explicit bg, contentBackground stays null → generator uses colors.background
     }
 
     return {
