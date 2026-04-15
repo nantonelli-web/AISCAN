@@ -240,7 +240,7 @@ export async function POST(req: Request) {
     competitor_ids.map((id) => fetchBrandData(admin, id))
   );
 
-  // Fetch AI analysis if needed
+  // Fetch AI analysis if needed — check comparison cache first
   let copyAnalysis: CreativeAnalysisResult["copywriterReport"] | null = null;
   let visualAnalysis: CreativeAnalysisResult["creativeDirectorReport"] | null = null;
 
@@ -248,19 +248,48 @@ export async function POST(req: Request) {
   const needsVisual = sections.includes("visual");
 
   if (needsCopy || needsVisual) {
-    // Fetch ad data for AI analysis
-    const brandAdData = await Promise.all(
-      brands.map((b) => fetchBrandAdData(admin, b.id, b.name))
-    );
+    // Check if we have cached comparison data that's not stale
+    const sortedIds = [...competitor_ids].sort();
+    const { data: userProfile } = await admin
+      .from("mait_users")
+      .select("workspace_id")
+      .eq("id", user.id)
+      .single();
+    const wsId = userProfile?.workspace_id;
 
-    // Run AI analyses in parallel
-    const [copyResult, visualResult] = await Promise.all([
-      needsCopy ? analyzeCopy(brandAdData, parsed.data.locale) : null,
-      needsVisual ? analyzeVisuals(brandAdData, parsed.data.locale) : null,
-    ]);
+    const { data: cached } = wsId
+      ? await admin
+          .from("mait_comparisons")
+          .select("copy_analysis, visual_analysis, stale")
+          .eq("workspace_id", wsId)
+          .eq("competitor_ids", sortedIds)
+          .eq("locale", locale)
+          .single()
+      : { data: null };
 
-    copyAnalysis = copyResult;
-    visualAnalysis = visualResult;
+    const cachedCopy = cached && !cached.stale ? cached.copy_analysis : null;
+    const cachedVisual = cached && !cached.stale ? cached.visual_analysis : null;
+
+    // Use cache where available, generate only what's missing
+    const mustGenerateCopy = needsCopy && !cachedCopy;
+    const mustGenerateVisual = needsVisual && !cachedVisual;
+
+    if (mustGenerateCopy || mustGenerateVisual) {
+      const brandAdData = await Promise.all(
+        brands.map((b) => fetchBrandAdData(admin, b.id, b.name))
+      );
+
+      const [copyResult, visualResult] = await Promise.all([
+        mustGenerateCopy ? analyzeCopy(brandAdData, parsed.data.locale) : null,
+        mustGenerateVisual ? analyzeVisuals(brandAdData, parsed.data.locale) : null,
+      ]);
+
+      copyAnalysis = copyResult ?? cachedCopy;
+      visualAnalysis = visualResult ?? cachedVisual;
+    } else {
+      copyAnalysis = cachedCopy;
+      visualAnalysis = cachedVisual;
+    }
   }
 
   // Override font if user selected one
