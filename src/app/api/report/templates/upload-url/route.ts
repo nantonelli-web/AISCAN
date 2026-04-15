@@ -37,8 +37,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Ensure the signed URL is absolute
+  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const fullUrl = data.signedUrl.startsWith("http")
+    ? data.signedUrl
+    : `${baseUrl}/storage/v1${data.signedUrl}`;
+
   return NextResponse.json({
-    signedUrl: data.signedUrl,
+    signedUrl: fullUrl,
     path: data.path,
     storagePath,
   });

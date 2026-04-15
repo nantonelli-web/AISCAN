@@ -214,7 +214,9 @@ export function ReportBuilder({
         body: uploadFile,
       });
       if (!uploadRes.ok) {
-        throw new Error(`Storage upload failed: ${uploadRes.status}`);
+        const errText = await uploadRes.text().catch(() => "");
+        console.error("[template upload] Storage error:", uploadRes.status, errText);
+        throw new Error(`Storage upload failed: ${uploadRes.status} ${errText.slice(0, 100)}`);
       }
 
       // Step 3: Call API to parse the template and save DB record
