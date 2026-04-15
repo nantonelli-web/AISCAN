@@ -207,45 +207,42 @@ export async function extractImagesFromTemplate(buffer: ArrayBuffer): Promise<{
     let logoBase64: string | null = null;
     let logoMimeType: string | null = null;
 
-    if (slide1Images.length > 0) {
-      const imageData: { path: string; data: string; size: number }[] = [];
-      for (const path of slide1Images) {
+    // Strategy: images actually ON slides are the ones that matter.
+    // Large images not referenced by any slide are ignored.
+    // If only one image on a slide → it's the logo.
+    // If multiple: largest = cover background, smallest = logo.
+
+    // Collect images from all slides
+    const allSlideImages: { path: string; data: string; size: number; slide: number }[] = [];
+    const slideFiles = Object.keys(zip.files)
+      .filter((f) => /^ppt\/slides\/slide\d+\.xml$/.test(f))
+      .sort();
+
+    for (let si = 0; si < slideFiles.length; si++) {
+      const slideNum = si + 1;
+      const imgs = await getSlideImages(zip, slideNum);
+      for (const path of imgs) {
         const file = zip.file(path);
         if (file) {
           const raw = await file.async("uint8array");
           const b64 = await file.async("base64");
-          imageData.push({ path, data: b64, size: raw.length });
+          allSlideImages.push({ path, data: b64, size: raw.length, slide: slideNum });
         }
-      }
-
-      imageData.sort((a, b) => b.size - a.size);
-
-      if (imageData.length >= 1) {
-        coverImageBase64 = imageData[0].data;
-        coverImageMimeType = getMimeType(imageData[0].path);
-      }
-
-      if (imageData.length >= 2) {
-        const logo = imageData[imageData.length - 1];
-        logoBase64 = logo.data;
-        logoMimeType = getMimeType(logo.path);
       }
     }
 
-    // Fallback: check slide 2 for logo
-    if (!logoBase64) {
-      const slide2Images = await getSlideImages(zip, 2);
-      for (const path of slide2Images) {
-        const file = zip.file(path);
-        if (file) {
-          const raw = await file.async("uint8array");
-          if (raw.length < 200_000) {
-            logoBase64 = await file.async("base64");
-            logoMimeType = getMimeType(path);
-            break;
-          }
-        }
-      }
+    if (allSlideImages.length === 1) {
+      // Single image across all slides → it's the logo
+      logoBase64 = allSlideImages[0].data;
+      logoMimeType = getMimeType(allSlideImages[0].path);
+    } else if (allSlideImages.length > 1) {
+      // Multiple: largest = cover background, smallest = logo
+      const sorted = [...allSlideImages].sort((a, b) => b.size - a.size);
+      coverImageBase64 = sorted[0].data;
+      coverImageMimeType = getMimeType(sorted[0].path);
+      const smallest = sorted[sorted.length - 1];
+      logoBase64 = smallest.data;
+      logoMimeType = getMimeType(smallest.path);
     }
 
     return { coverImageBase64, coverImageMimeType, logoBase64, logoMimeType };

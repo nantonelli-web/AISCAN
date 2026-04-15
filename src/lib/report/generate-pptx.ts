@@ -90,6 +90,20 @@ function contentBg(theme: ThemeConfig): string {
   return theme.contentBackground ?? theme.colors.background;
 }
 
+/** Add the template logo to a slide (top-right, small) — call on every slide */
+function addLogo(slide: PptxGenJS.Slide, theme: ThemeConfig) {
+  if (theme.logoBase64 && theme.logoMimeType) {
+    slide.addImage({
+      data: `data:${theme.logoMimeType};base64,${theme.logoBase64}`,
+      x: SW - PAD - 0.4,  // top right
+      y: 0.12,
+      w: 0.38,
+      h: 0.38,
+      sizing: { type: "contain", w: 0.38, h: 0.38 },
+    });
+  }
+}
+
 /** Truncate text to max characters */
 function trunc(text: string | null | undefined, max: number): string {
   if (!text) return "\u2014";
@@ -127,6 +141,7 @@ function singleCover(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
+  addLogo(slide, theme);
 
   // Cover: use template background image if available, otherwise flat color
   if (theme.coverImageBase64 && theme.coverImageMimeType) {
@@ -140,18 +155,6 @@ function singleCover(
       x: 0, y: 0, w: SW, h: 0.06,
       fill: { color: hex(theme.colors.primary) },
       line: { type: "none" },
-    });
-  }
-
-  // Logo
-  if (theme.logoBase64 && theme.logoMimeType) {
-    slide.addImage({
-      data: `data:${theme.logoMimeType};base64,${theme.logoBase64}`,
-      x: PAD,
-      y: 0.3,
-      w: 1.2,
-      h: 1.2,
-      sizing: { type: "contain", w: 1.2, h: 1.2 },
     });
   }
 
@@ -209,6 +212,7 @@ function singleDashboard(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
+  addLogo(slide, theme);
   slide.background = { color: hex(contentBg(theme)) };
 
   // Title
@@ -327,6 +331,7 @@ function singleObjectiveAndFormat(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
+  addLogo(slide, theme);
   slide.background = { color: hex(contentBg(theme)) };
 
   // Title
@@ -472,6 +477,7 @@ function singleLatestAds(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
+  addLogo(slide, theme);
   slide.background = { color: hex(contentBg(theme)) };
 
   slide.addText(label(locale, "Ultime Ads", "Latest Ads"), {
@@ -558,6 +564,7 @@ function addCopyAnalysisSlide(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
+  addLogo(slide, theme);
   slide.background = { color: hex(contentBg(theme)) };
 
   slide.addText(label(locale, "Analisi Copy (AI)", "Copy Analysis (AI)"), {
@@ -603,12 +610,12 @@ function addCopyAnalysisSlide(
     });
 
     const fields: [string, string][] = [
-      [label(locale, "Tono di voce", "Tone of voice"), trunc(a.toneOfVoice, 120)],
-      [label(locale, "Stile copy", "Copy style"), trunc(a.copyStyle, 120)],
+      [label(locale, "Tono di voce", "Tone of voice"), trunc(a.toneOfVoice, 80)],
+      [label(locale, "Stile copy", "Copy style"), trunc(a.copyStyle, 80)],
       [label(locale, "Trigger emozionali", "Emotional triggers"), a.emotionalTriggers?.join(", ") ?? "\u2014"],
-      [label(locale, "Pattern CTA", "CTA patterns"), trunc(a.ctaPatterns, 100)],
-      [label(locale, "Punti di forza", "Strengths"), trunc(a.strengths, 100)],
-      [label(locale, "Punti deboli", "Weaknesses"), trunc(a.weaknesses, 100)],
+      [label(locale, "Pattern CTA", "CTA patterns"), trunc(a.ctaPatterns, 70)],
+      [label(locale, "Punti di forza", "Strengths"), trunc(a.strengths, 70)],
+      [label(locale, "Punti deboli", "Weaknesses"), trunc(a.weaknesses, 70)],
     ];
 
     let fy = y + 0.38;
@@ -647,7 +654,7 @@ function addCopyAnalysisSlide(
       fill: { color: hex(theme.colors.primary) },
       line: { type: "none" },
     });
-    slide.addText(trunc(comparison, 300), {
+    slide.addText(trunc(comparison, 200), {
       x: PAD + 0.05,
       y: 4.55,
       w: SW - 2 * PAD - 0.1,
@@ -669,6 +676,7 @@ function addVisualAnalysisSlide(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
+  addLogo(slide, theme);
   slide.background = { color: hex(contentBg(theme)) };
 
   slide.addText(label(locale, "Analisi Creativa (AI)", "Creative Analysis (AI)"), {
@@ -714,13 +722,13 @@ function addVisualAnalysisSlide(
     });
 
     const fields: [string, string][] = [
-      [label(locale, "Stile visivo", "Visual style"), trunc(a.visualStyle, 120)],
-      [label(locale, "Palette colori", "Color palette"), trunc(a.colorPalette, 120)],
-      [label(locale, "Stile fotografico", "Photography style"), trunc(a.photographyStyle, 120)],
-      [label(locale, "Coerenza brand", "Brand consistency"), trunc(a.brandConsistency, 100)],
-      [label(locale, "Preferenze formato", "Format preferences"), trunc(a.formatPreferences, 100)],
-      [label(locale, "Punti di forza", "Strengths"), trunc(a.strengths, 100)],
-      [label(locale, "Punti deboli", "Weaknesses"), trunc(a.weaknesses, 100)],
+      [label(locale, "Stile visivo", "Visual style"), trunc(a.visualStyle, 80)],
+      [label(locale, "Palette colori", "Color palette"), trunc(a.colorPalette, 80)],
+      [label(locale, "Stile fotografico", "Photography style"), trunc(a.photographyStyle, 80)],
+      [label(locale, "Coerenza brand", "Brand consistency"), trunc(a.brandConsistency, 70)],
+      [label(locale, "Preferenze formato", "Format preferences"), trunc(a.formatPreferences, 70)],
+      [label(locale, "Punti di forza", "Strengths"), trunc(a.strengths, 70)],
+      [label(locale, "Punti deboli", "Weaknesses"), trunc(a.weaknesses, 70)],
     ];
 
     let fy = y + 0.38;
@@ -759,7 +767,7 @@ function addVisualAnalysisSlide(
       fill: { color: hex(theme.colors.primary) },
       line: { type: "none" },
     });
-    slide.addText(trunc(comparison, 300), {
+    slide.addText(trunc(comparison, 200), {
       x: PAD + 0.05,
       y: 4.55,
       w: SW - 2 * PAD - 0.1,
@@ -782,6 +790,7 @@ function compCover(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
+  addLogo(slide, theme);
 
   // Cover: use template background image if available, otherwise flat color
   if (theme.coverImageBase64 && theme.coverImageMimeType) {
@@ -794,18 +803,6 @@ function compCover(
       x: 0, y: 0, w: SW, h: 0.06,
       fill: { color: hex(theme.colors.primary) },
       line: { type: "none" },
-    });
-  }
-
-  // Logo
-  if (theme.logoBase64 && theme.logoMimeType) {
-    slide.addImage({
-      data: `data:${theme.logoMimeType};base64,${theme.logoBase64}`,
-      x: PAD,
-      y: 0.3,
-      w: 1.2,
-      h: 1.2,
-      sizing: { type: "contain", w: 1.2, h: 1.2 },
     });
   }
 
@@ -863,6 +860,7 @@ function compOverviewDashboard(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
+  addLogo(slide, theme);
   slide.background = { color: hex(contentBg(theme)) };
 
   slide.addText(label(locale, "Panoramica Comparativa", "Comparative Overview"), {
@@ -967,6 +965,7 @@ function compObjectivesAndFormat(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
+  addLogo(slide, theme);
   slide.background = { color: hex(contentBg(theme)) };
 
   slide.addText(label(locale, "Obiettivi & Formati", "Objectives & Formats"), {
@@ -1117,6 +1116,7 @@ function compCtaAndPlatforms(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
+  addLogo(slide, theme);
   slide.background = { color: hex(contentBg(theme)) };
 
   slide.addText(label(locale, "CTA & Piattaforme", "CTAs & Platforms"), {
@@ -1256,6 +1256,7 @@ function compLatestAds(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
+  addLogo(slide, theme);
   slide.background = { color: hex(contentBg(theme)) };
 
   slide.addText(label(locale, "Ultime Ads", "Latest Ads"), {
@@ -1335,6 +1336,7 @@ function closingSlide(
   locale: Locale
 ) {
   const slide = pptx.addSlide();
+  addLogo(slide, theme);
   slide.background = { color: hex(contentBg(theme)) };
 
   // Accent bar
