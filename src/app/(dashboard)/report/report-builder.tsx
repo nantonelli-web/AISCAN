@@ -188,18 +188,38 @@ export function ReportBuilder({
     }
 
     setUploading(true);
+    setError(null);
     try {
-      const formData = new FormData();
-      formData.append("file", uploadFile);
-      formData.append("client_id", clientIdForUpload);
-      formData.append("name", uploadName.trim());
+      // Step 1: Upload file directly to Supabase Storage (bypass Vercel 4.5MB limit)
+      const { createClient: createBrowserClient } = await import("@/lib/supabase/client");
+      const supabase = createBrowserClient();
+      const storagePath = `${clientIdForUpload}/${Date.now()}_${uploadFile.name}`;
 
+      const { error: storageErr } = await supabase.storage
+        .from("templates")
+        .upload(storagePath, uploadFile, {
+          contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+          upsert: false,
+        });
+
+      if (storageErr) {
+        throw new Error(`Storage upload failed: ${storageErr.message}`);
+      }
+
+      // Step 2: Call API to parse the template and save DB record
       const res = await fetch("/api/report/templates", {
         method: "POST",
-        body: formData,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          client_id: clientIdForUpload,
+          name: uploadName.trim(),
+          storage_path: storagePath,
+        }),
       });
 
       if (!res.ok) {
+        // Clean up storage on failure
+        await supabase.storage.from("templates").remove([storagePath]);
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? "Upload failed");
       }
@@ -210,8 +230,8 @@ export function ReportBuilder({
       setShowUpload(false);
       setUploadName("");
       setUploadFile(null);
-    } catch {
-      setError(t("report", "errorGeneration"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("report", "errorGeneration"));
     } finally {
       setUploading(false);
     }
