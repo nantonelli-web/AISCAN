@@ -42,7 +42,8 @@ export async function POST(req: Request) {
 
   const admin = createAdminClient();
 
-  // Fetch latest 8 ads per competitor with brand name
+  // Fetch ads from the last 10 days per competitor (cap at 12)
+  const tenDaysAgo = new Date(Date.now() - 10 * 86_400_000).toISOString();
   const brands: BrandAdData[] = await Promise.all(
     parsed.data.competitor_ids.map(async (id) => {
       const [{ data: comp }, { data: ads }] = await Promise.all([
@@ -55,8 +56,9 @@ export async function POST(req: Request) {
           .from("mait_ads_external")
           .select("headline, ad_text, description, cta, image_url")
           .eq("competitor_id", id)
+          .gte("created_at", tenDaysAgo)
           .order("created_at", { ascending: false })
-          .limit(8),
+          .limit(12),
       ]);
 
       return {

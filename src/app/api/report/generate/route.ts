@@ -166,12 +166,14 @@ async function fetchBrandAdData(
   competitorId: string,
   brandName: string
 ): Promise<BrandAdData> {
+  const tenDaysAgo = new Date(Date.now() - 10 * 86_400_000).toISOString();
   const { data: ads } = await admin
     .from("mait_ads_external")
     .select("headline, ad_text, cta, image_url, raw_data")
     .eq("competitor_id", competitorId)
+    .gte("created_at", tenDaysAgo)
     .order("created_at", { ascending: false })
-    .limit(8);
+    .limit(12);
 
   type AdRow = {
     headline: string | null;

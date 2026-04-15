@@ -195,6 +195,7 @@ async function fetchBrandAdData(
   ids: string[],
   admin: ReturnType<typeof createAdminClient>
 ): Promise<BrandAdData[]> {
+  const tenDaysAgo = new Date(Date.now() - 10 * 86_400_000).toISOString();
   return Promise.all(
     ids.map(async (id) => {
       const [{ data: comp }, { data: ads }] = await Promise.all([
@@ -207,8 +208,9 @@ async function fetchBrandAdData(
           .from("mait_ads_external")
           .select("headline, ad_text, description, cta, image_url")
           .eq("competitor_id", id)
+          .gte("created_at", tenDaysAgo)
           .order("created_at", { ascending: false })
-          .limit(8),
+          .limit(12),
       ]);
 
       return {
