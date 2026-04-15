@@ -93,7 +93,7 @@ export function ReportBuilder({
   const selectedClientId = firstBrand?.client_id ?? null;
   const filteredTemplates = selectedClientId
     ? templates.filter((t) => t.client_id === selectedClientId)
-    : templates;
+    : templates; // Show all templates if no client selected
 
   const selectedTemplate = templateId
     ? templates.find((t) => t.id === templateId)
@@ -180,13 +180,18 @@ export function ReportBuilder({
   }
 
   async function handleUploadTemplate() {
-    if (!uploadFile || !uploadName.trim() || !selectedClientId) return;
+    if (!uploadFile || !uploadName.trim()) return;
+    const clientIdForUpload = selectedClientId;
+    if (!clientIdForUpload) {
+      setError("Seleziona un brand assegnato a un cliente per caricare un template.");
+      return;
+    }
 
     setUploading(true);
     try {
       const formData = new FormData();
       formData.append("file", uploadFile);
-      formData.append("client_id", selectedClientId);
+      formData.append("client_id", clientIdForUpload);
       formData.append("name", uploadName.trim());
 
       const res = await fetch("/api/report/templates", {
@@ -392,7 +397,7 @@ export function ReportBuilder({
             </p>
           )}
 
-          {selectedClientId && (
+          {selectedBrands.size > 0 && (
             <>
               <Button
                 variant="outline"
