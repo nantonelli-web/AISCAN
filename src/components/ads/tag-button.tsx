@@ -79,38 +79,22 @@ export function TagButton({ competitorId }: { competitorId?: string }) {
   const allDone = untaggedCount === 0;
 
   return (
-    <div className="flex items-center gap-2">
-      <Button
-        onClick={onClick}
-        disabled={loading || allDone}
-        variant="outline"
-        title={
-          allDone
-            ? t("tagButton", "allTaggedTooltip")
-            : untaggedCount != null
-              ? `${untaggedCount} ${t("tagButton", "toTag")}`
-              : ""
-        }
-      >
-        <Sparkles
-          className={loading ? "size-4 animate-pulse" : "size-4"}
-        />
-        {loading
-          ? t("tagButton", "tagging")
-          : allDone
-            ? t("tagButton", "allTaggedBtn")
+    <Button
+      onClick={onClick}
+      disabled={loading || allDone}
+      variant={allDone ? "outline" : "default"}
+      className="gap-2"
+    >
+      <Sparkles
+        className={loading ? "size-4 animate-pulse" : "size-4"}
+      />
+      {loading
+        ? t("tagButton", "tagging")
+        : allDone
+          ? t("tagButton", "allTaggedBtn")
+          : untaggedCount != null
+            ? `${t("tagButton", "aiTag")} · ${untaggedCount} ads`
             : t("tagButton", "aiTag")}
-      </Button>
-      {untaggedCount != null && !allDone && (
-        <span className="text-[10px] text-muted-foreground">
-          {untaggedCount} {t("tagButton", "toAnalyze")}
-        </span>
-      )}
-      {allDone && (
-        <span className="text-[10px] text-green-400">
-          ✓ {t("tagButton", "complete")}
-        </span>
-      )}
-    </div>
+    </Button>
   );
 }
