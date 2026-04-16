@@ -297,6 +297,8 @@ const translations = {
     scanPlusAds: { it: "Scan + ads", en: "Scan + ads" },
     scanOnly: { it: "Solo scan", en: "Scan only" },
     error: { it: "Errore", en: "Error" },
+    succeededLabel: { it: "riusciti", en: "succeeded" },
+    lastRun: { it: "ultimo", en: "last" },
   },
 
   // ─── Relative time ─────────────────────────────────────────
@@ -673,6 +675,11 @@ const translations = {
     toAnalyze: { it: "da analizzare", en: "to analyze" },
     complete: { it: "Analisi completata", en: "Analysis complete" },
     aiTag: { it: "AI Tag", en: "AI Tag" },
+    aiTagTitle: { it: "Classificazione AI", en: "AI Classification" },
+    aiTagDescription: {
+      it: "Analizza automaticamente ogni ad con AI per classificare settore, tono, formato creativo, obiettivo e stagionalit\u00E0.",
+      en: "Automatically analyze each ad with AI to classify sector, tone, creative format, objective, and seasonality.",
+    },
     tagging: { it: "Tagging\u2026", en: "Tagging\u2026" },
     error: { it: "Errore", en: "Error" },
   },

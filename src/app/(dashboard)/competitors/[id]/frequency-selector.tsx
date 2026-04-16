@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Calendar } from "lucide-react";
+// Calendar icon removed — inline text style now
 import { useT } from "@/lib/i18n/context";
 
 export function FrequencySelector({
@@ -50,14 +50,13 @@ export function FrequencySelector({
   }
 
   return (
-    <label className="inline-flex items-center gap-2 text-sm rounded-md border border-border bg-card px-3 h-9 hover:border-gold/50 transition-colors">
-      <Calendar className="size-4 text-muted-foreground" />
+    <label className="inline-flex items-center gap-1 text-xs cursor-pointer">
       <span className="text-muted-foreground">{t("frequency", "schedule")}</span>
       <select
         value={value}
         onChange={onChange}
         disabled={pending}
-        className="bg-transparent text-foreground outline-none cursor-pointer disabled:opacity-50"
+        className="bg-transparent text-foreground outline-none cursor-pointer disabled:opacity-50 text-xs underline underline-offset-2 decoration-dotted decoration-muted-foreground/50"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value} className="bg-card">

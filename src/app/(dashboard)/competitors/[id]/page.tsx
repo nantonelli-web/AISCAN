@@ -1,18 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft, Download, Pencil } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { AdCard } from "@/components/ads/ad-card";
 import { OrganicPostCard } from "@/components/organic/organic-post-card";
 import { TagButton } from "@/components/ads/tag-button";
 import { ScanDropdown } from "./scan-dropdown";
 import { FrequencySelector } from "./frequency-selector";
-import { JobHistory } from "./job-history";
+import { CollapsibleJobHistory } from "./collapsible-job-history";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import type { MaitAdExternal, MaitCompetitor, MaitOrganicPost, MaitScrapeJob } from "@/types";
@@ -98,8 +97,10 @@ export default async function CompetitorDetailPage({
         <ArrowLeft className="size-4" /> {t("competitors", "allCompetitors")}
       </Link>
 
+      {/* ─── Header: brand identity + primary action ─────────── */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="space-y-2">
+        <div className="space-y-1.5">
+          {/* Brand name */}
           <div className="flex items-center gap-3">
             {pageProfilePicture && (
               // eslint-disable-next-line @next/next/no-img-element
@@ -110,7 +111,16 @@ export default async function CompetitorDetailPage({
               />
             )}
             <h1 className="text-3xl font-serif tracking-tight">{c.page_name}</h1>
+            <Link
+              href={`/competitors/${c.id}/edit`}
+              className="size-7 rounded-md grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              title="Edit"
+            >
+              <Pencil className="size-3.5" />
+            </Link>
           </div>
+
+          {/* Qualitative info: URL + industry + likes */}
           <div className="flex items-center gap-2 flex-wrap">
             <a
               href={c.page_url}
@@ -120,7 +130,6 @@ export default async function CompetitorDetailPage({
             >
               {c.page_url}
             </a>
-            {c.country && <Badge variant="muted">{c.country}</Badge>}
             {c.category && <Badge variant="muted">{c.category}</Badge>}
             {pageLikeCount != null && pageLikeCount > 0 && (
               <Badge variant="gold">
@@ -128,48 +137,52 @@ export default async function CompetitorDetailPage({
               </Badge>
             )}
           </div>
-          {pageCategories.length > 0 && (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {pageCategories.map((cat) => (
-                <Badge key={cat} variant="outline" className="text-[10px]">
-                  {cat}
-                </Badge>
-              ))}
-            </div>
-          )}
-          <p className="text-xs text-muted-foreground">
-            {t("competitors", "lastScan")} {formatDate(c.last_scraped_at)}
-          </p>
-        </div>
-        <div className="flex items-center gap-4 flex-wrap">
-          {/* Settings group */}
-          <div className="flex items-center gap-2">
+
+          {/* Settings line: last scan · schedule · countries */}
+          <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+            <span>{t("competitors", "lastScan")} {formatDate(c.last_scraped_at)}</span>
+            <span className="text-border">·</span>
             <FrequencySelector competitorId={c.id} initial={frequency} />
-            <TagButton competitorId={c.id} />
+            {c.country && (
+              <>
+                <span className="text-border">·</span>
+                <span>{c.country}</span>
+              </>
+            )}
           </div>
+        </div>
 
-          {/* Separator */}
-          <div className="hidden sm:block h-6 w-px bg-border" />
-
-          {/* Actions group */}
-          <div className="flex items-center gap-2">
-            <a
-              href={`/api/export/ads.csv?competitor_id=${c.id}`}
-              className="inline-flex items-center justify-center size-9 rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-gold/30 transition-colors"
-              title={t("competitors", "exportCsv")}
-            >
-              <Download className="size-4" />
-            </a>
-            <ScanDropdown
-              competitorId={c.id}
-              hasGoogleConfig={!!(c.google_advertiser_id || c.google_domain)}
-            />
-          </div>
+        {/* Primary actions: Scan (prominent) + Export (subtle) */}
+        <div className="flex items-center gap-2">
+          <a
+            href={`/api/export/ads.csv?competitor_id=${c.id}`}
+            className="inline-flex items-center justify-center size-9 rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-gold/30 transition-colors"
+            title={t("competitors", "exportCsv")}
+          >
+            <Download className="size-4" />
+          </a>
+          <ScanDropdown
+            competitorId={c.id}
+            hasGoogleConfig={!!(c.google_advertiser_id || c.google_domain)}
+          />
         </div>
       </div>
 
-      {jobsList.length > 0 && <JobHistory jobs={jobsList} />}
+      {/* ─── Collapsible scan history ────────────────────────── */}
+      {jobsList.length > 0 && <CollapsibleJobHistory jobs={jobsList} />}
 
+      {/* ─── AI Tag section ──────────────────────────────────── */}
+      {adsList.length > 0 && (
+        <div className="flex items-center gap-4 px-4 py-3 rounded-lg border border-border bg-muted/20">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium">{t("tagButton", "aiTagTitle")}</p>
+            <p className="text-xs text-muted-foreground">{t("tagButton", "aiTagDescription")}</p>
+          </div>
+          <TagButton competitorId={c.id} />
+        </div>
+      )}
+
+      {/* ─── Ads grid ────────────────────────────────────────── */}
       {adsList.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground">
@@ -198,7 +211,6 @@ export default async function CompetitorDetailPage({
           </h2>
         </div>
 
-        {/* Organic engagement stats (only if posts exist) */}
         {organicCount > 0 && (
           <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
             <Card>
