@@ -897,8 +897,10 @@ function compObjectivesAndFormat(
 
   const cardBg = lighten(contentBg(theme), 0.12);
 
-  // TOP HALF: Objectives side by side
-  const topH = 2.2;
+  // TOP HALF: Objectives side by side — show ALL signals + disclaimer
+  const maxSignals = Math.max(...brands.map((b) => b.objectiveInference.signals.length));
+  const sigLineH = 0.2;
+  const topH = 0.95 + maxSignals * sigLineH + 0.15;
   const colW = (SW - 2 * PAD - 0.15 * (brands.length - 1)) / brands.length;
 
   brands.forEach((b, i) => {
@@ -928,15 +930,31 @@ function compObjectivesAndFormat(
       bold: true,
     });
 
-    slide.addText(obj.objective.replace(/_/g, " ").toUpperCase(), {
+    // Objective label + "STIMA" badge
+    slide.addText([
+      {
+        text: obj.objective.replace(/_/g, " ").toUpperCase(),
+        options: {
+          fontSize: 12,
+          fontFace: theme.fonts.heading,
+          color: hex(theme.colors.text),
+          bold: true,
+        },
+      },
+      {
+        text: label(locale, "  STIMA", "  ESTIMATE"),
+        options: {
+          fontSize: 7,
+          fontFace: theme.fonts.body,
+          color: hex(theme.colors.primary),
+          bold: true,
+        },
+      },
+    ], {
       x: x + 0.08,
       y: y + 0.35,
       w: colW - 0.16,
       h: 0.3,
-      fontSize: 12,
-      fontFace: theme.fonts.heading,
-      color: hex(theme.colors.text),
-      bold: true,
     });
 
     // Confidence bar
@@ -967,15 +985,14 @@ function compObjectivesAndFormat(
       color: hex(theme.colors.text),
     });
 
-    // Top 3 signals
-    const sigs = obj.signals.slice(0, 3);
-    sigs.forEach((s, j) => {
+    // All signals (full list, not truncated)
+    obj.signals.forEach((s, j) => {
       slide.addText(`\u2022 ${s}`, {
         x: x + 0.08,
-        y: y + 0.95 + j * 0.28,
+        y: y + 0.95 + j * sigLineH,
         w: colW - 0.16,
-        h: 0.25,
-        fontSize: 7,
+        h: sigLineH,
+        fontSize: 6.5,
         fontFace: theme.fonts.body,
         color: hex(theme.colors.text),
         transparency: 20,
@@ -983,8 +1000,28 @@ function compObjectivesAndFormat(
     });
   });
 
+  // Disclaimer — clarifies this is an inference, not real campaign data
+  const disclaimerY = 0.6 + topH + 0.08;
+  slide.addText(
+    label(
+      locale,
+      "Questa è una stima basata su segnali pubblici (tipo CTA, formato ad, Advantage+, landing page). L\u2019obiettivo reale della campagna è visibile solo all\u2019inserzionista tramite Meta Ads Manager. Affidabilità indicativa: la barra mostra il livello di confidenza.",
+      "This is an estimate based on public signals (CTA type, ad format, Advantage+, landing page). The actual campaign objective is only visible to the advertiser via Meta Ads Manager. Indicative reliability: the bar shows the confidence level."
+    ),
+    {
+      x: PAD,
+      y: disclaimerY,
+      w: SW - 2 * PAD,
+      h: 0.3,
+      fontSize: 5.5,
+      fontFace: theme.fonts.body,
+      color: hex(theme.colors.primary),
+      italic: true,
+    }
+  );
+
   // BOTTOM HALF: Format grouped bar chart
-  const botY = topH + 0.8;
+  const botY = disclaimerY + 0.38;
   const botH = SH - botY - 0.15;
 
   slide.addText(label(locale, "Distribuzione formati", "Format distribution"), {

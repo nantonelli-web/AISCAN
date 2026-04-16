@@ -14,6 +14,8 @@ import {
   Check,
   X,
   Trash2,
+  GitCompareArrows,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
@@ -32,6 +34,16 @@ interface TemplateRecord {
   name: string;
   file_type: string;
   created_at: string;
+}
+
+interface SavedComparison {
+  id: string;
+  competitor_ids: string[];
+  locale: string;
+  stale: boolean;
+  updated_at: string;
+  hasCopy: boolean;
+  hasVisual: boolean;
 }
 
 type ReportType = "single" | "comparison";
@@ -56,10 +68,12 @@ export function ReportBuilder({
   competitors,
   clients: _clients,
   templates: initialTemplates,
+  savedComparisons = [],
 }: {
   competitors: MaitCompetitor[];
   clients: ClientRecord[];
   templates: TemplateRecord[];
+  savedComparisons?: SavedComparison[];
 }) {
   void _clients; // clients list available for future use
   const { t, locale } = useT();
@@ -87,6 +101,9 @@ export function ReportBuilder({
   // Derived values
   const selectedArray = [...selectedBrands];
   const maxBrands = reportType === "comparison" ? 3 : 1;
+  // Step numbering shifts by 1 when saved comparisons card is visible
+  const hasCompStep = reportType === "comparison" && savedComparisons.length > 0;
+  const stepOffset = hasCompStep ? 1 : 0;
 
   // Get client_id for the first selected brand (for template filtering)
   const firstBrand = competitors.find((c) => selectedBrands.has(c.id));
@@ -304,11 +321,88 @@ export function ReportBuilder({
         </CardContent>
       </Card>
 
-      {/* Step 2: Select Brand(s) */}
+      {/* Step 2: Saved comparisons (only for comparison mode) */}
+      {reportType === "comparison" && savedComparisons.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">
+              2. {t("report", "savedComparisons")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-xs text-muted-foreground mb-3">
+              {t("report", "savedComparisonsHint")}
+            </p>
+            <div className="grid gap-2">
+              {savedComparisons.map((sc) => {
+                // Resolve brand names from competitor IDs
+                const brandNames = sc.competitor_ids
+                  .map((id) => competitors.find((c) => c.id === id)?.page_name)
+                  .filter(Boolean);
+                // Skip comparisons whose brands are not in the current workspace
+                if (brandNames.length !== sc.competitor_ids.length) return null;
+
+                const isActive =
+                  sc.competitor_ids.length === selectedBrands.size &&
+                  sc.competitor_ids.every((id) => selectedBrands.has(id));
+
+                return (
+                  <button
+                    key={sc.id}
+                    onClick={() => {
+                      setSelectedBrands(new Set(sc.competitor_ids));
+                      setTemplateId(null);
+                    }}
+                    className={cn(
+                      "flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors w-full",
+                      isActive
+                        ? "bg-gold/15 border-gold/40 text-foreground"
+                        : "border-border text-muted-foreground hover:text-foreground hover:border-gold/30"
+                    )}
+                  >
+                    <GitCompareArrows className={cn(
+                      "size-4 shrink-0",
+                      isActive ? "text-gold" : "text-muted-foreground"
+                    )} />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium truncate block">
+                        {brandNames.join(" vs ")}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                        {new Date(sc.updated_at).toLocaleDateString(locale === "it" ? "it-IT" : "en-US", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                        {sc.stale && (
+                          <span className="inline-flex items-center gap-0.5 text-amber-400">
+                            <AlertTriangle className="size-2.5" />
+                            {t("report", "stale")}
+                          </span>
+                        )}
+                        <span className="text-muted-foreground/50">
+                          {[
+                            "Tech",
+                            sc.hasCopy ? "Copy" : null,
+                            sc.hasVisual ? "Visual" : null,
+                          ].filter(Boolean).join(" + ")}
+                        </span>
+                      </span>
+                    </div>
+                    {isActive && <Check className="size-3.5 text-gold shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Step {N}: Select Brand(s) */}
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">
-            2.{" "}
+            {reportType === "comparison" && savedComparisons.length > 0 ? "3" : "2"}.{" "}
             {reportType === "single"
               ? t("report", "selectBrand")
               : t("report", "selectBrands")}
@@ -346,7 +440,7 @@ export function ReportBuilder({
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">
-            3. {t("report", "contentSelection")}
+            {3 + stepOffset}. {t("report", "contentSelection")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -389,7 +483,7 @@ export function ReportBuilder({
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">
-            4. {t("report", "template")}
+            {4 + stepOffset}. {t("report", "template")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -544,7 +638,7 @@ export function ReportBuilder({
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">
-            5. {t("report", "language")}
+            {5 + stepOffset}. {t("report", "language")}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -571,7 +665,7 @@ export function ReportBuilder({
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">
-            6. {t("report", "font")}
+            {6 + stepOffset}. {t("report", "font")}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -603,7 +697,7 @@ export function ReportBuilder({
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">
-            7. {t("report", "format")}
+            {7 + stepOffset}. {t("report", "format")}
           </CardTitle>
         </CardHeader>
         <CardContent>

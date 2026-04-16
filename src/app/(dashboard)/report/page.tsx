@@ -35,6 +35,14 @@ export default async function ReportPage() {
     .eq("workspace_id", profile.workspace_id!)
     .order("created_at", { ascending: false });
 
+  // Fetch saved comparisons (last 20, most recent first)
+  const { data: savedComparisons } = await admin
+    .from("mait_comparisons")
+    .select("id, competitor_ids, locale, stale, updated_at, copy_analysis, visual_analysis")
+    .eq("workspace_id", profile.workspace_id!)
+    .order("updated_at", { ascending: false })
+    .limit(20);
+
   return (
     <div className="space-y-6">
       <div>
@@ -49,6 +57,15 @@ export default async function ReportPage() {
         competitors={(competitors ?? []) as MaitCompetitor[]}
         clients={clients ?? []}
         templates={templates ?? []}
+        savedComparisons={(savedComparisons ?? []).map((sc) => ({
+          id: sc.id as string,
+          competitor_ids: sc.competitor_ids as string[],
+          locale: sc.locale as string,
+          stale: sc.stale as boolean,
+          updated_at: sc.updated_at as string,
+          hasCopy: sc.copy_analysis != null,
+          hasVisual: sc.visual_analysis != null,
+        }))}
       />
     </div>
   );
