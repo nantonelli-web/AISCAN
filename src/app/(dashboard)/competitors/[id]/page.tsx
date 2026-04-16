@@ -10,9 +10,7 @@ import { Button } from "@/components/ui/button";
 import { AdCard } from "@/components/ads/ad-card";
 import { OrganicPostCard } from "@/components/organic/organic-post-card";
 import { TagButton } from "@/components/ads/tag-button";
-import { ScanButton } from "./scan-button";
-import { ScanGoogleButton } from "./scan-google-button";
-import { ScanInstagramButton } from "./scan-instagram-button";
+import { ScanDropdown } from "./scan-dropdown";
 import { FrequencySelector } from "./frequency-selector";
 import { JobHistory } from "./job-history";
 import { formatDate, formatNumber } from "@/lib/utils";
@@ -143,20 +141,30 @@ export default async function CompetitorDetailPage({
             {t("competitors", "lastScan")} {formatDate(c.last_scraped_at)}
           </p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <FrequencySelector competitorId={c.id} initial={frequency} />
-          <TagButton competitorId={c.id} />
-          <Button asChild variant="outline">
-            <a href={`/api/export/ads.csv?competitor_id=${c.id}`}>
-              <Download className="size-4" /> {t("competitors", "exportCsv")}
+        <div className="flex items-center gap-4 flex-wrap">
+          {/* Settings group */}
+          <div className="flex items-center gap-2">
+            <FrequencySelector competitorId={c.id} initial={frequency} />
+            <TagButton competitorId={c.id} />
+          </div>
+
+          {/* Separator */}
+          <div className="hidden sm:block h-6 w-px bg-border" />
+
+          {/* Actions group */}
+          <div className="flex items-center gap-2">
+            <a
+              href={`/api/export/ads.csv?competitor_id=${c.id}`}
+              className="inline-flex items-center justify-center size-9 rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-gold/30 transition-colors"
+              title={t("competitors", "exportCsv")}
+            >
+              <Download className="size-4" />
             </a>
-          </Button>
-          <ScanInstagramButton competitorId={c.id} />
-          <ScanGoogleButton
-            competitorId={c.id}
-            hasGoogleConfig={!!(c.google_advertiser_id || c.google_domain)}
-          />
-          <ScanButton competitorId={c.id} />
+            <ScanDropdown
+              competitorId={c.id}
+              hasGoogleConfig={!!(c.google_advertiser_id || c.google_domain)}
+            />
+          </div>
         </div>
       </div>
 
