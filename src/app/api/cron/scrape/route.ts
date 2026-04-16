@@ -106,10 +106,13 @@ export async function GET(req: Request) {
       // Google Ads (if configured)
       if (c.google_advertiser_id || c.google_domain) {
         try {
+          const countryCodes = c.country
+            ? c.country.split(",").map((cc: string) => cc.trim()).filter(Boolean)
+            : undefined;
           const gResult = await scrapeGoogleAds({
             advertiserId: c.google_advertiser_id ?? undefined,
             advertiserDomain: c.google_domain ?? undefined,
-            countryCode: c.country?.split(",")[0]?.trim() ?? undefined,
+            countryCodes,
             maxResults: c.monitor_config?.max_items ?? 200,
           });
           if (gResult.records.length > 0) {

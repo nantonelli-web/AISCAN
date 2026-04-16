@@ -9,7 +9,6 @@ export const maxDuration = 300;
 const schema = z.object({
   competitor_id: z.string().uuid(),
   max_items: z.number().int().min(1).max(1000).optional(),
-  country_code: z.string().length(2).optional(),
 });
 
 export async function POST(req: Request) {
@@ -83,11 +82,10 @@ export async function POST(req: Request) {
   }
 
   try {
-    // Determine country code: use explicit param, or first country from competitor
-    const countryCode =
-      parsed.data.country_code ??
-      competitor.country?.split(",")[0]?.trim() ??
-      undefined;
+    // Parse all country codes from competitor config
+    const countryCodes = competitor.country
+      ? competitor.country.split(",").map((c: string) => c.trim()).filter(Boolean)
+      : undefined;
 
     const result = await scrapeGoogleAds({
       advertiserId: competitor.google_advertiser_id ?? undefined,
@@ -95,7 +93,7 @@ export async function POST(req: Request) {
       advertiserName: !competitor.google_advertiser_id && !competitor.google_domain
         ? competitor.page_name ?? undefined
         : undefined,
-      countryCode,
+      countryCodes,
       maxResults: parsed.data.max_items ?? 200,
     });
 

@@ -67,7 +67,8 @@ export interface GoogleScrapeOptions {
   advertiserDomain?: string;
   advertiserName?: string;
   advertiserId?: string;
-  countryCode?: string;
+  /** One or more ISO country codes. Runs one Apify call per country. */
+  countryCodes?: string[];
   maxResults?: number;
 }
 
@@ -103,37 +104,15 @@ function normalize(ad: RawGoogleAd): NormalizedAd {
   };
 }
 
-// ─── Main scrape function ───
+// ─── Single-country run (internal) ───
 
-export async function scrapeGoogleAds(
-  opts: GoogleScrapeOptions
-): Promise<ScrapeResult> {
-  const maxResults = opts.maxResults ?? 200;
-
-  // Build actor input
-  const input: Record<string, unknown> = {
-    maxResults,
-  };
-
-  if (opts.advertiserId) {
-    // Direct advertiser ID — fastest path, skips search
-    input.searchQuery = opts.advertiserId;
-    input.searchType = "advertiserId";
-  } else if (opts.advertiserDomain) {
-    input.searchQuery = opts.advertiserDomain;
-    input.searchType = "domain";
-  } else if (opts.advertiserName) {
-    input.searchQuery = opts.advertiserName;
-    input.searchType = "advertiserName";
-  } else {
-    throw new Error(
-      "Google Ads scrape requires advertiserId, advertiserDomain, or advertiserName"
-    );
-  }
-
-  if (opts.countryCode) {
-    input.countryCode = opts.countryCode;
-  }
+async function runForCountry(
+  searchInput: Record<string, unknown>,
+  countryCode: string | undefined,
+  maxResults: number
+): Promise<{ runId: string; records: NormalizedAd[]; costCu: number }> {
+  const input: Record<string, unknown> = { ...searchInput, maxResults };
+  if (countryCode) input.countryCode = countryCode;
 
   const actorPath = `/acts/${encodeURIComponent(GOOGLE_ACTOR_ID)}/runs`;
   const run = await apifyFetch(actorPath, {
@@ -186,6 +165,61 @@ export async function scrapeGoogleAds(
     /* ignore */
   }
 
+  return { runId, records, costCu };
+}
+
+// ─── Main scrape function ───
+
+export async function scrapeGoogleAds(
+  opts: GoogleScrapeOptions
+): Promise<ScrapeResult> {
+  const maxResults = opts.maxResults ?? 200;
+
+  // Build search input (shared across all country runs)
+  const searchInput: Record<string, unknown> = {};
+
+  if (opts.advertiserId) {
+    searchInput.searchQuery = opts.advertiserId;
+    searchInput.searchType = "advertiserId";
+  } else if (opts.advertiserDomain) {
+    searchInput.searchQuery = opts.advertiserDomain;
+    searchInput.searchType = "domain";
+  } else if (opts.advertiserName) {
+    searchInput.searchQuery = opts.advertiserName;
+    searchInput.searchType = "advertiserName";
+  } else {
+    throw new Error(
+      "Google Ads scrape requires advertiserId, advertiserDomain, or advertiserName"
+    );
+  }
+
+  const countries = opts.countryCodes?.filter(Boolean) ?? [];
+
+  // Run one call per country (or a single call with no country filter)
+  const runs =
+    countries.length > 0
+      ? await Promise.all(
+          countries.map((cc) => runForCountry(searchInput, cc, maxResults))
+        )
+      : [await runForCountry(searchInput, undefined, maxResults)];
+
+  // Deduplicate by ad_archive_id (same ad can appear in multiple countries)
+  const seen = new Set<string>();
+  const records: NormalizedAd[] = [];
+  let totalCost = 0;
+  let lastRunId = "";
+
+  for (const run of runs) {
+    lastRunId = run.runId;
+    totalCost += run.costCu;
+    for (const r of run.records) {
+      if (!seen.has(r.ad_archive_id)) {
+        seen.add(r.ad_archive_id);
+        records.push(r);
+      }
+    }
+  }
+
   const startUrl = `https://adstransparency.google.com/?domain=${opts.advertiserDomain ?? opts.advertiserName ?? opts.advertiserId}`;
-  return { runId, records, costCu, startUrl };
+  return { runId: lastRunId, records, costCu: totalCost, startUrl };
 }
