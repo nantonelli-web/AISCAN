@@ -149,20 +149,10 @@ export default async function CompetitorDetailPage({
       </div>
 
       {/* ─── Scan actions: always visible, prominent ─────────── */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <ScanDropdown
-          competitorId={c.id}
-          hasGoogleConfig={!!(c.google_advertiser_id || c.google_domain)}
-        />
-        <div className="hidden sm:block h-6 w-px bg-border" />
-        <a
-          href={`/api/export/ads.csv?competitor_id=${c.id}`}
-          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <Download className="size-3.5" />
-          {t("competitors", "exportCsv")}
-        </a>
-      </div>
+      <ScanDropdown
+        competitorId={c.id}
+        hasGoogleConfig={!!(c.google_advertiser_id || c.google_domain)}
+      />
 
       {/* ─── Scan history (collapsible) ──────────────────────── */}
       {jobsList.length > 0 && <CollapsibleJobHistory jobs={jobsList} />}
@@ -189,9 +179,18 @@ export default async function CompetitorDetailPage({
         </Card>
       ) : (
         <>
-          <p className="text-sm text-muted-foreground">
-            {adsList.length} {t("competitors", "adsCount")}
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              {adsList.length} {t("competitors", "adsCount")}
+            </p>
+            <a
+              href={`/api/export/ads.csv?competitor_id=${c.id}`}
+              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Download className="size-3" />
+              {t("competitors", "exportCsv")}
+            </a>
+          </div>
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {adsList.map((ad) => (
               <AdCard key={ad.id} ad={ad} competitorId={c.id} />
