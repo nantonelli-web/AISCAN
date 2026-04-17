@@ -7,7 +7,7 @@ import { OrganicPostCard } from "@/components/organic/organic-post-card";
 import { TagButton } from "@/components/ads/tag-button";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { Download } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import type { MaitAdExternal, MaitOrganicPost } from "@/types";
 
@@ -46,10 +46,9 @@ interface Props {
     avgComments: number;
     totalViews: number;
   };
-  formatNumber: (n: number) => string;
 }
 
-export function ChannelTabs({ competitorId, ads, organicPosts, organicStats, formatNumber }: Props) {
+export function ChannelTabs({ competitorId, ads, organicPosts, organicStats }: Props) {
   const [channel, setChannel] = useState<Channel>("all");
   const { t } = useT();
 

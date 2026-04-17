@@ -9,7 +9,7 @@ import { ScanDropdown } from "./scan-dropdown";
 import { FrequencySelector } from "./frequency-selector";
 import { CollapsibleJobHistory } from "./collapsible-job-history";
 import { ChannelTabs } from "./channel-tabs";
-import { formatDate, formatNumber } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import type { MaitAdExternal, MaitCompetitor, MaitOrganicPost, MaitScrapeJob } from "@/types";
 
@@ -165,7 +165,6 @@ export default async function CompetitorDetailPage({
           avgComments,
           totalViews,
         }}
-        formatNumber={formatNumber}
       />
     </div>
   );
