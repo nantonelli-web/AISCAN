@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { scrapeGoogleAds } from "@/lib/apify/google-ads-service";
+import { storeAdImages } from "@/lib/media/store-ad-images";
 
 export const maxDuration = 300;
 
@@ -97,7 +98,7 @@ export async function POST(req: Request) {
       maxResults: parsed.data.max_items ?? 200,
     });
 
-    // Upsert ads with source = 'google'
+    // Download images to permanent storage, then upsert
     if (result.records.length > 0) {
       const rows = result.records.map((r) => ({
         ...r,
@@ -105,6 +106,8 @@ export async function POST(req: Request) {
         workspace_id: competitor.workspace_id,
         competitor_id: competitor.id,
       }));
+
+      await storeAdImages(admin, competitor.workspace_id, rows, "google");
 
       const { error: upErr } = await admin
         .from("mait_ads_external")

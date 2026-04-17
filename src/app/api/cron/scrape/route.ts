@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { scrapeMetaAds } from "@/lib/apify/service";
 import { scrapeGoogleAds } from "@/lib/apify/google-ads-service";
+import { storeAdImages } from "@/lib/media/store-ad-images";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
@@ -96,6 +97,7 @@ export async function GET(req: Request) {
           workspace_id: c.workspace_id,
           competitor_id: c.id,
         }));
+        await storeAdImages(admin, c.workspace_id, rows, "meta");
         await admin
           .from("mait_ads_external")
           .upsert(rows, { onConflict: "workspace_id,ad_archive_id,source" });
@@ -122,6 +124,7 @@ export async function GET(req: Request) {
               workspace_id: c.workspace_id,
               competitor_id: c.id,
             }));
+            await storeAdImages(admin, c.workspace_id, gRows, "google");
             await admin
               .from("mait_ads_external")
               .upsert(gRows, { onConflict: "workspace_id,ad_archive_id,source" });

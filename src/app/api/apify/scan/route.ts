@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { scrapeMetaAds } from "@/lib/apify/service";
 import { resolvePageId } from "@/lib/meta/resolve-page-id";
 import { sendNewAdsNotification } from "@/lib/email/resend";
+import { storeAdImages } from "@/lib/media/store-ad-images";
 
 export const maxDuration = 300; // seconds (Vercel hobby allows 60; pro 300)
 
@@ -95,7 +96,7 @@ export async function POST(req: Request) {
       dateTo: parsed.data.date_to,
     });
 
-    // Upsert ads
+    // Download images to permanent storage, then upsert ads
     if (result.records.length > 0) {
       const rows = result.records.map((r) => ({
         ...r,
@@ -103,6 +104,8 @@ export async function POST(req: Request) {
         workspace_id: competitor.workspace_id,
         competitor_id: competitor.id,
       }));
+
+      await storeAdImages(admin, competitor.workspace_id, rows, "meta");
 
       const { error: upErr } = await admin
         .from("mait_ads_external")
