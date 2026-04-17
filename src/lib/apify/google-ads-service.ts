@@ -195,28 +195,35 @@ export async function scrapeGoogleAds(
 
   const countries = opts.countryCodes?.filter(Boolean) ?? [];
 
-  // Run one call per country (or a single call with no country filter)
-  const runs =
-    countries.length > 0
-      ? await Promise.all(
-          countries.map((cc) => runForCountry(searchInput, cc, maxResults))
-        )
-      : [await runForCountry(searchInput, undefined, maxResults)];
-
-  // Deduplicate by ad_archive_id (same ad can appear in multiple countries)
+  // Run countries SEQUENTIALLY with a global time budget.
+  // Vercel has a 300s limit — we reserve 60s for image downloads + upsert.
+  const globalDeadline = Date.now() + 4 * 60 * 1000; // 4 min budget
   const seen = new Set<string>();
   const records: NormalizedAd[] = [];
   let totalCost = 0;
   let lastRunId = "";
 
-  for (const run of runs) {
-    lastRunId = run.runId;
-    totalCost += run.costCu;
-    for (const r of run.records) {
-      if (!seen.has(r.ad_archive_id)) {
-        seen.add(r.ad_archive_id);
-        records.push(r);
+  const countryList = countries.length > 0 ? countries : [undefined];
+
+  for (const cc of countryList) {
+    // Stop if we're running out of time
+    if (Date.now() > globalDeadline) {
+      console.log(`[Google Ads] Time budget exhausted, skipping remaining countries`);
+      break;
+    }
+    try {
+      const run = await runForCountry(searchInput, cc, maxResults);
+      lastRunId = run.runId;
+      totalCost += run.costCu;
+      for (const r of run.records) {
+        if (!seen.has(r.ad_archive_id)) {
+          seen.add(r.ad_archive_id);
+          records.push(r);
+        }
       }
+    } catch (e) {
+      // Log and continue with next country instead of failing everything
+      console.error(`[Google Ads] Country ${cc ?? "ALL"} failed:`, e);
     }
   }
 

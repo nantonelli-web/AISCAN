@@ -64,6 +64,15 @@ export async function POST(req: Request) {
 
   const admin = createAdminClient();
 
+  // Cleanup stale jobs: any "running" job older than 10 min → mark failed
+  const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  await admin
+    .from("mait_scrape_jobs")
+    .update({ status: "failed", completed_at: new Date().toISOString(), error: "Timeout (stale)" })
+    .eq("competitor_id", competitor.id)
+    .eq("status", "running")
+    .lt("started_at", tenMinAgo);
+
   // Create job row
   const { data: job, error: jobErr } = await admin
     .from("mait_scrape_jobs")
