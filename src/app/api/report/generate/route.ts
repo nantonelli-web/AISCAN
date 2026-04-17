@@ -452,7 +452,7 @@ export async function POST(req: Request) {
       const safeName = brand.name.replace(/[^a-zA-Z0-9_-]/g, "_");
 
       if (format === "pptx") {
-        const buf = await generateSinglePptx(brand, themeConfig, locale, sections, copyAnalysis, visualAnalysis);
+        const buf = await generateSinglePptx(brand, themeConfig, locale, sections, copyAnalysis, visualAnalysis, channel);
         fileBytes = new Uint8Array(buf);
         fileName = `MAIT_Report_${safeName}.pptx`;
         contentType = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
@@ -466,7 +466,7 @@ export async function POST(req: Request) {
       const brandNames = brands.map((b) => b.name.replace(/[^a-zA-Z0-9_-]/g, "_")).join("_vs_");
 
       if (format === "pptx") {
-        const buf = await generateComparisonPptx(brands, themeConfig, locale, sections, copyAnalysis, visualAnalysis);
+        const buf = await generateComparisonPptx(brands, themeConfig, locale, sections, copyAnalysis, visualAnalysis, channel);
         fileBytes = new Uint8Array(buf);
         fileName = `MAIT_Comparison_${brandNames}.pptx`;
         contentType = "application/vnd.openxmlformats-officedocument.presentationml.presentation";

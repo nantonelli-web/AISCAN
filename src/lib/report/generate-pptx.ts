@@ -134,11 +134,20 @@ function addCardBg(
 
 // ─── SINGLE BRAND SLIDES ────────────────────────────────────────
 
+function channelLabel(ch: string, locale: Locale): string {
+  if (ch === "all") return locale === "it" ? "Tutti i canali" : "All channels";
+  if (ch === "meta") return "Meta Ads";
+  if (ch === "google") return "Google Ads";
+  if (ch === "instagram") return "Instagram";
+  return ch;
+}
+
 function singleCover(
   pptx: PptxGenJS,
   brand: BrandData,
   theme: ThemeConfig,
-  locale: Locale
+  locale: Locale,
+  channel: string = "meta"
 ) {
   const slide = pptx.addSlide();
   addLogo(slide, theme);
@@ -182,7 +191,7 @@ function singleCover(
     }
   );
 
-  slide.addText(formatDate(locale), {
+  slide.addText(`${channelLabel(channel, locale)} \u00B7 ${formatDate(locale)}`, {
     x: PAD,
     y: 3.3,
     w: SW - 2 * PAD,
@@ -192,6 +201,23 @@ function singleCover(
     color: hex(theme.colors.text),
     transparency: 40,
   });
+
+  if (brand.lastScrapedAt) {
+    slide.addText(
+      label(locale, "Dati scansione:", "Scan data:") + " " +
+      new Date(brand.lastScrapedAt).toLocaleDateString(locale === "it" ? "it-IT" : "en-GB", { day: "numeric", month: "short", year: "numeric" }),
+      {
+        x: PAD,
+        y: 3.65,
+        w: SW - 2 * PAD,
+        h: 0.3,
+        fontSize: 9,
+        fontFace: theme.fonts.body,
+        color: hex(theme.colors.text),
+        transparency: 50,
+      }
+    );
+  }
 
   slide.addText("Powered by MAIT \u00B7 NIMA Digital", {
     x: PAD,
@@ -703,7 +729,8 @@ function compCover(
   pptx: PptxGenJS,
   brands: BrandData[],
   theme: ThemeConfig,
-  locale: Locale
+  locale: Locale,
+  channel: string = "meta"
 ) {
   const slide = pptx.addSlide();
   addLogo(slide, theme);
@@ -746,7 +773,7 @@ function compCover(
     }
   );
 
-  slide.addText(formatDate(locale), {
+  slide.addText(`${channelLabel(channel, locale)} \u00B7 ${formatDate(locale)}`, {
     x: PAD,
     y: 3.3,
     w: SW - 2 * PAD,
@@ -1346,7 +1373,8 @@ export async function generateSinglePptx(
   locale: Locale = "it",
   sections: SectionType[] = ["technical"],
   copyAnalysis?: CreativeAnalysisResult["copywriterReport"] | null,
-  visualAnalysis?: CreativeAnalysisResult["creativeDirectorReport"] | null
+  visualAnalysis?: CreativeAnalysisResult["creativeDirectorReport"] | null,
+  channel: string = "meta"
 ): Promise<Buffer> {
   const t = theme ?? DEFAULT_THEME;
   const pptx = new PptxGenJS();
@@ -1360,7 +1388,7 @@ export async function generateSinglePptx(
   const hasVisual = sections.includes("visual");
 
   // Slide 1: Cover
-  singleCover(pptx, brand, t, locale);
+  singleCover(pptx, brand, t, locale, channel);
 
   // Slide 2: Full Dashboard (technical)
   if (hasTechnical) {
@@ -1412,7 +1440,8 @@ export async function generateComparisonPptx(
   locale: Locale = "it",
   sections: SectionType[] = ["technical"],
   copyAnalysis?: CreativeAnalysisResult["copywriterReport"] | null,
-  visualAnalysis?: CreativeAnalysisResult["creativeDirectorReport"] | null
+  visualAnalysis?: CreativeAnalysisResult["creativeDirectorReport"] | null,
+  channel: string = "meta"
 ): Promise<Buffer> {
   const t = theme ?? DEFAULT_THEME;
   const pptx = new PptxGenJS();
@@ -1426,7 +1455,7 @@ export async function generateComparisonPptx(
   const hasVisual = sections.includes("visual");
 
   // Slide 1: Cover
-  compCover(pptx, brands, t, locale);
+  compCover(pptx, brands, t, locale, channel);
 
   // Slide 2: Overview Dashboard table
   if (hasTechnical) {

@@ -443,6 +443,10 @@ const translations = {
       it: "Alcuni canali sono disabilitati perch\u00E9 uno o pi\u00F9 brand non hanno la configurazione necessaria. Vai nella scheda del brand per completarla.",
       en: "Some channels are disabled because one or more brands are missing the required configuration. Go to the brand page to complete it.",
     },
+    selectChannel: {
+      it: "Seleziona un canale per avviare il confronto.",
+      en: "Select a channel to start the comparison.",
+    },
   },
 
   // ─── Library ───────────────────────────────────────────────
