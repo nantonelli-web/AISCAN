@@ -9,6 +9,16 @@ import { formatDate } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import type { MaitAdExternal } from "@/types";
 
+/** Strip JSON artifacts from ad text (e.g. {"text": "..."}) */
+function cleanAdText(text: string | null): string | null {
+  if (!text) return null;
+  // Try to extract text from JSON-like wrappers
+  const jsonMatch = text.match(/^\s*\{\s*"text"\s*:\s*"(.+)"\s*\}\s*$/);
+  if (jsonMatch) return jsonMatch[1];
+  // Remove stray JSON braces/quotes at start/end
+  return text.replace(/^\s*\{\s*"text"\s*:\s*/, "").replace(/\s*\}\s*$/, "").replace(/^"|"$/g, "");
+}
+
 export function AdCard({
   ad,
   competitorId,
@@ -172,11 +182,6 @@ export function AdCard({
             )}
           </div>
         )}
-        {ad.status === "ACTIVE" && (
-          <Badge variant="gold" className="absolute top-2 right-2">
-            ACTIVE
-          </Badge>
-        )}
         <div className="absolute top-2 left-2">
           <SaveToCollection adId={ad.id} />
         </div>
@@ -205,18 +210,30 @@ export function AdCard({
 
       {/* Details */}
       <div className="p-4 flex-1 flex flex-col gap-2">
-        {ad.headline && (
-          <p className="font-medium line-clamp-2 text-sm">{ad.headline}</p>
-        )}
+        {/* Status + headline row */}
+        <div className="flex items-start gap-2">
+          <div className="flex-1 min-w-0">
+            {ad.headline && (
+              <p className="font-medium line-clamp-2 text-sm">{cleanAdText(ad.headline)}</p>
+            )}
+          </div>
+          {ad.status === "ACTIVE" && (
+            <span className="shrink-0 text-[10px] font-medium text-green-400 bg-green-400/10 rounded px-1.5 py-0.5">
+              ACTIVE
+            </span>
+          )}
+        </div>
         {ad.ad_text && (
           <p className="text-xs text-muted-foreground line-clamp-3">
-            {ad.ad_text}
+            {cleanAdText(ad.ad_text)}
           </p>
         )}
         {ad.cta && (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-muted-foreground">CTA:</span>
-            <Badge variant="muted">{ad.cta}</Badge>
+            <span className="text-[10px] font-medium text-gold bg-gold/10 rounded px-1.5 py-0.5">
+              {ad.cta}
+            </span>
           </div>
         )}
         {aiTags ? (

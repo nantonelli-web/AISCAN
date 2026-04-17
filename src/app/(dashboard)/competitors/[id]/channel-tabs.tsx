@@ -90,7 +90,7 @@ export function ChannelTabs({ competitorId, ads, organicPosts, organicStats }: P
             className={cn(
               "inline-flex items-center gap-1.5 px-3 py-2 text-sm transition-colors border-b-2 -mb-px",
               channel === tab.key
-                ? "border-gold text-foreground font-medium"
+                ? "border-gold text-gold font-medium"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
