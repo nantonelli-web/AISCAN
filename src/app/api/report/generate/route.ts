@@ -65,20 +65,30 @@ async function fetchBrandData(
 
   const adsList = (ads ?? []) as AdRow[];
   const active = adsList.filter((a) => a.status === "ACTIVE");
-  const imageCount = adsList.filter(
-    (a) => a.image_url && !a.video_url
-  ).length;
-  const videoCount = adsList.filter((a) => a.video_url).length;
+  const isGoogle = source === "google";
 
-  // Carousel detection: ads with multiple cards in raw_data
+  // Format counts — Meta uses snapshot.cards for carousel, Google uses raw_data.adFormat
+  let imageCount = 0;
+  let videoCount = 0;
   let carouselCount = 0;
   for (const a of adsList) {
-    const snapshot = (a.raw_data?.snapshot ?? {}) as Record<string, unknown>;
-    const cards = (snapshot?.cards ?? []) as unknown[];
-    if (cards.length > 1) carouselCount++;
+    if (isGoogle) {
+      const fmt = ((a.raw_data?.adFormat as string) ?? "").toLowerCase();
+      if (fmt.includes("video")) videoCount++;
+      else imageCount++;
+    } else {
+      if (a.video_url) {
+        videoCount++;
+      } else {
+        imageCount++;
+      }
+      const snapshot = (a.raw_data?.snapshot ?? {}) as Record<string, unknown>;
+      const cards = (snapshot?.cards ?? []) as unknown[];
+      if (cards.length > 1) carouselCount++;
+    }
   }
 
-  // CTA counts
+  // CTA counts (Meta has CTA field, Google doesn't)
   const ctaMap = new Map<string, number>();
   for (const a of adsList) {
     if (a.cta) ctaMap.set(a.cta, (ctaMap.get(a.cta) ?? 0) + 1);
@@ -141,8 +151,10 @@ async function fetchBrandData(
       ad_archive_id: a.ad_archive_id,
     }));
 
-  // Infer campaign objective
-  const objectiveInference = inferObjective(adsList.map((a) => a.raw_data));
+  // Infer campaign objective — only for Meta (Google lacks the needed signals)
+  const objectiveInference = isGoogle
+    ? { objective: "unknown" as const, confidence: 0, signals: [] as string[] }
+    : inferObjective(adsList.map((a) => a.raw_data));
 
   return {
     id: competitorId,
@@ -159,6 +171,92 @@ async function fetchBrandData(
     adsPerWeek,
     lastScrapedAt: comp?.last_scraped_at ?? null,
     objectiveInference,
+    latestAds,
+  };
+}
+
+/**
+ * Fetch Instagram organic data mapped to BrandData structure.
+ */
+async function fetchInstagramBrandData(
+  admin: ReturnType<typeof createAdminClient>,
+  competitorId: string
+): Promise<BrandData> {
+  const [{ data: comp }, { data: posts }] = await Promise.all([
+    admin
+      .from("mait_competitors")
+      .select("id, page_name, last_scraped_at")
+      .eq("id", competitorId)
+      .single(),
+    admin
+      .from("mait_organic_posts")
+      .select("post_id, caption, display_url, video_url, post_type, likes_count, comments_count, posted_at, created_at")
+      .eq("competitor_id", competitorId)
+      .order("posted_at", { ascending: false, nullsFirst: false })
+      .limit(500),
+  ]);
+
+  type PostRow = {
+    post_id: string;
+    caption: string | null;
+    display_url: string | null;
+    video_url: string | null;
+    post_type: string | null;
+    likes_count: number;
+    comments_count: number;
+    posted_at: string | null;
+    created_at: string;
+  };
+
+  const postsList = (posts ?? []) as PostRow[];
+  const imageCount = postsList.filter((p) => p.post_type === "Image" || p.post_type === "Sidecar").length;
+  const videoCount = postsList.filter((p) => p.post_type === "Video" || p.post_type === "Reel").length;
+
+  // Map post types as "platforms"
+  const typeMap = new Map<string, number>();
+  for (const p of postsList) {
+    const t = p.post_type ?? "Image";
+    typeMap.set(t, (typeMap.get(t) ?? 0) + 1);
+  }
+  const platforms = [...typeMap.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, count]) => ({ name, count }));
+
+  // Duration (days since first post)
+  const avgDuration = 0;
+
+  // Caption length
+  const lengths = postsList.map((p) => (p.caption ?? "").length).filter((l) => l > 0);
+  const avgCopyLength = lengths.length > 0
+    ? Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length)
+    : 0;
+
+  // Refresh rate
+  const ninetyAgo = Date.now() - 90 * 86_400_000;
+  const recent = postsList.filter((p) => new Date(p.created_at).getTime() > ninetyAgo).length;
+  const adsPerWeek = Math.round((recent / (90 / 7)) * 10) / 10;
+
+  const latestAds = postsList.slice(0, 6).map((p) => ({
+    headline: p.caption?.slice(0, 80) ?? null,
+    image_url: p.display_url,
+    ad_archive_id: p.post_id,
+  }));
+
+  return {
+    id: competitorId,
+    name: comp?.page_name ?? "\u2014",
+    totalAds: postsList.length,
+    activeAds: postsList.length,
+    imageCount,
+    videoCount,
+    carouselCount: 0,
+    topCtas: [],
+    platforms,
+    avgDuration,
+    avgCopyLength,
+    adsPerWeek,
+    lastScrapedAt: comp?.last_scraped_at ?? null,
+    objectiveInference: { objective: "unknown" as const, confidence: 0, signals: [] },
     latestAds,
   };
 }
@@ -261,15 +359,18 @@ export async function POST(req: Request) {
     }
   }
 
-  // Fetch brand data
-  const brands = await Promise.all(
-    competitor_ids.map((id) =>
-      fetchBrandData(
+  // Fetch brand data — for Instagram, fetch organic posts instead of ads
+  const brands: BrandData[] = await Promise.all(
+    competitor_ids.map(async (id) => {
+      if (channel === "instagram") {
+        return fetchInstagramBrandData(admin, id);
+      }
+      return fetchBrandData(
         admin,
         id,
-        channel === "all" ? undefined : channel === "instagram" ? "meta" : channel
-      )
-    )
+        channel === "all" ? undefined : channel
+      );
+    })
   );
 
   // Fetch AI analysis if needed — check comparison cache first

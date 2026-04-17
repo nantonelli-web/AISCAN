@@ -72,23 +72,27 @@ type AdRow = {
 
 async function computeTechnicalStats(
   ids: string[],
-  admin: ReturnType<typeof createAdminClient>
+  admin: ReturnType<typeof createAdminClient>,
+  source?: "meta" | "google"
 ) {
   return Promise.all(
     ids.map(async (id) => {
+      let adsQuery = admin
+        .from("mait_ads_external")
+        .select(
+          "ad_archive_id, headline, ad_text, description, cta, image_url, video_url, platforms, status, start_date, end_date, created_at, raw_data"
+        )
+        .eq("competitor_id", id)
+        .limit(500);
+      if (source) adsQuery = adsQuery.eq("source", source);
+
       const [{ data: comp }, { data: ads }] = await Promise.all([
         admin
           .from("mait_competitors")
           .select("id, page_name")
           .eq("id", id)
           .single(),
-        admin
-          .from("mait_ads_external")
-          .select(
-            "ad_archive_id, headline, ad_text, description, cta, image_url, video_url, platforms, status, start_date, end_date, created_at, raw_data"
-          )
-          .eq("competitor_id", id)
-          .limit(500),
+        adsQuery,
       ]);
 
       const adsList = (ads ?? []) as AdRow[];
