@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { RefreshCw, ChevronDown, CalendarRange } from "lucide-react";
+import { RefreshCw, ChevronDown, CalendarRange, Square } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,6 +81,16 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
   }, [showMetaMenu]);
 
   const isLoading = loading !== null;
+  const abortRef = useRef<AbortController | null>(null);
+
+  function stopScan() {
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+    toast.info(t("scan", "scanStopped"));
+    setLoading(null);
+  }
 
   // Effective range: custom or last 30 days
   const effectiveFrom = dateFrom || daysAgo(30);
@@ -101,6 +111,8 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
   async function scanMeta(adStatus: "ACTIVE" | "ALL") {
     setShowMetaMenu(false);
     if (rangeExceeded) return;
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading("meta");
     const toastId = toast.loading(t("scan", "scrapingInProgress"));
     try {
@@ -114,6 +126,7 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
           date_to: effectiveTo,
           active_status: adStatus,
         }),
+        signal: controller.signal,
       });
       const json = await res.json();
       if (!res.ok) {
@@ -124,14 +137,21 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
         router.refresh();
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Network error", { id: toastId });
+      if ((e as Error).name === "AbortError") {
+        toast.dismiss(toastId);
+      } else {
+        toast.error(e instanceof Error ? e.message : "Network error", { id: toastId });
+      }
     } finally {
+      abortRef.current = null;
       setLoading(null);
     }
   }
 
   async function scanGoogle() {
     if (rangeExceeded) return;
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading("google");
     const toastId = toast.loading(t("scan", "scrapingGoogleInProgress"));
     try {
@@ -144,6 +164,7 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
           date_from: effectiveFrom,
           date_to: effectiveTo,
         }),
+        signal: controller.signal,
       });
       const json = await res.json();
       if (!res.ok) {
@@ -155,13 +176,20 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
         router.refresh();
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Network error", { id: toastId });
+      if ((e as Error).name === "AbortError") {
+        toast.dismiss(toastId);
+      } else {
+        toast.error(e instanceof Error ? e.message : "Network error", { id: toastId });
+      }
     } finally {
+      abortRef.current = null;
       setLoading(null);
     }
   }
 
   async function scanInstagram() {
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading("instagram");
     const toastId = toast.loading(t("organic", "scanning"));
     try {
@@ -169,6 +197,7 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ competitor_id: competitorId, max_posts: 30 }),
+        signal: controller.signal,
       });
       const json = await res.json();
       if (!res.ok) {
@@ -178,8 +207,13 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
         router.refresh();
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Network error", { id: toastId });
+      if ((e as Error).name === "AbortError") {
+        toast.dismiss(toastId);
+      } else {
+        toast.error(e instanceof Error ? e.message : "Network error", { id: toastId });
+      }
     } finally {
+      abortRef.current = null;
       setLoading(null);
     }
   }
@@ -232,6 +266,19 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
 
       {/* ─── 2. Scan buttons ─── */}
       <div className="flex items-center gap-3 flex-wrap">
+        {/* Stop button — visible during scan */}
+        {isLoading && (
+          <Button
+            onClick={stopScan}
+            variant="outline"
+            size="lg"
+            className="gap-2 cursor-pointer border-red-400/40 text-red-400 hover:bg-red-400/15 hover:border-red-400"
+          >
+            <Square className="size-4 fill-current" />
+            Stop
+          </Button>
+        )}
+
         {/* Meta Ads — with ad status dropdown */}
         <div className="relative" ref={metaRef}>
           <div className="flex">

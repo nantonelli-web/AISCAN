@@ -241,6 +241,7 @@ const translations = {
     last30days: { it: "Ultimi 30 giorni", en: "Last 30 days" },
     scanPeriod: { it: "Periodo di scansione", en: "Scan period" },
     days: { it: "giorni", en: "days" },
+    scanStopped: { it: "Scansione interrotta.", en: "Scan stopped." },
     scanGoogle: { it: "Scan Google Ads", en: "Scan Google Ads" },
     scanningGoogle: { it: "Scanning Google\u2026", en: "Scanning Google\u2026" },
     scrapingGoogleInProgress: {
