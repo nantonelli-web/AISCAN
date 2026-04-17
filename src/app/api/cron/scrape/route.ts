@@ -122,7 +122,6 @@ export async function GET(req: Request) {
               workspace_id: c.workspace_id,
               competitor_id: c.id,
             }));
-            await storeAdImages(admin, c.workspace_id, gRows, "google");
             await admin
               .from("mait_ads_external")
               .upsert(gRows, { onConflict: "workspace_id,ad_archive_id,source" });

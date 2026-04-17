@@ -50,8 +50,8 @@ interface RawGoogleAd {
   adFormat?: string; // Text | Image | Video
   firstShown?: string; // YYYY-MM-DD
   lastShown?: string; // YYYY-MM-DD
-  previewUrl?: string;
-  imageUrl?: string;
+  previewUrl?: string | null;
+  imageUrl?: string | null;
   region?: string;
   [k: string]: unknown;
 }
@@ -89,7 +89,7 @@ function normalize(ad: RawGoogleAd): NormalizedAd {
     headline: null,
     description: null,
     cta: null,
-    image_url: ad.imageUrl ?? null,
+    image_url: ad.imageUrl ?? ad.previewUrl ?? null,
     video_url: null,
     landing_url: null,
     platforms: platforms.length > 0 ? platforms : ["google"],
