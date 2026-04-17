@@ -100,8 +100,37 @@ export async function AdCard({
             className="absolute inset-0 w-full h-full object-cover"
             loading="lazy"
           />
+        ) : isGoogle ? (
+          // Google ad without direct image — centered placeholder
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted/50 p-4">
+            <div className="size-10 rounded-full bg-muted grid place-items-center">
+              {formatLabel === "VIDEO" ? (
+                <Play className="size-5 text-muted-foreground" />
+              ) : formatLabel === "TEXT" ? (
+                <Type className="size-5 text-muted-foreground" />
+              ) : (
+                <ImageIcon className="size-5 text-muted-foreground" />
+              )}
+            </div>
+            {pageName && (
+              <p className="text-xs font-medium text-foreground text-center truncate max-w-full">
+                {pageName}
+              </p>
+            )}
+            <p className="text-[10px] text-muted-foreground">{formatLabel} ad</p>
+            {adLibraryUrl && (
+              <a
+                href={adLibraryUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-[10px] text-gold hover:underline"
+              >
+                <Eye className="size-3" /> {t("adCard", "viewOnGoogle")}
+              </a>
+            )}
+          </div>
         ) : (
-          // Text preview (when no direct image available)
+          // Meta text preview (when no direct image available)
           <div className="absolute inset-0 p-4 flex flex-col justify-between">
             <div className="space-y-2">
               {pageName && (
@@ -137,7 +166,7 @@ export async function AdCard({
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 text-[10px] text-gold hover:underline mt-auto"
               >
-                <Eye className="size-3" /> {isGoogle ? t("adCard", "viewOnGoogle") : t("adCard", "viewOnMeta")}
+                <Eye className="size-3" /> {t("adCard", "viewOnMeta")}
               </a>
             )}
           </div>
