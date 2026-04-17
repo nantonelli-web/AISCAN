@@ -12,6 +12,7 @@ export const maxDuration = 120;
 
 const schema = z.object({
   type: z.enum(["single", "comparison"]),
+  channel: z.enum(["meta", "google", "instagram"]).optional().default("meta"),
   competitor_ids: z.array(z.string().uuid()).min(1).max(3),
   template_id: z.string().uuid().optional(),
   format: z.enum(["pptx", "pdf"]),
@@ -26,7 +27,8 @@ const schema = z.object({
  */
 async function fetchBrandData(
   admin: ReturnType<typeof createAdminClient>,
-  competitorId: string
+  competitorId: string,
+  source: "meta" | "google" = "meta"
 ): Promise<BrandData> {
   const [{ data: comp }, { data: ads }] = await Promise.all([
     admin
@@ -40,6 +42,7 @@ async function fetchBrandData(
         "ad_archive_id, headline, ad_text, cta, image_url, video_url, platforms, status, start_date, end_date, created_at, raw_data"
       )
       .eq("competitor_id", competitorId)
+      .eq("source", source)
       .limit(500),
   ]);
 
@@ -211,7 +214,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { type, competitor_ids, template_id, format, locale } = parsed.data;
+  const { type, channel, competitor_ids, template_id, format, locale } = parsed.data;
   const sections: SectionType[] = (parsed.data.sections as SectionType[] | undefined) ?? ["technical"];
 
   // Validate: single requires exactly 1, comparison requires 2-3
@@ -258,7 +261,9 @@ export async function POST(req: Request) {
 
   // Fetch brand data
   const brands = await Promise.all(
-    competitor_ids.map((id) => fetchBrandData(admin, id))
+    competitor_ids.map((id) =>
+      fetchBrandData(admin, id, channel === "instagram" ? "meta" : channel)
+    )
   );
 
   // Fetch AI analysis if needed — check comparison cache first
