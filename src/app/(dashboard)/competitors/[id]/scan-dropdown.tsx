@@ -83,13 +83,26 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
   const isLoading = loading !== null;
   const abortRef = useRef<AbortController | null>(null);
 
-  function stopScan() {
+  async function stopScan() {
+    // 1. Abort the client-side fetch
     if (abortRef.current) {
       abortRef.current.abort();
       abortRef.current = null;
     }
-    toast.info(t("scan", "scanStopped"));
     setLoading(null);
+    toast.info(t("scan", "scanStopped"));
+
+    // 2. Abort Apify run + mark job failed server-side
+    try {
+      await fetch("/api/apify/abort", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ competitor_id: competitorId }),
+      });
+    } catch {
+      // Best effort — client already stopped
+    }
+    router.refresh();
   }
 
   // Effective range: custom or last 30 days
