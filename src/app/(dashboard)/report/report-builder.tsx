@@ -48,7 +48,7 @@ interface SavedComparison {
 }
 
 type ReportType = "single" | "comparison";
-type ReportChannel = "meta" | "google" | "instagram";
+type ReportChannel = "all" | "meta" | "google" | "instagram";
 type ReportFormat = "pptx" | "pdf";
 type ReportLocale = "it" | "en";
 
@@ -82,7 +82,7 @@ export function ReportBuilder({
 
   // State
   const [reportType, setReportType] = useState<ReportType>("single");
-  const [channel, setChannel] = useState<ReportChannel>("meta");
+  const [channel, setChannel] = useState<ReportChannel>("all");
   const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set());
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [reportLocale, setReportLocale] = useState<ReportLocale>(locale as ReportLocale);
@@ -152,7 +152,7 @@ export function ReportBuilder({
     setReportType(type);
     setSelectedBrands(new Set());
     setTemplateId(null);
-    setChannel("meta");
+    setChannel("all");
   }
 
   async function handleGenerate() {
@@ -335,7 +335,14 @@ export function ReportBuilder({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              variant={channel === "all" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setChannel("all")}
+            >
+              {t("report", "channelAll")}
+            </Button>
             <Button
               variant={channel === "meta" ? "default" : "outline"}
               size="sm"

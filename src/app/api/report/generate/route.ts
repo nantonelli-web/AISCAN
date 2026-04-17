@@ -12,7 +12,7 @@ export const maxDuration = 120;
 
 const schema = z.object({
   type: z.enum(["single", "comparison"]),
-  channel: z.enum(["meta", "google", "instagram"]).optional().default("meta"),
+  channel: z.enum(["all", "meta", "google", "instagram"]).optional().default("all"),
   competitor_ids: z.array(z.string().uuid()).min(1).max(3),
   template_id: z.string().uuid().optional(),
   format: z.enum(["pptx", "pdf"]),
@@ -28,22 +28,24 @@ const schema = z.object({
 async function fetchBrandData(
   admin: ReturnType<typeof createAdminClient>,
   competitorId: string,
-  source: "meta" | "google" = "meta"
+  source?: "meta" | "google"
 ): Promise<BrandData> {
+  let adsQuery = admin
+    .from("mait_ads_external")
+    .select(
+      "ad_archive_id, headline, ad_text, cta, image_url, video_url, platforms, status, start_date, end_date, created_at, raw_data"
+    )
+    .eq("competitor_id", competitorId)
+    .limit(500);
+  if (source) adsQuery = adsQuery.eq("source", source);
+
   const [{ data: comp }, { data: ads }] = await Promise.all([
     admin
       .from("mait_competitors")
       .select("id, page_name, last_scraped_at")
       .eq("id", competitorId)
       .single(),
-    admin
-      .from("mait_ads_external")
-      .select(
-        "ad_archive_id, headline, ad_text, cta, image_url, video_url, platforms, status, start_date, end_date, created_at, raw_data"
-      )
-      .eq("competitor_id", competitorId)
-      .eq("source", source)
-      .limit(500),
+    adsQuery,
   ]);
 
   type AdRow = {
@@ -262,7 +264,11 @@ export async function POST(req: Request) {
   // Fetch brand data
   const brands = await Promise.all(
     competitor_ids.map((id) =>
-      fetchBrandData(admin, id, channel === "instagram" ? "meta" : channel)
+      fetchBrandData(
+        admin,
+        id,
+        channel === "all" ? undefined : channel === "instagram" ? "meta" : channel
+      )
     )
   );
 

@@ -523,6 +523,7 @@ const translations = {
     sectionCopy: { it: "Analisi copy (AI)", en: "Copy analysis (AI)" },
     sectionVisual: { it: "Analisi creativa (AI)", en: "Creative analysis (AI)" },
     channel: { it: "Canale", en: "Channel" },
+    channelAll: { it: "Tutti i canali", en: "All channels" },
     selectSections: { it: "Seleziona le sezioni da includere nel report.", en: "Select sections to include in the report." },
     savedComparisons: { it: "Confronto salvato", en: "Saved comparison" },
     savedComparisonsHint: { it: "Seleziona un confronto gi\u00E0 generato oppure scegli i brand manualmente al passo successivo.", en: "Select an existing comparison or pick brands manually in the next step." },
