@@ -263,7 +263,7 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
               </div>
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px]">{t("scan", "adStatus")} (Meta)</Label>
+              <Label className="text-[10px]">{t("scan", "adStatusMeta")}</Label>
               <select
                 value={adStatus}
                 onChange={(e) => setAdStatus(e.target.value as "ACTIVE" | "ALL")}

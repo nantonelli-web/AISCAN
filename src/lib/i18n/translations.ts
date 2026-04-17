@@ -225,6 +225,7 @@ const translations = {
     dateFrom: { it: "Da", en: "From" },
     dateTo: { it: "A", en: "To" },
     adStatus: { it: "Stato ads", en: "Ad status" },
+    adStatusMeta: { it: "Stato ads (solo Meta)", en: "Ad status (Meta only)" },
     activeOnly: { it: "Solo attive", en: "Active only" },
     allAds: { it: "Tutte (attive + inattive)", en: "All (active + inactive)" },
     resetFilters: { it: "Reset filtri", en: "Reset filters" },
