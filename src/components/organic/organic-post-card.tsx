@@ -1,12 +1,13 @@
+"use client";
+
 import { ExternalLink, Heart, MessageCircle, Play, Eye, ImageIcon, Film } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatNumber } from "@/lib/utils";
-import { getLocale, serverT } from "@/lib/i18n/server";
+import { useT } from "@/lib/i18n/context";
 import type { MaitOrganicPost } from "@/types";
 
-export async function OrganicPostCard({ post }: { post: MaitOrganicPost }) {
-  const locale = await getLocale();
-  const t = serverT(locale);
+export function OrganicPostCard({ post }: { post: MaitOrganicPost }) {
+  const { t } = useT();
 
   const isVideo = post.post_type === "Video" || post.post_type === "Reel";
   const typeLabel = post.post_type ?? "Image";

@@ -1,21 +1,22 @@
+"use client";
+
 import Link from "next/link";
 import { ExternalLink, Eye, Sparkles, Play, ImageIcon, LayoutGrid, Bot, Type, ShoppingBag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { SaveToCollection } from "@/components/ads/save-to-collection";
 import { VideoPreview } from "@/components/ads/video-preview";
 import { formatDate } from "@/lib/utils";
-import { getLocale, serverT } from "@/lib/i18n/server";
+import { useT } from "@/lib/i18n/context";
 import type { MaitAdExternal } from "@/types";
 
-export async function AdCard({
+export function AdCard({
   ad,
   competitorId,
 }: {
   ad: MaitAdExternal;
   competitorId?: string;
 }) {
-  const locale = await getLocale();
-  const t = serverT(locale);
+  const { t } = useT();
 
   const aiTags = (ad.raw_data as Record<string, unknown> | null)?.ai_tags as
     | { sector?: string; tone?: string; objective?: string }
