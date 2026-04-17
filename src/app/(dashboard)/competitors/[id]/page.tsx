@@ -1,17 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Download, Pencil } from "lucide-react";
-import { InstagramIcon } from "@/components/ui/instagram-icon";
+import { ArrowLeft, Pencil } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AdCard } from "@/components/ads/ad-card";
-import { OrganicPostCard } from "@/components/organic/organic-post-card";
-import { TagButton } from "@/components/ads/tag-button";
 import { ScanDropdown } from "./scan-dropdown";
 import { FrequencySelector } from "./frequency-selector";
 import { CollapsibleJobHistory } from "./collapsible-job-history";
+import { ChannelTabs } from "./channel-tabs";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import type { MaitAdExternal, MaitCompetitor, MaitOrganicPost, MaitScrapeJob } from "@/types";
@@ -157,95 +154,19 @@ export default async function CompetitorDetailPage({
       {/* ─── Scan history (collapsible) ──────────────────────── */}
       {jobsList.length > 0 && <CollapsibleJobHistory jobs={jobsList} />}
 
-      {/* ─── Ads grid ────────────────────────────────────────── */}
-      {adsList.length === 0 ? (
-        <Card>
-          <CardContent className="py-16 text-center text-muted-foreground">
-            {t("competitors", "noAdsCollected")}
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-muted-foreground">
-              {adsList.length} {t("competitors", "adsCount")}
-            </p>
-            <div className="flex items-center gap-3">
-              <TagButton competitorId={c.id} />
-              <a
-                href={`/api/export/ads.csv?competitor_id=${c.id}`}
-                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Download className="size-3" />
-                {t("competitors", "exportCsv")}
-              </a>
-            </div>
-          </div>
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {adsList.map((ad) => (
-              <AdCard key={ad.id} ad={ad} competitorId={c.id} />
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* ─── Instagram Organic Content ───────────────────────── */}
-      <div className="space-y-4 pt-4 border-t border-border">
-        <div className="flex items-center gap-2">
-          <InstagramIcon className="size-5 text-gold" />
-          <h2 className="text-xl font-serif tracking-tight">
-            {t("organic", "title")}
-          </h2>
-        </div>
-
-        {organicCount > 0 && (
-          <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-            <Card>
-              <CardContent className="py-4 text-center">
-                <p className="text-2xl font-semibold">{organicCount}</p>
-                <p className="text-xs text-muted-foreground">{t("organic", "totalPosts")}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="py-4 text-center">
-                <p className="text-2xl font-semibold">{formatNumber(avgLikes)}</p>
-                <p className="text-xs text-muted-foreground">{t("organic", "avgLikes")}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="py-4 text-center">
-                <p className="text-2xl font-semibold">{formatNumber(avgComments)}</p>
-                <p className="text-xs text-muted-foreground">{t("organic", "avgComments")}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="py-4 text-center">
-                <p className="text-2xl font-semibold">{formatNumber(totalViews)}</p>
-                <p className="text-xs text-muted-foreground">{t("organic", "totalViews")}</p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {organicList.length === 0 ? (
-          <Card>
-            <CardContent className="py-16 text-center text-muted-foreground">
-              {t("organic", "noPostsYet")}
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            <p className="text-sm text-muted-foreground">
-              {organicList.length} {t("organic", "postsCount")}
-            </p>
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {organicList.map((post) => (
-                <OrganicPostCard key={post.id} post={post} />
-              ))}
-            </div>
-          </>
-        )}
-      </div>
+      {/* ─── Channel tabs: Meta Ads / Google Ads / Instagram ── */}
+      <ChannelTabs
+        competitorId={c.id}
+        ads={adsList}
+        organicPosts={organicList}
+        organicStats={{
+          count: organicCount,
+          avgLikes,
+          avgComments,
+          totalViews,
+        }}
+        formatNumber={formatNumber}
+      />
     </div>
   );
 }

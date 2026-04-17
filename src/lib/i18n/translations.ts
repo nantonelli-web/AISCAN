@@ -158,6 +158,9 @@ const translations = {
     likes: { it: "likes", en: "likes" },
     pageCategories: { it: "Categorie pagina", en: "Page categories" },
     selectedCountries: { it: "Paesi selezionati:", en: "Selected countries:" },
+    channelAll: { it: "Tutti", en: "All" },
+    noMetaAds: { it: "Nessuna Meta Ad raccolta.", en: "No Meta Ads collected." },
+    noGoogleAds: { it: "Nessuna Google Ad raccolta.", en: "No Google Ads collected." },
   },
 
   // ─── New Brand ─────────────────────────────────────────────
