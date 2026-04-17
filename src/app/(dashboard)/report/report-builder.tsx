@@ -92,6 +92,8 @@ export function ReportBuilder({
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [missingBrands, setMissingBrands] = useState<string[]>([]);
+  const [scanning, setScanning] = useState(false);
 
   // Template upload state
   const [showUpload, setShowUpload] = useState(false);
@@ -120,11 +122,20 @@ export function ReportBuilder({
     ? templates.find((t) => t.id === templateId)
     : null;
 
+  // Check which channels are disabled based on selected brands' config
+  const selectedComps = competitors.filter((c) => selectedBrands.has(c.id));
+  const channelDisabled: Record<ReportChannel, boolean> = {
+    all: false,
+    meta: false,
+    google: selectedComps.length > 0 && selectedComps.some((c) => !c.google_advertiser_id && !c.google_domain),
+    instagram: selectedComps.length > 0 && selectedComps.some((c) => !c.instagram_username),
+  };
+
   // Can generate?
   const canGenerate =
-    reportType === "single"
+    (reportType === "single"
       ? selectedBrands.size === 1
-      : selectedBrands.size >= 2;
+      : selectedBrands.size >= 2) && !channelDisabled[channel];
 
   // ─── Handlers ────────────────────────────────────────────────
 
@@ -155,7 +166,72 @@ export function ReportBuilder({
     setChannel("all");
   }
 
+  async function handleScanMissing() {
+    setScanning(true);
+    setError(null);
+    const idsToScan = [...selectedBrands].filter((id) => {
+      const comp = competitors.find((c) => c.id === id);
+      return comp && missingBrands.includes(comp.page_name);
+    });
+
+    for (const id of idsToScan) {
+      try {
+        const endpoint =
+          channel === "google" ? "/api/apify/scan-google"
+          : channel === "instagram" ? "/api/instagram/scan"
+          : "/api/apify/scan";
+        const body =
+          channel === "instagram"
+            ? { competitor_id: id, max_posts: 30 }
+            : { competitor_id: id, max_items: 200 };
+        await fetch(endpoint, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      } catch {
+        // Continue
+      }
+    }
+
+    setScanning(false);
+    setMissingBrands([]);
+    // Auto-generate after scan
+    doGenerate();
+  }
+
   async function handleGenerate() {
+    setError(null);
+    setMissingBrands([]);
+
+    // Check if brands have data for the selected channel
+    if (channel !== "all") {
+      try {
+        const checkRes = await fetch(
+          `/api/competitors/check-channel?ids=${selectedArray.join(",")}&channel=${channel}`
+        );
+        if (checkRes.ok) {
+          const { results } = await checkRes.json();
+          const missing = (results as { id: string; count: number }[])
+            .filter((r) => r.count === 0)
+            .map((r) => {
+              const comp = competitors.find((c) => c.id === r.id);
+              return comp?.page_name ?? r.id;
+            });
+          if (missing.length > 0) {
+            setMissingBrands(missing);
+            return;
+          }
+        }
+      } catch {
+        // Proceed anyway
+      }
+    }
+
+    doGenerate();
+  }
+
+  async function doGenerate() {
     setGenerating(true);
     setGenerated(false);
     setError(null);
@@ -334,7 +410,7 @@ export function ReportBuilder({
             2. {t("report", "channel")}
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-2">
           <div className="flex gap-2 flex-wrap">
             <Button
               variant={channel === "all" ? "default" : "outline"}
@@ -357,8 +433,9 @@ export function ReportBuilder({
             <Button
               variant={channel === "google" ? "default" : "outline"}
               size="sm"
-              onClick={() => setChannel("google")}
-              className="gap-1.5"
+              onClick={() => !channelDisabled.google && setChannel("google")}
+              disabled={channelDisabled.google}
+              className={cn("gap-1.5", channelDisabled.google && "opacity-40 cursor-not-allowed")}
             >
               <svg viewBox="0 0 24 24" fill="currentColor" className="size-4">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1Z" />
@@ -371,13 +448,19 @@ export function ReportBuilder({
             <Button
               variant={channel === "instagram" ? "default" : "outline"}
               size="sm"
-              onClick={() => setChannel("instagram")}
-              className="gap-1.5"
+              onClick={() => !channelDisabled.instagram && setChannel("instagram")}
+              disabled={channelDisabled.instagram}
+              className={cn("gap-1.5", channelDisabled.instagram && "opacity-40 cursor-not-allowed")}
             >
               <InstagramIcon className="size-4" />
               Instagram
             </Button>
           </div>
+          {selectedBrands.size > 0 && (channelDisabled.google || channelDisabled.instagram) && (
+            <p className="text-[10px] text-muted-foreground">
+              {t("report", "channelDisabledExplain")}
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -784,12 +867,44 @@ export function ReportBuilder({
         </CardContent>
       </Card>
 
+      {/* Scanning overlay */}
+      {scanning && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center">
+          <Card className="w-80">
+            <CardContent className="py-8 text-center space-y-4">
+              <Loader2 className="size-8 animate-spin text-gold mx-auto" />
+              <p className="text-sm font-medium">{t("report", "scanningBrands")}</p>
+              <p className="text-xs text-muted-foreground">{t("report", "scanningWait")}</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Missing data prompt */}
+      {missingBrands.length > 0 && !scanning && (
+        <Card className="border-amber-500/30">
+          <CardContent className="py-6 text-center space-y-4">
+            <AlertTriangle className="size-8 text-amber-400 mx-auto" />
+            <div>
+              <p className="text-sm font-medium">{t("report", "noDataForChannel")}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {missingBrands.join(", ")} — {channel === "google" ? "Google Ads" : channel === "instagram" ? "Instagram" : "Meta Ads"}
+              </p>
+            </div>
+            <Button onClick={handleScanMissing} className="gap-2">
+              <Loader2 className="size-4" />
+              {t("report", "scanAndGenerate")}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Generate */}
-      <Card className={cn(canGenerate && "border-gold/30")}>
+      <Card className={cn(canGenerate && !missingBrands.length && "border-gold/30")}>
         <CardContent className="py-6">
           <Button
             size="lg"
-            disabled={!canGenerate || generating}
+            disabled={!canGenerate || generating || missingBrands.length > 0}
             onClick={handleGenerate}
             className="w-full gap-2"
           >

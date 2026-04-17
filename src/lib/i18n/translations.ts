@@ -568,6 +568,26 @@ const translations = {
     savedComparisons: { it: "Confronto salvato", en: "Saved comparison" },
     savedComparisonsHint: { it: "Seleziona un confronto gi\u00E0 generato oppure scegli i brand manualmente al passo successivo.", en: "Select an existing comparison or pick brands manually in the next step." },
     stale: { it: "dati obsoleti", en: "outdated" },
+    channelDisabledExplain: {
+      it: "Alcuni canali sono disabilitati perch\u00E9 uno o pi\u00F9 brand non hanno la configurazione necessaria.",
+      en: "Some channels are disabled because one or more brands are missing the required configuration.",
+    },
+    noDataForChannel: {
+      it: "La scansione per questo canale non \u00E8 stata realizzata per alcuni brand.",
+      en: "The scan for this channel has not been done for some brands.",
+    },
+    scanAndGenerate: {
+      it: "Scansiona e genera report",
+      en: "Scan and generate report",
+    },
+    scanningBrands: {
+      it: "Scansione in corso\u2026",
+      en: "Scanning in progress\u2026",
+    },
+    scanningWait: {
+      it: "Attendi il completamento della scansione per generare il report.",
+      en: "Wait for the scan to complete before generating the report.",
+    },
   },
 
   // ─── Alerts ────────────────────────────────────────────────
