@@ -519,7 +519,14 @@ export function CompareView({
                   <div key={i} className="flex items-center gap-2 text-xs">
                     <span className="text-foreground font-medium">{d.brand}</span>
                     <span className="text-muted-foreground">— {d.channel}: {d.reason}</span>
-                    <a href={`/competitors/${d.id}/edit`} className="text-gold hover:underline ml-auto shrink-0">{t("compare", "goToEdit")}</a>
+                    <a
+                      href={`/competitors/${d.id}/edit?from=compare`}
+                      className="ml-auto shrink-0"
+                    >
+                      <Button variant="outline" size="sm" className="text-xs h-6 px-2">
+                        {t("compare", "goToEdit")}
+                      </Button>
+                    </a>
                   </div>
                 ))}
               </div>
@@ -593,10 +600,12 @@ export function CompareView({
                     >
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">{brandNames}</p>
-                        <p className="text-[10px] text-muted-foreground">
+                        <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                          <span className="text-gold/70">Meta Ads</span>
+                          <span>·</span>
                           {formatTimestamp(sc.updated_at, locale)}
                           {sc.stale && (
-                            <span className="ml-2 text-amber-400">
+                            <span className="ml-1 text-amber-400">
                               ⚠ {t("compare", "staleShort")}
                             </span>
                           )}

@@ -213,6 +213,7 @@ const translations = {
     deleted: { it: "Brand eliminato.", en: "Brand deleted." },
     deleteError: { it: "Errore nell'eliminazione.", en: "Error deleting." },
     cancel: { it: "Annulla", en: "Cancel" },
+    backToCompare: { it: "Torna al confronto", en: "Back to comparison" },
   },
 
   // ─── Scan Button ───────────────────────────────────────────
@@ -592,6 +593,19 @@ const translations = {
       it: "Attendi il completamento della scansione per generare il report.",
       en: "Wait for the scan to complete before generating the report.",
     },
+    configRequired: {
+      it: "Configurazione mancante per alcuni brand.",
+      en: "Configuration missing for some brands.",
+    },
+    missingGoogleConfig: {
+      it: "Dominio o Advertiser ID Google non configurato",
+      en: "Google domain or Advertiser ID not configured",
+    },
+    missingInstagramConfig: {
+      it: "Username Instagram non configurato",
+      en: "Instagram username not configured",
+    },
+    goToEdit: { it: "Configura", en: "Configure" },
   },
 
   // ─── Alerts ────────────────────────────────────────────────

@@ -12,10 +12,14 @@ export const dynamic = "force-dynamic";
 
 export default async function EditCompetitorPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
+  const sp = await searchParams;
+  const from = sp.from as string | undefined;
   await getSessionUser();
   const supabase = await createClient();
   const locale = await getLocale();
@@ -33,10 +37,10 @@ export default async function EditCompetitorPage({
   return (
     <div className="max-w-3xl space-y-6">
       <Link
-        href={`/competitors/${id}`}
+        href={from === "compare" ? "/competitors/compare" : `/competitors/${id}`}
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="size-4" /> {t("competitors", "allCompetitors")}
+        <ArrowLeft className="size-4" /> {from === "compare" ? t("editCompetitor", "backToCompare") : t("competitors", "allCompetitors")}
       </Link>
 
       <div>
