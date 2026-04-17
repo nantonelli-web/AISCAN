@@ -108,12 +108,10 @@ export async function GET(req: Request) {
       // Google Ads (if configured)
       if (c.google_advertiser_id || c.google_domain) {
         try {
-          const countryCode = c.country?.split(",")[0]?.trim() || undefined;
           const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
           const gResult = await scrapeGoogleAds({
             advertiserId: c.google_advertiser_id ?? undefined,
             advertiserDomain: c.google_domain ?? undefined,
-            countryCode,
             dateFrom: thirtyDaysAgo,
             maxResults: c.monitor_config?.max_items ?? 200,
           });
