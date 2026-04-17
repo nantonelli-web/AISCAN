@@ -190,9 +190,9 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
     <div className="space-y-4">
       {/* ─── 1. Date range (above scan buttons) ─── */}
       <div className="space-y-2">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <CalendarRange className="size-3.5" />
-          <span>{t("scan", "scanPeriod")}</span>
+        <div className="flex items-center gap-2">
+          <CalendarRange className="size-4 text-foreground" />
+          <span className="text-sm font-medium text-foreground">{t("scan", "scanPeriod")}</span>
         </div>
         <div className="flex items-end gap-3">
           <div className="space-y-1">
