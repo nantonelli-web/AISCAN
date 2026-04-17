@@ -94,54 +94,58 @@ export default async function CompetitorDetailPage({
         <ArrowLeft className="size-4" /> {t("competitors", "allCompetitors")}
       </Link>
 
-      {/* ─── Header: brand identity ────────────────────────── */}
-      <div className="space-y-1.5">
-        <div className="flex items-center gap-3">
+      {/* ─── Header ────────────────────────────────────────── */}
+      <div className="space-y-4">
+        {/* Row 1: Brand identity */}
+        <div className="flex items-center gap-4">
           {pageProfilePicture && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={pageProfilePicture}
               alt=""
-              className="size-10 rounded-full object-cover border border-border shrink-0"
+              className="size-12 rounded-full object-cover border border-border shrink-0"
             />
           )}
-          <h1 className="text-3xl font-serif tracking-tight">{c.page_name}</h1>
-          <Link
-            href={`/competitors/${c.id}/edit`}
-            className="size-7 rounded-md grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            title="Edit"
-          >
-            <Pencil className="size-3.5" />
-          </Link>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-3xl font-serif tracking-tight">{c.page_name}</h1>
+              <Link
+                href={`/competitors/${c.id}/edit`}
+                className="size-7 rounded-md grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title="Edit"
+              >
+                <Pencil className="size-3.5" />
+              </Link>
+            </div>
+            {/* Quick info: industry + reach + markets */}
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              {c.category && <Badge variant="muted">{c.category}</Badge>}
+              {pageLikeCount != null && pageLikeCount > 0 && (
+                <Badge variant="gold">
+                  {formatCompactNumber(pageLikeCount)} {t("competitors", "likes")}
+                </Badge>
+              )}
+              {c.country && (
+                <span className="text-xs text-muted-foreground">{c.country}</span>
+              )}
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        {/* Row 2: Meta info — subtle, secondary */}
+        <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
           <a
             href={c.page_url}
             target="_blank"
             rel="noreferrer"
-            className="text-sm text-gold hover:underline"
+            className="text-gold/70 hover:text-gold hover:underline truncate max-w-xs"
           >
-            {c.page_url}
+            {c.page_url.replace(/^https?:\/\/(www\.)?/, "")}
           </a>
-          {c.category && <Badge variant="muted">{c.category}</Badge>}
-          {pageLikeCount != null && pageLikeCount > 0 && (
-            <Badge variant="gold">
-              {formatCompactNumber(pageLikeCount)} {t("competitors", "likes")}
-            </Badge>
-          )}
-        </div>
-
-        <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+          <span className="text-border">·</span>
           <span>{t("competitors", "lastScan")} {formatDate(c.last_scraped_at)}</span>
           <span className="text-border">·</span>
           <FrequencySelector competitorId={c.id} initial={frequency} />
-          {c.country && (
-            <>
-              <span className="text-border">·</span>
-              <span>{t("competitors", "selectedCountries")} {c.country}</span>
-            </>
-          )}
         </div>
       </div>
 
