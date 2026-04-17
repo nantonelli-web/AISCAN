@@ -92,6 +92,24 @@ export async function POST(req: Request) {
     );
   }
 
+  // Create job row (same pattern as Meta/Google scans)
+  const { data: job, error: jobErr } = await admin
+    .from("mait_scrape_jobs")
+    .insert({
+      workspace_id: competitor.workspace_id,
+      competitor_id: competitor.id,
+      status: "running",
+    })
+    .select("id")
+    .single();
+
+  if (jobErr || !job) {
+    return NextResponse.json(
+      { error: jobErr?.message ?? "Job error" },
+      { status: 500 }
+    );
+  }
+
   try {
     const result = await scrapeInstagramPosts({
       username: igUsername,
@@ -113,6 +131,18 @@ export async function POST(req: Request) {
       if (upErr) throw upErr;
     }
 
+    // Update job as succeeded
+    await admin
+      .from("mait_scrape_jobs")
+      .update({
+        status: "succeeded",
+        completed_at: new Date().toISOString(),
+        records_count: result.records.length,
+        cost_cu: result.costCu ?? 0,
+        apify_run_id: result.runId ?? null,
+      })
+      .eq("id", job.id);
+
     // Create alert
     if (result.records.length > 0) {
       await admin.from("mait_alerts").insert({
@@ -125,11 +155,20 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ok: true,
+      job_id: job.id,
       records: result.records.length,
       username: igUsername,
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Instagram scrape failed";
+    await admin
+      .from("mait_scrape_jobs")
+      .update({
+        status: "failed",
+        completed_at: new Date().toISOString(),
+        error: message,
+      })
+      .eq("id", job.id);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
