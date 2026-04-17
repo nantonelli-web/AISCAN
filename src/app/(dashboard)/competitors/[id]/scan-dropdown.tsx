@@ -240,7 +240,7 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
               disabled={isLoading || rangeExceeded}
               variant="outline"
               size="lg"
-              className="rounded-r-none gap-2.5 hover:bg-gold/15 hover:text-gold hover:border-gold/40"
+              className="rounded-r-none gap-2.5 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold"
             >
               {loading === "meta" ? (
                 <RefreshCw className="size-5 animate-spin" />
@@ -254,7 +254,7 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
               disabled={isLoading || rangeExceeded}
               variant="outline"
               size="lg"
-              className="rounded-l-none border-l-0 px-2 hover:bg-gold/15 hover:text-gold hover:border-gold/40"
+              className="rounded-l-none border-l-0 px-2 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold"
             >
               <ChevronDown className="size-4" />
             </Button>
@@ -264,13 +264,13 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
             <div className="absolute left-0 top-full mt-1 z-20 w-48 rounded-lg border border-border bg-card shadow-lg p-1">
               <button
                 onClick={() => scanMeta("ACTIVE")}
-                className="flex items-center w-full rounded-md px-3 py-2 text-xs text-foreground hover:bg-muted transition-colors"
+                className="flex items-center w-full rounded-md px-3 py-2 text-xs text-foreground hover:bg-muted transition-colors cursor-pointer"
               >
                 {t("scan", "activeOnly")}
               </button>
               <button
                 onClick={() => scanMeta("ALL")}
-                className="flex items-center w-full rounded-md px-3 py-2 text-xs text-foreground hover:bg-muted transition-colors"
+                className="flex items-center w-full rounded-md px-3 py-2 text-xs text-foreground hover:bg-muted transition-colors cursor-pointer"
               >
                 {t("scan", "allAds")}
               </button>
@@ -285,7 +285,7 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
             disabled={isLoading || rangeExceeded}
             variant="outline"
             size="lg"
-            className="gap-2.5 hover:bg-gold/15 hover:text-gold hover:border-gold/40"
+            className="gap-2.5 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold"
           >
             {loading === "google" ? (
               <RefreshCw className="size-5 animate-spin" />
@@ -302,7 +302,7 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
           disabled={isLoading}
           variant="outline"
           size="lg"
-          className="gap-2.5 hover:bg-gold/15 hover:text-gold hover:border-gold/40"
+          className="gap-2.5 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold"
         >
           {loading === "instagram" ? (
             <RefreshCw className="size-5 animate-spin" />
