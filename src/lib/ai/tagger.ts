@@ -87,6 +87,83 @@ Return ONLY the JSON object, no markdown, no explanation.`;
   }
 }
 
+// ─── Instagram organic posts ───
+
+interface PostInput {
+  caption: string | null;
+  post_type: string | null;
+  has_video: boolean;
+  hashtags: string[];
+}
+
+export async function tagPost(post: PostInput): Promise<AdTagResult | null> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) return null;
+
+  const prompt = `Analyze this Instagram organic post and return a JSON object with exactly these keys:
+- sector: the industry/sector (e.g. "Fashion", "E-Commerce", "Food & Beverage", "SaaS", "Real Estate", "Beauty", "Fitness", "Automotive", "Travel", "Finance", "Education", "Healthcare", "Entertainment")
+- creative_format: one of "Product Shot", "Lifestyle", "UGC", "Testimonial", "Promo/Sale", "Educational", "Behind the Scenes", "Meme/Humor", "Comparison", "Unboxing"
+- tone: one of "Aspirational", "Informative", "Urgent", "Playful", "Professional", "Emotional", "Provocative"
+- objective: estimated content objective, one of "Brand Awareness", "Consideration", "Traffic", "Engagement", "Lead Generation", "Conversions", "Community", "Education"
+- seasonality: if the post is clearly tied to a season/event (e.g. "Black Friday", "Summer Sale", "Ramadan", "Christmas", "Back to School"), otherwise null
+- language: ISO 639-1 code of the primary language (e.g. "en", "it", "ar")
+
+Post data:
+- Caption: ${post.caption ?? "(none)"}
+- Format: ${post.post_type ?? "Image"}
+- Has video: ${post.has_video ? "Yes" : "No"}
+- Hashtags: ${post.hashtags.length > 0 ? post.hashtags.join(", ") : "(none)"}
+
+Return ONLY the JSON object, no markdown, no explanation.`;
+
+  try {
+    const res = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${apiKey}`,
+        "http-referer": process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+        "x-title": "MAIT - Meta Ads Intelligence Tool",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 300,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+
+    if (!res.ok) return null;
+    const body = await res.json();
+    const text = body.choices?.[0]?.message?.content ?? null;
+    if (!text) return null;
+    const clean = text.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
+    return JSON.parse(clean) as AdTagResult;
+  } catch (e) {
+    console.error("AI post tagging failed:", e);
+    return null;
+  }
+}
+
+export async function tagPostsBatch(
+  posts: (PostInput & { id: string })[],
+  concurrency = 3
+): Promise<Map<string, AdTagResult>> {
+  const results = new Map<string, AdTagResult>();
+  for (let i = 0; i < posts.length; i += concurrency) {
+    const batch = posts.slice(i, i + concurrency);
+    const settled = await Promise.allSettled(
+      batch.map(async (p) => {
+        const tags = await tagPost(p);
+        if (tags) results.set(p.id, tags);
+      })
+    );
+    for (const s of settled) {
+      if (s.status === "rejected") console.error("Tag post batch failed:", s.reason);
+    }
+  }
+  return results;
+}
+
 /** Tag multiple ads in parallel (batched to avoid rate limits). */
 export async function tagAdsBatch(
   ads: (AdInput & { id: string })[],

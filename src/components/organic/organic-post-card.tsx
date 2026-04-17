@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Heart, MessageCircle, Play, Eye, ImageIcon, Film } from "lucide-react";
+import { ExternalLink, Heart, MessageCircle, Play, Eye, ImageIcon, Film, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
@@ -8,6 +8,10 @@ import type { MaitOrganicPost } from "@/types";
 
 export function OrganicPostCard({ post }: { post: MaitOrganicPost }) {
   const { t } = useT();
+
+  const aiTags = (post.raw_data as Record<string, unknown> | null)?.ai_tags as
+    | { sector?: string; tone?: string; objective?: string }
+    | undefined;
 
   const isVideo = post.post_type === "Video" || post.post_type === "Reel";
   const typeLabel = post.post_type ?? "Image";
@@ -92,6 +96,21 @@ export function OrganicPostCard({ post }: { post: MaitOrganicPost }) {
                 +{post.hashtags.length - 4}
               </span>
             )}
+          </div>
+        )}
+
+        {/* AI Tags */}
+        {aiTags ? (
+          <div className="flex items-center gap-1 flex-wrap">
+            <Sparkles className="size-3 text-gold shrink-0" />
+            {aiTags.sector && <Badge variant="gold">{aiTags.sector}</Badge>}
+            {aiTags.tone && <Badge variant="outline">{aiTags.tone}</Badge>}
+            {aiTags.objective && <Badge variant="outline">{aiTags.objective}</Badge>}
+          </div>
+        ) : (
+          <div className="flex items-center gap-1 text-[10px] text-muted-foreground/50">
+            <Sparkles className="size-3" />
+            <span>{t("adCard", "notAnalyzed")}</span>
           </div>
         )}
 

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { tagAdsBatch } from "@/lib/ai/tagger";
+import { tagAdsBatch, tagPostsBatch } from "@/lib/ai/tagger";
 
 export const maxDuration = 120;
 
@@ -130,5 +130,43 @@ export async function POST(req: Request) {
     tagCount++;
   }
 
-  return NextResponse.json({ ok: true, tagged: tagCount });
+  // ─── Tag organic posts too ───
+  const postLimit = Math.max(1, (parsed.data?.limit ?? 20) - tagCount);
+  let postQ = supabase
+    .from("mait_organic_posts")
+    .select("id, caption, post_type, video_url, hashtags, raw_data")
+    .eq("workspace_id", profile.workspace_id)
+    .is("raw_data->ai_tags", null)
+    .limit(postLimit);
+
+  if (parsed.data?.competitor_id) {
+    postQ = postQ.eq("competitor_id", parsed.data.competitor_id);
+  }
+
+  const { data: posts } = await postQ;
+  let postTagCount = 0;
+
+  if (posts && posts.length > 0) {
+    const postsToTag = posts.map((p) => ({
+      id: p.id as string,
+      caption: p.caption as string | null,
+      post_type: p.post_type as string | null,
+      has_video: !!(p.video_url),
+      hashtags: (p.hashtags as string[] | null) ?? [],
+    }));
+
+    const postResults = await tagPostsBatch(postsToTag);
+
+    for (const [postId, tags] of postResults) {
+      const post = posts.find((p) => p.id === postId);
+      const existingRaw = (post?.raw_data ?? {}) as Record<string, unknown>;
+      await admin
+        .from("mait_organic_posts")
+        .update({ raw_data: { ...existingRaw, ai_tags: tags } })
+        .eq("id", postId);
+      postTagCount++;
+    }
+  }
+
+  return NextResponse.json({ ok: true, tagged: tagCount + postTagCount });
 }

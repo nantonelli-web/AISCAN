@@ -31,8 +31,21 @@ export async function GET(req: Request) {
     query = query.eq("competitor_id", competitorId);
   }
 
-  const { count, error } = await query;
+  const { count: adCount, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ untagged: count ?? 0 });
+  // Also count untagged organic posts
+  let postQuery = supabase
+    .from("mait_organic_posts")
+    .select("id", { count: "exact", head: true })
+    .eq("workspace_id", profile.workspace_id)
+    .is("raw_data->ai_tags", null);
+
+  if (competitorId) {
+    postQuery = postQuery.eq("competitor_id", competitorId);
+  }
+
+  const { count: postCount } = await postQuery;
+
+  return NextResponse.json({ untagged: (adCount ?? 0) + (postCount ?? 0) });
 }
