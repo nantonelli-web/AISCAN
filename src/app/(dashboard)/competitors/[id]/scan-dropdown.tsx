@@ -35,6 +35,21 @@ function GoogleLogo({ className }: { className?: string }) {
   );
 }
 
+/* ─── Helpers ────────────────────────────────────────────── */
+
+function daysAgo(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatRange(from: string, to: string): string {
+  const f = new Date(from);
+  const t = new Date(to);
+  const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" };
+  return `${f.toLocaleDateString("it-IT", opts)} — ${t.toLocaleDateString("it-IT", opts)}`;
+}
+
 /* ─── Component ──────────────────────────────────────────── */
 
 interface Props {
@@ -48,30 +63,37 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
   const router = useRouter();
   const { t } = useT();
   const [loading, setLoading] = useState<ScanTarget | null>(null);
-  const [showMetaOptions, setShowMetaOptions] = useState(false);
-  const optionsRef = useRef<HTMLDivElement>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const dateRef = useRef<HTMLDivElement>(null);
 
-  // Meta advanced options
+  // Shared date range (applies to Meta + Google)
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  // Meta-specific
   const [adStatus, setAdStatus] = useState<"ACTIVE" | "ALL">("ACTIVE");
 
-  // Close popover on outside click
+  // Close date picker on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (optionsRef.current && !optionsRef.current.contains(e.target as Node)) {
-        setShowMetaOptions(false);
+      if (dateRef.current && !dateRef.current.contains(e.target as Node)) {
+        setShowDatePicker(false);
       }
     }
-    if (showMetaOptions) document.addEventListener("mousedown", handleClick);
+    if (showDatePicker) document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
-  }, [showMetaOptions]);
+  }, [showDatePicker]);
 
   const isLoading = loading !== null;
 
+  // Effective range: custom or last 30 days
+  const effectiveFrom = dateFrom || daysAgo(30);
+  const effectiveTo = dateTo || new Date().toISOString().slice(0, 10);
+  const isCustomRange = !!(dateFrom || dateTo);
+  const rangeLabel = formatRange(effectiveFrom, effectiveTo);
+
   async function scanMeta() {
     setLoading("meta");
-    setShowMetaOptions(false);
+    setShowDatePicker(false);
     const toastId = toast.loading(t("scan", "scrapingInProgress"));
     try {
       const res = await fetch("/api/apify/scan", {
@@ -80,8 +102,8 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
         body: JSON.stringify({
           competitor_id: competitorId,
           max_items: 200,
-          date_from: dateFrom || undefined,
-          date_to: dateTo || undefined,
+          date_from: effectiveFrom,
+          date_to: effectiveTo,
           active_status: adStatus,
         }),
       });
@@ -90,7 +112,7 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
         toast.error(json.error ?? "Scrape failed", { id: toastId });
       } else {
         if (json.debug) console.log("[MAIT scan debug]", json.debug);
-        toast.success(`${json.records} Meta Ads ${t("scan", "adsSynced")}`, { id: toastId });
+        toast.success(`${json.records} Meta Ads ${t("scan", "adsSynced")} (${rangeLabel})`, { id: toastId });
         router.refresh();
       }
     } catch (e) {
@@ -102,18 +124,24 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
 
   async function scanGoogle() {
     setLoading("google");
+    setShowDatePicker(false);
     const toastId = toast.loading(t("scan", "scrapingGoogleInProgress"));
     try {
       const res = await fetch("/api/apify/scan-google", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ competitor_id: competitorId, max_items: 200 }),
+        body: JSON.stringify({
+          competitor_id: competitorId,
+          max_items: 200,
+          date_from: effectiveFrom,
+          date_to: effectiveTo,
+        }),
       });
       const json = await res.json();
       if (!res.ok) {
         toast.error(json.error ?? "Google Ads scrape failed", { id: toastId });
       } else {
-        toast.success(`${json.records} Google Ads ${t("scan", "adsSynced")}`, { id: toastId });
+        toast.success(`${json.records} Google Ads ${t("scan", "adsSynced")} (${rangeLabel})`, { id: toastId });
         router.refresh();
       }
     } catch (e) {
@@ -125,6 +153,7 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
 
   async function scanInstagram() {
     setLoading("instagram");
+    setShowDatePicker(false);
     const toastId = toast.loading(t("organic", "scanning"));
     try {
       const res = await fetch("/api/instagram/scan", {
@@ -147,37 +176,71 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
   }
 
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      {/* ─── Meta Ads scan ─── */}
-      <div className="relative" ref={optionsRef}>
-        <div className="flex">
+    <div className="space-y-2">
+      {/* ─── Date range (shared) + scan buttons ─── */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {/* Meta Ads */}
+        <Button
+          onClick={scanMeta}
+          disabled={isLoading}
+          className="gap-2"
+        >
+          {loading === "meta" ? (
+            <RefreshCw className="size-4 animate-spin" />
+          ) : (
+            <MetaLogo className="size-4" />
+          )}
+          {loading === "meta" ? t("scan", "scanning") : "Meta Ads"}
+        </Button>
+
+        {/* Google Ads */}
+        {hasGoogleConfig && (
           <Button
-            onClick={scanMeta}
+            onClick={scanGoogle}
             disabled={isLoading}
-            className="rounded-r-none gap-2"
+            variant="outline"
+            className="gap-2 border-border hover:border-gold/40"
           >
-            {loading === "meta" ? (
+            {loading === "google" ? (
               <RefreshCw className="size-4 animate-spin" />
             ) : (
-              <MetaLogo className="size-4" />
+              <GoogleLogo className="size-4" />
             )}
-            {loading === "meta" ? t("scan", "scanning") : "Meta Ads"}
+            {loading === "google" ? t("scan", "scanningGoogle") : "Google Ads"}
           </Button>
-          <Button
-            onClick={() => setShowMetaOptions(!showMetaOptions)}
-            disabled={isLoading}
-            className="rounded-l-none border-l border-gold-foreground/20 px-1.5"
-          >
-            <ChevronDown className="size-3.5" />
-          </Button>
-        </div>
+        )}
 
-        {showMetaOptions && (
-          <div className="absolute left-0 top-full mt-2 z-20 w-72 rounded-lg border border-border bg-card shadow-lg p-4 space-y-3">
-            <div className="flex items-center gap-2 text-xs font-medium text-foreground">
-              <CalendarRange className="size-4 text-gold" />
-              {t("scan", "scanOptions")}
-            </div>
+        {/* Instagram */}
+        <Button
+          onClick={scanInstagram}
+          disabled={isLoading}
+          variant="outline"
+          className="gap-2 border-border hover:border-gold/40"
+        >
+          {loading === "instagram" ? (
+            <RefreshCw className="size-4 animate-spin" />
+          ) : (
+            <InstagramIcon className="size-4" />
+          )}
+          {loading === "instagram" ? t("organic", "scanning") : "Instagram"}
+        </Button>
+      </div>
+
+      {/* ─── Date range indicator + picker ─── */}
+      <div className="relative" ref={dateRef}>
+        <button
+          onClick={() => setShowDatePicker(!showDatePicker)}
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <CalendarRange className="size-3" />
+          <span>
+            {isCustomRange ? rangeLabel : `${t("scan", "last30days")} (${rangeLabel})`}
+          </span>
+          <ChevronDown className={`size-3 transition-transform ${showDatePicker ? "rotate-180" : ""}`} />
+        </button>
+
+        {showDatePicker && (
+          <div className="absolute left-0 top-full mt-1 z-20 w-72 rounded-lg border border-border bg-card shadow-lg p-3 space-y-3">
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <Label className="text-[10px]">{t("scan", "dateFrom")}</Label>
@@ -185,6 +248,7 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
                   type="date"
                   value={dateFrom}
                   onChange={(e) => setDateFrom(e.target.value)}
+                  placeholder={daysAgo(30)}
                   className="text-xs h-7"
                 />
               </div>
@@ -199,7 +263,7 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
               </div>
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px]">{t("scan", "adStatus")}</Label>
+              <Label className="text-[10px]">{t("scan", "adStatus")} (Meta)</Label>
               <select
                 value={adStatus}
                 onChange={(e) => setAdStatus(e.target.value as "ACTIVE" | "ALL")}
@@ -209,53 +273,17 @@ export function ScanDropdown({ competitorId, hasGoogleConfig }: Props) {
                 <option value="ALL">{t("scan", "allAds")}</option>
               </select>
             </div>
-            {(dateFrom || dateTo || adStatus !== "ACTIVE") && (
+            {isCustomRange && (
               <button
-                onClick={() => { setDateFrom(""); setDateTo(""); setAdStatus("ACTIVE"); }}
+                onClick={() => { setDateFrom(""); setDateTo(""); }}
                 className="text-[10px] text-muted-foreground hover:text-foreground"
               >
                 {t("scan", "resetFilters")}
               </button>
             )}
-            <Button onClick={scanMeta} disabled={isLoading} className="w-full" size="sm">
-              <RefreshCw className={isLoading ? "size-3 animate-spin" : "size-3"} />
-              {t("scan", "launchScan")}
-            </Button>
           </div>
         )}
       </div>
-
-      {/* ─── Google Ads scan ─── */}
-      {hasGoogleConfig && (
-        <Button
-          onClick={scanGoogle}
-          disabled={isLoading}
-          variant="outline"
-          className="gap-2 border-border hover:border-gold/40"
-        >
-          {loading === "google" ? (
-            <RefreshCw className="size-4 animate-spin" />
-          ) : (
-            <GoogleLogo className="size-4" />
-          )}
-          {loading === "google" ? t("scan", "scanningGoogle") : "Google Ads"}
-        </Button>
-      )}
-
-      {/* ─── Instagram scan ─── */}
-      <Button
-        onClick={scanInstagram}
-        disabled={isLoading}
-        variant="outline"
-        className="gap-2 border-border hover:border-gold/40"
-      >
-        {loading === "instagram" ? (
-          <RefreshCw className="size-4 animate-spin" />
-        ) : (
-          <InstagramIcon className="size-4" />
-        )}
-        {loading === "instagram" ? t("organic", "scanning") : "Instagram"}
-      </Button>
     </div>
   );
 }

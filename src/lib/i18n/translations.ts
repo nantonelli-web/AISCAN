@@ -234,6 +234,7 @@ const translations = {
     scanAllProgress: { it: "Scanning brand", en: "Scanning brands" },
     scanAllDone: { it: "Scan completato!", en: "Scan completed!" },
     scanAllPartial: { it: "brand completati", en: "brands completed" },
+    last30days: { it: "Ultimi 30 giorni", en: "Last 30 days" },
     scanGoogle: { it: "Scan Google Ads", en: "Scan Google Ads" },
     scanningGoogle: { it: "Scanning Google\u2026", en: "Scanning Google\u2026" },
     scrapingGoogleInProgress: {

@@ -10,6 +10,8 @@ export const maxDuration = 300;
 const schema = z.object({
   competitor_id: z.string().uuid(),
   max_items: z.number().int().min(1).max(1000).optional(),
+  date_from: z.string().optional(),
+  date_to: z.string().optional(),
 });
 
 export async function POST(req: Request) {
