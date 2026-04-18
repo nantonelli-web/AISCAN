@@ -523,7 +523,7 @@ export function CompareView({
                       href={`/competitors/${d.id}/edit?from=compare`}
                       className="ml-auto shrink-0"
                     >
-                      <Button variant="outline" size="sm" className="text-xs h-6 px-2">
+                      <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold">
                         {t("compare", "goToEdit")}
                       </Button>
                     </a>
