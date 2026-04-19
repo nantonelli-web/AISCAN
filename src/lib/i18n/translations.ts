@@ -537,6 +537,8 @@ const translations = {
     staleShort: { it: "da aggiornare", en: "outdated" },
     savedComparisons: { it: "Confronti salvati", en: "Saved comparisons" },
     channel: { it: "Canale", en: "Channel" },
+    channelPaid: { it: "Paid", en: "Paid" },
+    channelOrganic: { it: "Organic", en: "Organic" },
     allChannels: { it: "Tutti i canali", en: "All channels" },
     noDataForChannel: {
       it: "La scansione per questo canale non \u00E8 stata realizzata per alcuni brand.",

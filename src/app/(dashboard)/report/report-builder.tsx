@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
+import { MetaIcon } from "@/components/ui/meta-icon";
 import { useT } from "@/lib/i18n/context";
 import type { MaitCompetitor } from "@/types";
 
@@ -513,34 +514,49 @@ export function ReportBuilder({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Paid channels */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Paid</span>
+                <Button variant={channel === "meta" ? "default" : "outline"} size="sm"
+                  onClick={() => setChannel("meta")} className="gap-1.5"
+                >
+                  <MetaIcon className="size-4" />
+                  Meta Ads
+                </Button>
+                <Button variant={channel === "google" ? "default" : "outline"} size="sm"
+                  onClick={() => !channelDisabled.google && setChannel("google")}
+                  disabled={channelDisabled.google}
+                  className={cn("gap-1.5", channelDisabled.google && "opacity-40 cursor-not-allowed")}
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="size-4"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1Z" /><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23Z" /><path d="M5.84 14.09A6.68 6.68 0 0 1 5.5 12c0-.72.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 0 0 1 12c0 1.77.43 3.45 1.18 4.93l2.85-2.22.81-.62Z" /><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53Z" /></svg>
+                  Google Ads
+                </Button>
+              </div>
+
+              <div className="h-6 w-px bg-border hidden sm:block" />
+
+              {/* Organic channels */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Organic</span>
+                <Button variant={channel === "instagram" ? "default" : "outline"} size="sm"
+                  onClick={() => !channelDisabled.instagram && setChannel("instagram")}
+                  disabled={channelDisabled.instagram}
+                  className={cn("gap-1.5", channelDisabled.instagram && "opacity-40 cursor-not-allowed")}
+                >
+                  <InstagramIcon className="size-4" />
+                  Instagram
+                </Button>
+              </div>
+
+              <div className="h-6 w-px bg-border hidden sm:block" />
+
+              {/* All channels */}
               <Button variant={channel === "all" ? "default" : "outline"} size="sm"
-                onClick={() => setChannel("all")} disabled={channelDisabled.all}
+                onClick={() => !channelDisabled.all && setChannel("all")} disabled={channelDisabled.all}
                 className={cn(channelDisabled.all && "opacity-40 cursor-not-allowed")}
               >
                 {t("report", "channelAll")}
-              </Button>
-              <Button variant={channel === "meta" ? "default" : "outline"} size="sm"
-                onClick={() => setChannel("meta")} className="gap-1.5"
-              >
-                <svg viewBox="0 0 24 24" fill="currentColor" className="size-4"><path d="M12 2.04c-5.5 0-10 4.49-10 10.02 0 5 3.66 9.15 8.44 9.9v-7H7.9v-2.9h2.54V9.85c0-2.52 1.49-3.93 3.78-3.93 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.78-1.63 1.57v1.88h2.78l-.45 2.9h-2.33v7A10 10 0 0 0 22 12.06C22 6.53 17.5 2.04 12 2.04Z" /></svg>
-                Meta Ads
-              </Button>
-              <Button variant={channel === "google" ? "default" : "outline"} size="sm"
-                onClick={() => !channelDisabled.google && setChannel("google")}
-                disabled={channelDisabled.google}
-                className={cn("gap-1.5", channelDisabled.google && "opacity-40 cursor-not-allowed")}
-              >
-                <svg viewBox="0 0 24 24" fill="currentColor" className="size-4"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1Z" /><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23Z" /><path d="M5.84 14.09A6.68 6.68 0 0 1 5.5 12c0-.72.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 0 0 1 12c0 1.77.43 3.45 1.18 4.93l2.85-2.22.81-.62Z" /><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53Z" /></svg>
-                Google Ads
-              </Button>
-              <Button variant={channel === "instagram" ? "default" : "outline"} size="sm"
-                onClick={() => !channelDisabled.instagram && setChannel("instagram")}
-                disabled={channelDisabled.instagram}
-                className={cn("gap-1.5", channelDisabled.instagram && "opacity-40 cursor-not-allowed")}
-              >
-                <InstagramIcon className="size-4" />
-                Instagram
               </Button>
             </div>
             {/* Detailed disabled reasons */}

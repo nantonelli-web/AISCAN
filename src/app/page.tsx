@@ -16,19 +16,12 @@ import {
   Globe,
 } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
+import { MetaIcon } from "@/components/ui/meta-icon";
 import { OAuthCodeHandler } from "@/components/auth/code-handler";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 
 /* ─── Platform logos (inline SVG) ────────────────────────── */
-
-function MetaLogo({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M12 2.04c-5.5 0-10 4.49-10 10.02 0 5 3.66 9.15 8.44 9.9v-7H7.9v-2.9h2.54V9.85c0-2.52 1.49-3.93 3.78-3.93 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.78-1.63 1.57v1.88h2.78l-.45 2.9h-2.33v7A10 10 0 0 0 22 12.06C22 6.53 17.5 2.04 12 2.04Z" />
-    </svg>
-  );
-}
 
 function GoogleLogo({ className }: { className?: string }) {
   return (
@@ -133,7 +126,7 @@ export default async function LandingPage() {
             {/* Paid Ads */}
             <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
               <div className="size-10 rounded-lg bg-gold/10 border border-gold/30 grid place-items-center shrink-0">
-                <MetaLogo className="size-5 text-gold" />
+                <MetaIcon className="size-5 text-gold" />
               </div>
               <div>
                 <p className="text-sm font-medium">Meta Ads</p>

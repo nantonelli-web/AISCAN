@@ -6,6 +6,7 @@ import { AdCard } from "@/components/ads/ad-card";
 import { OrganicPostCard } from "@/components/organic/organic-post-card";
 import { TagButton } from "@/components/ads/tag-button";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
+import { MetaIcon } from "@/components/ui/meta-icon";
 import { Download } from "lucide-react";
 import { cn, formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
@@ -14,14 +15,6 @@ import type { MaitAdExternal, MaitOrganicPost } from "@/types";
 type Channel = "all" | "meta" | "google" | "instagram";
 
 /* ─── Platform icons (small, inline) ─── */
-
-function MetaIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M12 2.04c-5.5 0-10 4.49-10 10.02 0 5 3.66 9.15 8.44 9.9v-7H7.9v-2.9h2.54V9.85c0-2.52 1.49-3.93 3.78-3.93 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.78-1.63 1.57v1.88h2.78l-.45 2.9h-2.33v7A10 10 0 0 0 22 12.06C22 6.53 17.5 2.04 12 2.04Z" />
-    </svg>
-  );
-}
 
 function GoogleIcon({ className }: { className?: string }) {
   return (

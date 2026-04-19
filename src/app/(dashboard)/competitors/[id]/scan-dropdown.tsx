@@ -5,20 +5,13 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { RefreshCw, ChevronDown, CalendarRange, Square } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
+import { MetaIcon } from "@/components/ui/meta-icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useT } from "@/lib/i18n/context";
 
 /* ─── Platform SVG logos ─────────────────────────────────── */
-
-function MetaLogo({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M12 2.04c-5.5 0-10 4.49-10 10.02 0 5 3.66 9.15 8.44 9.9v-7H7.9v-2.9h2.54V9.85c0-2.52 1.49-3.93 3.78-3.93 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.78-1.63 1.57v1.88h2.78l-.45 2.9h-2.33v7A10 10 0 0 0 22 12.06C22 6.53 17.5 2.04 12 2.04Z" />
-    </svg>
-  );
-}
 
 function GoogleLogo({ className }: { className?: string }) {
   return (
@@ -306,7 +299,7 @@ export function ScanDropdown({ competitorId, hasGoogleConfig, hasInstagramConfig
               {loading === "meta" ? (
                 <RefreshCw className="size-5 animate-spin" />
               ) : (
-                <MetaLogo className="size-5" />
+                <MetaIcon className="size-5" />
               )}
               {loading === "meta" ? t("scan", "scanning") : "Meta Ads"}
             </Button>
