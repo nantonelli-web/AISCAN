@@ -16,6 +16,7 @@ import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { OAuthCodeHandler } from "@/components/auth/code-handler";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { creditCosts, type CreditAction } from "@/config/pricing";
+import { LanguageSwitcher } from "@/components/layout/language-switcher";
 
 /* ─── Platform logos (inline SVG) ────────────────────────── */
 
@@ -71,12 +72,13 @@ export default async function LandingPage() {
 
       {/* ─── NAV ────────────────────────────────────────── */}
       <nav className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
-        <div className="mx-auto max-w-6xl px-6 h-14 flex items-center justify-between">
+        <div className="mx-auto max-w-6xl px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.webp" alt="AISCAN" className="h-10" />
+            <img src="/logo.webp" alt="AISCAN" className="h-14" />
           </Link>
           <div className="flex items-center gap-3">
+            <LanguageSwitcher />
             <Button asChild variant="ghost" size="sm">
               <Link href="/login">{t("landing", "loginBtn")}</Link>
             </Button>
@@ -301,7 +303,7 @@ export default async function LandingPage() {
                     {t("landing", `creditAction_${action}`)}
                   </span>
                   <span className="font-medium text-gold">
-                    {creditCosts[action]} {creditCosts[action] === 1 ? "credito" : "crediti"}
+                    {creditCosts[action]} {creditCosts[action] === 1 ? t("landing", "creditUnit") : t("landing", "creditUnitPlural")}
                   </span>
                 </div>
               ))}

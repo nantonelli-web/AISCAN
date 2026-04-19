@@ -145,6 +145,8 @@ const translations = {
     footerLogin: { it: "Accedi", en: "Sign in" },
     footerRegister: { it: "Registrati", en: "Register" },
     footerCompany: { it: "Azienda", en: "Company" },
+    creditUnit: { it: "credito", en: "credit" },
+    creditUnitPlural: { it: "crediti", en: "credits" },
   },
 
   // ─── 404 ───────────────────────────────────────────────────
