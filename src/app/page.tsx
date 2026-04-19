@@ -11,11 +11,13 @@ import {
   Sparkles,
   Check,
   Zap,
+  Search,
+  FileBarChart,
+  Globe,
 } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { OAuthCodeHandler } from "@/components/auth/code-handler";
 import { getLocale, serverT } from "@/lib/i18n/server";
-import { creditCosts, type CreditAction } from "@/config/pricing";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 
 /* ─── Platform logos (inline SVG) ────────────────────────── */
@@ -46,16 +48,6 @@ const plans: { tier: string; credits: number; priceMonthly: number; priceYearly:
   { tier: "analyst", credits: 80, priceMonthly: 29, priceYearly: 299, featKey: "pricingFeatAnalyst", popular: true },
   { tier: "strategist", credits: 250, priceMonthly: 89, priceYearly: 899, featKey: "pricingFeatStrategist" },
   { tier: "agency", credits: 650, priceMonthly: 239, priceYearly: 2399, featKey: "pricingFeatAgency" },
-];
-
-const actionKeys: CreditAction[] = [
-  "scan_meta",
-  "scan_google",
-  "scan_instagram",
-  "ai_tagging",
-  "ai_analysis",
-  "report_single",
-  "report_comparison",
 ];
 
 /* ─── Page ───────────────────────────────────────────────── */
@@ -90,91 +82,128 @@ export default async function LandingPage() {
       </nav>
 
       {/* ─── HERO ───────────────────────────────────────── */}
-      <section className="mx-auto max-w-6xl px-6 pt-24 pb-20">
-        <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-gold mb-8">
-          <span className="h-px w-8 bg-gold" />
-          {t("landing", "heroTag")}
-        </div>
-        <h1 className="text-4xl sm:text-5xl md:text-6xl font-serif tracking-tight max-w-4xl leading-[1.1]">
-          {t("landing", "heroTitle1")}
-          <br />
-          <span className="text-gold">{t("landing", "heroTitle2")}</span>
-          <br />
-          {t("landing", "heroTitle3")}
-        </h1>
-        <p className="mt-6 max-w-2xl text-lg text-muted-foreground leading-relaxed">
-          {t("landing", "heroSubtitle")}
-        </p>
-        <div className="mt-10 flex flex-wrap gap-3">
-          <Button asChild size="lg" className="gap-2">
-            <Link href="/register">
-              {t("landing", "heroCta")} <ArrowRight className="size-4" />
-            </Link>
-          </Button>
-          <Button asChild size="lg" variant="outline" className="gap-2">
-            <a href="#how-it-works">
-              {t("landing", "heroCtaSecondary")}
-            </a>
-          </Button>
+      <section className="relative overflow-hidden">
+        {/* Ambient glow effects */}
+        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-gold/10 rounded-full blur-[150px] pointer-events-none" />
+        <div className="absolute top-20 right-0 w-[400px] h-[400px] bg-gold/5 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-gold/5 rounded-full blur-[100px] pointer-events-none" />
+        {/* Grid pattern */}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-[0.04]"
+          style={{
+            backgroundImage: "linear-gradient(rgba(212,168,67,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(212,168,67,0.3) 1px, transparent 1px)",
+            backgroundSize: "80px 80px",
+          }}
+        />
+
+        <div className="relative mx-auto max-w-6xl px-6 pt-24 pb-20">
+          <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-gold mb-8">
+            <span className="h-px w-8 bg-gold" />
+            {t("landing", "heroTag")}
+          </div>
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-serif tracking-tight max-w-4xl leading-[1.1]">
+            {t("landing", "heroTitle1")}
+            <br />
+            <span className="text-gold">{t("landing", "heroTitle2")}</span>
+            <br />
+            {t("landing", "heroTitle3")}
+          </h1>
+          <p className="mt-6 max-w-2xl text-lg text-muted-foreground leading-relaxed">
+            {t("landing", "heroSubtitle")}
+          </p>
+          <div className="mt-10 flex flex-wrap gap-3">
+            <Button asChild size="lg" className="gap-2">
+              <Link href="/register">
+                {t("landing", "heroCta")} <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+            <Button asChild size="lg" variant="outline" className="gap-2">
+              <a href="#how-it-works">
+                {t("landing", "heroCtaSecondary")}
+              </a>
+            </Button>
+          </div>
         </div>
       </section>
 
-      {/* ─── PLATFORMS BAR ──────────────────────────────── */}
+      {/* ─── CHANNELS BAR ───────────────────────────────── */}
       <section className="border-y border-border bg-muted/30">
-        <div className="mx-auto max-w-6xl px-6 py-6 flex flex-wrap items-center gap-4">
-          <span className="text-xs text-muted-foreground uppercase tracking-wider">
-            {t("landing", "platformsLabel")}
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { icon: <MetaLogo className="size-4" />, label: "Meta Ads" },
-              { icon: <GoogleLogo className="size-4" />, label: "Google Ads" },
-              { icon: <InstagramIcon className="size-4" />, label: "Instagram" },
-            ].map((p) => (
-              <span
-                key={p.label}
-                className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-1.5 text-sm"
-              >
-                {p.icon} {p.label}
-              </span>
-            ))}
+        <div className="mx-auto max-w-6xl px-6 py-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Paid Ads */}
+            <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
+              <div className="size-10 rounded-lg bg-gold/10 border border-gold/30 grid place-items-center shrink-0">
+                <MetaLogo className="size-5 text-gold" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Meta Ads</p>
+                <p className="text-xs text-muted-foreground">{t("landing", "channelPaid")}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
+              <div className="size-10 rounded-lg bg-gold/10 border border-gold/30 grid place-items-center shrink-0">
+                <GoogleLogo className="size-5 text-gold" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Google Ads</p>
+                <p className="text-xs text-muted-foreground">{t("landing", "channelPaid")}</p>
+              </div>
+            </div>
+            {/* Organic */}
+            <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
+              <div className="size-10 rounded-lg bg-gold/10 border border-gold/30 grid place-items-center shrink-0">
+                <InstagramIcon className="size-5 text-gold" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Instagram</p>
+                <p className="text-xs text-muted-foreground">{t("landing", "channelOrganic")}</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       {/* ─── HOW IT WORKS ───────────────────────────────── */}
-      <section id="how-it-works" className="mx-auto max-w-6xl px-6 py-24">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-serif tracking-tight">
-            {t("landing", "howTitle")}
-          </h2>
-          <p className="mt-3 text-muted-foreground max-w-xl mx-auto">
-            {t("landing", "howSubtitle")}
-          </p>
-        </div>
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-          {([
-            { num: "01", icon: <Layers className="size-5" />, titleKey: "howStep1Title", bodyKey: "howStep1Body" },
-            { num: "02", icon: <Zap className="size-5" />, titleKey: "howStep2Title", bodyKey: "howStep2Body" },
-            { num: "03", icon: <Sparkles className="size-5" />, titleKey: "howStep3Title", bodyKey: "howStep3Body" },
-            { num: "04", icon: <BarChart3 className="size-5" />, titleKey: "howStep4Title", bodyKey: "howStep4Body" },
-          ] as const).map((step) => (
-            <div key={step.num} className="relative">
-              <div className="size-12 rounded-xl bg-gold/10 border border-gold/30 grid place-items-center text-gold mb-4">
-                <span className="text-sm font-bold">{step.num}</span>
+      <section id="how-it-works" className="relative overflow-hidden">
+        <div className="absolute top-1/2 right-0 w-[400px] h-[400px] bg-gold/5 rounded-full blur-[120px] pointer-events-none -translate-y-1/2" />
+        <div className="relative mx-auto max-w-6xl px-6 py-24">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-serif tracking-tight">
+              {t("landing", "howTitle")}
+            </h2>
+            <p className="mt-3 text-muted-foreground max-w-xl mx-auto">
+              {t("landing", "howSubtitle")}
+            </p>
+          </div>
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+            {([
+              { num: "01", icon: <Layers className="size-5" />, titleKey: "howStep1Title" as const, bodyKey: "howStep1Body" as const },
+              { num: "02", icon: <Zap className="size-5" />, titleKey: "howStep2Title" as const, bodyKey: "howStep2Body" as const },
+              { num: "03", icon: <Sparkles className="size-5" />, titleKey: "howStep3Title" as const, bodyKey: "howStep3Body" as const },
+              { num: "04", icon: <BarChart3 className="size-5" />, titleKey: "howStep4Title" as const, bodyKey: "howStep4Body" as const },
+            ]).map((step, i) => (
+              <div key={step.num} className="relative group">
+                {/* Connecting line between steps */}
+                {i < 3 && (
+                  <div className="hidden lg:block absolute top-6 left-full w-full h-px bg-gradient-to-r from-gold/30 to-transparent" />
+                )}
+                <div className="size-12 rounded-xl bg-gold/10 border border-gold/30 grid place-items-center text-gold mb-4 group-hover:bg-gold/20 transition-colors">
+                  <span className="text-sm font-bold">{step.num}</span>
+                </div>
+                <h3 className="font-semibold mb-2">{t("landing", step.titleKey)}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {t("landing", step.bodyKey)}
+                </p>
               </div>
-              <h3 className="font-semibold mb-2">{t("landing", step.titleKey)}</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                {t("landing", step.bodyKey)}
-              </p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </section>
 
       {/* ─── FEATURES ───────────────────────────────────── */}
-      <section className="bg-muted/30 border-y border-border">
-        <div className="mx-auto max-w-6xl px-6 py-24">
+      <section className="bg-muted/30 border-y border-border relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-[400px] h-[400px] bg-gold/5 rounded-full blur-[120px] pointer-events-none" />
+        <div className="relative mx-auto max-w-6xl px-6 py-24">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-serif tracking-tight">
               {t("landing", "featuresTitle")}
@@ -194,7 +223,7 @@ export default async function LandingPage() {
             ] as const).map((f) => (
               <div
                 key={f.titleKey}
-                className="rounded-xl border border-border bg-card p-6"
+                className="rounded-xl border border-border bg-card p-6 hover:border-gold/30 hover:shadow-[0_10px_40px_rgba(212,168,67,0.05)] transition-all duration-300"
               >
                 <div className="size-10 rounded-lg bg-gold/10 border border-gold/30 grid place-items-center mb-4">
                   {f.icon}
@@ -210,25 +239,35 @@ export default async function LandingPage() {
       </section>
 
       {/* ─── METRICS ────────────────────────────────────── */}
-      <section className="mx-auto max-w-6xl px-6 py-24">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-          {([
-            { value: "3", label: t("landing", "metricsChannels") },
-            { value: "3", label: t("landing", "metricsAI") },
-            { value: "PPTX & PDF", label: t("landing", "metricsReport") },
-            { value: "CSV", label: t("landing", "metricsFormats") },
-          ]).map((m) => (
-            <div key={m.label}>
-              <div className="text-4xl md:text-5xl font-serif text-gold">{m.value}</div>
-              <p className="mt-2 text-sm text-muted-foreground">{m.label}</p>
-            </div>
-          ))}
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{
+          backgroundImage: "radial-gradient(circle at 2px 2px, #d4a843 1px, transparent 0)",
+          backgroundSize: "32px 32px",
+        }} />
+        <div className="relative mx-auto max-w-6xl px-6 py-24">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+            {([
+              { icon: <Globe className="size-6" />, value: "3", label: t("landing", "metricsChannels") },
+              { icon: <Sparkles className="size-6" />, value: "3", label: t("landing", "metricsAI") },
+              { icon: <FileBarChart className="size-6" />, value: "PPTX & PDF", label: t("landing", "metricsReport") },
+              { icon: <Search className="size-6" />, value: "CSV", label: t("landing", "metricsFormats") },
+            ]).map((m) => (
+              <div key={m.label} className="text-center">
+                <div className="size-14 rounded-2xl bg-gold/10 border border-gold/30 grid place-items-center text-gold mx-auto mb-4">
+                  {m.icon}
+                </div>
+                <div className="text-3xl md:text-4xl font-serif text-gold">{m.value}</div>
+                <p className="mt-2 text-sm text-muted-foreground">{m.label}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* ─── PRICING ────────────────────────────────────── */}
-      <section id="pricing" className="bg-muted/30 border-y border-border">
-        <div className="mx-auto max-w-6xl px-6 py-24">
+      <section id="pricing" className="bg-muted/30 border-y border-border relative overflow-hidden">
+        <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-gold/5 rounded-full blur-[150px] pointer-events-none" />
+        <div className="relative mx-auto max-w-6xl px-6 py-24">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-serif tracking-tight">
               {t("landing", "pricingTitle")}
@@ -245,10 +284,10 @@ export default async function LandingPage() {
               return (
                 <div
                   key={plan.tier}
-                  className={`rounded-xl border p-6 flex flex-col ${
+                  className={`rounded-xl border p-6 flex flex-col transition-all duration-300 hover:shadow-[0_10px_40px_rgba(212,168,67,0.05)] ${
                     plan.popular
                       ? "border-gold bg-gold/5 ring-1 ring-gold/30"
-                      : "border-border bg-card"
+                      : "border-border bg-card hover:border-gold/30"
                   }`}
                 >
                   {plan.popular && (
@@ -290,42 +329,26 @@ export default async function LandingPage() {
               );
             })}
           </div>
-
-          {/* Credit costs table */}
-          <div className="mt-16 max-w-md mx-auto">
-            <h3 className="text-sm font-semibold text-center mb-4">
-              {t("landing", "creditCostsTitle")}
-            </h3>
-            <div className="rounded-xl border border-border bg-card divide-y divide-border">
-              {actionKeys.map((action) => (
-                <div key={action} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                  <span className="text-muted-foreground">
-                    {t("landing", `creditAction_${action}`)}
-                  </span>
-                  <span className="font-medium text-gold">
-                    {creditCosts[action]} {creditCosts[action] === 1 ? t("landing", "creditUnit") : t("landing", "creditUnitPlural")}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </section>
 
       {/* ─── FINAL CTA ──────────────────────────────────── */}
-      <section className="mx-auto max-w-6xl px-6 py-24 text-center">
-        <h2 className="text-3xl md:text-4xl font-serif tracking-tight max-w-2xl mx-auto">
-          {t("landing", "ctaTitle")}
-        </h2>
-        <p className="mt-4 text-muted-foreground max-w-lg mx-auto">
-          {t("landing", "ctaSubtitle")}
-        </p>
-        <div className="mt-8">
-          <Button asChild size="lg" className="gap-2">
-            <Link href="/register">
-              {t("landing", "ctaBtn")} <ArrowRight className="size-4" />
-            </Link>
-          </Button>
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-gold/5 to-transparent pointer-events-none" />
+        <div className="relative mx-auto max-w-6xl px-6 py-24 text-center">
+          <h2 className="text-3xl md:text-4xl font-serif tracking-tight max-w-2xl mx-auto">
+            {t("landing", "ctaTitle")}
+          </h2>
+          <p className="mt-4 text-muted-foreground max-w-lg mx-auto">
+            {t("landing", "ctaSubtitle")}
+          </p>
+          <div className="mt-8">
+            <Button asChild size="lg" className="gap-2">
+              <Link href="/register">
+                {t("landing", "ctaBtn")} <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+          </div>
         </div>
       </section>
 

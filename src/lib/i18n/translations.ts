@@ -19,8 +19,10 @@ const translations = {
     },
     heroCta: { it: "Inizia gratis", en: "Start free" },
     heroCtaSecondary: { it: "Scopri come funziona", en: "See how it works" },
-    // Platforms
+    // Channels
     platformsLabel: { it: "Scansiona ads su", en: "Scan ads on" },
+    channelPaid: { it: "Campagne paid", en: "Paid campaigns" },
+    channelOrganic: { it: "Post organici", en: "Organic posts" },
     // How it works
     howTitle: { it: "Come funziona", en: "How it works" },
     howSubtitle: {
