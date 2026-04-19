@@ -339,7 +339,7 @@ export default async function LandingPage() {
               <p className="mt-2 text-xs text-muted-foreground max-w-xs">
                 Ads Analysis Tool
                 <br />
-                NIMA Digital
+                NIMA Digital Consulting FZCO
               </p>
             </div>
             <div className="flex gap-16">
@@ -353,10 +353,19 @@ export default async function LandingPage() {
                   <li><Link href="/register" className="hover:text-foreground transition-colors">{t("landing", "footerRegister")}</Link></li>
                 </ul>
               </div>
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider mb-3">
+                  {t("landing", "footerLegal")}
+                </h4>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li><Link href="/privacy-policy" className="hover:text-foreground transition-colors">{t("landing", "footerPrivacy")}</Link></li>
+                  <li><Link href="/cookie-policy" className="hover:text-foreground transition-colors">{t("landing", "footerCookie")}</Link></li>
+                </ul>
+              </div>
             </div>
           </div>
           <div className="mt-8 pt-6 border-t border-border text-xs text-muted-foreground">
-            &copy; {new Date().getFullYear()} AISCAN &middot; NIMA Digital. {t("landing", "footerRights")}
+            &copy; {new Date().getFullYear()} AISCAN &middot; NIMA Digital Consulting FZCO. {t("landing", "footerRights")}
           </div>
         </div>
       </footer>

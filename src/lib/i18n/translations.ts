@@ -147,6 +147,9 @@ const translations = {
     footerCompany: { it: "Azienda", en: "Company" },
     creditUnit: { it: "credito", en: "credit" },
     creditUnitPlural: { it: "crediti", en: "credits" },
+    footerLegal: { it: "Legale", en: "Legal" },
+    footerPrivacy: { it: "Privacy Policy", en: "Privacy Policy" },
+    footerCookie: { it: "Cookie Policy", en: "Cookie Policy" },
   },
 
   // ─── 404 ───────────────────────────────────────────────────
