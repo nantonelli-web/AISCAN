@@ -340,59 +340,70 @@ export function ScanDropdown({ competitorId, hasGoogleConfig, hasInstagramConfig
         </div>
 
         {/* Google Ads */}
-        <div className="relative group">
-          <Button
-            onClick={hasGoogleConfig ? scanGoogle : undefined}
-            disabled={!hasGoogleConfig || isLoading || rangeExceeded}
-            variant="outline"
-            size="lg"
-            className={hasGoogleConfig
-              ? "gap-2.5 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold"
-              : "gap-2.5 opacity-40 cursor-not-allowed"
-            }
-          >
-            {loading === "google" ? (
-              <RefreshCw className="size-5 animate-spin" />
-            ) : (
-              <GoogleLogo className="size-5" />
-            )}
-            {loading === "google" ? t("scan", "scanningGoogle") : "Google Ads"}
-          </Button>
-          {!hasGoogleConfig && (
-            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-max max-w-[220px] rounded-md border border-border bg-card px-3 py-2 text-[11px] text-muted-foreground shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30">
-              {t("scan", "googleNotConfigured")}
-              <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-border" />
-            </div>
+        <Button
+          onClick={hasGoogleConfig ? scanGoogle : undefined}
+          disabled={!hasGoogleConfig || isLoading || rangeExceeded}
+          variant="outline"
+          size="lg"
+          className={hasGoogleConfig
+            ? "gap-2.5 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold"
+            : "gap-2.5 opacity-40 cursor-not-allowed"
+          }
+        >
+          {loading === "google" ? (
+            <RefreshCw className="size-5 animate-spin" />
+          ) : (
+            <GoogleLogo className="size-5" />
           )}
-        </div>
+          {loading === "google" ? t("scan", "scanningGoogle") : "Google Ads"}
+        </Button>
 
         {/* Instagram */}
-        <div className="relative group">
-          <Button
-            onClick={hasInstagramConfig ? scanInstagram : undefined}
-            disabled={!hasInstagramConfig || isLoading}
-            variant="outline"
-            size="lg"
-            className={hasInstagramConfig
-              ? "gap-2.5 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold"
-              : "gap-2.5 opacity-40 cursor-not-allowed"
-            }
-          >
-            {loading === "instagram" ? (
-              <RefreshCw className="size-5 animate-spin" />
-            ) : (
-              <InstagramIcon className="size-5" />
-            )}
-            {loading === "instagram" ? t("organic", "scanning") : "Instagram"}
-          </Button>
+        <Button
+          onClick={hasInstagramConfig ? scanInstagram : undefined}
+          disabled={!hasInstagramConfig || isLoading}
+          variant="outline"
+          size="lg"
+          className={hasInstagramConfig
+            ? "gap-2.5 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold"
+            : "gap-2.5 opacity-40 cursor-not-allowed"
+          }
+        >
+          {loading === "instagram" ? (
+            <RefreshCw className="size-5 animate-spin" />
+          ) : (
+            <InstagramIcon className="size-5" />
+          )}
+          {loading === "instagram" ? t("organic", "scanning") : "Instagram"}
+        </Button>
+      </div>
+
+      {/* ─── 3. Missing config details (amber box) ─── */}
+      {(!hasGoogleConfig || !hasInstagramConfig) && (
+        <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-3 space-y-1.5">
+          <p className="text-xs font-medium text-amber-400">{t("scan", "configRequiredBrand")}</p>
+          {!hasGoogleConfig && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-muted-foreground">Google Ads: {t("scan", "googleNotConfigured")}</span>
+              <a href={`/competitors/${competitorId}/edit?from=brand`} className="ml-auto shrink-0">
+                <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold">
+                  {t("compare", "goToEdit")}
+                </Button>
+              </a>
+            </div>
+          )}
           {!hasInstagramConfig && (
-            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-max max-w-[220px] rounded-md border border-border bg-card px-3 py-2 text-[11px] text-muted-foreground shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30">
-              {t("scan", "instagramNotConfigured")}
-              <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-border" />
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-muted-foreground">Instagram: {t("scan", "instagramNotConfigured")}</span>
+              <a href={`/competitors/${competitorId}/edit?from=brand`} className="ml-auto shrink-0">
+                <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold">
+                  {t("compare", "goToEdit")}
+                </Button>
+              </a>
             </div>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }

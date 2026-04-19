@@ -252,13 +252,17 @@ const translations = {
       it: "Scraping Google Ads\u2026 (pu\u00F2 richiedere 20-60s)",
       en: "Scraping Google Ads\u2026 (may take 20-60s)",
     },
+    configRequiredBrand: {
+      it: "Configurazione mancante. Completa la configurazione per abilitare la scansione su tutti i canali.",
+      en: "Configuration missing. Complete the setup to enable scanning on all channels.",
+    },
     googleNotConfigured: {
-      it: "Configura il dominio o l'Advertiser ID Google nelle impostazioni del brand per abilitare la scansione.",
-      en: "Configure the Google domain or Advertiser ID in brand settings to enable scanning.",
+      it: "Dominio o Advertiser ID Google non configurato",
+      en: "Google domain or Advertiser ID not configured",
     },
     instagramNotConfigured: {
-      it: "Configura lo username Instagram nelle impostazioni del brand per abilitare la scansione.",
-      en: "Configure the Instagram username in brand settings to enable scanning.",
+      it: "Username Instagram non configurato",
+      en: "Instagram username not configured",
     },
   },
 
