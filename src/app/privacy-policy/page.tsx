@@ -129,7 +129,7 @@ export default async function PrivacyPolicyPage() {
         <div className="mx-auto max-w-4xl px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.webp" alt="AISCAN" className="h-14" />
+            <img src="/logo.webp" alt="AISCAN" className="h-[67px]" />
           </Link>
           <LanguageSwitcher />
         </div>

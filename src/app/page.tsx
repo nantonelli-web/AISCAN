@@ -64,10 +64,10 @@ export default async function LandingPage() {
 
       {/* ─── NAV ────────────────────────────────────────── */}
       <nav className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
-        <div className="mx-auto max-w-6xl px-6 h-16 flex items-center justify-between">
+        <div className="mx-auto max-w-6xl px-6 h-20 flex items-center justify-between">
           <Link href="/" className="flex items-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.webp" alt="AISCAN" className="h-14" />
+            <img src="/logo.webp" alt="AISCAN" className="h-[67px]" />
           </Link>
           <div className="flex items-center gap-3">
             <LanguageSwitcher />
@@ -358,7 +358,7 @@ export default async function LandingPage() {
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-8">
             <div>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.webp" alt="AISCAN" className="h-10" />
+              <img src="/logo.webp" alt="AISCAN" className="h-12" />
               <p className="mt-2 text-xs text-muted-foreground max-w-xs">
                 Ads Analysis Tool
                 <br />
