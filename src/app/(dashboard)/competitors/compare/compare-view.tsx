@@ -14,6 +14,7 @@ import {
   RefreshCw,
   AlertTriangle,
   ChevronDown,
+  Trash2,
 } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
@@ -111,6 +112,7 @@ export function CompareView({
   const [misconfiguredBrands, setMisconfiguredBrands] = useState<{ name: string; id: string; reason: string }[]>([]);
   const [scanning, setScanning] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
+  const [savedList, setSavedList] = useState(savedComparisons);
 
   const fetchingRef = useRef<string>("");
 
@@ -505,6 +507,19 @@ export function CompareView({
     return gaps;
   })();
 
+  async function deleteSavedComparison(sc: SavedComparison) {
+    try {
+      await fetch("/api/comparisons", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ competitor_ids: sc.competitor_ids, locale: sc.locale }),
+      });
+      setSavedList((prev) => prev.filter((s) => s.id !== sc.id));
+    } catch {
+      // silent
+    }
+  }
+
   const hasResults = selected.size >= 2 && channel !== null;
 
   return (
@@ -750,26 +765,28 @@ export function CompareView({
           </p>
 
           {/* Saved comparisons */}
-          {savedComparisons.length > 0 && (
+          {savedList.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">{t("compare", "savedComparisons")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {savedComparisons.map((sc) => {
+                {savedList.map((sc) => {
                   const brandNames = sc.competitor_ids
                     .map((cid) => competitors.find((c) => c.id === cid)?.page_name ?? cid.slice(0, 8))
                     .join(" vs ");
                   return (
-                    <button
+                    <div
                       key={sc.id}
-                      onClick={() => {
-                        const newSet = new Set(sc.competitor_ids);
-                        setSelected(newSet);
-                      }}
-                      className="w-full flex items-center justify-between p-3 rounded-md border border-border hover:border-gold/40 transition-colors text-left"
+                      className="flex items-center gap-2 p-3 rounded-md border border-border hover:border-gold/40 transition-colors"
                     >
-                      <div className="min-w-0">
+                      <button
+                        onClick={() => {
+                          const newSet = new Set(sc.competitor_ids);
+                          setSelected(newSet);
+                        }}
+                        className="flex-1 text-left min-w-0"
+                      >
                         <p className="text-sm font-medium truncate">{brandNames}</p>
                         <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
                           <span className="text-gold/70">Meta Ads</span>
@@ -781,8 +798,14 @@ export function CompareView({
                             </span>
                           )}
                         </p>
-                      </div>
-                    </button>
+                      </button>
+                      <button
+                        onClick={() => deleteSavedComparison(sc)}
+                        className="size-8 rounded-md border border-border hover:bg-muted hover:border-red-400/40 grid place-items-center text-muted-foreground hover:text-red-400 transition-colors shrink-0 cursor-pointer"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
                   );
                 })}
               </CardContent>
