@@ -74,7 +74,7 @@ export default async function LandingPage() {
         <div className="mx-auto max-w-6xl px-6 h-14 flex items-center justify-between">
           <Link href="/" className="flex items-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.webp" alt="AISCAN" className="h-7" />
+            <img src="/logo.webp" alt="AISCAN" className="h-10" />
           </Link>
           <div className="flex items-center gap-3">
             <Button asChild variant="ghost" size="sm">
@@ -333,7 +333,7 @@ export default async function LandingPage() {
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-8">
             <div>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.webp" alt="AISCAN" className="h-6" />
+              <img src="/logo.webp" alt="AISCAN" className="h-10" />
               <p className="mt-2 text-xs text-muted-foreground max-w-xs">
                 Ads Analysis Tool
                 <br />
