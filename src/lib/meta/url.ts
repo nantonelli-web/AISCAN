@@ -8,15 +8,16 @@ export function extractPageIdentifier(url: string): {
 } {
   try {
     const u = new URL(url);
-    // facebook.com/<username> or facebook.com/<username>/
+    // Check view_all_page_id parameter first (Ad Library URL)
+    const paramId = u.searchParams.get("view_all_page_id");
+    if (paramId) return { pageId: paramId };
+
+    // facebook.com/<username> or facebook.com/<numeric_id>/
     if (u.hostname.includes("facebook.com")) {
       const seg = u.pathname.replace(/^\/+|\/+$/g, "").split("/")[0];
       if (/^\d+$/.test(seg)) return { pageId: seg };
-      if (seg) return { username: seg };
+      if (seg && seg !== "ads") return { username: seg };
     }
-    // ad library URL: ?view_all_page_id=123
-    const id = u.searchParams.get("view_all_page_id");
-    if (id) return { pageId: id };
   } catch {
     // not a URL — fall through
   }
