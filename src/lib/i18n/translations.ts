@@ -14,8 +14,8 @@ const translations = {
     heroTitle2: { it: "Analizza le strategie.", en: "Analyse strategies." },
     heroTitle3: { it: "Vinci il mercato.", en: "Win the market." },
     heroSubtitle: {
-      it: "AISCAN scansiona le ads dei tuoi competitor su Meta, Google e Instagram, le analizza con l'intelligenza artificiale e genera report pronti per i tuoi clienti.",
-      en: "AISCAN scans your competitors' ads on Meta, Google and Instagram, analyses them with artificial intelligence and generates reports ready for your clients.",
+      it: "AISCAN monitora le campagne paid dei tuoi competitor su Meta e Google Ads, analizza la loro presenza organica su Instagram e genera report professionali con l'intelligenza artificiale.",
+      en: "AISCAN monitors your competitors' paid campaigns on Meta and Google Ads, analyses their organic presence on Instagram and generates professional reports with artificial intelligence.",
     },
     heroCta: { it: "Inizia gratis", en: "Start free" },
     heroCtaSecondary: { it: "Scopri come funziona", en: "See how it works" },
