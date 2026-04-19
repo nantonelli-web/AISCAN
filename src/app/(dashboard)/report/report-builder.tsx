@@ -84,6 +84,7 @@ export function ReportBuilder({
   // State
   const [reportType, setReportType] = useState<ReportType>("single");
   const [channel, setChannel] = useState<ReportChannel>("all");
+  const [usingSavedComparison, setUsingSavedComparison] = useState(false);
   const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set());
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [reportLocale, setReportLocale] = useState<ReportLocale>(locale as ReportLocale);
@@ -138,7 +139,7 @@ export function ReportBuilder({
   const canGenerate =
     (reportType === "single"
       ? selectedBrands.size === 1
-      : selectedBrands.size >= 2) && !channelDisabled[channel];
+      : selectedBrands.size >= 2) && (usingSavedComparison || !channelDisabled[channel]);
 
   // ─── Handlers ────────────────────────────────────────────────
 
@@ -158,8 +159,9 @@ export function ReportBuilder({
       }
       return next;
     });
-    // Reset template when brand changes
+    // Reset template and saved comparison flag when brand changes manually
     setTemplateId(null);
+    setUsingSavedComparison(false);
   }
 
   function switchType(type: ReportType) {
@@ -167,6 +169,7 @@ export function ReportBuilder({
     setSelectedBrands(new Set());
     setTemplateId(null);
     setChannel("all");
+    setUsingSavedComparison(false);
   }
 
   async function handleScanMissing() {
@@ -433,6 +436,8 @@ export function ReportBuilder({
                     onClick={() => {
                       setSelectedBrands(new Set(sc.competitor_ids));
                       setTemplateId(null);
+                      setUsingSavedComparison(true);
+                      setChannel("meta"); // saved comparisons default to meta
                     }}
                     className={cn(
                       "flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors w-full",
@@ -505,8 +510,8 @@ export function ReportBuilder({
         </CardContent>
       </Card>
 
-      {/* Step {N}: Channel — after brand selection */}
-      {selectedBrands.size > 0 && (
+      {/* Step {N}: Channel — after brand selection, hidden for saved comparisons */}
+      {selectedBrands.size > 0 && !usingSavedComparison && (
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">
