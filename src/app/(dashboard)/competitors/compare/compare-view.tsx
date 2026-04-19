@@ -88,6 +88,7 @@ export function CompareView({
   savedComparisons?: SavedComparison[];
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selectedCountries, setSelectedCountries] = useState<Set<string>>(new Set());
   const [channel, setChannel] = useState<Channel | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("technical");
 
@@ -133,6 +134,7 @@ export function CompareView({
       return next;
     });
     // Reset all state when selection changes
+    setSelectedCountries(new Set());
     setChannel(null);
     setCache(null);
     setStats(null);
@@ -446,20 +448,44 @@ export function CompareView({
     }
   }
 
-  // Check country mismatch between selected brands
-  const countryMismatch = (() => {
-    if (selectedComps.length < 2) return null;
-    const countrySets = selectedComps.map((c) => {
-      const raw = c.country?.split(",").map((s) => s.trim()).filter(Boolean).sort().join(", ");
-      return raw || null;
-    });
-    const allSame = countrySets.every((cs) => cs === countrySets[0]);
-    if (allSame) return null;
-    return selectedComps.map((c) => ({
-      name: c.page_name,
-      countries: c.country?.split(",").map((s) => s.trim()).filter(Boolean).sort().join(", ") || null,
-    }));
+  // Compute union of all countries from selected brands
+  const allCountries = (() => {
+    const set = new Set<string>();
+    for (const c of selectedComps) {
+      if (c.country) {
+        c.country.split(",").map((s) => s.trim()).filter(Boolean).forEach((code) => set.add(code));
+      }
+    }
+    return [...set].sort();
   })();
+
+  function toggleCountry(code: string) {
+    setSelectedCountries((prev) => {
+      const next = new Set(prev);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+    // Reset comparison state when countries change
+    setChannel(null);
+    setCache(null);
+    setStats(null);
+    setAiResult(null);
+    setAiError(null);
+    setMissingBrands([]);
+    fetchingRef.current = "";
+  }
+
+  function selectAllCountries() {
+    setSelectedCountries(new Set(allCountries));
+    setChannel(null);
+    setCache(null);
+    setStats(null);
+    setAiResult(null);
+    setAiError(null);
+    setMissingBrands([]);
+    fetchingRef.current = "";
+  }
 
   const hasResults = selected.size >= 2 && channel !== null;
 
@@ -497,8 +523,42 @@ export function CompareView({
         </CardContent>
       </Card>
 
-      {/* Channel selector — only visible after 2+ brands selected */}
-      {selected.size >= 2 && (
+      {/* Country selector — visible after 2+ brands selected */}
+      {selected.size >= 2 && allCountries.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">{t("compare", "selectCountries")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {allCountries.map((code) => (
+                <Button
+                  key={code}
+                  variant={selectedCountries.has(code) ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => toggleCountry(code)}
+                >
+                  {code}
+                </Button>
+              ))}
+            </div>
+            {allCountries.length > 1 && (
+              <button
+                onClick={selectAllCountries}
+                className="text-xs text-muted-foreground hover:text-gold transition-colors underline"
+              >
+                {t("compare", "selectAll")}
+              </button>
+            )}
+            {selectedCountries.size === 0 && (
+              <p className="text-xs text-muted-foreground">{t("compare", "selectCountriesHint")}</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Channel selector — visible after 2+ brands + countries selected */}
+      {selected.size >= 2 && (allCountries.length === 0 || selectedCountries.size > 0) && (
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">{t("compare", "channel")}</CardTitle>
@@ -585,20 +645,6 @@ export function CompareView({
                         {t("compare", "goToEdit")}
                       </Button>
                     </a>
-                  </div>
-                ))}
-              </div>
-            )}
-            {countryMismatch && (
-              <div className="rounded-md border border-blue-500/20 bg-blue-500/5 p-3 space-y-1.5">
-                <div className="flex items-start gap-2">
-                  <Info className="size-3.5 text-blue-400 mt-0.5 shrink-0" />
-                  <p className="text-xs text-blue-400">{t("compare", "countryMismatch")}</p>
-                </div>
-                {countryMismatch.map((b, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs ml-5.5">
-                    <span className="text-foreground font-medium">{b.name}</span>
-                    <span className="text-muted-foreground">— {t("compare", "countryMismatchDetail")} {b.countries ?? t("compare", "noCountrySet")}</span>
                   </div>
                 ))}
               </div>

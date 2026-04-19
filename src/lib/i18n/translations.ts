@@ -540,6 +540,20 @@ const translations = {
     channelPaid: { it: "Paid", en: "Paid" },
     channelOrganic: { it: "Organic", en: "Organic" },
     allChannels: { it: "Tutti i canali", en: "All channels" },
+    selectCountries: { it: "Paesi", en: "Countries" },
+    selectCountriesHint: {
+      it: "Seleziona i paesi su cui vuoi effettuare il confronto.",
+      en: "Select the countries you want to compare on.",
+    },
+    selectAll: { it: "Seleziona tutti", en: "Select all" },
+    countryScanNeeded: {
+      it: "Alcuni brand non sono stati scansionati per i paesi selezionati. Vuoi avviare la scansione?",
+      en: "Some brands have not been scanned for the selected countries. Do you want to start the scan?",
+    },
+    scanAndCompare: {
+      it: "Scansiona e confronta",
+      en: "Scan and compare",
+    },
     noDataForChannel: {
       it: "La scansione per questo canale non \u00E8 stata realizzata per alcuni brand.",
       en: "The scan for this channel has not been done for some brands.",
