@@ -23,6 +23,7 @@ import { useT } from "@/lib/i18n/context";
 import { AnalysisReport } from "./analysis-report";
 import type { CreativeAnalysisResult } from "@/lib/ai/creative-analysis";
 import type { MaitCompetitor } from "@/types";
+import { COUNTRIES } from "@/config/countries";
 
 type Tab = "technical" | "copy" | "visual";
 type Channel = "all" | "meta" | "google" | "instagram";
@@ -452,16 +453,8 @@ export function CompareView({
     }
   }
 
-  // Compute union of all countries from ALL brands in workspace
-  const allCountries = (() => {
-    const set = new Set<string>();
-    for (const c of competitors) {
-      if (c.country) {
-        c.country.split(",").map((s) => s.trim()).filter(Boolean).forEach((code) => set.add(code));
-      }
-    }
-    return [...set].sort();
-  })();
+  // Full list of available countries
+  const allCountries = COUNTRIES;
 
   function toggleCountry(code: string) {
     setSelectedCountries((prev) => {
@@ -481,7 +474,7 @@ export function CompareView({
   }
 
   function selectAllCountries() {
-    setSelectedCountries(new Set(allCountries));
+    setSelectedCountries(new Set(allCountries.map((c) => c.code)));
     setChannel(null);
     setCache(null);
     setStats(null);
@@ -557,32 +550,42 @@ export function CompareView({
       </Card>
 
       {/* Country selector — visible after 2+ brands selected */}
-      {selected.size >= 2 && allCountries.length > 0 && (
+      {selected.size >= 2 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">{t("compare", "selectCountries")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex flex-wrap gap-2">
-              {allCountries.map((code) => (
+              {allCountries.map((c) => (
                 <Button
-                  key={code}
-                  variant={selectedCountries.has(code) ? "default" : "outline"}
+                  key={c.code}
+                  variant={selectedCountries.has(c.code) ? "default" : "outline"}
                   size="sm"
-                  onClick={() => toggleCountry(code)}
+                  onClick={() => toggleCountry(c.code)}
+                  className="gap-1"
                 >
-                  {code}
+                  <span className="font-medium">{c.code}</span>
+                  <span className="text-muted-foreground text-[10px]">{c.name}</span>
                 </Button>
               ))}
             </div>
-            {allCountries.length > 1 && (
+            <div className="flex items-center gap-3">
               <button
                 onClick={selectAllCountries}
                 className="text-xs text-muted-foreground hover:text-gold transition-colors underline"
               >
                 {t("compare", "selectAll")}
               </button>
-            )}
+              {selectedCountries.size > 0 && (
+                <button
+                  onClick={() => { setSelectedCountries(new Set()); setChannel(null); setCache(null); setStats(null); setAiResult(null); setAiError(null); setMissingBrands([]); fetchingRef.current = ""; }}
+                  className="text-xs text-muted-foreground hover:text-red-400 transition-colors underline"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
             {selectedCountries.size === 0 && (
               <p className="text-xs text-muted-foreground">{t("compare", "selectCountriesHint")}</p>
             )}
@@ -616,7 +619,7 @@ export function CompareView({
       )}
 
       {/* Channel selector — visible after 2+ brands + countries selected */}
-      {selected.size >= 2 && (allCountries.length === 0 || selectedCountries.size > 0) && (
+      {selected.size >= 2 && selectedCountries.size > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">{t("compare", "channel")}</CardTitle>
