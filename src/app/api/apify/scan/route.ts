@@ -6,6 +6,7 @@ import { scrapeMetaAds } from "@/lib/apify/service";
 import { resolvePageId } from "@/lib/meta/resolve-page-id";
 import { sendNewAdsNotification } from "@/lib/email/resend";
 import { storeAdImages } from "@/lib/media/store-ad-images";
+import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 
 export const maxDuration = 300; // seconds (Vercel hobby allows 60; pro 300)
 
@@ -49,6 +50,12 @@ export async function POST(req: Request) {
 
   if (compErr || !competitor) {
     return NextResponse.json({ error: "Competitor not found" }, { status: 404 });
+  }
+
+  // Credit check
+  const credits = await consumeCredits(user.id, "scan_meta", `Meta Ads scan: ${competitor.page_name}`);
+  if (!credits.ok) {
+    return NextResponse.json({ error: "Insufficient credits", balance: credits.balance, cost: 5 }, { status: 402 });
   }
 
   const admin = createAdminClient();
@@ -194,6 +201,8 @@ export async function POST(req: Request) {
         error: message,
       })
       .eq("id", job.id);
+    // Refund credits on failure
+    await refundCredits(user.id, "scan_meta", `Meta Ads scan: ${competitor.page_name}`);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -175,6 +175,7 @@ const translations = {
     report: { it: "Report", en: "Report" },
     alerts: { it: "Alerts", en: "Alerts" },
     settings: { it: "Settings", en: "Settings" },
+    credits: { it: "Crediti", en: "Credits" },
     footer: { it: "NIMA Digital \u00B7 v0.1", en: "NIMA Digital \u00B7 v0.1" },
   },
 
@@ -1004,6 +1005,34 @@ const translations = {
     close: { it: "Chiudi", en: "Close" },
     copywriterFailed: { it: "L'analisi del copywriter non \u00E8 disponibile. Il modello AI potrebbe essere temporaneamente offline.", en: "Copywriter analysis is not available. The AI model may be temporarily offline." },
     creativeDirectorFailed: { it: "L'analisi del direttore creativo non \u00E8 disponibile. Il modello AI potrebbe essere temporaneamente offline.", en: "Creative director analysis is not available. The AI model may be temporarily offline." },
+  },
+
+  // ─── Credits Page ──────────────────────────────────────────
+  credits: {
+    title: { it: "Crediti", en: "Credits" },
+    subtitle: {
+      it: "Gestisci i tuoi crediti e il tuo piano di abbonamento.",
+      en: "Manage your credits and subscription plan.",
+    },
+    currentBalance: { it: "Saldo attuale", en: "Current balance" },
+    currentPlan: { it: "Piano attuale", en: "Current plan" },
+    monthlyAllowance: { it: "Crediti mensili", en: "Monthly allowance" },
+    renewal: { it: "Prossimo rinnovo", en: "Next renewal" },
+    notSet: { it: "Non impostato", en: "Not set" },
+    history: { it: "Cronologia transazioni", en: "Transaction history" },
+    noHistory: { it: "Nessuna transazione registrata.", en: "No transactions recorded." },
+    amount: { it: "Importo", en: "Amount" },
+    reason: { it: "Motivo", en: "Reason" },
+    date: { it: "Data", en: "Date" },
+    upgradePlan: { it: "Aggiorna piano", en: "Upgrade plan" },
+    insufficientCredits: {
+      it: "Crediti insufficienti. Il tuo saldo attuale e",
+      en: "Insufficient credits. Your current balance is",
+    },
+    creditsRequired: {
+      it: "crediti necessari",
+      en: "credits required",
+    },
   },
 
   // ─── Common ────────────────────────────────────────────────

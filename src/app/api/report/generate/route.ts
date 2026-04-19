@@ -7,6 +7,7 @@ import { generateSinglePptx, generateComparisonPptx, type BrandData, type Sectio
 import { generateSinglePdf, generateComparisonPdf } from "@/lib/report/generate-pdf";
 import { analyzeCopy, analyzeVisuals, type BrandAdData, type CreativeAnalysisResult } from "@/lib/ai/creative-analysis";
 import { extractImagesFromTemplate, type ThemeConfig } from "@/lib/report/parse-template";
+import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 
 export const maxDuration = 120;
 
@@ -325,6 +326,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Comparison report requires 2-3 brands" }, { status: 400 });
   }
 
+  // Credit check
+  const creditAction = parsed.data.type === "single" ? "report_single" as const : "report_comparison" as const;
+  const credit = await consumeCredits(user.id, creditAction, `Report generation: ${parsed.data.type}`);
+  if (!credit.ok) {
+    return NextResponse.json(
+      { error: "Insufficient credits", balance: credit.balance },
+      { status: 402 }
+    );
+  }
+
   const admin = createAdminClient();
 
   // Fetch theme config + images from template if provided
@@ -479,6 +490,7 @@ export async function POST(req: Request) {
     }
   } catch (err) {
     console.error("[report/generate] Generation failed:", err);
+    await refundCredits(user.id, creditAction, `Report generation: ${parsed.data.type}`);
     return NextResponse.json({ error: "Report generation failed" }, { status: 500 });
   }
 

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { scrapeInstagramPosts } from "@/lib/instagram/service";
 import { storeAdImages } from "@/lib/media/store-ad-images";
+import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 
 export const maxDuration = 300; // seconds
 
@@ -50,6 +51,12 @@ export async function POST(req: Request) {
     );
   }
 
+  // Credit check
+  const credits = await consumeCredits(user.id, "scan_instagram", `Instagram scan: ${competitor.page_name}`);
+  if (!credits.ok) {
+    return NextResponse.json({ error: "Insufficient credits", balance: credits.balance, cost: 2 }, { status: 402 });
+  }
+
   const admin = createAdminClient();
 
   // Resolve instagram_username if not set
@@ -84,6 +91,8 @@ export async function POST(req: Request) {
   }
 
   if (!igUsername) {
+    // Refund credits since the scan cannot proceed
+    await refundCredits(user.id, "scan_instagram", `Instagram scan: ${competitor.page_name}`);
     return NextResponse.json(
       {
         error:
@@ -186,6 +195,8 @@ export async function POST(req: Request) {
         error: message,
       })
       .eq("id", job.id);
+    // Refund credits on failure
+    await refundCredits(user.id, "scan_instagram", `Instagram scan: ${competitor.page_name}`);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

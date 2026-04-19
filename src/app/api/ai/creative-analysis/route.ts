@@ -8,6 +8,7 @@ import {
   type BrandAdData,
   type CreativeAnalysisResult,
 } from "@/lib/ai/creative-analysis";
+import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 
 export const maxDuration = 120;
 
@@ -33,6 +34,15 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Credit check
+  const credit = await consumeCredits(user.id, "ai_analysis", "AI Creative Analysis");
+  if (!credit.ok) {
+    return NextResponse.json(
+      { error: "Insufficient credits", balance: credit.balance },
+      { status: 402 }
+    );
+  }
 
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
@@ -87,6 +97,7 @@ export async function POST(req: Request) {
   };
 
   if (!copywriterReport && !creativeDirectorReport) {
+    await refundCredits(user.id, "ai_analysis", "AI Creative Analysis");
     return NextResponse.json(
       { error: "Both AI agents failed. Check OPENROUTER_API_KEY and model availability." },
       { status: 502 }

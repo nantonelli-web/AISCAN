@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -12,6 +13,7 @@ import {
   GitCompareArrows,
   FolderHeart,
   FileText,
+  Coins,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
@@ -25,8 +27,26 @@ const itemDefs = [
   { href: "/benchmarks", key: "benchmarks", icon: Target },
   { href: "/report", key: "report", icon: FileText },
   { href: "/alerts", key: "alerts", icon: Bell },
+  { href: "/credits", key: "credits", icon: Coins },
   { href: "/settings", key: "settings", icon: Settings },
 ] as const;
+
+function CreditBadge() {
+  const [balance, setBalance] = useState<number | null>(null);
+  useEffect(() => {
+    fetch("/api/credits/balance")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d) setBalance(d.balance); })
+      .catch(() => {});
+  }, []);
+  if (balance === null) return null;
+  return (
+    <div className="mx-3 mb-2 rounded-md bg-gold/10 border border-gold/30 px-3 py-2 flex items-center justify-between">
+      <span className="text-xs text-muted-foreground">Crediti</span>
+      <span className="text-sm font-semibold text-gold">{balance}</span>
+    </div>
+  );
+}
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -71,8 +91,11 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="p-4 border-t border-border text-[10px] uppercase tracking-widest text-muted-foreground">
-        {t("sidebar", "footer")}
+      <div className="border-t border-border pt-3">
+        <CreditBadge />
+        <div className="px-4 pb-4 text-[10px] uppercase tracking-widest text-muted-foreground">
+          {t("sidebar", "footer")}
+        </div>
       </div>
     </aside>
   );

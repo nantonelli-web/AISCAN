@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { tagAdsBatch, tagPostsBatch } from "@/lib/ai/tagger";
+import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 
 export const maxDuration = 120;
 
@@ -44,6 +45,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No workspace" }, { status: 400 });
   }
 
+  // Credit check
+  const credit = await consumeCredits(user.id, "ai_tagging", "AI Tagging batch");
+  if (!credit.ok) {
+    return NextResponse.json(
+      { error: "Insufficient credits", balance: credit.balance },
+      { status: 402 }
+    );
+  }
+
   // Find ads that don't have ai_tags yet
   let q = supabase
     .from("mait_ads_external")
@@ -77,6 +87,7 @@ export async function POST(req: Request) {
   const results = await tagAdsBatch(toTag);
 
   if (results.size === 0 && toTag.length > 0) {
+    await refundCredits(user.id, "ai_tagging", "AI Tagging batch");
     return NextResponse.json(
       {
         ok: false,

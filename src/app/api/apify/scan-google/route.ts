@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { scrapeGoogleAds } from "@/lib/apify/google-ads-service";
+import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 
 export const maxDuration = 300;
 
@@ -61,6 +62,12 @@ export async function POST(req: Request) {
       },
       { status: 400 }
     );
+  }
+
+  // Credit check
+  const credits = await consumeCredits(user.id, "scan_google", `Google Ads scan: ${competitor.page_name}`);
+  if (!credits.ok) {
+    return NextResponse.json({ error: "Insufficient credits", balance: credits.balance, cost: 2 }, { status: 402 });
   }
 
   const admin = createAdminClient();
@@ -166,6 +173,8 @@ export async function POST(req: Request) {
         error: message,
       })
       .eq("id", job.id);
+    // Refund credits on failure
+    await refundCredits(user.id, "scan_google", `Google Ads scan: ${competitor.page_name}`);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
