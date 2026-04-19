@@ -388,18 +388,18 @@ export function ReportBuilder({
         <CardContent>
           <div className="flex gap-2">
             <Button
-              variant={reportType === "single" ? "default" : "outline"}
-              size="sm"
-              onClick={() => switchType("single")}
-            >
-              {t("report", "typeSingle")}
-            </Button>
-            <Button
               variant={reportType === "comparison" ? "default" : "outline"}
               size="sm"
               onClick={() => switchType("comparison")}
             >
               {t("report", "typeComparison")}
+            </Button>
+            <Button
+              variant={reportType === "single" ? "default" : "outline"}
+              size="sm"
+              onClick={() => switchType("single")}
+            >
+              {t("report", "typeSingle")}
             </Button>
           </div>
         </CardContent>
