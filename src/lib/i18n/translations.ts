@@ -554,6 +554,10 @@ const translations = {
       it: "Scansiona e confronta",
       en: "Scan and compare",
     },
+    addCountryAndScan: {
+      it: "Aggiungi e scansiona",
+      en: "Add and scan",
+    },
     noDataForChannel: {
       it: "La scansione per questo canale non \u00E8 stata realizzata per alcuni brand.",
       en: "The scan for this channel has not been done for some brands.",

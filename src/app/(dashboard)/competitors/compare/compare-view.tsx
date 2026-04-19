@@ -13,6 +13,7 @@ import {
   Info,
   RefreshCw,
   AlertTriangle,
+  ChevronDown,
 } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
@@ -109,6 +110,7 @@ export function CompareView({
   const [missingBrands, setMissingBrands] = useState<string[]>([]);
   const [misconfiguredBrands, setMisconfiguredBrands] = useState<{ name: string; id: string; reason: string }[]>([]);
   const [scanning, setScanning] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
 
   const fetchingRef = useRef<string>("");
 
@@ -577,22 +579,22 @@ export function CompareView({
       {countryGaps.length > 0 && (
         <Card className="border-amber-500/30">
           <CardContent className="py-6 space-y-4">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="size-5 text-amber-400 shrink-0 mt-0.5" />
-              <div className="space-y-2">
-                <p className="text-sm font-medium">{t("compare", "countryScanNeeded")}</p>
-                {countryGaps.map((g) => (
-                  <div key={g.id} className="flex items-center gap-2 text-xs">
-                    <span className="text-foreground font-medium">{g.brand}</span>
-                    <span className="text-muted-foreground">— {g.missingCountries.join(", ")}</span>
-                    <a href={`/competitors/${g.id}/edit?from=compare`} className="ml-auto shrink-0">
-                      <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold">
-                        {t("compare", "goToEdit")}
-                      </Button>
-                    </a>
-                  </div>
-                ))}
-              </div>
+            <div className="flex items-center gap-4">
+              <AlertTriangle className="size-8 text-amber-400 shrink-0" />
+              <p className="text-sm font-medium flex-1">{t("compare", "countryScanNeeded")}</p>
+            </div>
+            <div className="space-y-2 ml-12">
+              {countryGaps.map((g) => (
+                <div key={g.id} className="flex items-center gap-2 text-xs">
+                  <span className="text-foreground font-medium">{g.brand}</span>
+                  <span className="text-muted-foreground">— {g.missingCountries.join(", ")}</span>
+                  <a href={`/competitors/${g.id}/edit?from=compare`} className="ml-auto shrink-0">
+                    <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold">
+                      {t("compare", "addCountryAndScan")}
+                    </Button>
+                  </a>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -670,24 +672,34 @@ export function CompareView({
                 );
               })()}
             </div>
-            {/* Detailed disabled reasons per brand */}
+            {/* Detailed disabled reasons per brand (collapsible) */}
             {disabledDetails.length > 0 && (
-              <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-3 space-y-1.5">
-                <p className="text-xs font-medium text-amber-400">{t("compare", "configRequired")}</p>
-                {disabledDetails.map((d, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs">
-                    <span className="text-foreground font-medium">{d.brand}</span>
-                    <span className="text-muted-foreground">— {d.channel}: {d.reason}</span>
-                    <a
-                      href={`/competitors/${d.id}/edit?from=compare`}
-                      className="ml-auto shrink-0"
-                    >
-                      <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold">
-                        {t("compare", "goToEdit")}
-                      </Button>
-                    </a>
+              <div className="rounded-md border border-amber-500/20 bg-amber-500/5">
+                <button
+                  onClick={() => setConfigOpen(!configOpen)}
+                  className="w-full flex items-center gap-2 p-3 text-xs font-medium text-amber-400 cursor-pointer hover:bg-amber-500/10 transition-colors rounded-md"
+                >
+                  <ChevronDown className={cn("size-3.5 transition-transform", !configOpen && "-rotate-90")} />
+                  {t("compare", "configRequired")}
+                </button>
+                {configOpen && (
+                  <div className="px-3 pb-3 space-y-1.5">
+                    {disabledDetails.map((d, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        <span className="text-foreground font-medium">{d.brand}</span>
+                        <span className="text-muted-foreground">— {d.channel}: {d.reason}</span>
+                        <a
+                          href={`/competitors/${d.id}/edit?from=compare`}
+                          className="ml-auto shrink-0"
+                        >
+                          <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold">
+                            {t("compare", "goToEdit")}
+                          </Button>
+                        </a>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
             )}
             {channel === null && (
