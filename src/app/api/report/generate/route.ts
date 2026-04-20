@@ -162,9 +162,26 @@ async function fetchBrandData(
     : 0;
 
   // Latest ads — download images as base64 for PPTX embedding.
-  // Dedupe by image_url (and fall back to headline+ad_text) so the report
-  // doesn't show the same creative twice just because the brand has many
-  // ad_archive_ids sharing one image.
+  // Aggressive dedup: different ad_archive_ids often share the same creative.
+  // Primary key = content signature (headline + body + cta). Fallback = image
+  // URL pathname (ignoring query strings so CDN-signed URLs still match).
+  const dedupKey = (a: AdRow): string => {
+    const content = [a.headline?.trim(), a.ad_text?.trim(), a.cta?.trim()]
+      .filter(Boolean)
+      .join("|")
+      .toLowerCase();
+    if (content.length > 0) return `c:${content.slice(0, 400)}`;
+    if (a.image_url) {
+      try {
+        const u = new URL(a.image_url);
+        return `i:${u.pathname}`;
+      } catch {
+        return `i:${a.image_url}`;
+      }
+    }
+    return `id:${a.ad_archive_id}`;
+  };
+
   const seenKeys = new Set<string>();
   const sortedAds = adsList
     .sort(
@@ -172,8 +189,8 @@ async function fetchBrandData(
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     )
     .filter((a) => {
-      const key = a.image_url ?? `${a.headline ?? ""}|${a.ad_text ?? ""}`;
-      if (!key || seenKeys.has(key)) return false;
+      const key = dedupKey(a);
+      if (seenKeys.has(key)) return false;
       seenKeys.add(key);
       return true;
     })

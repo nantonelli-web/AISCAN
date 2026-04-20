@@ -98,20 +98,46 @@ const SW = 10;
 const SH = 5.63;
 const PAD = 0.3; // padding
 
+/** Return true if a hex color's luminance is low enough that it reads as "black" on a chart */
+function isDarkColor(hexColor: string): boolean {
+  const h = hexColor.replace("#", "");
+  if (h.length !== 6) return false;
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  // Rec. 709 relative luminance (0..1)
+  const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  return lum < 0.35;
+}
+
+/** If a color is too dark to read as a chart fill, lighten it until it's not. */
+function rescueDark(hexColor: string): string {
+  let c = hex(hexColor);
+  // Lighten in 0.25 steps until the color is out of the "dark" band, max 3 rounds.
+  for (let i = 0; i < 3 && isDarkColor(c); i++) {
+    c = lighten(c, 0.4);
+  }
+  return c;
+}
+
 /**
- * Build a coherent chart palette from the theme — NEVER use pure black
- * (looks awful on both light and dark template backgrounds). Produces
- * primary + light tint + secondary + light tint + accent + tints.
+ * Build a coherent chart palette derived primarily from the theme's primary
+ * color. Theme secondary/accent are respected only if they aren't too dark
+ * — any near-black color coming from a template is rescued by lightening.
+ * Ensures charts stay readable on both light and dark template backgrounds.
  */
 function chartPalette(theme: ThemeConfig, count: number): string[] {
+  const primary = hex(theme.colors.primary);
+  const secondary = rescueDark(theme.colors.secondary);
+  const accent = rescueDark(theme.colors.accent);
   const base = [
-    hex(theme.colors.primary),
-    hex(lighten(theme.colors.primary, 0.4)),
-    hex(theme.colors.secondary),
-    hex(lighten(theme.colors.secondary, 0.4)),
-    hex(theme.colors.accent),
-    hex(lighten(theme.colors.accent, 0.35)),
-    "a88c6b", // warm tan (neutral fill for when theme colors run out)
+    primary,
+    lighten(primary, 0.4),
+    secondary,
+    lighten(secondary, 0.35),
+    accent,
+    lighten(accent, 0.35),
+    "a88c6b", // warm tan — neutral fill for when theme colors run out
     "7a8fa5", // cool blue-grey
   ];
   return base.slice(0, Math.max(count, 1));
@@ -1149,11 +1175,18 @@ function addVisualAnalysisSlide(
           x: bx, y: 0.65, w: adCardW, h: 0.2,
           fontSize: 6, fontFace: theme.fonts.heading, color: hex(theme.colors.primary), bold: true, align: "center",
         });
-        // Show 2 ad cards per brand — use ads [2..4] so this slide shows
-        // DIFFERENT creatives from the Copy Comparison slide (which uses 0..2).
-        // Fallback to the first 2 if the brand has fewer than 4 ads available.
+        // Show 2 ad cards per brand — always DIFFERENT creatives from the
+        // Copy Comparison slide (which uses [0..2]).
+        //   4+ ads → use [2..4]
+        //   3 ads  → use [1..3]
+        //   2 ads  → reverse them so at least the order differs from Copy
+        //   0-1 ads → whatever we have
         const withImage = b.latestAds.filter((a) => a.imageBase64);
-        const ads = withImage.length >= 4 ? withImage.slice(2, 4) : withImage.slice(0, 2);
+        let ads: typeof withImage;
+        if (withImage.length >= 4) ads = withImage.slice(2, 4);
+        else if (withImage.length === 3) ads = withImage.slice(1, 3);
+        else if (withImage.length === 2) ads = [withImage[1], withImage[0]];
+        else ads = withImage;
         ads.forEach((ad, j) => {
           addAdCard(slide, pptx, ad, bx, 0.9 + j * 2.0, adCardW, theme);
         });
