@@ -307,9 +307,14 @@ const translations = {
     selectCategory: { it: "Seleziona categoria", en: "Select category" },
     instagramLabel: { it: "Username Instagram", en: "Instagram username" },
     instagramPlaceholder: { it: "es. nike (senza @)", en: "e.g. nike (without @)" },
-    googleAdsSection: { it: "Google Ads (opzionale)", en: "Google Ads (optional)" },
-    googleDomainLabel: { it: "Dominio Google Ads", en: "Google Ads domain" },
+    googleAdsSection: { it: "Google Ads", en: "Google Ads" },
+    googleDomainLabel: { it: "Dominio del sito web dell'inserzionista", en: "Advertiser website domain" },
+    googleDomainPlaceholder: { it: "es. nike.com", en: "e.g. nike.com" },
     googleAdvertiserIdLabel: { it: "Google Advertiser ID", en: "Google Advertiser ID" },
+    googleAdvertiserIdTooltip: {
+      it: "Lo trovi nel Google Ads Transparency Center: cerca il brand, apri la pagina dell'inserzionista e copia l'ID dall'URL (es. AR15497895950085120).",
+      en: "Find it in the Google Ads Transparency Center: search the brand, open the advertiser page and copy the ID from the URL (e.g. AR15497895950085120).",
+    },
     searchCountry: { it: "Cerca paese...", en: "Search country..." },
     noCountryMatch: { it: "Nessun paese trovato.", en: "No country found." },
   },
@@ -1029,14 +1034,14 @@ const translations = {
     },
   },
 
-  // ─── Clients ───────────────────────────────────────────────
+  // ─── Clients (Projects) ─────────────────────────────────────
   clients: {
-    clientLabel: { it: "Cliente", en: "Client" },
-    noClient: { it: "Nessun cliente (non assegnato)", en: "No client (unassigned)" },
-    newClientPlaceholder: { it: "Nuovo cliente...", en: "New client..." },
-    created: { it: "Cliente creato.", en: "Client created." },
+    clientLabel: { it: "Progetto", en: "Project" },
+    noClient: { it: "Nessun progetto (non assegnato)", en: "No project (unassigned)" },
+    newClientPlaceholder: { it: "Nuovo progetto...", en: "New project..." },
+    created: { it: "Progetto creato.", en: "Project created." },
     unassigned: { it: "Non assegnati", en: "Unassigned" },
-    emptyClient: { it: "Nessun brand in questa cartella.", en: "No brands in this folder." },
+    emptyClient: { it: "Nessun brand in questo progetto.", en: "No brands in this project." },
   },
 
   // ─── Organic Posts ─────────────────────────────────────────

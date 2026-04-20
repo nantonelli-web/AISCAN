@@ -180,11 +180,19 @@ export function EditCompetitorForm({
                     id="googleDomain"
                     value={googleDomain}
                     onChange={(e) => setGoogleDomain(e.target.value)}
-                    placeholder="nike.com"
+                    placeholder={t("newCompetitor", "googleDomainPlaceholder")}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="googleAdvertiserId">{t("newCompetitor", "googleAdvertiserIdLabel")}</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="googleAdvertiserId">{t("newCompetitor", "googleAdvertiserIdLabel")}</Label>
+                    <div className="relative group">
+                      <span className="size-4 rounded-full border border-muted-foreground/40 grid place-items-center text-[9px] text-muted-foreground cursor-help">i</span>
+                      <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 rounded-md border border-border bg-card px-3 py-2 text-[11px] text-muted-foreground shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30">
+                        {t("newCompetitor", "googleAdvertiserIdTooltip")}
+                      </div>
+                    </div>
+                  </div>
                   <Input
                     id="googleAdvertiserId"
                     value={googleAdvertiserId}
