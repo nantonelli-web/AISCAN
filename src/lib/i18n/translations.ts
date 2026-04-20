@@ -229,7 +229,7 @@ const translations = {
     greeting: { it: "Buongiorno", en: "Good morning" },
     subtitle: {
       it: "Panoramica del tuo workspace AISCAN.",
-      en: "Overview of your MAIT workspace.",
+      en: "Overview of your AISCAN workspace.",
     },
     totalAds: { it: "Ads totali", en: "Total ads" },
     activeAds: { it: "Ads attive", en: "Active ads" },
@@ -712,7 +712,7 @@ const translations = {
     selectBrands: { it: "Seleziona brand", en: "Select brands" },
     template: { it: "Template", en: "Template" },
     noTemplate: { it: "Nessun template (stile AISCAN default)", en: "No template (AISCAN default style)" },
-    defaultStyle: { it: "Stile MAIT default", en: "AISCAN default style" },
+    defaultStyle: { it: "Stile AISCAN default", en: "AISCAN default style" },
     uploadTemplate: { it: "Carica template", en: "Upload template" },
     templateName: { it: "Nome template", en: "Template name" },
     uploadBtn: { it: "Carica", en: "Upload" },

@@ -82,7 +82,7 @@ export function ReportBuilder({
   const { t, locale } = useT();
 
   // State
-  const [reportType, setReportType] = useState<ReportType>("single");
+  const [reportType, setReportType] = useState<ReportType | null>(null);
   const [channel, setChannel] = useState<ReportChannel>("all");
   const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set());
   // Comparison mode: main brand + selected saved comparisons
@@ -95,6 +95,8 @@ export function ReportBuilder({
   const [format, setFormat] = useState<ReportFormat>("pptx");
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [missingBrands, setMissingBrands] = useState<string[]>([]);
   const [scanning, setScanning] = useState(false);
@@ -240,7 +242,16 @@ export function ReportBuilder({
   async function doGenerate() {
     setGenerating(true);
     setGenerated(false);
+    setProgress(0);
     setError(null);
+
+    // Simulated progress (actual generation is server-side, no streaming progress)
+    progressRef.current = setInterval(() => {
+      setProgress((p) => {
+        if (p >= 90) return p; // cap at 90% until response arrives
+        return p + Math.random() * 8 + 2;
+      });
+    }, 800);
 
     try {
       // For comparison mode, use brand IDs from first selected comparison
@@ -286,10 +297,12 @@ export function ReportBuilder({
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
+      setProgress(100);
       setGenerated(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("report", "errorGeneration"));
     } finally {
+      if (progressRef.current) clearInterval(progressRef.current);
       setGenerating(false);
     }
   }
@@ -581,6 +594,20 @@ export function ReportBuilder({
                     <p className="text-xs text-muted-foreground mb-2">
                       {t("report", "selectComparisonsHint")}
                     </p>
+                    {filteredComparisons.length > 1 && (
+                      <button
+                        onClick={() => {
+                          if (selectedComparisonIds.size === filteredComparisons.length) {
+                            setSelectedComparisonIds(new Set());
+                          } else {
+                            setSelectedComparisonIds(new Set(filteredComparisons.map((sc) => sc.id)));
+                          }
+                        }}
+                        className="text-xs text-muted-foreground hover:text-gold transition-colors underline cursor-pointer"
+                      >
+                        {selectedComparisonIds.size === filteredComparisons.length ? "Deseleziona tutti" : t("compare", "selectAll")}
+                      </button>
+                    )}
                     <div className="grid gap-2">
                       {filteredComparisons.map((sc) => {
                         const otherBrands = sc.competitor_ids
@@ -595,35 +622,48 @@ export function ReportBuilder({
                               setSelectedComparisonIds((prev) => {
                                 const next = new Set(prev);
                                 if (next.has(sc.id)) next.delete(sc.id);
-                                else next.add(sc.id);
+                                else if (next.size < 5) next.add(sc.id);
                                 return next;
                               });
                             }}
                             className={cn(
-                              "flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors w-full cursor-pointer",
+                              "flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors w-full cursor-pointer",
                               isSelected
-                                ? "bg-gold/15 border-gold/40 text-foreground"
-                                : "border-border text-muted-foreground hover:text-foreground hover:border-gold/30"
+                                ? "bg-gold/10 border-gold/50 text-foreground ring-1 ring-gold/20"
+                                : "border-border bg-card text-foreground hover:border-gold/30"
                             )}
                           >
+                            {/* Checkbox */}
+                            <div className={cn(
+                              "size-4 rounded border shrink-0 grid place-items-center transition-colors",
+                              isSelected
+                                ? "bg-gold border-gold"
+                                : "border-muted-foreground/40"
+                            )}>
+                              {isSelected && <Check className="size-3 text-gold-foreground" />}
+                            </div>
                             <GitCompareArrows className={cn("size-4 shrink-0", isSelected ? "text-gold" : "text-muted-foreground")} />
                             <div className="flex-1 min-w-0">
                               <span className="text-sm font-medium truncate block">
                                 vs {otherBrands.join(", ")}
                               </span>
-                              <span className="text-[10px] text-muted-foreground flex items-center gap-1.5">
-                                {new Date(sc.updated_at).toLocaleDateString(locale === "it" ? "it-IT" : "en-US", { day: "numeric", month: "short", year: "numeric" })}
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[10px] font-medium text-gold bg-gold/15 px-1.5 py-0.5 rounded">
+                                  Meta Ads
+                                </span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  {new Date(sc.updated_at).toLocaleDateString(locale === "it" ? "it-IT" : "en-US", { day: "numeric", month: "short", year: "numeric" })}
+                                </span>
                                 {sc.stale && (
-                                  <span className="inline-flex items-center gap-0.5 text-amber-400">
+                                  <span className="inline-flex items-center gap-0.5 text-[10px] text-amber-400">
                                     <AlertTriangle className="size-2.5" /> {t("report", "stale")}
                                   </span>
                                 )}
-                                <span className="text-muted-foreground/50">
+                                <span className="text-[10px] text-muted-foreground/50">
                                   {["Tech", sc.hasCopy ? "Copy" : null, sc.hasVisual ? "Visual" : null].filter(Boolean).join(" + ")}
                                 </span>
-                              </span>
+                              </div>
                             </div>
-                            {isSelected && <Check className="size-3.5 text-gold shrink-0" />}
                           </button>
                         );
                       })}
@@ -982,6 +1022,21 @@ export function ReportBuilder({
               </>
             )}
           </Button>
+
+          {/* Progress bar */}
+          {generating && (
+            <div className="mt-3 space-y-1">
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full bg-gold rounded-full transition-all duration-500 ease-out"
+                  style={{ width: `${Math.min(progress, 100)}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-muted-foreground text-center">
+                {Math.round(Math.min(progress, 100))}%
+              </p>
+            </div>
+          )}
 
           {generated && (
             <p className="text-xs text-green-400 text-center mt-2">
