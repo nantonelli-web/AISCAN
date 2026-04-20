@@ -77,10 +77,10 @@ export async function computeBenchmarks(
   let adsQuery = supabase
     .from("mait_ads_external")
     .select(
-      "id, competitor_id, cta, platforms, image_url, video_url, status, start_date, end_date, ad_text, created_at, raw_data"
+      "id, competitor_id, cta, platforms, video_url, status, start_date, end_date, ad_text, created_at, raw_data"
     )
     .eq("workspace_id", workspaceId)
-    .limit(5000);
+    .limit(3000);
 
   if (source) adsQuery = adsQuery.eq("source", source);
   if (competitorIds && competitorIds.length > 0) {

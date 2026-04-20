@@ -41,7 +41,7 @@ export default async function DashboardPage() {
       .eq("workspace_id", wsId),
     supabase
       .from("mait_ads_external")
-      .select("*")
+      .select("id, workspace_id, competitor_id, ad_archive_id, headline, ad_text, cta, image_url, video_url, landing_url, platforms, status, start_date, end_date, created_at, raw_data, source")
       .eq("workspace_id", wsId)
       .order("created_at", { ascending: false })
       .limit(8),
@@ -53,7 +53,8 @@ export default async function DashboardPage() {
       .from("mait_ads_external")
       .select("competitor_id")
       .eq("workspace_id", wsId)
-      .eq("status", "ACTIVE"),
+      .eq("status", "ACTIVE")
+      .limit(2000),
   ]);
 
   const compMap = new Map<string, string>(

@@ -1,12 +1,17 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { MaitUser } from "@/types";
 
-export async function getSessionUser(): Promise<{
+/**
+ * Cached per-request: layout + page share the same result
+ * without hitting the database twice.
+ */
+export const getSessionUser = cache(async (): Promise<{
   authId: string;
   profile: MaitUser;
   workspaceName: string;
-}> {
+}> => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -25,11 +30,11 @@ export async function getSessionUser(): Promise<{
   }
 
   const wsName =
-    (profile.workspace as { name: string } | null)?.name ?? "—";
+    (profile.workspace as { name: string } | null)?.name ?? "\u2014";
 
   return {
     authId: user.id,
     profile: profile as unknown as MaitUser,
     workspaceName: wsName,
   };
-}
+});
