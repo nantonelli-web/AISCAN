@@ -8,7 +8,7 @@ import {
   Users,
   Library,
   Target,
-  Bell,
+  // Bell,
   Settings,
   GitCompareArrows,
   FolderHeart,
@@ -27,7 +27,7 @@ const itemDefs = [
   { href: "/collections", key: "collections", icon: FolderHeart },
   { href: "/benchmarks", key: "benchmarks", icon: Target },
   { href: "/report", key: "report", icon: FileText },
-  { href: "/alerts", key: "alerts", icon: Bell },
+  // { href: "/alerts", key: "alerts", icon: Bell }, // hidden — info already visible in brand scan history
   { href: "/credits", key: "credits", icon: Coins },
   { href: "/settings", key: "settings", icon: Settings },
 ] as const;
