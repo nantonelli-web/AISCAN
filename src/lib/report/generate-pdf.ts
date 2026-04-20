@@ -868,6 +868,80 @@ function addPdfComparisonLatestAds(
   });
 }
 
+// ─── Benchmark PDF page ─────────────────────────────────────────
+
+function addPdfBenchmarkPage(
+  doc: jsPDF,
+  brands: BrandData[],
+  theme: ThemeConfig,
+  locale: Locale
+) {
+  doc.addPage();
+  fillBg(doc, theme);
+
+  const [pr, pg, pb] = hexToRgb(theme.colors.primary);
+  const [tr, tg, tb] = hexToRgb(theme.colors.text);
+
+  doc.setFontSize(18);
+  doc.setTextColor(pr, pg, pb);
+  doc.text("Benchmark", MARGIN, 18);
+
+  const colW = CW / (brands.length + 1);
+  let y = 30;
+
+  // Header
+  doc.setFillColor(pr, pg, pb);
+  doc.rect(MARGIN, y - 5, CW, 8, "F");
+  const [bgr, bgg, bgb] = hexToRgb(theme.colors.background);
+  doc.setFontSize(8);
+  doc.setTextColor(bgr, bgg, bgb);
+  doc.text("KPI", MARGIN + 2, y);
+  brands.forEach((b, i) => {
+    doc.text(b.name, MARGIN + colW * (i + 1), y, { maxWidth: colW - 4 });
+  });
+
+  y += 8;
+
+  const total = (b: BrandData) => b.imageCount + b.videoCount + b.carouselCount;
+  const fmtMix = (b: BrandData) => {
+    const t = total(b);
+    if (t === 0) return "\u2014";
+    const imgPct = Math.round((b.imageCount / t) * 100);
+    const vidPct = Math.round((b.videoCount / t) * 100);
+    return `${imgPct}% Img / ${vidPct}% Vid`;
+  };
+
+  const metrics: [string, (b: BrandData) => string][] = [
+    [label(locale, "Ads totali", "Total ads"), (b) => String(b.totalAds)],
+    [label(locale, "Ads attive", "Active ads"), (b) => String(b.activeAds)],
+    [label(locale, "Durata media", "Avg. duration"), (b) => b.avgDuration > 0 ? `${b.avgDuration} ${label(locale, "gg", "d")}` : "\u2014"],
+    [label(locale, "Lungh. media copy", "Avg. copy length"), (b) => b.avgCopyLength > 0 ? `${b.avgCopyLength} chr` : "\u2014"],
+    [label(locale, "Refresh rate (90gg)", "Refresh rate (90d)"), (b) => b.adsPerWeek > 0 ? `${b.adsPerWeek} ads/${label(locale, "sett", "wk")}` : "\u2014"],
+    [label(locale, "Format mix", "Format mix"), fmtMix],
+    [label(locale, "Top CTA", "Top CTA"), (b) => b.topCtas.length > 0 ? b.topCtas.slice(0, 3).map((c) => c.name).join(", ") : "\u2014"],
+    [label(locale, "Piattaforme", "Platforms"), (b) => b.platforms.length > 0 ? b.platforms.map((p) => p.name).join(", ") : "\u2014"],
+    [label(locale, "Obiettivo stimato", "Estimated objective"), (b) => b.objectiveInference.objective !== "unknown" ? `${b.objectiveInference.objective} (${b.objectiveInference.confidence}%)` : "\u2014"],
+  ];
+
+  metrics.forEach(([lbl, fn], idx) => {
+    if (idx % 2 === 0) {
+      doc.setFillColor(20, 20, 20);
+      doc.rect(MARGIN, y - 3, CW, 10, "F");
+    }
+
+    doc.setFontSize(8);
+    doc.setTextColor(tr, tg, tb);
+    doc.text(lbl, MARGIN + 2, y + 3);
+
+    doc.setTextColor(pr, pg, pb);
+    brands.forEach((b, i) => {
+      doc.text(fn(b), MARGIN + colW * (i + 1), y + 3);
+    });
+
+    y += 10;
+  });
+}
+
 // ─── Main entry points ──────────────────────────────────────────
 
 export async function generateSinglePdf(
@@ -884,6 +958,7 @@ export async function generateSinglePdf(
   const hasTechnical = sections.includes("technical");
   const hasCopy = sections.includes("copy");
   const hasVisual = sections.includes("visual");
+  const hasBenchmark = sections.includes("benchmark");
 
   // Cover
   addPdfCoverPage(doc, brand, t, locale);
@@ -896,6 +971,11 @@ export async function generateSinglePdf(
   // Latest Ads
   if (hasTechnical) {
     addPdfLatestAdsPage(doc, brand, t, locale);
+  }
+
+  // Benchmark
+  if (hasBenchmark) {
+    addPdfBenchmarkPage(doc, [brand], t, locale);
   }
 
   // Copy Analysis
@@ -928,6 +1008,7 @@ export async function generateComparisonPdf(
   const hasTechnical = sections.includes("technical");
   const hasCopy = sections.includes("copy");
   const hasVisual = sections.includes("visual");
+  const hasBenchmark = sections.includes("benchmark");
 
   // Cover
   addPdfComparisonCover(doc, brands, t, locale);
@@ -945,6 +1026,11 @@ export async function generateComparisonPdf(
   // Latest Ads
   if (hasTechnical) {
     addPdfComparisonLatestAds(doc, brands, t, locale);
+  }
+
+  // Benchmark
+  if (hasBenchmark) {
+    addPdfBenchmarkPage(doc, brands, t, locale);
   }
 
   // Copy Analysis

@@ -741,8 +741,8 @@ const translations = {
       en: "Average ad copy length in characters per brand.",
     },
     descRefreshRate: {
-      it: "Frequenza di pubblicazione di nuove ads per settimana negli ultimi 90 giorni.",
-      en: "Frequency of new ads published per week in the last 90 days.",
+      it: "Quante nuove ads vengono pubblicate in media ogni settimana. Calcolato sulle ads create negli ultimi 90 giorni diviso per il numero di settimane. Un valore alto indica un brand che aggiorna frequentemente i propri creativi.",
+      en: "How many new ads are published on average each week. Calculated from ads created in the last 90 days divided by the number of weeks. A high value indicates a brand that frequently refreshes its creatives.",
     },
     descAiGenerated: {
       it: "Percentuale di ads create con strumenti di intelligenza artificiale.",

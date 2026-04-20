@@ -18,7 +18,7 @@ const schema = z.object({
   template_id: z.string().uuid().optional(),
   format: z.enum(["pptx", "pdf"]),
   locale: z.enum(["it", "en"]),
-  sections: z.array(z.enum(["technical", "copy", "visual"])).optional(),
+  sections: z.array(z.enum(["technical", "copy", "visual", "benchmark"])).optional(),
   font_family: z.string().max(60).optional(),
 });
 

@@ -34,7 +34,7 @@ export interface BrandData {
   }[];
 }
 
-export type SectionType = "technical" | "copy" | "visual";
+export type SectionType = "technical" | "copy" | "visual" | "benchmark";
 
 type Locale = "it" | "en";
 
@@ -1365,6 +1365,117 @@ function closingSlide(
   });
 }
 
+// ─── Benchmark slides ───────────────────────────────────────────
+
+function benchmarkSlide(
+  pptx: PptxGenJS,
+  brands: BrandData[],
+  theme: ThemeConfig,
+  locale: Locale
+) {
+  const slide = pptx.addSlide();
+  addLogo(slide, theme);
+  slide.background = { color: hex(contentBg(theme)) };
+
+  slide.addText(label(locale, "Benchmark", "Benchmark"), {
+    x: PAD,
+    y: 0.15,
+    w: SW - 2 * PAD,
+    h: 0.4,
+    fontSize: 14,
+    fontFace: theme.fonts.heading,
+    color: hex(theme.colors.primary),
+    bold: true,
+  });
+
+  const total = (b: BrandData) => b.imageCount + b.videoCount + b.carouselCount;
+  const fmtMix = (b: BrandData) => {
+    const t = total(b);
+    if (t === 0) return "\u2014";
+    const imgPct = Math.round((b.imageCount / t) * 100);
+    const vidPct = Math.round((b.videoCount / t) * 100);
+    return `${imgPct}% Img / ${vidPct}% Vid`;
+  };
+
+  const headerRow: PptxGenJS.TableRow = [
+    {
+      text: "KPI",
+      options: {
+        fontSize: 9,
+        fontFace: theme.fonts.heading,
+        color: hex(theme.colors.background),
+        fill: { color: hex(theme.colors.primary) },
+        bold: true,
+        border: { type: "none" as const },
+      },
+    },
+    ...brands.map((b) => ({
+      text: b.name,
+      options: {
+        fontSize: 9,
+        fontFace: theme.fonts.heading,
+        color: hex(theme.colors.background),
+        fill: { color: hex(theme.colors.primary) },
+        bold: true,
+        align: "center" as const,
+        border: { type: "none" as const },
+      },
+    })),
+  ];
+
+  const metrics: [string, (b: BrandData) => string][] = [
+    [label(locale, "Ads totali", "Total ads"), (b) => String(b.totalAds)],
+    [label(locale, "Ads attive", "Active ads"), (b) => String(b.activeAds)],
+    [label(locale, "Durata media", "Avg. duration"), (b) => b.avgDuration > 0 ? `${b.avgDuration} ${label(locale, "gg", "d")}` : "\u2014"],
+    [label(locale, "Lungh. media copy", "Avg. copy length"), (b) => b.avgCopyLength > 0 ? `${b.avgCopyLength} chr` : "\u2014"],
+    [label(locale, "Refresh rate (90gg)", "Refresh rate (90d)"), (b) => b.adsPerWeek > 0 ? `${b.adsPerWeek} ads/${label(locale, "sett", "wk")}` : "\u2014"],
+    [label(locale, "Format mix", "Format mix"), fmtMix],
+    [label(locale, "Top CTA", "Top CTA"), (b) => b.topCtas.length > 0 ? b.topCtas.slice(0, 3).map((c) => c.name).join(", ") : "\u2014"],
+    [label(locale, "Piattaforme", "Platforms"), (b) => b.platforms.length > 0 ? b.platforms.map((p) => p.name).join(", ") : "\u2014"],
+    [label(locale, "Obiettivo stimato", "Estimated objective"), (b) => b.objectiveInference.objective !== "unknown" ? `${b.objectiveInference.objective} (${b.objectiveInference.confidence}%)` : "\u2014"],
+  ];
+
+  const altBg = lighten(contentBg(theme), 0.08);
+
+  const dataRows: PptxGenJS.TableRow[] = metrics.map(([lbl, fn], idx) => [
+    {
+      text: lbl,
+      options: {
+        fontSize: 8,
+        fontFace: theme.fonts.body,
+        color: hex(theme.colors.text),
+        fill: { color: idx % 2 === 0 ? hex(theme.colors.background) : altBg },
+        border: { type: "none" as const },
+        bold: true,
+      },
+    },
+    ...brands.map((b) => ({
+      text: fn(b),
+      options: {
+        fontSize: 8,
+        fontFace: theme.fonts.body,
+        color: hex(theme.colors.primary),
+        fill: { color: idx % 2 === 0 ? hex(theme.colors.background) : altBg },
+        align: "center" as const,
+        border: { type: "none" as const },
+      },
+    })),
+  ]);
+
+  const labelColW = 2.5;
+  const dataColW = (SW - 2 * PAD - labelColW) / brands.length;
+  const colWidths = [labelColW, ...brands.map(() => dataColW)];
+
+  slide.addTable([headerRow, ...dataRows], {
+    x: PAD,
+    y: 0.65,
+    w: SW - 2 * PAD,
+    colW: colWidths,
+    rowH: 0.38,
+    margin: [4, 8, 4, 8],
+  });
+}
+
 // ─── Main entry points ──────────────────────────────────────────
 
 export async function generateSinglePptx(
@@ -1386,6 +1497,7 @@ export async function generateSinglePptx(
   const hasTechnical = sections.includes("technical");
   const hasCopy = sections.includes("copy");
   const hasVisual = sections.includes("visual");
+  const hasBenchmark = sections.includes("benchmark");
 
   // Slide 1: Cover
   singleCover(pptx, brand, t, locale, channel);
@@ -1403,6 +1515,11 @@ export async function generateSinglePptx(
   // Slide 4: Latest Ads (technical)
   if (hasTechnical) {
     singleLatestAds(pptx, brand, t, locale);
+  }
+
+  // Benchmark slide
+  if (hasBenchmark) {
+    benchmarkSlide(pptx, [brand], t, locale);
   }
 
   // Slide 5: Copy Analysis (if selected and data available)
@@ -1453,6 +1570,7 @@ export async function generateComparisonPptx(
   const hasTechnical = sections.includes("technical");
   const hasCopy = sections.includes("copy");
   const hasVisual = sections.includes("visual");
+  const hasBenchmark = sections.includes("benchmark");
 
   // Slide 1: Cover
   compCover(pptx, brands, t, locale, channel);
@@ -1475,6 +1593,11 @@ export async function generateComparisonPptx(
   // Slide 5: Latest Ads
   if (hasTechnical) {
     compLatestAds(pptx, brands, t, locale);
+  }
+
+  // Benchmark slide
+  if (hasBenchmark) {
+    benchmarkSlide(pptx, brands, t, locale);
   }
 
   // Slide 6: Copy Analysis

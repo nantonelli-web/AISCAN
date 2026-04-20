@@ -99,11 +99,16 @@ export default async function CompetitorDetailPage({
       <div className="space-y-3">
         {/* Row 1: Brand name + URL + likes */}
         <div className="flex items-center gap-4">
-          {pageProfilePicture && (
+          {pageProfilePicture ? (
             <FallbackImage
               src={pageProfilePicture}
               className="size-12 rounded-full object-cover border border-border shrink-0"
+              fallbackInitial={c.page_name}
             />
+          ) : (
+            <div className="size-12 rounded-full bg-muted border border-border shrink-0 grid place-items-center text-muted-foreground font-semibold text-lg">
+              {c.page_name.charAt(0).toUpperCase()}
+            </div>
           )}
           <div>
             <div className="flex items-center gap-2">
