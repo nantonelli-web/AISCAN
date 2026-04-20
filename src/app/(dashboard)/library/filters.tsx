@@ -45,18 +45,43 @@ export function LibraryFilters({
 }) {
   const router = useRouter();
   const params = useSearchParams();
-  const [pending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [q, setQ] = useState(initial.q ?? "");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const { t } = useT();
 
-  useEffect(() => { setQ(initial.q ?? ""); }, [initial.q]);
+  // Optimistic filter state — mirrors `initial` but updates *immediately* on user
+  // interaction so pills/selects reflect the click before the server round-trip.
+  // Syncs back to `initial` whenever the server navigation completes.
+  const [filters, setFilters] = useState<Initial>(initial);
+  useEffect(() => {
+    setFilters(initial);
+    setQ(initial.q ?? "");
+    // Re-sync when any URL-backed filter field changes. We list individual
+    // fields because `initial` is a new object on every server render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    initial.q,
+    initial.channel,
+    initial.brand,
+    initial.format,
+    initial.platform,
+    initial.cta,
+    initial.status,
+  ]);
 
-  function update(key: string, value: string | null) {
+  function navigate(next: URLSearchParams) {
+    startTransition(() => {
+      router.push(next.toString() ? `/library?${next.toString()}` : "/library");
+    });
+  }
+
+  function update(key: keyof Initial, value: string | null) {
+    setFilters((s) => ({ ...s, [key]: value ?? undefined }));
     const next = new URLSearchParams(params.toString());
     if (value && value.length > 0) next.set(key, value);
     else next.delete(key);
-    startTransition(() => { router.push(`/library?${next.toString()}`); });
+    navigate(next);
   }
 
   function onSearch(e: React.FormEvent) {
@@ -65,24 +90,37 @@ export function LibraryFilters({
   }
 
   function clearAll() {
+    setFilters({});
     setQ("");
-    startTransition(() => router.push("/library"));
+    navigate(new URLSearchParams());
   }
 
-  function clearChannel(ch?: string) {
-    // When switching channel, clear secondary filters (they may not apply)
+  function selectChannel(ch?: string) {
+    // Switching channel clears secondary filters (they may not apply to the new channel)
+    setFilters({
+      channel: ch,
+      brand: filters.brand,
+      q: filters.q,
+    });
     const next = new URLSearchParams();
     if (ch) next.set("channel", ch);
-    if (initial.brand) next.set("brand", initial.brand);
-    if (initial.q) next.set("q", initial.q);
-    startTransition(() => router.push(`/library?${next.toString()}`));
+    if (filters.brand) next.set("brand", filters.brand);
+    if (filters.q) next.set("q", filters.q);
+    navigate(next);
   }
 
-  const hasFilters =
-    initial.q || initial.platform || initial.cta || initial.status || initial.format || initial.channel || initial.brand;
-  const advancedCount = [initial.format, initial.platform, initial.cta, initial.status].filter(Boolean).length;
+  const hasFilters = Boolean(
+    filters.q || filters.platform || filters.cta || filters.status || filters.format || filters.channel || filters.brand
+  );
+  const advancedCount = [filters.format, filters.platform, filters.cta, filters.status].filter(Boolean).length;
 
   useEffect(() => { if (advancedCount > 0) setShowAdvanced(true); }, [advancedCount]);
+
+  const channelLabels: Record<string, string> = {
+    meta: "Meta Ads",
+    google: "Google Ads",
+    instagram: "Instagram",
+  };
 
   return (
     <div className="space-y-4">
@@ -97,7 +135,7 @@ export function LibraryFilters({
             className="pl-9 h-9"
           />
         </div>
-        <Button type="submit" size="sm" disabled={pending}>
+        <Button type="submit" size="sm">
           {t("library", "searchBtn")}
         </Button>
       </form>
@@ -109,11 +147,11 @@ export function LibraryFilters({
           <div className="flex items-center gap-2">
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Paid</span>
             <div className="flex items-center gap-1">
-              <Pill active={(initial.channel ?? "") === ""} onClick={() => clearChannel()}>{t("library", "allChannels")}</Pill>
-              <Pill active={initial.channel === "meta"} onClick={() => clearChannel("meta")}>
+              <Pill active={(filters.channel ?? "") === ""} onClick={() => selectChannel()}>{t("library", "allChannels")}</Pill>
+              <Pill active={filters.channel === "meta"} onClick={() => selectChannel("meta")}>
                 <MetaIcon className="size-3" /> Meta
               </Pill>
-              <Pill active={initial.channel === "google"} onClick={() => clearChannel("google")}>
+              <Pill active={filters.channel === "google"} onClick={() => selectChannel("google")}>
                 <GoogleIcon className="size-3" /> Google
               </Pill>
             </div>
@@ -124,7 +162,7 @@ export function LibraryFilters({
           {/* Channel — Organic */}
           <div className="flex items-center gap-2">
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Organic</span>
-            <Pill active={initial.channel === "instagram"} onClick={() => clearChannel("instagram")}>
+            <Pill active={filters.channel === "instagram"} onClick={() => selectChannel("instagram")}>
               Instagram
             </Pill>
           </div>
@@ -135,11 +173,11 @@ export function LibraryFilters({
           <div className="flex items-center gap-2">
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Brand</span>
             <select
-              value={initial.brand ?? ""}
+              value={filters.brand ?? ""}
               onChange={(e) => update("brand", e.target.value || null)}
               className={cn(
                 "rounded-md border px-2.5 py-1 text-xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-gold/40 bg-transparent",
-                initial.brand
+                filters.brand
                   ? "border-gold/40 text-gold"
                   : "border-border text-muted-foreground"
               )}
@@ -152,10 +190,11 @@ export function LibraryFilters({
           </div>
 
           {/* Advanced toggle — hidden for Instagram (no ads filters) */}
-          {initial.channel !== "instagram" && (
+          {filters.channel !== "instagram" && (
             <>
               <div className="h-5 w-px bg-border" />
               <button
+                type="button"
                 onClick={() => setShowAdvanced(!showAdvanced)}
                 className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               >
@@ -173,7 +212,7 @@ export function LibraryFilters({
           {hasFilters && (
             <>
               <div className="h-5 w-px bg-border" />
-              <button onClick={clearAll} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-red-400 transition-colors cursor-pointer">
+              <button type="button" onClick={clearAll} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-red-400 transition-colors cursor-pointer">
                 <X className="size-3" /> Reset
               </button>
             </>
@@ -181,7 +220,7 @@ export function LibraryFilters({
         </div>
 
         {/* ─── Advanced filters (expandable, hidden for Instagram) ─── */}
-        {showAdvanced && initial.channel !== "instagram" && (
+        {showAdvanced && filters.channel !== "instagram" && (
           <div className="mt-3 pt-3 border-t border-border flex flex-wrap gap-6">
             <FilterSelect
               label={t("library", "formatLabel")}
@@ -189,14 +228,14 @@ export function LibraryFilters({
                 { value: "image", label: t("library", "formatImage") },
                 { value: "video", label: t("library", "formatVideo") },
               ]}
-              value={initial.format}
+              value={filters.format}
               onChange={(v) => update("format", v)}
             />
             {platforms.length > 0 && (
               <FilterSelect
                 label={t("library", "platformLabel")}
                 options={platforms.map((p) => ({ value: p, label: p }))}
-                value={initial.platform}
+                value={filters.platform}
                 onChange={(v) => update("platform", v)}
               />
             )}
@@ -204,7 +243,7 @@ export function LibraryFilters({
               <FilterSelect
                 label={t("library", "ctaLabel")}
                 options={ctas.slice(0, 12).map((c) => ({ value: c, label: c }))}
-                value={initial.cta}
+                value={filters.cta}
                 onChange={(v) => update("cta", v)}
               />
             )}
@@ -212,7 +251,7 @@ export function LibraryFilters({
               <FilterSelect
                 label={t("library", "statusLabel")}
                 options={statuses.map((s) => ({ value: s, label: s }))}
-                value={initial.status}
+                value={filters.status}
                 onChange={(v) => update("status", v)}
               />
             )}
@@ -223,13 +262,18 @@ export function LibraryFilters({
       {/* ─── Active filter tags ─── */}
       {hasFilters && (
         <div className="flex flex-wrap gap-1.5">
-          {initial.q && <Tag label={`"${initial.q}"`} onRemove={() => { setQ(""); update("q", null); }} />}
-          {initial.channel && <Tag label={initial.channel === "meta" ? "Meta Ads" : "Google Ads"} onRemove={() => update("channel", null)} />}
-          {initial.brand && <Tag label={competitors.find((c) => c.id === initial.brand)?.page_name ?? "Brand"} onRemove={() => update("brand", null)} />}
-          {initial.format && <Tag label={initial.format} onRemove={() => update("format", null)} />}
-          {initial.platform && <Tag label={initial.platform} onRemove={() => update("platform", null)} />}
-          {initial.cta && <Tag label={initial.cta} onRemove={() => update("cta", null)} />}
-          {initial.status && <Tag label={initial.status} onRemove={() => update("status", null)} />}
+          {filters.q && <Tag label={`"${filters.q}"`} onRemove={() => { setQ(""); update("q", null); }} />}
+          {filters.channel && (
+            <Tag
+              label={channelLabels[filters.channel] ?? filters.channel}
+              onRemove={() => selectChannel()}
+            />
+          )}
+          {filters.brand && <Tag label={competitors.find((c) => c.id === filters.brand)?.page_name ?? "Brand"} onRemove={() => update("brand", null)} />}
+          {filters.format && <Tag label={filters.format} onRemove={() => update("format", null)} />}
+          {filters.platform && <Tag label={filters.platform} onRemove={() => update("platform", null)} />}
+          {filters.cta && <Tag label={filters.cta} onRemove={() => update("cta", null)} />}
+          {filters.status && <Tag label={filters.status} onRemove={() => update("status", null)} />}
         </div>
       )}
     </div>

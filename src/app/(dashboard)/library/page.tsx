@@ -31,39 +31,28 @@ export default async function LibraryPage({
   const t = serverT(locale);
 
   const isInstagram = sp.channel === "instagram";
+  const workspaceId = profile.workspace_id!;
 
-  // Fetch competitors for brand filter
-  const { data: competitors } = await supabase
-    .from("mait_competitors")
-    .select("id, page_name")
-    .eq("workspace_id", profile.workspace_id!)
-    .order("page_name");
-
-  let ads: MaitAdExternal[] = [];
-  let organicPosts: MaitOrganicPost[] = [];
-
-  if (isInstagram) {
-    // Instagram: query organic posts
-    let igQuery = supabase
-      .from("mait_organic_posts")
-      .select("*")
-      .eq("workspace_id", profile.workspace_id!)
-      .order("posted_at", { ascending: false })
-      .limit(120);
-
-    if (sp.brand) igQuery = igQuery.eq("competitor_id", sp.brand);
-    if (sp.q && sp.q.trim().length > 0) {
-      igQuery = igQuery.ilike("caption", `%${sp.q.trim()}%`);
+  // Build the main content query (ads or Instagram posts)
+  const buildContentQuery = () => {
+    if (isInstagram) {
+      let igQuery = supabase
+        .from("mait_organic_posts")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("posted_at", { ascending: false })
+        .limit(120);
+      if (sp.brand) igQuery = igQuery.eq("competitor_id", sp.brand);
+      if (sp.q && sp.q.trim().length > 0) {
+        igQuery = igQuery.ilike("caption", `%${sp.q.trim()}%`);
+      }
+      return igQuery;
     }
 
-    const { data } = await igQuery;
-    organicPosts = (data ?? []) as MaitOrganicPost[];
-  } else {
-    // Meta / Google / All: query ads
     let query = supabase
       .from("mait_ads_external")
       .select("*")
-      .eq("workspace_id", profile.workspace_id!)
+      .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false })
       .limit(120);
 
@@ -82,17 +71,30 @@ export default async function LibraryPage({
     if (sp.format === "video") query = query.not("video_url", "is", null);
     if (sp.format === "image")
       query = query.is("video_url", null).not("image_url", "is", null);
+    return query;
+  };
 
-    const { data } = await query;
-    ads = (data ?? []) as MaitAdExternal[];
-  }
+  // Run all three independent queries in parallel for faster filter response
+  const [
+    { data: competitors },
+    { data: contentData },
+    { data: facets },
+  ] = await Promise.all([
+    supabase
+      .from("mait_competitors")
+      .select("id, page_name")
+      .eq("workspace_id", workspaceId)
+      .order("page_name"),
+    buildContentQuery(),
+    supabase
+      .from("mait_ads_external")
+      .select("cta, platforms, status")
+      .eq("workspace_id", workspaceId)
+      .limit(500),
+  ]);
 
-  // Aggregate filter options — lightweight query with small limit
-  const { data: facets } = await supabase
-    .from("mait_ads_external")
-    .select("cta, platforms, status")
-    .eq("workspace_id", profile.workspace_id!)
-    .limit(500);
+  const ads: MaitAdExternal[] = isInstagram ? [] : ((contentData ?? []) as MaitAdExternal[]);
+  const organicPosts: MaitOrganicPost[] = isInstagram ? ((contentData ?? []) as MaitOrganicPost[]) : [];
 
   const ctas = new Set<string>();
   const platforms = new Set<string>();
@@ -108,6 +110,11 @@ export default async function LibraryPage({
   }
 
   const totalResults = isInstagram ? organicPosts.length : ads.length;
+
+  // When no channel filter, split ads into Meta/Google sections for clarity
+  const showSourceSections = !sp.channel && !isInstagram && ads.length > 0;
+  const metaAds = showSourceSections ? ads.filter((a) => a.source === "meta") : [];
+  const googleAds = showSourceSections ? ads.filter((a) => a.source === "google") : [];
 
   return (
     <div className="space-y-6">
@@ -137,17 +144,56 @@ export default async function LibraryPage({
           <p className="text-sm text-muted-foreground">
             {totalResults} {t("library", "resultsMax")}
           </p>
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {isInstagram
-              ? organicPosts.map((p) => (
-                  <OrganicPostCard key={p.id} post={p} />
-                ))
-              : ads.map((a) => (
-                  <AdCard key={a.id} ad={a} />
-                ))}
-          </div>
+          {isInstagram ? (
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {organicPosts.map((p) => (
+                <OrganicPostCard key={p.id} post={p} />
+              ))}
+            </div>
+          ) : showSourceSections ? (
+            <div className="space-y-8">
+              {metaAds.length > 0 && (
+                <AdSection title="Meta Ads" count={metaAds.length} ads={metaAds} />
+              )}
+              {googleAds.length > 0 && (
+                <AdSection title="Google Ads" count={googleAds.length} ads={googleAds} />
+              )}
+            </div>
+          ) : (
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {ads.map((a) => (
+                <AdCard key={a.id} ad={a} />
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>
+  );
+}
+
+function AdSection({
+  title,
+  count,
+  ads,
+}: {
+  title: string;
+  count: number;
+  ads: MaitAdExternal[];
+}) {
+  return (
+    <section>
+      <div className="flex items-baseline gap-2 mb-3 pb-2 border-b border-border">
+        <h2 className="text-sm font-medium text-gold uppercase tracking-wider">
+          {title}
+        </h2>
+        <span className="text-xs text-muted-foreground">({count})</span>
+      </div>
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {ads.map((a) => (
+          <AdCard key={a.id} ad={a} />
+        ))}
+      </div>
+    </section>
   );
 }
