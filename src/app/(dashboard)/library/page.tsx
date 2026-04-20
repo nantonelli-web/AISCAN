@@ -5,6 +5,7 @@ import { OrganicPostCard } from "@/components/organic/organic-post-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { LibraryFilters } from "./filters";
 import { getLocale, serverT } from "@/lib/i18n/server";
+import { getCompetitors } from "@/lib/library/cached-data";
 import type { MaitAdExternal, MaitOrganicPost } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -74,40 +75,16 @@ export default async function LibraryPage({
     return query;
   };
 
-  // Run all three independent queries in parallel for faster filter response
-  const [
-    { data: competitors },
-    { data: contentData },
-    { data: facets },
-  ] = await Promise.all([
-    supabase
-      .from("mait_competitors")
-      .select("id, page_name")
-      .eq("workspace_id", workspaceId)
-      .order("page_name"),
+  // Competitors list is cached (revalidated on brand CRUD via tags).
+  // Main content query runs in parallel. Facets are fetched lazily by the
+  // client only when the advanced-filters panel opens.
+  const [competitors, { data: contentData }] = await Promise.all([
+    getCompetitors(workspaceId),
     buildContentQuery(),
-    supabase
-      .from("mait_ads_external")
-      .select("cta, platforms, status")
-      .eq("workspace_id", workspaceId)
-      .limit(500),
   ]);
 
   const ads: MaitAdExternal[] = isInstagram ? [] : ((contentData ?? []) as MaitAdExternal[]);
   const organicPosts: MaitOrganicPost[] = isInstagram ? ((contentData ?? []) as MaitOrganicPost[]) : [];
-
-  const ctas = new Set<string>();
-  const platforms = new Set<string>();
-  const statuses = new Set<string>();
-  for (const r of (facets ?? []) as Array<{
-    cta: string | null;
-    platforms: string[] | null;
-    status: string | null;
-  }>) {
-    if (r.cta) ctas.add(r.cta);
-    if (r.status) statuses.add(r.status);
-    if (Array.isArray(r.platforms)) r.platforms.forEach((p) => platforms.add(p));
-  }
 
   const totalResults = isInstagram ? organicPosts.length : ads.length;
 
@@ -127,10 +104,7 @@ export default async function LibraryPage({
 
       <LibraryFilters
         initial={sp}
-        ctas={isInstagram ? [] : [...ctas].sort()}
-        platforms={isInstagram ? [] : [...platforms].sort()}
-        statuses={isInstagram ? [] : [...statuses].sort()}
-        competitors={(competitors ?? []) as { id: string; page_name: string }[]}
+        competitors={competitors}
       />
 
       {totalResults === 0 ? (

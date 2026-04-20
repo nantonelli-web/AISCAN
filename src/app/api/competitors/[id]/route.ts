@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { competitorsTag } from "@/lib/library/cached-data";
 
 const patchSchema = z.object({
   // Monitor config fields
@@ -69,12 +71,15 @@ export async function PATCH(
     return NextResponse.json({ ok: true });
   }
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("mait_competitors")
     .update(directUpdate)
-    .eq("id", id);
+    .eq("id", id)
+    .select("workspace_id")
+    .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (updated?.workspace_id) revalidateTag(competitorsTag(updated.workspace_id));
   return NextResponse.json({ ok: true });
 }
 
@@ -89,7 +94,14 @@ export async function DELETE(
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { data: existing } = await supabase
+    .from("mait_competitors")
+    .select("workspace_id")
+    .eq("id", id)
+    .single();
+
   const { error } = await supabase.from("mait_competitors").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (existing?.workspace_id) revalidateTag(competitorsTag(existing.workspace_id));
   return NextResponse.json({ ok: true });
 }

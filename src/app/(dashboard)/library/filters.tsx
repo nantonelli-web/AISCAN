@@ -30,17 +30,13 @@ function GoogleIcon({ className }: { className?: string }) {
   );
 }
 
+type Facets = { ctas: string[]; platforms: string[]; statuses: string[] };
+
 export function LibraryFilters({
   initial,
-  ctas,
-  platforms,
-  statuses,
   competitors,
 }: {
   initial: Initial;
-  ctas: string[];
-  platforms: string[];
-  statuses: string[];
   competitors: { id: string; page_name: string }[];
 }) {
   const router = useRouter();
@@ -48,6 +44,8 @@ export function LibraryFilters({
   const [, startTransition] = useTransition();
   const [q, setQ] = useState(initial.q ?? "");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [facets, setFacets] = useState<Facets | null>(null);
+  const [facetsLoading, setFacetsLoading] = useState(false);
   const { t } = useT();
 
   // Optimistic filter state — mirrors `initial` but updates *immediately* on user
@@ -115,6 +113,18 @@ export function LibraryFilters({
   const advancedCount = [filters.format, filters.platform, filters.cta, filters.status].filter(Boolean).length;
 
   useEffect(() => { if (advancedCount > 0) setShowAdvanced(true); }, [advancedCount]);
+
+  // Lazy-fetch facets (CTAs, platforms, statuses) the first time the advanced
+  // panel opens — keeps the initial page load and filter transitions fast.
+  useEffect(() => {
+    if (!showAdvanced || facets || facetsLoading) return;
+    setFacetsLoading(true);
+    fetch("/api/library/facets")
+      .then((r) => (r.ok ? r.json() : { ctas: [], platforms: [], statuses: [] }))
+      .then((data: Facets) => setFacets(data))
+      .catch(() => setFacets({ ctas: [], platforms: [], statuses: [] }))
+      .finally(() => setFacetsLoading(false));
+  }, [showAdvanced, facets, facetsLoading]);
 
   const channelLabels: Record<string, string> = {
     meta: "Meta Ads",
@@ -231,30 +241,36 @@ export function LibraryFilters({
               value={filters.format}
               onChange={(v) => update("format", v)}
             />
-            {platforms.length > 0 && (
-              <FilterSelect
-                label={t("library", "platformLabel")}
-                options={platforms.map((p) => ({ value: p, label: p }))}
-                value={filters.platform}
-                onChange={(v) => update("platform", v)}
-              />
-            )}
-            {ctas.length > 0 && (
-              <FilterSelect
-                label={t("library", "ctaLabel")}
-                options={ctas.slice(0, 12).map((c) => ({ value: c, label: c }))}
-                value={filters.cta}
-                onChange={(v) => update("cta", v)}
-              />
-            )}
-            {statuses.length > 0 && (
-              <FilterSelect
-                label={t("library", "statusLabel")}
-                options={statuses.map((s) => ({ value: s, label: s }))}
-                value={filters.status}
-                onChange={(v) => update("status", v)}
-              />
-            )}
+            {facetsLoading && !facets ? (
+              <span className="text-xs text-muted-foreground self-center">…</span>
+            ) : facets ? (
+              <>
+                {facets.platforms.length > 0 && (
+                  <FilterSelect
+                    label={t("library", "platformLabel")}
+                    options={facets.platforms.map((p) => ({ value: p, label: p }))}
+                    value={filters.platform}
+                    onChange={(v) => update("platform", v)}
+                  />
+                )}
+                {facets.ctas.length > 0 && (
+                  <FilterSelect
+                    label={t("library", "ctaLabel")}
+                    options={facets.ctas.slice(0, 12).map((c) => ({ value: c, label: c }))}
+                    value={filters.cta}
+                    onChange={(v) => update("cta", v)}
+                  />
+                )}
+                {facets.statuses.length > 0 && (
+                  <FilterSelect
+                    label={t("library", "statusLabel")}
+                    options={facets.statuses.map((s) => ({ value: s, label: s }))}
+                    value={filters.status}
+                    onChange={(v) => update("status", v)}
+                  />
+                )}
+              </>
+            ) : null}
           </div>
         )}
       </div>

@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { extractPageIdentifier } from "@/lib/meta/url";
 import { resolvePageId } from "@/lib/meta/resolve-page-id";
+import { competitorsTag } from "@/lib/library/cached-data";
 
 const schema = z.object({
   page_name: z.string().min(1).max(160),
@@ -68,6 +70,7 @@ export async function POST(req: Request) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  revalidateTag(competitorsTag(profile.workspace_id));
   return NextResponse.json({ id: data.id });
 }
 
@@ -82,7 +85,14 @@ export async function DELETE(req: Request) {
   const id = url.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
+  const { data: existing } = await supabase
+    .from("mait_competitors")
+    .select("workspace_id")
+    .eq("id", id)
+    .single();
+
   const { error } = await supabase.from("mait_competitors").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (existing?.workspace_id) revalidateTag(competitorsTag(existing.workspace_id));
   return NextResponse.json({ ok: true });
 }
