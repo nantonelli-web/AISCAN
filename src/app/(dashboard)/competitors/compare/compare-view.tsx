@@ -25,7 +25,7 @@ import type { CreativeAnalysisResult } from "@/lib/ai/creative-analysis";
 import type { MaitCompetitor } from "@/types";
 import { COUNTRIES } from "@/config/countries";
 
-type Tab = "technical" | "copy" | "visual";
+type Tab = "technical" | "copy" | "visual" | "benchmark";
 type Channel = "all" | "meta" | "google" | "instagram";
 
 interface CompStats {
@@ -895,6 +895,12 @@ export function CompareView({
               label={t("compare", "tabVisual")}
               loading={aiLoading && activeTab === "visual"}
             />
+            <TabButton
+              active={activeTab === "benchmark"}
+              onClick={() => setActiveTab("benchmark")}
+              icon={<Target className="size-3.5" />}
+              label={t("compare", "tabBenchmark")}
+            />
           </div>
 
           {/* Technical Tab */}
@@ -1059,6 +1065,61 @@ export function CompareView({
                 onClose={() => setActiveTab("technical")}
               />
             ) : null)}
+
+          {/* Benchmark Tab */}
+          {activeTab === "benchmark" && stats && stats.length >= 2 && (
+            <Card>
+              <CardContent className="py-6 space-y-6">
+                <div className="text-center space-y-2">
+                  <Target className="size-8 text-gold mx-auto" />
+                  <h3 className="text-lg font-semibold">{t("compare", "tabBenchmark")}</h3>
+                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                    {t("compare", "benchmarkDescription")}
+                  </p>
+                </div>
+
+                {/* Benchmark comparison table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-2 px-3 text-xs text-muted-foreground font-medium">KPI</th>
+                        {stats.map((s) => (
+                          <th key={s.id} className="text-right py-2 px-3 text-xs font-medium">{s.name}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      <tr>
+                        <td className="py-2 px-3 text-muted-foreground">{t("compare", "totalAds")}</td>
+                        {stats.map((s) => <td key={s.id} className="py-2 px-3 text-right font-medium">{s.totalAds}</td>)}
+                      </tr>
+                      <tr>
+                        <td className="py-2 px-3 text-muted-foreground">{t("compare", "activeAds")}</td>
+                        {stats.map((s) => <td key={s.id} className="py-2 px-3 text-right font-medium">{s.activeAds}</td>)}
+                      </tr>
+                      <tr>
+                        <td className="py-2 px-3 text-muted-foreground">{t("compare", "avgDuration")} ({t("compare", "avgDurationDays")})</td>
+                        {stats.map((s) => <td key={s.id} className="py-2 px-3 text-right font-medium">{s.avgDuration}</td>)}
+                      </tr>
+                      <tr>
+                        <td className="py-2 px-3 text-muted-foreground">{t("compare", "avgCopyLength")} ({t("compare", "avgCopyChars")})</td>
+                        {stats.map((s) => <td key={s.id} className="py-2 px-3 text-right font-medium">{s.avgCopyLength}</td>)}
+                      </tr>
+                      <tr>
+                        <td className="py-2 px-3 text-muted-foreground">{t("compare", "refreshRate")}</td>
+                        {stats.map((s) => <td key={s.id} className="py-2 px-3 text-right font-medium">{s.adsPerWeek} {t("compare", "adsPerWeek")}</td>)}
+                      </tr>
+                      <tr>
+                        <td className="py-2 px-3 text-muted-foreground">{t("compare", "formatMix")}</td>
+                        {stats.map((s) => <td key={s.id} className="py-2 px-3 text-right font-medium">{s.imageCount} img / {s.videoCount} vid</td>)}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
     </div>

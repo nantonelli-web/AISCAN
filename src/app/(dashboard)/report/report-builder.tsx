@@ -90,7 +90,7 @@ export function ReportBuilder({
   const [selectedComparisonIds, setSelectedComparisonIds] = useState<Set<string>>(new Set());
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [reportLocale, setReportLocale] = useState<ReportLocale>(locale as ReportLocale);
-  const [contentSections, setContentSections] = useState<Set<'technical' | 'copy' | 'visual'>>(new Set(['technical']));
+  const [contentSections, setContentSections] = useState<Set<'technical' | 'copy' | 'visual' | 'benchmark'>>(new Set(['technical']));
   const [fontFamily, setFontFamily] = useState("Inter");
   const [format, setFormat] = useState<ReportFormat>("pptx");
   const [generating, setGenerating] = useState(false);
@@ -698,6 +698,7 @@ export function ReportBuilder({
             { key: 'technical' as const, label: t("report", "sectionTechnical") },
             { key: 'copy' as const, label: t("report", "sectionCopy") },
             { key: 'visual' as const, label: t("report", "sectionVisual") },
+            { key: 'benchmark' as const, label: t("report", "sectionBenchmark") },
           ]).map((section) => (
             <label
               key={section.key}
