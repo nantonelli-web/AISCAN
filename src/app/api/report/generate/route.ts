@@ -9,7 +9,7 @@ import { analyzeCopy, analyzeVisuals, type BrandAdData, type CreativeAnalysisRes
 import { extractImagesFromTemplate, type ThemeConfig } from "@/lib/report/parse-template";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 const schema = z.object({
   type: z.enum(["single", "comparison"]),
