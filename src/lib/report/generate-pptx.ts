@@ -21,6 +21,10 @@ export interface BrandData {
   avgDuration: number;
   avgCopyLength: number;
   adsPerWeek: number;
+  /** % of ads eligible for / using Meta Advantage+ automatic optimization */
+  advantagePlusPercent?: number;
+  /** Average number of variants (collationCount) per ad */
+  avgVariants?: number;
   lastScrapedAt: string | null;
   brandLogoBase64?: string | null;
   brandLogoMimeType?: string | null;
@@ -704,9 +708,9 @@ function singleDashboard(
       barDir: "bar",
       showLegend: false,
       catAxisLabelColor: hex(theme.colors.text),
-      catAxisLabelFontSize: 7,
+      catAxisLabelFontSize: 11,
       valAxisLabelColor: hex(theme.colors.text),
-      valAxisLabelFontSize: 7,
+      valAxisLabelFontSize: 10,
       chartColors: [hex(theme.colors.primary)],
     });
   }
@@ -733,10 +737,10 @@ function singleDashboard(
       h: botH - 0.35,
       showLegend: true,
       legendPos: "b",
-      legendFontSize: 7,
+      legendFontSize: 11,
       legendColor: hex(theme.colors.text),
       showPercent: true,
-      dataLabelFontSize: 8,
+      dataLabelFontSize: 11,
       dataLabelColor: hex(theme.colors.text),
       chartColors: palette.slice(0, plats.length),
     });
@@ -876,10 +880,10 @@ function singleObjectiveAndFormat(
     h: 3.8,
     showLegend: true,
     legendPos: "b",
-    legendFontSize: 8,
+    legendFontSize: 11,
     legendColor: hex(theme.colors.text),
     showPercent: true,
-    dataLabelFontSize: 9,
+    dataLabelFontSize: 11,
     dataLabelColor: hex(theme.colors.text),
     chartColors: [
       hex(theme.colors.primary),
@@ -1604,6 +1608,8 @@ function compObjectivesAndFormat(
     bold: true,
   });
 
+  // Chart occupies the full width minus small margin for the bottom brand labels
+  const chartH = SH - 1.3;
   fmtSlide.addChart(pptx.ChartType.bar, [
     { name: "Image", labels: brands.map((b) => b.name), values: brands.map((b) => b.imageCount) },
     { name: "Video", labels: brands.map((b) => b.name), values: brands.map((b) => b.videoCount) },
@@ -1612,22 +1618,41 @@ function compObjectivesAndFormat(
     x: PAD,
     y: 0.6,
     w: SW - 2 * PAD,
-    h: SH - 0.9,
+    h: chartH,
     barDir: "col",
     barGrouping: "clustered",
     showLegend: true,
     legendPos: "b",
-    legendFontSize: 7,
+    legendFontSize: 12,
     legendColor: hex(theme.colors.text),
     catAxisLabelColor: hex(theme.colors.text),
-    catAxisLabelFontSize: 8,
+    catAxisLabelFontSize: 14,
     valAxisLabelColor: hex(theme.colors.text),
-    valAxisLabelFontSize: 7,
+    valAxisLabelFontSize: 10,
     chartColors: [
       hex(theme.colors.primary),
       hex(theme.colors.secondary),
       hex(theme.colors.accent),
     ],
+  });
+
+  // Explicit large brand-name labels under the chart (editable as text, not baked into the chart image)
+  const labelY = 0.6 + chartH + 0.05;
+  const innerW = (SW - 2 * PAD) * 0.85; // chart plot area is ~85% of chart width
+  const innerX = PAD + (SW - 2 * PAD) * 0.075;
+  const segW = innerW / brands.length;
+  brands.forEach((b, i) => {
+    fmtSlide.addText(b.name, {
+      x: innerX + i * segW,
+      y: labelY,
+      w: segW,
+      h: 0.3,
+      fontSize: 13,
+      fontFace: theme.fonts.heading,
+      color: hex(theme.colors.primary),
+      bold: true,
+      align: "center",
+    });
   });
 }
 
@@ -1723,8 +1748,9 @@ function compCtaAndPlatforms(
     });
   });
 
-  // RIGHT: Platform distribution
-  slide.addText(label(locale, "Piattaforme", "Platforms"), {
+  // RIGHT: Platform distribution — one donut per brand (so the user can tell
+  // which platform belongs to which brand, instead of an aggregated pie)
+  slide.addText(label(locale, "Piattaforme per brand", "Platforms per brand"), {
     x: rightX,
     y: 0.6,
     w: rightW,
@@ -1735,40 +1761,54 @@ function compCtaAndPlatforms(
     bold: true,
   });
 
-  // Merge platform data across brands
-  const platMap = new Map<string, number>();
-  brands.forEach((b) => {
-    b.platforms.forEach((p) => {
-      platMap.set(p.name, (platMap.get(p.name) ?? 0) + p.count);
-    });
-  });
-  const mergedPlats = [...platMap.entries()].sort((a, b) => b[1] - a[1]);
+  const palette = [
+    hex(theme.colors.primary),
+    hex(theme.colors.secondary),
+    hex(theme.colors.accent),
+    "8a6bb0",
+    "5ba09b",
+  ];
 
-  if (mergedPlats.length > 0) {
-    const palette = [
-      hex(theme.colors.primary),
-      hex(theme.colors.secondary),
-      hex(theme.colors.accent),
-      "8a6bb0",
-      "5ba09b",
-    ];
-    slide.addChart(pptx.ChartType.doughnut, [
-      { name: "Platforms", labels: mergedPlats.map((p) => p[0]), values: mergedPlats.map((p) => p[1]) },
-    ], {
-      x: rightX,
-      y: 0.95,
-      w: rightW,
-      h: SH - 1.7,
-      showLegend: true,
-      legendPos: "b",
-      legendFontSize: 7,
-      legendColor: hex(theme.colors.text),
-      showPercent: true,
-      dataLabelFontSize: 8,
-      dataLabelColor: hex(theme.colors.text),
-      chartColors: palette.slice(0, mergedPlats.length),
+  const donutGap = 0.1;
+  const donutW = (rightW - donutGap * (brands.length - 1)) / brands.length;
+  const donutH = SH - 1.7;
+
+  brands.forEach((b, i) => {
+    const dx = rightX + i * (donutW + donutGap);
+    const plats = b.platforms;
+
+    // Brand name header above its donut
+    slide.addText(b.name, {
+      x: dx,
+      y: 0.88,
+      w: donutW,
+      h: 0.2,
+      fontSize: 8,
+      fontFace: theme.fonts.heading,
+      color: hex(theme.colors.primary),
+      bold: true,
+      align: "center",
     });
-  }
+
+    if (plats.length > 0) {
+      slide.addChart(pptx.ChartType.doughnut, [
+        { name: "Platforms", labels: plats.map((p) => p.name), values: plats.map((p) => p.count) },
+      ], {
+        x: dx,
+        y: 1.12,
+        w: donutW,
+        h: donutH,
+        showLegend: true,
+        legendPos: "b",
+        legendFontSize: 9,
+        legendColor: hex(theme.colors.text),
+        showPercent: true,
+        dataLabelFontSize: 10,
+        dataLabelColor: hex(theme.colors.text),
+        chartColors: palette.slice(0, plats.length),
+      });
+    }
+  });
 
   // CTA commentary at bottom
   const ctaComment = generateCtaComment(brands, locale);
@@ -1855,12 +1895,12 @@ function benchmarkSlide(
 ) {
   const chartOpts = {
     catAxisLabelColor: hex(theme.colors.text),
-    catAxisLabelFontSize: 8,
+    catAxisLabelFontSize: 12,
     valAxisLabelColor: hex(theme.colors.text),
-    valAxisLabelFontSize: 7,
+    valAxisLabelFontSize: 10,
     showLegend: true,
     legendPos: "b" as const,
-    legendFontSize: 7,
+    legendFontSize: 11,
     legendColor: hex(theme.colors.text),
   };
   const palette = [hex(theme.colors.primary), hex(theme.colors.secondary), hex(theme.colors.accent), "8a6bb0", "5ba09b"];
@@ -1927,27 +1967,34 @@ function benchmarkSlide(
       ...chartOpts,
     });
 
-    // Platform pie per brand (side by side)
+    // Platform pie per brand (side by side) — one donut per brand so the
+    // reader can attribute each platform share to its brand
     s.addText(label(locale, "Piattaforme per brand", "Platforms per brand"), {
       x: PAD + (SW - 2 * PAD) * 0.58, y: 0.55, w: (SW - 2 * PAD) * 0.42, h: 0.2,
       fontSize: 8, fontFace: theme.fonts.heading, color: hex(theme.colors.primary), bold: true,
     });
     const platRightX = PAD + (SW - 2 * PAD) * 0.58;
     const platW = (SW - 2 * PAD) * 0.42;
-    // Merge platform data and show as doughnut
-    const pMerge = new Map<string, number>();
-    brands.forEach((b) => b.platforms.forEach((p) => pMerge.set(p.name, (pMerge.get(p.name) ?? 0) + p.count)));
-    const pData = [...pMerge.entries()].sort((a, b) => b[1] - a[1]);
-    if (pData.length > 0) {
-      s.addChart(pptx.ChartType.doughnut, [
-        { name: "Platforms", labels: pData.map((p) => p[0]), values: pData.map((p) => p[1]) },
-      ], {
-        x: platRightX, y: 0.8, w: platW, h: SH - 1.1,
-        showPercent: true, dataLabelFontSize: 7, dataLabelColor: hex(theme.colors.text),
-        chartColors: palette.slice(0, pData.length),
-        ...chartOpts,
+    const gapB = 0.08;
+    const brandDonutW = (platW - gapB * (brands.length - 1)) / brands.length;
+    brands.forEach((b, i) => {
+      const dx = platRightX + i * (brandDonutW + gapB);
+      s.addText(b.name, {
+        x: dx, y: 0.78, w: brandDonutW, h: 0.18,
+        fontSize: 8, fontFace: theme.fonts.heading,
+        color: hex(theme.colors.primary), bold: true, align: "center",
       });
-    }
+      if (b.platforms.length > 0) {
+        s.addChart(pptx.ChartType.doughnut, [
+          { name: "Platforms", labels: b.platforms.map((p) => p.name), values: b.platforms.map((p) => p.count) },
+        ], {
+          x: dx, y: 0.98, w: brandDonutW, h: SH - 1.28,
+          showPercent: true, dataLabelFontSize: 10, dataLabelColor: hex(theme.colors.text),
+          chartColors: palette.slice(0, b.platforms.length),
+          ...chartOpts,
+        });
+      }
+    });
   }
 
   // ─── Slide C: Duration + Copy length + Refresh rate ────
@@ -1964,7 +2011,7 @@ function benchmarkSlide(
 
     // Duration bar
     s.addText(label(locale, "Durata media (gg)", "Avg. duration (d)"), {
-      x: PAD, y: 0.55, w: colW3, h: 0.2, fontSize: 7, fontFace: theme.fonts.heading, color: hex(theme.colors.primary), bold: true,
+      x: PAD, y: 0.55, w: colW3, h: 0.22, fontSize: 10, fontFace: theme.fonts.heading, color: hex(theme.colors.primary), bold: true,
     });
     s.addChart(pptx.ChartType.bar, [
       { name: label(locale, "Giorni", "Days"), labels: brands.map((b) => b.name), values: brands.map((b) => b.avgDuration) },
@@ -1976,7 +2023,7 @@ function benchmarkSlide(
 
     // Copy length bar
     s.addText(label(locale, "Lungh. copy (chr)", "Copy length (chr)"), {
-      x: PAD + colW3 + 0.1, y: 0.55, w: colW3, h: 0.2, fontSize: 7, fontFace: theme.fonts.heading, color: hex(theme.colors.primary), bold: true,
+      x: PAD + colW3 + 0.1, y: 0.55, w: colW3, h: 0.22, fontSize: 10, fontFace: theme.fonts.heading, color: hex(theme.colors.primary), bold: true,
     });
     s.addChart(pptx.ChartType.bar, [
       { name: "chr", labels: brands.map((b) => b.name), values: brands.map((b) => b.avgCopyLength) },
@@ -1988,13 +2035,70 @@ function benchmarkSlide(
 
     // Refresh rate bar
     s.addText(label(locale, "Refresh rate (ads/sett.)", "Refresh rate (ads/wk)"), {
-      x: PAD + 2 * (colW3 + 0.1), y: 0.55, w: colW3, h: 0.2, fontSize: 7, fontFace: theme.fonts.heading, color: hex(theme.colors.primary), bold: true,
+      x: PAD + 2 * (colW3 + 0.1), y: 0.55, w: colW3, h: 0.22, fontSize: 10, fontFace: theme.fonts.heading, color: hex(theme.colors.primary), bold: true,
     });
     s.addChart(pptx.ChartType.bar, [
       { name: "ads/wk", labels: brands.map((b) => b.name), values: brands.map((b) => b.adsPerWeek) },
     ], {
       x: PAD + 2 * (colW3 + 0.1), y: 0.8, w: colW3, h: SH - 1.1,
       barDir: "bar", chartColors: ["a06b5b"],
+      ...chartOpts, showLegend: false,
+    });
+  }
+
+  // ─── Slide D: Advantage+ usage + avg variants per ad ────
+  const hasAdvantage = brands.some((b) => (b.advantagePlusPercent ?? 0) > 0);
+  const hasVariants = brands.some((b) => (b.avgVariants ?? 0) > 0);
+  if (hasAdvantage || hasVariants) {
+    const s = pptx.addSlide();
+    addLogo(s, theme);
+    s.background = { color: hex(contentBg(theme)) };
+    s.addText(label(locale, "Benchmark — Automazione & Varianti", "Benchmark — Automation & Variants"), {
+      x: PAD, y: 0.15, w: SW - 2 * PAD, h: 0.35,
+      fontSize: 14, fontFace: theme.fonts.heading, color: hex(theme.colors.primary), bold: true,
+    });
+
+    const colW2 = (SW - 2 * PAD - 0.2) / 2;
+
+    // Advantage+ per brand (%)
+    s.addText(label(locale, "Advantage+ per brand (%)", "Advantage+ per brand (%)"), {
+      x: PAD, y: 0.55, w: colW2, h: 0.22,
+      fontSize: 10, fontFace: theme.fonts.heading, color: hex(theme.colors.primary), bold: true,
+    });
+    s.addText(label(
+      locale,
+      "Percentuale di ads che usano l'ottimizzazione automatica Advantage+ di Meta.",
+      "Percentage of ads using Meta's Advantage+ automatic optimization."
+    ), {
+      x: PAD, y: 0.78, w: colW2, h: 0.3,
+      fontSize: 8, fontFace: theme.fonts.body, color: hex(theme.colors.text), transparency: 30,
+    });
+    s.addChart(pptx.ChartType.bar, [
+      { name: "%", labels: brands.map((b) => b.name), values: brands.map((b) => b.advantagePlusPercent ?? 0) },
+    ], {
+      x: PAD, y: 1.15, w: colW2, h: SH - 1.45,
+      barDir: "bar", chartColors: [hex(theme.colors.primary)],
+      ...chartOpts, showLegend: false,
+    });
+
+    // Avg variants per ad
+    s.addText(label(locale, "Varianti medie per ad", "Avg. variants per ad"), {
+      x: PAD + colW2 + 0.2, y: 0.55, w: colW2, h: 0.22,
+      fontSize: 10, fontFace: theme.fonts.heading, color: hex(theme.colors.primary), bold: true,
+    });
+    s.addText(label(
+      locale,
+      "Numero medio di varianti (test A/B) generate per ogni ad dal brand.",
+      "Average number of variants (A/B tests) generated per ad by each brand."
+    ), {
+      x: PAD + colW2 + 0.2, y: 0.78, w: colW2, h: 0.3,
+      fontSize: 8, fontFace: theme.fonts.body, color: hex(theme.colors.text), transparency: 30,
+    });
+    s.addChart(pptx.ChartType.bar, [
+      { name: "variants", labels: brands.map((b) => b.name), values: brands.map((b) => b.avgVariants ?? 0) },
+    ], {
+      x: PAD + colW2 + 0.2, y: 1.15, w: colW2, h: SH - 1.45,
+      barDir: "bar", chartColors: [hex(theme.colors.secondary)],
       ...chartOpts, showLegend: false,
     });
   }

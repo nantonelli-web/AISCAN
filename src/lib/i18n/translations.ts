@@ -507,6 +507,8 @@ const translations = {
       it: "Seleziona almeno 2 brand per vedere il confronto.",
       en: "Select at least 2 brands to see the comparison.",
     },
+    newComparison: { it: "Nuovo confronto", en: "New comparison" },
+    backToSelection: { it: "Torna alla selezione", en: "Back to selection" },
     tabTechnical: { it: "Analisi tecnica", en: "Technical analysis" },
     tabCopy: { it: "Analisi copy", en: "Copy analysis" },
     tabVisual: { it: "Analisi creativa", en: "Creative analysis" },

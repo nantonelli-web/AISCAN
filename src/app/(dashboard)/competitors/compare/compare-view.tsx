@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   ChevronDown,
   Trash2,
+  ArrowLeft,
 } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
@@ -551,6 +552,26 @@ export function CompareView({
 
   const hasResults = selected.size >= 2 && channel !== null;
 
+  // Clear every piece of comparison state and scroll to the top so the user
+  // lands back on the brand selector — the "home" of this page.
+  function resetToSelection() {
+    setSelected(new Set());
+    setSelectedCountries(new Set());
+    setChannel(null);
+    setCache(null);
+    setStats(null);
+    setAiResult(null);
+    setAiError(null);
+    setMissingBrands([]);
+    setMisconfiguredBrands([]);
+    setBenchmarkData(null);
+    setActiveTab("technical");
+    fetchingRef.current = "";
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Selector */}
@@ -907,6 +928,15 @@ export function CompareView({
         </div>
       )}
 
+      {/* Top "back" action — lets the user exit the comparison and return to the selector */}
+      {hasResults && (
+        <div className="flex justify-end">
+          <Button variant="outline" size="sm" onClick={resetToSelection} className="gap-1.5">
+            <ArrowLeft className="size-3.5" /> {t("compare", "newComparison")}
+          </Button>
+        </div>
+      )}
+
       {/* Tabs */}
       {hasResults && (
         <>
@@ -1113,6 +1143,13 @@ export function CompareView({
                 {t("benchmarks", "noData")}
               </div>
             ) : null)}
+
+          {/* Bottom "back" action — same affordance at the end of the scroll */}
+          <div className="flex justify-center pt-6">
+            <Button variant="outline" size="sm" onClick={resetToSelection} className="gap-1.5">
+              <ArrowLeft className="size-3.5" /> {t("compare", "backToSelection")}
+            </Button>
+          </div>
         </>
       )}
     </div>
