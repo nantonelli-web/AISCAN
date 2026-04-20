@@ -54,14 +54,14 @@ export function Sidebar({ userName, userEmail }: { userName: string; userEmail: 
   const { t } = useT();
 
   return (
-    <aside className="hidden md:flex md:w-60 md:flex-col border-r border-border bg-card">
-      <div className="h-16 flex items-center px-6 border-b border-border">
+    <aside className="hidden md:flex md:w-60 md:flex-col border-r border-border bg-card sticky top-0 h-screen">
+      <div className="h-16 flex items-center px-6 border-b border-border shrink-0">
         <Link href="/dashboard" className="flex items-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.webp" alt="AISCAN" className="h-12" />
         </Link>
       </div>
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {itemDefs.map(({ href, key, icon: Icon }) => {
           // Exact match for items that are prefixes of other items
           // (e.g. /brands should not highlight when on /brands/compare)
@@ -88,7 +88,7 @@ export function Sidebar({ userName, userEmail }: { userName: string; userEmail: 
           );
         })}
       </nav>
-      <div className="border-t border-border pt-3 space-y-2">
+      <div className="border-t border-border pt-3 space-y-2 shrink-0">
         {/* User profile + logout */}
         <div className="mx-3 flex items-center gap-2">
           <div className="size-7 rounded-full bg-gold/15 border border-gold/30 grid place-items-center text-gold text-[10px] font-semibold shrink-0">

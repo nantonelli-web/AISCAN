@@ -635,17 +635,17 @@ export function ReportBuilder({
                           >
                             {/* Checkbox */}
                             <div className={cn(
-                              "size-4 rounded border shrink-0 grid place-items-center transition-colors",
+                              "size-5 rounded border-2 shrink-0 grid place-items-center transition-colors",
                               isSelected
                                 ? "bg-gold border-gold"
-                                : "border-muted-foreground/40"
+                                : "border-muted-foreground/50"
                             )}>
-                              {isSelected && <Check className="size-3 text-gold-foreground" />}
+                              {isSelected && <Check className="size-3.5 text-gold-foreground" />}
                             </div>
                             <GitCompareArrows className={cn("size-4 shrink-0", isSelected ? "text-gold" : "text-muted-foreground")} />
                             <div className="flex-1 min-w-0">
                               <span className="text-sm font-medium truncate block">
-                                vs {otherBrands.join(", ")}
+                                {competitors.find((c) => c.id === mainBrandId)?.page_name} vs {otherBrands.join(", ")}
                               </span>
                               <div className="flex items-center gap-2 mt-0.5">
                                 <span className="text-[10px] font-medium text-gold bg-gold/15 px-1.5 py-0.5 rounded">
@@ -727,46 +727,56 @@ export function ReportBuilder({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Template selection */}
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant={!templateId ? "default" : "outline"}
-              size="sm"
+          {/* Template options */}
+          <div className="space-y-3">
+            {/* Standard template */}
+            <button
               onClick={() => setTemplateId(null)}
+              className={cn(
+                "w-full flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors cursor-pointer",
+                !templateId
+                  ? "bg-gold/10 border-gold/50 ring-1 ring-gold/20"
+                  : "border-border hover:border-gold/30"
+              )}
             >
-              {t("report", "defaultStyle")}
-            </Button>
+              <div className={cn(
+                "size-5 rounded border-2 shrink-0 grid place-items-center transition-colors",
+                !templateId ? "bg-gold border-gold" : "border-muted-foreground/50"
+              )}>
+                {!templateId && <Check className="size-3.5 text-gold-foreground" />}
+              </div>
+              <span className="text-sm font-medium">Template standard</span>
+            </button>
+
+            {/* Saved templates */}
             {filteredTemplates.map((tmpl) => (
-              <div key={tmpl.id} className="flex items-center gap-1">
-                <Button
-                  variant={templateId === tmpl.id ? "default" : "outline"}
-                  size="sm"
+              <div key={tmpl.id} className="flex items-center gap-2">
+                <button
                   onClick={() => setTemplateId(tmpl.id)}
+                  className={cn(
+                    "flex-1 flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors cursor-pointer",
+                    templateId === tmpl.id
+                      ? "bg-gold/10 border-gold/50 ring-1 ring-gold/20"
+                      : "border-border hover:border-gold/30"
+                  )}
                 >
-                  {tmpl.name}
-                </Button>
+                  <div className={cn(
+                    "size-5 rounded border-2 shrink-0 grid place-items-center transition-colors",
+                    templateId === tmpl.id ? "bg-gold border-gold" : "border-muted-foreground/50"
+                  )}>
+                    {templateId === tmpl.id && <Check className="size-3.5 text-gold-foreground" />}
+                  </div>
+                  <span className="text-sm font-medium">{tmpl.name}</span>
+                </button>
                 <button
                   onClick={() => handleDeleteTemplate(tmpl.id)}
-                  className="p-1 text-muted-foreground hover:text-red-400 transition-colors"
-                  title={t("report", "templateDeleted")}
+                  className="size-8 rounded-md border border-border hover:border-red-400/40 grid place-items-center text-muted-foreground hover:text-red-400 transition-colors cursor-pointer shrink-0"
                 >
-                  <Trash2 className="size-3" />
+                  <Trash2 className="size-3.5" />
                 </button>
               </div>
             ))}
           </div>
-
-          {/* Status message */}
-          {selectedTemplate && (
-            <p className="text-xs text-gold">
-              {t("report", "usingTemplate")}: {selectedTemplate.name}
-            </p>
-          )}
-          {!templateId && (
-            <p className="text-xs text-muted-foreground">
-              {t("report", "noTemplate")}
-            </p>
-          )}
 
           {/* Upload section */}
           {selectedBrands.size > 0 && (
@@ -1023,18 +1033,27 @@ export function ReportBuilder({
             )}
           </Button>
 
-          {/* Progress bar */}
+          {/* Progress indicator */}
           {generating && (
-            <div className="mt-3 space-y-1">
-              <div className="h-2 rounded-full bg-muted overflow-hidden">
+            <div className="mt-4 space-y-3">
+              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full bg-gold rounded-full transition-all duration-500 ease-out"
                   style={{ width: `${Math.min(progress, 100)}%` }}
                 />
               </div>
-              <p className="text-[10px] text-muted-foreground text-center">
-                {Math.round(Math.min(progress, 100))}%
-              </p>
+              <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                <span className={progress >= 10 ? "text-gold" : ""}>
+                  {progress >= 10 ? "~" : ""} {locale === "it" ? "Raccolta dati" : "Collecting data"}
+                </span>
+                <span className={progress >= 40 ? "text-gold" : ""}>
+                  {progress >= 40 ? "~" : ""} {locale === "it" ? "Analisi" : "Analysis"}
+                </span>
+                <span className={progress >= 70 ? "text-gold" : ""}>
+                  {progress >= 70 ? "~" : ""} {locale === "it" ? "Generazione file" : "Building file"}
+                </span>
+                <span className="font-medium">{Math.round(Math.min(progress, 100))}%</span>
+              </div>
             </div>
           )}
 
