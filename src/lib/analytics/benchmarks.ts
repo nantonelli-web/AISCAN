@@ -67,7 +67,8 @@ export interface BenchmarkData {
 export async function computeBenchmarks(
   supabase: SupabaseClient,
   workspaceId: string,
-  source?: "meta" | "google"
+  source?: "meta" | "google",
+  competitorIds?: string[]
 ): Promise<BenchmarkData> {
   let adsQuery = supabase
     .from("mait_ads_external")
@@ -78,6 +79,9 @@ export async function computeBenchmarks(
     .limit(5000);
 
   if (source) adsQuery = adsQuery.eq("source", source);
+  if (competitorIds && competitorIds.length > 0) {
+    adsQuery = adsQuery.in("competitor_id", competitorIds);
+  }
 
   const [{ data: competitors }, { data: rawAds }] = await Promise.all([
     supabase

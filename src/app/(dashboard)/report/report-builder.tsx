@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -130,6 +130,15 @@ export function ReportBuilder({
   const selectedTemplate = templateId
     ? templates.find((t) => t.id === templateId)
     : null;
+
+  // Auto-select first saved template when available
+  const filteredTemplateKey = filteredTemplates.map((t) => t.id).join(",");
+  useEffect(() => {
+    if (filteredTemplates.length > 0 && templateId === null) {
+      setTemplateId(filteredTemplates[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredTemplateKey]);
 
   // Check which channels are disabled based on selected brands' config
   const selectedComps = competitors.filter((c) => selectedBrands.has(c.id));

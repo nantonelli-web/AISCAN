@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { ExternalLink, Eye, Sparkles, Play, ImageIcon, LayoutGrid, Bot, Type, ShoppingBag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +28,8 @@ export function AdCard({
   competitorId?: string;
 }) {
   const { t } = useT();
+  const [imgFailed, setImgFailed] = useState(false);
+  const [profileImgFailed, setProfileImgFailed] = useState(false);
 
   const aiTags = (ad.raw_data as Record<string, unknown> | null)?.ai_tags as
     | { sector?: string; tone?: string; objective?: string }
@@ -103,13 +106,14 @@ export function AdCard({
             src={ad.video_url}
             poster={snapshotUrl && !isSnapshotHtml ? snapshotUrl : undefined}
           />
-        ) : snapshotUrl && !isSnapshotHtml ? (
+        ) : snapshotUrl && !isSnapshotHtml && !imgFailed ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={snapshotUrl}
             alt={ad.headline ?? "ad creative"}
             className="absolute inset-0 w-full h-full object-cover"
             loading="lazy"
+            onError={() => setImgFailed(true)}
           />
         ) : isGoogle ? (
           // Google ad without direct image — centered placeholder
@@ -146,12 +150,13 @@ export function AdCard({
             <div className="space-y-2">
               {pageName && (
                 <div className="flex items-center gap-1.5">
-                  {pageProfilePicture && (
+                  {pageProfilePicture && !profileImgFailed && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={pageProfilePicture}
                       alt=""
                       className="size-4 rounded-full object-cover shrink-0"
+                      onError={() => setProfileImgFailed(true)}
                     />
                   )}
                   <p className="text-[10px] uppercase tracking-widest text-gold truncate">

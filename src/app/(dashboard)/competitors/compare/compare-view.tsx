@@ -18,9 +18,17 @@ import {
 } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
-import { cn } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { AnalysisReport } from "./analysis-report";
+import {
+  VolumeChart,
+  FormatPieChart,
+  FormatStackedChart,
+  HorizontalBarChart,
+  PlatformChart,
+} from "@/components/dashboard/benchmark-charts";
+import type { BenchmarkData } from "@/lib/analytics/benchmarks";
 import type { CreativeAnalysisResult } from "@/lib/ai/creative-analysis";
 import type { MaitCompetitor } from "@/types";
 import { COUNTRIES } from "@/config/countries";
@@ -115,6 +123,10 @@ export function CompareView({
   const [configOpen, setConfigOpen] = useState(false);
   const [savedList, setSavedList] = useState(savedComparisons);
 
+  // Benchmark tab state
+  const [benchmarkData, setBenchmarkData] = useState<BenchmarkData | null>(null);
+  const [benchmarkLoading, setBenchmarkLoading] = useState(false);
+
   const fetchingRef = useRef<string>("");
 
   const { t, locale } = useT();
@@ -128,6 +140,7 @@ export function CompareView({
     setAiResult(null);
     setAiError(null);
     setMissingBrands([]);
+    setBenchmarkData(null);
     fetchingRef.current = "";
   }
 
@@ -146,6 +159,7 @@ export function CompareView({
     setAiResult(null);
     setAiError(null);
     setMissingBrands([]);
+    setBenchmarkData(null);
     fetchingRef.current = "";
   }
 
@@ -333,11 +347,33 @@ export function CompareView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, selectedKey, cache?.copy_analysis, cache?.visual_analysis]);
 
+  // Fetch benchmark data when benchmark tab is selected
+  useEffect(() => {
+    if (selected.size < 2 || channel === null) return;
+    if (activeTab !== "benchmark") return;
+    if (benchmarkData) return; // already fetched
+
+    setBenchmarkLoading(true);
+    const source = channel === "meta" ? "meta" : channel === "google" ? "google" : undefined;
+    const url = `/api/benchmarks?ids=${selectedIds.join(",")}${source ? `&source=${source}` : ""}`;
+    fetch(url)
+      .then(async (res) => {
+        if (res.ok) {
+          const data = await res.json();
+          setBenchmarkData(data);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setBenchmarkLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, selectedKey]);
+
   // Regenerate handler
   async function handleRegenerate() {
     if (selected.size < 2) return;
     setRegenerating(true);
     setAiError(null);
+    setBenchmarkData(null);
 
     try {
       // Delete cache
@@ -1067,59 +1103,16 @@ export function CompareView({
             ) : null)}
 
           {/* Benchmark Tab */}
-          {activeTab === "benchmark" && stats && stats.length >= 2 && (
-            <Card>
-              <CardContent className="py-6 space-y-6">
-                <div className="text-center space-y-2">
-                  <Target className="size-8 text-gold mx-auto" />
-                  <h3 className="text-lg font-semibold">{t("compare", "tabBenchmark")}</h3>
-                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                    {t("compare", "benchmarkDescription")}
-                  </p>
-                </div>
-
-                {/* Benchmark comparison table */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border">
-                        <th className="text-left py-2 px-3 text-xs text-muted-foreground font-medium">KPI</th>
-                        {stats.map((s) => (
-                          <th key={s.id} className="text-right py-2 px-3 text-xs font-medium">{s.name}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      <tr>
-                        <td className="py-2 px-3 text-muted-foreground">{t("compare", "totalAds")}</td>
-                        {stats.map((s) => <td key={s.id} className="py-2 px-3 text-right font-medium">{s.totalAds}</td>)}
-                      </tr>
-                      <tr>
-                        <td className="py-2 px-3 text-muted-foreground">{t("compare", "activeAds")}</td>
-                        {stats.map((s) => <td key={s.id} className="py-2 px-3 text-right font-medium">{s.activeAds}</td>)}
-                      </tr>
-                      <tr>
-                        <td className="py-2 px-3 text-muted-foreground">{t("compare", "avgDuration")} ({t("compare", "avgDurationDays")})</td>
-                        {stats.map((s) => <td key={s.id} className="py-2 px-3 text-right font-medium">{s.avgDuration}</td>)}
-                      </tr>
-                      <tr>
-                        <td className="py-2 px-3 text-muted-foreground">{t("compare", "avgCopyLength")} ({t("compare", "avgCopyChars")})</td>
-                        {stats.map((s) => <td key={s.id} className="py-2 px-3 text-right font-medium">{s.avgCopyLength}</td>)}
-                      </tr>
-                      <tr>
-                        <td className="py-2 px-3 text-muted-foreground">{t("compare", "refreshRate")}</td>
-                        {stats.map((s) => <td key={s.id} className="py-2 px-3 text-right font-medium">{s.adsPerWeek} {t("compare", "adsPerWeek")}</td>)}
-                      </tr>
-                      <tr>
-                        <td className="py-2 px-3 text-muted-foreground">{t("compare", "formatMix")}</td>
-                        {stats.map((s) => <td key={s.id} className="py-2 px-3 text-right font-medium">{s.imageCount} img / {s.videoCount} vid</td>)}
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          {activeTab === "benchmark" &&
+            (benchmarkLoading || regenerating ? (
+              <LoadingState text={t("compare", "generating")} />
+            ) : benchmarkData && benchmarkData.totals.totalAds > 0 ? (
+              <BenchmarkCharts data={benchmarkData} t={t} />
+            ) : benchmarkData ? (
+              <div className="py-16 text-center text-muted-foreground text-sm">
+                {t("benchmarks", "noData")}
+              </div>
+            ) : null)}
         </>
       )}
     </div>
@@ -1311,6 +1304,155 @@ function CompareTable({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function BenchmarkStat({ label, value }: { label: string; value: string }) {
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
+          {label}
+        </div>
+        <div className="text-2xl font-semibold">{value}</div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function BenchmarkCharts({
+  data,
+  t,
+}: {
+  data: BenchmarkData;
+  t: (section: string, key: string) => string;
+}) {
+  return (
+    <div className="space-y-6">
+      {/* KPI cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <BenchmarkStat label={t("benchmarks", "totalAds")} value={formatNumber(data.totals.totalAds)} />
+        <BenchmarkStat label={t("benchmarks", "activeAds")} value={formatNumber(data.totals.activeAds)} />
+        <BenchmarkStat label={t("benchmarks", "avgCampaignDuration")} value={`${data.totals.avgDuration}gg`} />
+        <BenchmarkStat label={t("benchmarks", "avgCopyLength")} value={`${data.totals.avgCopyLength} chr`} />
+        <BenchmarkStat label={t("benchmarks", "aiGeneratedPercent")} value={`${data.totals.aiGeneratedPercent}%`} />
+        <BenchmarkStat label={t("benchmarks", "advantagePlusPercent")} value={`${data.totals.advantagePlusPercent}%`} />
+      </div>
+
+      {/* Volume + Format pie */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader><CardTitle>{t("benchmarks", "volumePerCompetitor")}</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descVolume")}</p>
+            <VolumeChart data={data.volumeByCompetitor} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle>{t("benchmarks", "globalFormatMix")}</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descFormatPie")}</p>
+            <FormatPieChart data={data.formatMix} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Format per competitor */}
+      <Card>
+        <CardHeader><CardTitle>{t("benchmarks", "formatPerCompetitor")}</CardTitle></CardHeader>
+        <CardContent>
+          <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descFormatStacked")}</p>
+          <FormatStackedChart data={data.formatByCompetitor} />
+        </CardContent>
+      </Card>
+
+      {/* CTA + Platform */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader><CardTitle>{t("benchmarks", "topCta")}</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descTopCta")}</p>
+            <HorizontalBarChart data={data.topCtas} dataKey="count" label={t("benchmarks", "adsLabel")} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle>{t("benchmarks", "platformDistribution")}</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descPlatform")}</p>
+            <PlatformChart data={data.platformDistribution} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Duration + Copy length + Refresh rate */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card>
+          <CardHeader><CardTitle>{t("benchmarks", "avgCampaignDurationChart")}</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descDuration")}</p>
+            <HorizontalBarChart data={data.avgDurationByCompetitor} dataKey="days" label={t("benchmarks", "daysAxisLabel")} color="#5b7ea3" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle>{t("benchmarks", "avgCopyLengthChart")}</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descCopyLength")}</p>
+            <HorizontalBarChart data={data.avgCopyLengthByCompetitor} dataKey="chars" label={t("benchmarks", "charsAxisLabel")} color="#6b8e6b" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle>{t("benchmarks", "refreshRateChart")}</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descRefreshRate")}</p>
+            <HorizontalBarChart data={data.refreshRate} dataKey="adsPerWeek" label={t("benchmarks", "adsPerWeekAxisLabel")} color="#a06b5b" />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* AI-generated + Advantage+ + Variants */}
+      {(data.aiGeneratedByCompetitor.length > 0 || data.advantagePlusByCompetitor.length > 0 || data.avgVariantsByCompetitor.length > 0) && (
+        <div className="grid gap-6 lg:grid-cols-3">
+          {data.aiGeneratedByCompetitor.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>{t("benchmarks", "aiGeneratedChart")}</CardTitle></CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descAiGenerated")}</p>
+                <HorizontalBarChart data={data.aiGeneratedByCompetitor} dataKey="percent" label="%" color="#8a6bb0" />
+              </CardContent>
+            </Card>
+          )}
+          {data.advantagePlusByCompetitor.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>{t("benchmarks", "advantagePlusChart")}</CardTitle></CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descAdvantagePlus")}</p>
+                <HorizontalBarChart data={data.advantagePlusByCompetitor} dataKey="percent" label="%" color="#5ba09b" />
+              </CardContent>
+            </Card>
+          )}
+          {data.avgVariantsByCompetitor.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>{t("benchmarks", "avgVariantsChart")}</CardTitle></CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descAvgVariants")}</p>
+                <HorizontalBarChart data={data.avgVariantsByCompetitor} dataKey="variants" label={t("benchmarks", "variantsLabel")} color="#a06b5b" />
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* Top targeted countries */}
+      {data.topTargetedCountries.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle>{t("benchmarks", "topTargetedCountries")}</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descTopCountries")}</p>
+            <HorizontalBarChart data={data.topTargetedCountries} dataKey="count" label={t("benchmarks", "adsLabel")} color="#6b8e6b" />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

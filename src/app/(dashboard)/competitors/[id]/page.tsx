@@ -9,6 +9,7 @@ import { ScanDropdown } from "./scan-dropdown";
 import { FrequencySelector } from "./frequency-selector";
 import { CollapsibleJobHistory } from "./collapsible-job-history";
 import { ChannelTabs } from "./channel-tabs";
+import { FallbackImage } from "@/components/ui/fallback-image";
 import { formatDate } from "@/lib/utils";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import type { MaitAdExternal, MaitCompetitor, MaitOrganicPost, MaitScrapeJob } from "@/types";
@@ -99,10 +100,8 @@ export default async function CompetitorDetailPage({
         {/* Row 1: Brand name + URL + likes */}
         <div className="flex items-center gap-4">
           {pageProfilePicture && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <FallbackImage
               src={pageProfilePicture}
-              alt=""
               className="size-12 rounded-full object-cover border border-border shrink-0"
             />
           )}
