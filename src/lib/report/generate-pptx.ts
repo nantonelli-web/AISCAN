@@ -22,6 +22,8 @@ export interface BrandData {
   avgCopyLength: number;
   adsPerWeek: number;
   lastScrapedAt: string | null;
+  brandLogoBase64?: string | null;
+  brandLogoMimeType?: string | null;
   objectiveInference: {
     objective: string;
     confidence: number;
@@ -781,7 +783,8 @@ function addVisualAnalysisSlide(
   analyses: CreativeDirectorBrandAnalysis[],
   comparison: string,
   theme: ThemeConfig,
-  locale: Locale
+  locale: Locale,
+  brands?: BrandData[]
 ) {
   for (const a of analyses) {
     const slide = pptx.addSlide();
@@ -807,7 +810,62 @@ function addVisualAnalysisSlide(
   }
 
   if (comparison) {
-    addComparisonSlide(pptx, label(locale, "Confronto Creativo", "Creative Comparison"), comparison, theme);
+    // Visual comparison slide with side-by-side columns + ad images
+    const slide = pptx.addSlide();
+    addLogo(slide, theme);
+    slide.background = { color: hex(contentBg(theme)) };
+
+    slide.addText(label(locale, "Confronto Creativo", "Creative Comparison"), {
+      x: PAD, y: 0.15, w: SW - 2 * PAD, h: 0.35,
+      fontSize: 14, fontFace: theme.fonts.heading, color: hex(theme.colors.primary), bold: true,
+    });
+
+    slide.addShape(pptx.ShapeType.rect, {
+      x: PAD, y: 0.55, w: SW - 2 * PAD, h: 0.03,
+      fill: { color: hex(theme.colors.primary) }, line: { type: "none" },
+    });
+
+    if (brands && brands.length >= 2) {
+      // Side-by-side: ad images left, comparison text right
+      const imgColW = (SW - 2 * PAD) * 0.35;
+      const textColW = (SW - 2 * PAD) * 0.6;
+      const textX = PAD + imgColW + (SW - 2 * PAD) * 0.05;
+
+      // Ad images column — 2 per brand, stacked
+      const imgW = (imgColW - 0.15) / 2;
+      brands.forEach((b, bi) => {
+        const bx = PAD + bi * (imgW + 0.15);
+        slide.addText(b.name, {
+          x: bx, y: 0.65, w: imgW, h: 0.2,
+          fontSize: 7, fontFace: theme.fonts.heading, color: hex(theme.colors.primary), bold: true, align: "center",
+        });
+        const imgs = b.latestAds.filter((a) => a.imageBase64).slice(0, 2);
+        imgs.forEach((ad, j) => {
+          const iy = 0.9 + j * 1.15;
+          if (ad.imageBase64 && ad.imageMimeType) {
+            slide.addImage({
+              data: `data:${ad.imageMimeType};base64,${ad.imageBase64}`,
+              x: bx, y: iy, w: imgW, h: 1.0,
+              sizing: { type: "contain", w: imgW, h: 1.0 },
+            });
+          }
+        });
+      });
+
+      // Comparison text on the right
+      const cardBg = lighten(contentBg(theme), 0.06);
+      addCardBg(slide, pptx, textX, 0.65, textColW, SH - 0.95, cardBg);
+      const paragraphs = full(comparison).split(/\.\s+/).filter((p) => p.trim().length > 0);
+      const formatted = paragraphs.map((p) => p.trim().endsWith(".") ? p.trim() : p.trim() + ".").join("\n\n");
+      slide.addText(formatted, {
+        x: textX + 0.15, y: 0.75, w: textColW - 0.3, h: SH - 1.1,
+        fontSize: 7.5, fontFace: theme.fonts.body, color: hex(theme.colors.text), valign: "top",
+        lineSpacingMultiple: 1.3,
+      });
+    } else {
+      // Fallback: just text
+      addComparisonSlide(pptx, label(locale, "Confronto Creativo", "Creative Comparison"), comparison, theme);
+    }
   }
 }
 
@@ -837,12 +895,39 @@ function compCover(
     });
   }
 
+  // Brand logos row
+  const logoSize = 0.6;
+  const logoGap = 0.2;
+  const totalLogosW = brands.length * logoSize + (brands.length - 1) * logoGap;
+  brands.forEach((b, i) => {
+    const lx = PAD + i * (logoSize + logoGap);
+    if (b.brandLogoBase64 && b.brandLogoMimeType) {
+      slide.addImage({
+        data: `data:${b.brandLogoMimeType};base64,${b.brandLogoBase64}`,
+        x: lx, y: 0.8, w: logoSize, h: logoSize,
+        sizing: { type: "contain", w: logoSize, h: logoSize },
+        rounding: true,
+      });
+    } else {
+      slide.addShape(pptx.ShapeType.ellipse, {
+        x: lx, y: 0.8, w: logoSize, h: logoSize,
+        fill: { color: lighten(hex(theme.colors.primary), 0.8) },
+        line: { type: "none" },
+      });
+      slide.addText(b.name.charAt(0).toUpperCase(), {
+        x: lx, y: 0.8, w: logoSize, h: logoSize,
+        fontSize: 18, fontFace: theme.fonts.heading,
+        color: hex(theme.colors.primary), bold: true, align: "center", valign: "middle",
+      });
+    }
+  });
+
   slide.addText(brands.map((b) => b.name).join(" vs "), {
     x: PAD,
-    y: 1.5,
+    y: 1.55,
     w: SW - 2 * PAD,
-    h: 1.0,
-    fontSize: 30,
+    h: 0.8,
+    fontSize: 28,
     fontFace: theme.fonts.heading,
     color: hex(theme.colors.primary),
     bold: true,
@@ -852,7 +937,7 @@ function compCover(
     label(locale, "Report Confronto", "Comparison Report"),
     {
       x: PAD,
-      y: 2.5,
+      y: 2.35,
       w: SW - 2 * PAD,
       h: 0.4,
       fontSize: 16,
@@ -978,6 +1063,9 @@ function compOverviewDashboard(
 
   const altBg = lighten(contentBg(theme), 0.08);
 
+  const rowBorder: PptxGenJS.BorderOptions = { type: "solid", pt: 0.5, color: lighten(contentBg(theme), 0.15) };
+  const noBorder: PptxGenJS.BorderOptions = { type: "none" };
+
   const dataRows: PptxGenJS.TableRow[] = metrics.map(([lbl, fn], idx) => [
     {
       text: lbl,
@@ -986,7 +1074,7 @@ function compOverviewDashboard(
         fontFace: theme.fonts.body,
         color: hex(theme.colors.text),
         fill: { color: idx % 2 === 0 ? hex(theme.colors.background) : altBg },
-        border: { type: "none" as const },
+        border: rowBorder,
         bold: true,
         margin: [2, 6, 2, 6] as [number, number, number, number],
       },
@@ -999,7 +1087,7 @@ function compOverviewDashboard(
         color: hex(theme.colors.primary),
         fill: { color: idx % 2 === 0 ? hex(theme.colors.background) : altBg },
         align: "center" as const,
-        border: { type: "none" as const },
+        border: rowBorder,
         bold: true,
         margin: [2, 6, 2, 6] as [number, number, number, number],
       },
@@ -1217,30 +1305,31 @@ function compObjectivesAndFormat(
     }
   );
 
-  // BOTTOM HALF: Format grouped bar chart
-  const botY = disclaimerY + 0.38;
-  const botH = SH - botY - 0.15;
+  // SEPARATE SLIDE: Format grouped bar chart (full height for readability)
+  const fmtSlide = pptx.addSlide();
+  addLogo(fmtSlide, theme);
+  fmtSlide.background = { color: hex(contentBg(theme)) };
 
-  slide.addText(label(locale, "Distribuzione formati", "Format distribution"), {
+  fmtSlide.addText(label(locale, "Distribuzione formati", "Format distribution"), {
     x: PAD,
-    y: botY,
+    y: 0.15,
     w: SW - 2 * PAD,
-    h: 0.25,
-    fontSize: 9,
+    h: 0.35,
+    fontSize: 14,
     fontFace: theme.fonts.heading,
     color: hex(theme.colors.primary),
     bold: true,
   });
 
-  slide.addChart(pptx.ChartType.bar, [
+  fmtSlide.addChart(pptx.ChartType.bar, [
     { name: "Image", labels: brands.map((b) => b.name), values: brands.map((b) => b.imageCount) },
     { name: "Video", labels: brands.map((b) => b.name), values: brands.map((b) => b.videoCount) },
     { name: "Carousel", labels: brands.map((b) => b.name), values: brands.map((b) => b.carouselCount) },
   ], {
     x: PAD,
-    y: botY + 0.3,
+    y: 0.6,
     w: SW - 2 * PAD,
-    h: botH - 0.35,
+    h: SH - 0.9,
     barDir: "col",
     barGrouping: "clustered",
     showLegend: true,
@@ -1481,7 +1570,7 @@ function compLatestAds(
           y: cy + 0.06,
           w: imgW,
           h: imgH,
-          sizing: { type: "cover", w: imgW, h: imgH },
+          sizing: { type: "contain", w: imgW, h: imgH },
         });
       } else {
         // Placeholder box
@@ -1877,7 +1966,8 @@ export async function generateComparisonPptx(
       visualAnalysis.brandAnalyses,
       visualAnalysis.comparison ?? "",
       t,
-      locale
+      locale,
+      brands
     );
   }
 

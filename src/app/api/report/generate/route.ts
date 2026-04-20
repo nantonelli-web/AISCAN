@@ -43,7 +43,7 @@ async function fetchBrandData(
   const [{ data: comp }, { data: ads }] = await Promise.all([
     admin
       .from("mait_competitors")
-      .select("id, page_name, last_scraped_at")
+      .select("id, page_name, last_scraped_at, profile_picture_url")
       .eq("id", competitorId)
       .single(),
     adsQuery,
@@ -185,6 +185,26 @@ async function fetchBrandData(
     ? { objective: "unknown" as const, confidence: 0, signals: [] as string[] }
     : inferObjective(adsList.map((a) => a.raw_data));
 
+  // Download brand logo
+  let brandLogoBase64: string | null = null;
+  let brandLogoMimeType: string | null = null;
+  const logoUrl = comp?.profile_picture_url as string | null;
+  if (logoUrl && logoUrl.startsWith("http")) {
+    try {
+      const ctrl = new AbortController();
+      const tmr = setTimeout(() => ctrl.abort(), 5000);
+      const r = await fetch(logoUrl, { signal: ctrl.signal });
+      clearTimeout(tmr);
+      if (r.ok) {
+        const buf = Buffer.from(await r.arrayBuffer());
+        if (buf.length > 100) {
+          brandLogoMimeType = r.headers.get("content-type") ?? "image/jpeg";
+          brandLogoBase64 = buf.toString("base64");
+        }
+      }
+    } catch { /* skip */ }
+  }
+
   return {
     id: competitorId,
     name: comp?.page_name ?? "\u2014",
@@ -199,6 +219,8 @@ async function fetchBrandData(
     avgCopyLength,
     adsPerWeek,
     lastScrapedAt: comp?.last_scraped_at ?? null,
+    brandLogoBase64,
+    brandLogoMimeType,
     objectiveInference,
     latestAds,
   };
