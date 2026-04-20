@@ -69,6 +69,15 @@ export function LibraryFilters({
     startTransition(() => router.push("/library"));
   }
 
+  function clearChannel(ch?: string) {
+    // When switching channel, clear secondary filters (they may not apply)
+    const next = new URLSearchParams();
+    if (ch) next.set("channel", ch);
+    if (initial.brand) next.set("brand", initial.brand);
+    if (initial.q) next.set("q", initial.q);
+    startTransition(() => router.push(`/library?${next.toString()}`));
+  }
+
   const hasFilters =
     initial.q || initial.platform || initial.cta || initial.status || initial.format || initial.channel || initial.brand;
   const advancedCount = [initial.format, initial.platform, initial.cta, initial.status].filter(Boolean).length;
@@ -96,18 +105,28 @@ export function LibraryFilters({
       {/* ─── Row 2: Primary filters ─── */}
       <div className="rounded-lg border border-border bg-card p-3">
         <div className="flex flex-wrap items-center gap-6">
-          {/* Channel */}
+          {/* Channel — Paid */}
           <div className="flex items-center gap-2">
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{t("library", "filterChannel")}</span>
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Paid</span>
             <div className="flex items-center gap-1">
-              <Pill active={(initial.channel ?? "") === ""} onClick={() => update("channel", null)}>{t("library", "allChannels")}</Pill>
-              <Pill active={initial.channel === "meta"} onClick={() => update("channel", "meta")}>
+              <Pill active={(initial.channel ?? "") === ""} onClick={() => clearChannel()}>{t("library", "allChannels")}</Pill>
+              <Pill active={initial.channel === "meta"} onClick={() => clearChannel("meta")}>
                 <MetaIcon className="size-3" /> Meta
               </Pill>
-              <Pill active={initial.channel === "google"} onClick={() => update("channel", "google")}>
+              <Pill active={initial.channel === "google"} onClick={() => clearChannel("google")}>
                 <GoogleIcon className="size-3" /> Google
               </Pill>
             </div>
+          </div>
+
+          <div className="h-5 w-px bg-border" />
+
+          {/* Channel — Organic */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Organic</span>
+            <Pill active={initial.channel === "instagram"} onClick={() => clearChannel("instagram")}>
+              Instagram
+            </Pill>
           </div>
 
           <div className="h-5 w-px bg-border" />
@@ -132,20 +151,23 @@ export function LibraryFilters({
             </select>
           </div>
 
-          <div className="h-5 w-px bg-border" />
-
-          {/* Advanced toggle */}
-          <button
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-          >
-            <SlidersHorizontal className="size-3" />
-            {t("library", "moreFilters")}
-            {advancedCount > 0 && (
-              <span className="bg-gold/20 text-gold text-[9px] rounded-full px-1.5 min-w-[16px] text-center">{advancedCount}</span>
-            )}
-            <ChevronDown className={cn("size-3 transition-transform", showAdvanced && "rotate-180")} />
-          </button>
+          {/* Advanced toggle — hidden for Instagram (no ads filters) */}
+          {initial.channel !== "instagram" && (
+            <>
+              <div className="h-5 w-px bg-border" />
+              <button
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              >
+                <SlidersHorizontal className="size-3" />
+                {t("library", "moreFilters")}
+                {advancedCount > 0 && (
+                  <span className="bg-gold/20 text-gold text-[9px] rounded-full px-1.5 min-w-[16px] text-center">{advancedCount}</span>
+                )}
+                <ChevronDown className={cn("size-3 transition-transform", showAdvanced && "rotate-180")} />
+              </button>
+            </>
+          )}
 
           {/* Reset */}
           {hasFilters && (
@@ -158,8 +180,8 @@ export function LibraryFilters({
           )}
         </div>
 
-        {/* ─── Advanced filters (expandable) ─── */}
-        {showAdvanced && (
+        {/* ─── Advanced filters (expandable, hidden for Instagram) ─── */}
+        {showAdvanced && initial.channel !== "instagram" && (
           <div className="mt-3 pt-3 border-t border-border flex flex-wrap gap-6">
             <FilterSelect
               label={t("library", "formatLabel")}

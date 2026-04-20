@@ -156,13 +156,16 @@ export function ReportBuilder({
       if (next.has(id)) {
         next.delete(id);
       } else {
-        // Single mode: only one selection
         next.clear();
         next.add(id);
       }
       return next;
     });
-    setTemplateId(null);
+    // Auto-select first matching template for this brand, or null
+    const brand = competitors.find((c) => c.id === id);
+    const clientId = brand?.client_id ?? null;
+    const matching = clientId ? templates.filter((t) => t.client_id === clientId) : templates;
+    setTemplateId(matching.length > 0 ? matching[0].id : null);
   }
 
   function switchType(type: ReportType) {
@@ -561,9 +564,13 @@ export function ReportBuilder({
                     variant={mainBrandId === c.id ? "default" : "outline"}
                     size="sm"
                     onClick={() => {
-                      setMainBrandId(mainBrandId === c.id ? null : c.id);
+                      const newId = mainBrandId === c.id ? null : c.id;
+                      setMainBrandId(newId);
                       setSelectedComparisonIds(new Set());
-                      setTemplateId(null);
+                      // Auto-select first matching template
+                      const clientId = newId ? (competitors.find((x) => x.id === newId)?.client_id ?? null) : null;
+                      const matching = clientId ? templates.filter((t) => t.client_id === clientId) : templates;
+                      setTemplateId(matching.length > 0 ? matching[0].id : null);
                     }}
                   >
                     {c.page_name}
@@ -727,27 +734,8 @@ export function ReportBuilder({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Template options */}
-          <div className="space-y-3">
-            {/* Standard template */}
-            <button
-              onClick={() => setTemplateId(null)}
-              className={cn(
-                "w-full flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors cursor-pointer",
-                !templateId
-                  ? "bg-gold/10 border-gold/50 ring-1 ring-gold/20"
-                  : "border-border hover:border-gold/30"
-              )}
-            >
-              <div className={cn(
-                "size-5 rounded border-2 shrink-0 grid place-items-center transition-colors",
-                !templateId ? "bg-gold border-gold" : "border-muted-foreground/50"
-              )}>
-                {!templateId && <Check className="size-3.5 text-gold-foreground" />}
-              </div>
-              <span className="text-sm font-medium">Template standard</span>
-            </button>
-
+          {/* Template options — saved first, standard last */}
+          <div className="space-y-2">
             {/* Saved templates */}
             {filteredTemplates.map((tmpl) => (
               <div key={tmpl.id} className="flex items-center gap-2">
@@ -776,6 +764,25 @@ export function ReportBuilder({
                 </button>
               </div>
             ))}
+
+            {/* Standard template */}
+            <button
+              onClick={() => setTemplateId(null)}
+              className={cn(
+                "w-full flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors cursor-pointer",
+                !templateId
+                  ? "bg-gold/10 border-gold/50 ring-1 ring-gold/20"
+                  : "border-border hover:border-gold/30"
+              )}
+            >
+              <div className={cn(
+                "size-5 rounded border-2 shrink-0 grid place-items-center transition-colors",
+                !templateId ? "bg-gold border-gold" : "border-muted-foreground/50"
+              )}>
+                {!templateId && <Check className="size-3.5 text-gold-foreground" />}
+              </div>
+              <span className="text-sm font-medium">Template standard</span>
+            </button>
           </div>
 
           {/* Upload section */}
