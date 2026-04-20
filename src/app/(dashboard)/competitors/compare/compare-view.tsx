@@ -607,7 +607,7 @@ export function CompareView({
                   <span className="text-foreground font-medium">{g.brand}</span>
                   <span className="text-muted-foreground">— {g.missingCountries.join(", ")}</span>
                   <a href={`/competitors/${g.id}/edit?from=compare`} className="ml-auto shrink-0">
-                    <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold">
+                    <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer">
                       {t("compare", "addCountryAndScan")}
                     </Button>
                   </a>
@@ -710,7 +710,7 @@ export function CompareView({
                           href={`/competitors/${d.id}/edit?from=compare`}
                           className="ml-auto shrink-0"
                         >
-                          <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold">
+                          <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer">
                             {t("compare", "goToEdit")}
                           </Button>
                         </a>

@@ -294,7 +294,7 @@ export function ScanDropdown({ competitorId, hasGoogleConfig, hasInstagramConfig
               disabled={isLoading || rangeExceeded}
               variant="outline"
               size="lg"
-              className="rounded-r-none gap-2.5 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold"
+              className="rounded-r-none gap-2.5 cursor-pointer"
             >
               {loading === "meta" ? (
                 <RefreshCw className="size-5 animate-spin" />
@@ -308,7 +308,7 @@ export function ScanDropdown({ competitorId, hasGoogleConfig, hasInstagramConfig
               disabled={isLoading || rangeExceeded}
               variant="outline"
               size="lg"
-              className="rounded-l-none border-l-0 px-2 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold"
+              className="rounded-l-none border-l-0 px-2 cursor-pointer"
             >
               <ChevronDown className="size-4" />
             </Button>
@@ -339,7 +339,7 @@ export function ScanDropdown({ competitorId, hasGoogleConfig, hasInstagramConfig
           variant="outline"
           size="lg"
           className={hasGoogleConfig
-            ? "gap-2.5 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold"
+            ? "gap-2.5 cursor-pointer"
             : "gap-2.5 opacity-40 cursor-not-allowed"
           }
         >
@@ -358,7 +358,7 @@ export function ScanDropdown({ competitorId, hasGoogleConfig, hasInstagramConfig
           variant="outline"
           size="lg"
           className={hasInstagramConfig
-            ? "gap-2.5 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold"
+            ? "gap-2.5 cursor-pointer"
             : "gap-2.5 opacity-40 cursor-not-allowed"
           }
         >
@@ -379,7 +379,7 @@ export function ScanDropdown({ competitorId, hasGoogleConfig, hasInstagramConfig
             <div className="flex items-center gap-2 text-xs">
               <span className="text-muted-foreground">Google Ads: {t("scan", "googleNotConfigured")}</span>
               <a href={`/competitors/${competitorId}/edit?from=brand`} className="ml-auto shrink-0">
-                <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold">
+                <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer">
                   {t("compare", "goToEdit")}
                 </Button>
               </a>
@@ -389,7 +389,7 @@ export function ScanDropdown({ competitorId, hasGoogleConfig, hasInstagramConfig
             <div className="flex items-center gap-2 text-xs">
               <span className="text-muted-foreground">Instagram: {t("scan", "instagramNotConfigured")}</span>
               <a href={`/competitors/${competitorId}/edit?from=brand`} className="ml-auto shrink-0">
-                <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer hover:bg-gold/25 hover:text-gold hover:border-gold">
+                <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer">
                   {t("compare", "goToEdit")}
                 </Button>
               </a>
