@@ -143,18 +143,42 @@ async function fetchBrandData(
   ).length;
   const adsPerWeek = Math.round((recent / (90 / 7)) * 10) / 10;
 
-  // Latest ads
-  const latestAds = adsList
+  // Latest ads — download images as base64 for PPTX embedding
+  const sortedAds = adsList
     .sort(
       (a, b) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     )
-    .slice(0, 6)
-    .map((a) => ({
-      headline: a.headline,
-      image_url: a.image_url,
-      ad_archive_id: a.ad_archive_id,
-    }));
+    .slice(0, 6);
+
+  const latestAds = await Promise.all(
+    sortedAds.map(async (a) => {
+      let imageBase64: string | null = null;
+      let imageMimeType: string | null = null;
+      if (a.image_url && !a.image_url.includes("/render_ad/") && a.image_url.startsWith("http")) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 8000);
+          const res = await fetch(a.image_url, { signal: controller.signal });
+          clearTimeout(timer);
+          if (res.ok) {
+            const buf = Buffer.from(await res.arrayBuffer());
+            if (buf.length > 100) {
+              imageMimeType = res.headers.get("content-type") ?? "image/jpeg";
+              imageBase64 = buf.toString("base64");
+            }
+          }
+        } catch { /* skip */ }
+      }
+      return {
+        headline: a.headline,
+        image_url: a.image_url,
+        ad_archive_id: a.ad_archive_id,
+        imageBase64,
+        imageMimeType,
+      };
+    })
+  );
 
   // Infer campaign objective — only for Meta (Google lacks the needed signals)
   const objectiveInference = isGoogle
