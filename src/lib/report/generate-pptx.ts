@@ -33,6 +33,9 @@ export interface BrandData {
     headline: string | null;
     image_url: string | null;
     ad_archive_id: string;
+    cta?: string | null;
+    adText?: string | null;
+    platforms?: string[] | null;
     imageBase64?: string | null;
     imageMimeType?: string | null;
   }[];
@@ -169,6 +172,70 @@ function generateCtaComment(brands: BrandData[], locale: Locale): string {
   return locale === "it"
     ? `CTA dominante — ${parts.join(" vs ")}. ${brands[0].topCtas[0]?.name === brands[1].topCtas[0]?.name ? "Entrambi i brand privilegiano la stessa CTA." : "Strategie CTA differenti indicano obiettivi di campagna diversi."}`
     : `Dominant CTA — ${parts.join(" vs ")}. ${brands[0].topCtas[0]?.name === brands[1].topCtas[0]?.name ? "Both brands favor the same CTA." : "Different CTA strategies indicate different campaign objectives."}`;
+}
+
+/** Render an ad card similar to the frontend UI: image (contained) + headline + CTA */
+function addAdCard(
+  slide: PptxGenJS.Slide,
+  pptx: PptxGenJS,
+  ad: BrandData["latestAds"][0],
+  x: number,
+  y: number,
+  w: number,
+  theme: ThemeConfig
+) {
+  const cardH = 1.85;
+  const imgH = 1.1;
+  const bg = lighten(contentBg(theme), 0.1);
+
+  // Card background
+  addCardBg(slide, pptx, x, y, w, cardH, bg);
+
+  // Image area with dark background
+  slide.addShape(pptx.ShapeType.rect, {
+    x: x + 0.04, y: y + 0.04, w: w - 0.08, h: imgH,
+    fill: { color: darken(contentBg(theme), 0.3) },
+    line: { type: "none" }, rectRadius: 0.03,
+  });
+
+  if (ad.imageBase64 && ad.imageMimeType) {
+    slide.addImage({
+      data: `data:${ad.imageMimeType};base64,${ad.imageBase64}`,
+      x: x + 0.04, y: y + 0.04, w: w - 0.08, h: imgH,
+      sizing: { type: "contain", w: w - 0.08, h: imgH },
+    });
+  }
+
+  // Headline
+  const headline = ad.headline?.slice(0, 50) || "Ad";
+  slide.addText(headline, {
+    x: x + 0.08, y: y + imgH + 0.08, w: w - 0.16, h: 0.25,
+    fontSize: 6.5, fontFace: theme.fonts.body, color: hex(theme.colors.text),
+    valign: "top",
+  });
+
+  // CTA badge
+  if (ad.cta) {
+    slide.addShape(pptx.ShapeType.rect, {
+      x: x + 0.08, y: y + imgH + 0.37, w: Math.min(ad.cta.length * 0.06 + 0.15, w - 0.16), h: 0.16,
+      fill: { color: hex(theme.colors.primary) }, line: { type: "none" }, rectRadius: 0.03,
+    });
+    slide.addText(ad.cta, {
+      x: x + 0.08, y: y + imgH + 0.37, w: Math.min(ad.cta.length * 0.06 + 0.15, w - 0.16), h: 0.16,
+      fontSize: 5, fontFace: theme.fonts.body, color: hex(theme.colors.background),
+      bold: true, align: "center",
+    });
+  }
+
+  // Platforms
+  if (ad.platforms && ad.platforms.length > 0) {
+    slide.addText(ad.platforms.slice(0, 3).join(" · "), {
+      x: x + 0.08, y: y + imgH + 0.55, w: w - 0.16, h: 0.14,
+      fontSize: 4.5, fontFace: theme.fonts.body, color: hex(theme.colors.text), transparency: 50,
+    });
+  }
+
+  return cardH;
 }
 
 /** Truncate text to max characters */
@@ -749,7 +816,8 @@ function addCopyAnalysisSlide(
   analyses: CopywriterBrandAnalysis[],
   comparison: string,
   theme: ThemeConfig,
-  locale: Locale
+  locale: Locale,
+  brands?: BrandData[]
 ) {
   for (const a of analyses) {
     const slide = pptx.addSlide();
@@ -761,9 +829,19 @@ function addCopyAnalysisSlide(
       fontSize: 14, fontFace: theme.fonts.heading, color: hex(theme.colors.primary), bold: true,
     });
 
+    // Get example ad texts for this brand
+    const brandData = brands?.find((b) => b.name === a.brandName);
+    const examples = (brandData?.latestAds ?? [])
+      .filter((ad) => ad.adText && ad.adText.length > 20)
+      .slice(0, 2)
+      .map((ad) => `\u201C${ad.adText!.slice(0, 100)}${ad.adText!.length > 100 ? "\u2026" : ""}\u201D`);
+    const examplesText = examples.length > 0
+      ? `\n${label(locale, "Esempi", "Examples")}: ${examples.join(" | ")}`
+      : "";
+
     const fields: [string, string][] = [
       [label(locale, "Tono di voce", "Tone of voice"), full(a.toneOfVoice)],
-      [label(locale, "Stile copy", "Copy style"), full(a.copyStyle)],
+      [label(locale, "Stile copy", "Copy style"), full(a.copyStyle) + examplesText],
       [label(locale, "Trigger emozionali", "Emotional triggers"), a.emotionalTriggers?.join(", ") ?? "\u2014"],
       [label(locale, "Pattern CTA", "CTA patterns"), full(a.ctaPatterns)],
       [label(locale, "Punti di forza", "Strengths"), full(a.strengths)],
@@ -773,7 +851,48 @@ function addCopyAnalysisSlide(
     addAnalysisCards(slide, pptx, fields, theme, 0.6);
   }
 
-  if (comparison) {
+  if (comparison && brands) {
+    // Copy comparison with ad examples
+    const slide = pptx.addSlide();
+    addLogo(slide, theme);
+    slide.background = { color: hex(contentBg(theme)) };
+
+    slide.addText(label(locale, "Confronto Copy", "Copy Comparison"), {
+      x: PAD, y: 0.15, w: SW - 2 * PAD, h: 0.35,
+      fontSize: 14, fontFace: theme.fonts.heading, color: hex(theme.colors.primary), bold: true,
+    });
+    slide.addShape(pptx.ShapeType.rect, {
+      x: PAD, y: 0.55, w: SW - 2 * PAD, h: 0.03,
+      fill: { color: hex(theme.colors.primary) }, line: { type: "none" },
+    });
+
+    // Left: ad card examples
+    const imgColW = (SW - 2 * PAD) * 0.35;
+    const textColW = (SW - 2 * PAD) * 0.6;
+    const textX = PAD + imgColW + (SW - 2 * PAD) * 0.05;
+    const adCardW = (imgColW - 0.1) / brands.length;
+
+    brands.forEach((b, bi) => {
+      const bx = PAD + bi * (adCardW + 0.1);
+      slide.addText(b.name, {
+        x: bx, y: 0.65, w: adCardW, h: 0.2,
+        fontSize: 6, fontFace: theme.fonts.heading, color: hex(theme.colors.primary), bold: true, align: "center",
+      });
+      const ad = b.latestAds.find((a) => a.imageBase64) ?? b.latestAds[0];
+      if (ad) addAdCard(slide, pptx, ad, bx, 0.88, adCardW, theme);
+    });
+
+    // Right: comparison text
+    const cardBg = lighten(contentBg(theme), 0.06);
+    addCardBg(slide, pptx, textX, 0.65, textColW, SH - 0.95, cardBg);
+    const paragraphs = full(comparison).split(/\.\s+/).filter((p) => p.trim().length > 0);
+    const formatted = paragraphs.map((p) => p.trim().endsWith(".") ? p.trim() : p.trim() + ".").join("\n\n");
+    slide.addText(formatted, {
+      x: textX + 0.15, y: 0.75, w: textColW - 0.3, h: SH - 1.1,
+      fontSize: 7.5, fontFace: theme.fonts.body, color: hex(theme.colors.text), valign: "top",
+      lineSpacingMultiple: 1.3,
+    });
+  } else if (comparison) {
     addComparisonSlide(pptx, label(locale, "Confronto Copy", "Copy Comparison"), comparison, theme);
   }
 }
@@ -1063,7 +1182,7 @@ function compOverviewDashboard(
 
   const altBg = lighten(contentBg(theme), 0.08);
 
-  const rowBorder: PptxGenJS.BorderOptions = { type: "solid", pt: 0.5, color: lighten(contentBg(theme), 0.15) };
+  const rowBorder: PptxGenJS.BorderOptions = { type: "solid", pt: 0.75, color: lighten(contentBg(theme), 0.25) };
   const noBorder: PptxGenJS.BorderOptions = { type: "none" };
 
   const dataRows: PptxGenJS.TableRow[] = metrics.map(([lbl, fn], idx) => [
@@ -1526,89 +1645,38 @@ function compLatestAds(
     bold: true,
   });
 
-  const cardBg = lighten(contentBg(theme), 0.12);
-  const colW = (SW - 2 * PAD - 0.15 * (brands.length - 1)) / brands.length;
+  // Card width: fit 3 ads per brand side by side
+  const totalAdsPerBrand = 3;
+  const totalCards = brands.length * totalAdsPerBrand;
+  const gap = 0.1;
+  const cardW = (SW - 2 * PAD - gap * (totalCards - 1)) / totalCards;
 
-  brands.forEach((b, i) => {
-    const x = PAD + i * (colW + 0.15);
+  let cardIdx = 0;
+  brands.forEach((b, bi) => {
+    const ads = b.latestAds.slice(0, totalAdsPerBrand);
 
-    // Brand name header
+    // Brand header spanning the brand's cards
+    const brandX = PAD + cardIdx * (cardW + gap);
+    const brandW = ads.length * cardW + (ads.length - 1) * gap;
     slide.addShape(pptx.ShapeType.rect, {
-      x,
-      y: 0.6,
-      w: colW,
-      h: 0.25,
-      fill: { color: hex(theme.colors.primary) },
-      line: { type: "none" },
+      x: brandX, y: 0.6, w: brandW, h: 0.22,
+      fill: { color: hex(theme.colors.primary) }, line: { type: "none" },
     });
     slide.addText(b.name, {
-      x: x + 0.08,
-      y: 0.6,
-      w: colW - 0.16,
-      h: 0.25,
-      fontSize: 8,
-      fontFace: theme.fonts.heading,
-      color: hex(theme.colors.background),
-      bold: true,
+      x: brandX + 0.06, y: 0.6, w: brandW - 0.12, h: 0.22,
+      fontSize: 7, fontFace: theme.fonts.heading, color: hex(theme.colors.background), bold: true,
     });
 
-    const ads = b.latestAds.slice(0, 3);
-    const cardH = 1.4;
-    ads.forEach((ad, j) => {
-      const cy = 0.95 + j * (cardH + 0.1);
-      const headline = trunc(ad.headline, 60) || `Ad #${ad.ad_archive_id.slice(0, 10)}`;
-
-      addCardBg(slide, pptx, x, cy, colW, cardH, cardBg);
-
-      // Ad image (if available as base64)
-      const imgW = colW - 0.16;
-      const imgH = 0.9;
-      if (ad.imageBase64 && ad.imageMimeType) {
-        slide.addImage({
-          data: `data:${ad.imageMimeType};base64,${ad.imageBase64}`,
-          x: x + 0.08,
-          y: cy + 0.06,
-          w: imgW,
-          h: imgH,
-          sizing: { type: "contain", w: imgW, h: imgH },
-        });
-      } else {
-        // Placeholder box
-        slide.addShape(pptx.ShapeType.rect, {
-          x: x + 0.08,
-          y: cy + 0.06,
-          w: imgW,
-          h: imgH,
-          fill: { color: lighten(contentBg(theme), 0.15) },
-          line: { type: "none" },
-          rectRadius: 0.03,
-        });
-        slide.addText(label(locale, "Immagine non disponibile", "Image not available"), {
-          x: x + 0.08,
-          y: cy + 0.06,
-          w: imgW,
-          h: imgH,
-          fontSize: 6,
-          fontFace: theme.fonts.body,
-          color: hex(theme.colors.text),
-          transparency: 50,
-          align: "center",
-          valign: "middle",
-        });
-      }
-
-      // Headline below image
-      slide.addText(headline, {
-        x: x + 0.08,
-        y: cy + imgH + 0.1,
-        w: colW - 0.16,
-        h: 0.3,
-        fontSize: 6.5,
-        fontFace: theme.fonts.body,
-        color: hex(theme.colors.text),
-        valign: "top",
-      });
+    ads.forEach((ad) => {
+      const cx = PAD + cardIdx * (cardW + gap);
+      addAdCard(slide, pptx, ad, cx, 0.9, cardW, theme);
+      cardIdx++;
     });
+
+    // Fill remaining slots with empty space
+    for (let k = ads.length; k < totalAdsPerBrand; k++) {
+      cardIdx++;
+    }
   });
 }
 
@@ -1877,7 +1945,8 @@ export async function generateSinglePptx(
       copyAnalysis.brandAnalyses,
       copyAnalysis.comparison ?? "",
       t,
-      locale
+      locale,
+      [brand]
     );
   }
 
@@ -1955,7 +2024,8 @@ export async function generateComparisonPptx(
       copyAnalysis.brandAnalyses,
       copyAnalysis.comparison ?? "",
       t,
-      locale
+      locale,
+      brands
     );
   }
 

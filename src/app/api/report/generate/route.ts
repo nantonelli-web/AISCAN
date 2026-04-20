@@ -174,6 +174,9 @@ async function fetchBrandData(
         headline: a.headline,
         image_url: a.image_url,
         ad_archive_id: a.ad_archive_id,
+        cta: a.cta,
+        adText: a.ad_text,
+        platforms: a.platforms,
         imageBase64,
         imageMimeType,
       };
@@ -185,10 +188,11 @@ async function fetchBrandData(
     ? { objective: "unknown" as const, confidence: 0, signals: [] as string[] }
     : inferObjective(adsList.map((a) => a.raw_data));
 
-  // Download brand logo
+  // Download brand logo — try profile_picture_url, fallback to raw_data
   let brandLogoBase64: string | null = null;
   let brandLogoMimeType: string | null = null;
-  const logoUrl = comp?.profile_picture_url as string | null;
+  const logoUrl = (comp?.profile_picture_url as string | null)
+    ?? ((adsList[0]?.raw_data?.snapshot as Record<string, unknown> | undefined)?.pageProfilePictureUrl as string | null);
   if (logoUrl && logoUrl.startsWith("http")) {
     try {
       const ctrl = new AbortController();
