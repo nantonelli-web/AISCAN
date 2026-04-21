@@ -8,6 +8,7 @@ import {
   analyzeVisuals,
   type BrandAdData,
 } from "@/lib/ai/creative-analysis";
+import { cleanInstagramUsername } from "@/lib/instagram/service";
 
 export const maxDuration = 300;
 
@@ -348,11 +349,15 @@ async function computeOrganicStats(
         comments: p.comments_count ?? 0,
       }));
 
+      // Legacy rows may store a full URL in instagram_username — clean
+      // it server-side so the UI always gets a plain handle to display.
+      const rawHandle = comp?.instagram_username ?? null;
+      const cleanHandle = rawHandle ? cleanInstagramUsername(rawHandle) : null;
       return {
         id,
         name: comp?.page_name ?? "—",
         kind: "organic" as const,
-        instagramUsername: comp?.instagram_username ?? null,
+        instagramUsername: cleanHandle ?? rawHandle,
         profile: (comp?.instagram_profile ?? null) as {
           fullName: string | null;
           biography: string | null;

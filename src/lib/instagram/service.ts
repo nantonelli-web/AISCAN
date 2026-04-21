@@ -87,9 +87,11 @@ export function cleanInstagramUsername(raw: string | null | undefined): string |
   return v;
 }
 
-/* ── Profile scrape — fetches followers, bio, posts count ───────── */
-
-const PROFILE_ACTOR_ID = "apify/instagram-profile-scraper";
+/* ── Profile scrape — fetches followers, bio, posts count ─────────
+   Uses the same apify/instagram-scraper actor as the posts pipeline,
+   just with resultsType: "details". Running a second actor was flaky
+   (empty results, no log surface) — reusing the proven one with the
+   async+poll pattern lets us actually see errors. */
 
 export interface InstagramProfile {
   username: string;
@@ -126,19 +128,63 @@ export async function scrapeInstagramProfile(
   usernameInput: string
 ): Promise<InstagramProfile | null> {
   const handle = cleanInstagramUsername(usernameInput);
-  if (!handle) return null;
+  if (!handle) {
+    console.warn(`[Instagram profile] invalid handle: ${usernameInput}`);
+    return null;
+  }
 
   try {
+    const input = {
+      directUrls: [`https://www.instagram.com/${handle}/`],
+      resultsType: "details",
+      resultsLimit: 1,
+    };
+
+    console.log(`[Instagram profile] Starting: user=${handle}`);
+
     const run = await apifyFetch(
-      `/acts/${encodeURIComponent(PROFILE_ACTOR_ID)}/run-sync-get-dataset-items`,
+      `/acts/${encodeURIComponent(ACTOR_ID)}/runs?maxItems=1`,
       {
         method: "POST",
-        body: JSON.stringify({ usernames: [handle] }),
+        body: JSON.stringify(input),
       }
     );
 
-    const items: RawInstagramProfile[] = Array.isArray(run) ? run : [];
-    const p = items[0];
+    const runId: string = run.data?.id ?? run.id ?? "";
+    const datasetId: string =
+      run.data?.defaultDatasetId ?? run.defaultDatasetId ?? "";
+    if (!datasetId) {
+      throw new Error("no datasetId returned from profile run");
+    }
+
+    let status = run.data?.status ?? run.status ?? "RUNNING";
+    const start = Date.now();
+    const maxWait = 2 * 60 * 1000;
+    while (
+      (status === "RUNNING" || status === "READY") &&
+      Date.now() - start < maxWait
+    ) {
+      await new Promise((r) => setTimeout(r, 3000));
+      const info = await apifyFetch(`/actor-runs/${runId}`);
+      status = info.data?.status ?? info.status ?? status;
+    }
+
+    if (status !== "SUCCEEDED") {
+      throw new Error(
+        `profile actor ${status} after ${Math.round((Date.now() - start) / 1000)}s (${handle})`
+      );
+    }
+
+    const ds = await apifyFetch(
+      `/datasets/${datasetId}/items?format=json&limit=5`
+    );
+    const list: RawInstagramProfile[] = Array.isArray(ds)
+      ? ds
+      : ((ds as { items?: RawInstagramProfile[] }).items ?? []);
+    const p = list[0];
+    console.log(
+      `[Instagram profile] Fetched ${list.length} items for ${handle}. Keys: ${p ? Object.keys(p).slice(0, 12).join(",") : "none"}`
+    );
     if (!p) return null;
 
     return {

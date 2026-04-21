@@ -65,8 +65,21 @@ export async function POST(req: Request) {
 
   const admin = createAdminClient();
 
-  // Resolve instagram_username if not set
+  // Resolve instagram_username. If the stored value is a full URL or
+  // "@handle" (legacy rows), normalize it and write the clean form back.
   let igUsername: string | null = competitor.instagram_username ?? null;
+  if (igUsername) {
+    const cleaned = cleanInstagramUsername(igUsername);
+    if (cleaned && cleaned !== igUsername) {
+      await admin
+        .from("mait_competitors")
+        .update({ instagram_username: cleaned })
+        .eq("id", competitor.id);
+      igUsername = cleaned;
+    } else if (cleaned) {
+      igUsername = cleaned;
+    }
+  }
 
   if (!igUsername) {
     // Try to extract from the most recent ad's raw_data
