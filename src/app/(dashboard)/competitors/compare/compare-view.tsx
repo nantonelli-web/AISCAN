@@ -86,9 +86,25 @@ interface SavedComparison {
   id: string;
   competitor_ids: string[];
   locale: string;
+  countries: string[] | null;
+  channel: string | null;
   stale: boolean;
   created_at: string;
   updated_at: string;
+}
+
+function isChannel(v: string | null | undefined): v is Channel {
+  return v === "all" || v === "meta" || v === "google" || v === "instagram";
+}
+
+function channelLabel(ch: string | null | undefined, t: (s: string, k: string) => string): string {
+  switch (ch) {
+    case "meta": return "Meta Ads";
+    case "google": return "Google Ads";
+    case "instagram": return "Instagram";
+    case "all": return t("compare", "allChannels");
+    default: return "Meta Ads";
+  }
 }
 
 export function CompareView({
@@ -234,6 +250,7 @@ export function CompareView({
             competitor_ids: ids,
             locale,
             channel,
+            countries: [...selectedCountries],
             sections: ["technical"],
           }),
         });
@@ -402,6 +419,7 @@ export function CompareView({
           competitor_ids: selectedIds,
           locale,
           channel,
+          countries: [...selectedCountries],
           sections,
         }),
       });
@@ -858,14 +876,28 @@ export function CompareView({
                     >
                       <button
                         onClick={() => {
-                          const newSet = new Set(sc.competitor_ids);
-                          setSelected(newSet);
+                          setSelected(new Set(sc.competitor_ids));
+                          setSelectedCountries(new Set(sc.countries ?? []));
+                          setChannel(isChannel(sc.channel) ? sc.channel : null);
+                          setCache(null);
+                          setStats(null);
+                          setAiResult(null);
+                          setAiError(null);
+                          setMissingBrands([]);
+                          setBenchmarkData(null);
+                          fetchingRef.current = "";
                         }}
                         className="flex-1 text-left min-w-0"
                       >
                         <p className="text-sm font-medium truncate">{brandNames}</p>
                         <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
-                          <span className="text-gold/70">Meta Ads</span>
+                          <span className="text-gold/70">{channelLabel(sc.channel, t)}</span>
+                          {sc.countries && sc.countries.length > 0 && (
+                            <>
+                              <span>·</span>
+                              <span className="truncate">{sc.countries.join(", ")}</span>
+                            </>
+                          )}
                           <span>·</span>
                           {formatTimestamp(sc.updated_at, locale)}
                           {sc.stale && (

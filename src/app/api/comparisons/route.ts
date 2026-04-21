@@ -17,6 +17,7 @@ const postSchema = z.object({
   competitor_ids: z.array(z.string().uuid()).min(2).max(3),
   locale: z.enum(["it", "en"]).optional(),
   channel: z.enum(["all", "meta", "google", "instagram"]).optional().default("meta"),
+  countries: z.array(z.string()).optional(),
   sections: z
     .array(z.enum(["technical", "copy", "visual"]))
     .min(1)
@@ -329,14 +330,19 @@ export async function POST(req: Request) {
     .eq("locale", locale)
     .single();
 
-  // Build update payload
+  // Build update payload — only include countries if the client supplied
+  // them, so follow-up POSTs for AI sections don't overwrite with [].
   const payload: Record<string, unknown> = {
     workspace_id: workspaceId,
     competitor_ids: ids,
     locale,
+    channel: parsed.data.channel,
     stale: false,
     updated_at: new Date().toISOString(),
   };
+  if (parsed.data.countries !== undefined) {
+    payload.countries = parsed.data.countries;
+  }
 
   // Technical data
   if (sections.includes("technical")) {

@@ -22,7 +22,7 @@ export default async function ComparePage() {
       .order("page_name"),
     admin
       .from("mait_comparisons")
-      .select("id, competitor_ids, locale, stale, created_at, updated_at")
+      .select("id, competitor_ids, locale, countries, channel, stale, created_at, updated_at")
       .eq("workspace_id", profile.workspace_id!)
       .order("updated_at", { ascending: false })
       .limit(10),
@@ -45,6 +45,8 @@ export default async function ComparePage() {
           id: string;
           competitor_ids: string[];
           locale: string;
+          countries: string[] | null;
+          channel: string | null;
           stale: boolean;
           created_at: string;
           updated_at: string;
