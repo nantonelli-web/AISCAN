@@ -142,8 +142,10 @@ export async function scrapeInstagramProfile(
 
     console.log(`[Instagram profile] Starting: user=${handle}`);
 
+    // maxItems must yield a max charge above Apify's minimum ($0.0027 for
+    // this actor). maxItems=1 → $0.0023 → rejected; use 5 as a safe cap.
     const run = await apifyFetch(
-      `/acts/${encodeURIComponent(ACTOR_ID)}/runs?maxItems=1`,
+      `/acts/${encodeURIComponent(ACTOR_ID)}/runs?maxItems=5`,
       {
         method: "POST",
         body: JSON.stringify(input),
