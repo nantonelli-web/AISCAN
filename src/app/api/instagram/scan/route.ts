@@ -164,13 +164,34 @@ export async function POST(req: Request) {
           `ig_${competitor.id}`,
           profile.profilePicUrl
         );
-        if (permanent) profile.profilePicUrl = permanent;
+        if (permanent) {
+          profile.profilePicUrl = permanent;
+        } else {
+          console.warn(
+            `[Instagram scan] profile pic storage failed for ${competitor.page_name}, keeping CDN URL`
+          );
+        }
+      } else {
+        console.warn(
+          `[Instagram scan] scrape returned no profilePicUrl for ${competitor.page_name}`
+        );
       }
       await admin
         .from("mait_competitors")
         .update({ instagram_profile: profile })
         .eq("id", competitor.id);
+    } else {
+      console.warn(
+        `[Instagram scan] profile scrape returned null for ${competitor.page_name}`
+      );
     }
+
+    // Any cached comparison containing this brand is now out of date
+    // (new posts/profile data) — mark stale so the user sees the banner.
+    await admin
+      .from("mait_comparisons")
+      .update({ stale: true })
+      .contains("competitor_ids", [competitor.id]);
 
     // Download images to permanent storage, then upsert
     console.log(`[Instagram route] Scrape done: ${result.records.length} records, runId=${result.runId}`);

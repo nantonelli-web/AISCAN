@@ -183,9 +183,24 @@ export async function scrapeInstagramProfile(
       : ((ds as { items?: RawInstagramProfile[] }).items ?? []);
     const p = list[0];
     console.log(
-      `[Instagram profile] Fetched ${list.length} items for ${handle}. Keys: ${p ? Object.keys(p).slice(0, 12).join(",") : "none"}`
+      `[Instagram profile] Fetched ${list.length} items for ${handle}. Keys: ${p ? Object.keys(p).slice(0, 20).join(",") : "none"}`
     );
     if (!p) return null;
+
+    // Try a wide set of field-name variants — actors return pics under
+    // profilePicUrlHD / profilePicUrl / profile_pic_url / etc.
+    const pic =
+      (p.profilePicUrlHD as string | undefined) ??
+      (p.profilePicUrl as string | undefined) ??
+      (p["profile_pic_url_hd"] as string | undefined) ??
+      (p["profile_pic_url"] as string | undefined) ??
+      (p["profilePicture"] as string | undefined) ??
+      null;
+    if (!pic) {
+      console.warn(
+        `[Instagram profile] no pic URL field. Raw payload snippet: ${JSON.stringify(p).slice(0, 400)}`
+      );
+    }
 
     // Apify sometimes returns things like "None,Brand" — strip the null
     // subcategory so we only display the meaningful part.
@@ -201,7 +216,7 @@ export async function scrapeInstagramProfile(
       followersCount: p.followersCount ?? null,
       followsCount: p.followsCount ?? null,
       postsCount: p.postsCount ?? null,
-      profilePicUrl: p.profilePicUrlHD ?? p.profilePicUrl ?? null,
+      profilePicUrl: pic,
       verified: p.verified === true,
       isBusinessAccount: p.isBusinessAccount === true,
       businessCategoryName: category,
