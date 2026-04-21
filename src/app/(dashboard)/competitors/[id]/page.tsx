@@ -97,79 +97,82 @@ export default async function CompetitorDetailPage({
         <ArrowLeft className="size-4" /> {t("competitors", "allCompetitors")}
       </Link>
 
-      {/* ─── Header ────────────────────────────────────────── */}
-      <div className="space-y-3">
-        {/* Row 1: Brand name + URL + likes */}
-        <div className="flex items-center gap-4">
-          {pageProfilePicture ? (
-            <FallbackImage
-              src={pageProfilePicture}
-              className="size-12 rounded-full object-cover border border-border shrink-0"
-              fallbackInitial={c.page_name}
-            />
-          ) : (
-            <div className="size-12 rounded-full bg-muted border border-border shrink-0 grid place-items-center text-muted-foreground font-semibold text-lg">
-              {c.page_name.charAt(0).toUpperCase()}
+      {/* ─── Header + scan actions: 2-col layout on desktop ── */}
+      <div className="grid gap-8 lg:grid-cols-[minmax(260px,360px)_1fr] lg:items-start">
+        {/* Left: brand identity */}
+        <div className="space-y-4">
+          {/* avatar + name + URL + likes */}
+          <div className="flex items-start gap-4">
+            {pageProfilePicture ? (
+              <FallbackImage
+                src={pageProfilePicture}
+                className="size-12 rounded-full object-cover border border-border shrink-0"
+                fallbackInitial={c.page_name}
+              />
+            ) : (
+              <div className="size-12 rounded-full bg-muted border border-border shrink-0 grid place-items-center text-muted-foreground font-semibold text-lg">
+                {c.page_name.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="text-3xl font-serif tracking-tight truncate">{c.page_name}</h1>
+                <Link
+                  href={`/competitors/${c.id}/edit?from=brand`}
+                  className="size-7 rounded-md grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
+                  title="Edit"
+                >
+                  <Pencil className="size-3.5" />
+                </Link>
+              </div>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <a
+                  href={c.page_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm text-gold hover:underline"
+                >
+                  {c.page_url.replace(/^https?:\/\/(www\.)?/, "")}
+                </a>
+                {pageLikeCount != null && pageLikeCount > 0 && (
+                  <>
+                    <span className="text-sm text-muted-foreground">—</span>
+                    <span className="text-sm text-muted-foreground">
+                      {formatCompactNumber(pageLikeCount)} {t("competitors", "likes")}
+                    </span>
+                  </>
+                )}
+              </div>
             </div>
-          )}
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-3xl font-serif tracking-tight">{c.page_name}</h1>
-              <Link
-                href={`/competitors/${c.id}/edit?from=brand`}
-                className="size-7 rounded-md grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                title="Edit"
-              >
-                <Pencil className="size-3.5" />
-              </Link>
-            </div>
-            <div className="flex items-center gap-2 mt-1">
-              <a
-                href={c.page_url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-sm text-gold hover:underline"
-              >
-                {c.page_url.replace(/^https?:\/\/(www\.)?/, "")}
-              </a>
-              {pageLikeCount != null && pageLikeCount > 0 && (
-                <>
-                  <span className="text-sm text-muted-foreground">—</span>
-                  <span className="text-sm text-muted-foreground">
-                    {formatCompactNumber(pageLikeCount)} {t("competitors", "likes")}
-                  </span>
-                </>
-              )}
+          </div>
+
+          {/* meta rows — each fact on its own line */}
+          <div className="flex flex-col gap-2 text-sm">
+            {c.category && (
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">{t("competitors", "industryLabel")}</span>
+                <Badge variant="muted">{c.category}</Badge>
+              </div>
+            )}
+            {c.country && (
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">{t("competitors", "selectedCountries")}</span>
+                <span className="text-foreground font-medium">{c.country}</span>
+              </div>
+            )}
+            <div className="flex items-center">
+              <FrequencySelector competitorId={c.id} initial={frequency} />
             </div>
           </div>
         </div>
 
-        {/* Meta rows — each fact on its own line for readability */}
-        <div className="flex flex-col gap-2 text-sm">
-          {c.category && (
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground">{t("competitors", "industryLabel")}</span>
-              <Badge variant="muted">{c.category}</Badge>
-            </div>
-          )}
-          {c.country && (
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground">{t("competitors", "selectedCountries")}</span>
-              <span className="text-foreground font-medium">{c.country}</span>
-            </div>
-          )}
-          <div className="flex items-center">
-            <FrequencySelector competitorId={c.id} initial={frequency} />
-          </div>
-        </div>
+        {/* Right: scan period + channels (fills the otherwise empty space) */}
+        <ScanDropdown
+          competitorId={c.id}
+          hasGoogleConfig={!!(c.google_advertiser_id || c.google_domain)}
+          hasInstagramConfig={!!c.instagram_username}
+        />
       </div>
-
-      {/* ─── Scan actions: always visible, prominent ─────────── */}
-      <ScanDropdown
-        competitorId={c.id}
-        hasGoogleConfig={!!(c.google_advertiser_id || c.google_domain)}
-        hasInstagramConfig={!!c.instagram_username}
-      />
 
       {/* ─── Scan history (collapsible) ──────────────────────── */}
       {jobsList.length > 0 && <CollapsibleJobHistory jobs={jobsList} />}
