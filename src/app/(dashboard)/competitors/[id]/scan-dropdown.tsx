@@ -8,8 +8,8 @@ import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useT } from "@/lib/i18n/context";
+import { cn } from "@/lib/utils";
 
 /* ─── Platform SVG logos ─────────────────────────────────── */
 
@@ -227,148 +227,156 @@ export function ScanDropdown({ competitorId, hasGoogleConfig, hasInstagramConfig
 
   // ─── Render ───
 
+  const bigCta = "h-12 px-5 text-base gap-2.5 cursor-pointer";
+  const bigCtaDisabled = "h-12 px-5 text-base gap-2.5 opacity-40 cursor-not-allowed";
+  const groupLabel = "text-[10px] uppercase tracking-wider text-muted-foreground font-medium";
+
   return (
     <div className="space-y-4">
-      {/* ─── 1. Date range (above scan buttons) ─── */}
-      <div className="space-y-2">
+      {/* ─── 1. Scan period — everything on one line ─── */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="flex items-center gap-2">
           <CalendarRange className="size-4 text-foreground" />
-          <span className="text-sm font-medium text-foreground">{t("scan", "scanPeriod")}</span>
+          <span className="text-sm font-medium text-foreground">{t("scan", "scanPeriod")}:</span>
         </div>
-        <div className="flex items-end gap-3">
-          <div className="space-y-1">
-            <Label className="text-[10px] text-muted-foreground">{t("scan", "dateFrom")}</Label>
-            <Input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              placeholder={daysAgo(30)}
-              className="text-xs h-8 w-36"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[10px] text-muted-foreground">{t("scan", "dateTo")}</Label>
-            <Input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="text-xs h-8 w-36"
-            />
-          </div>
-          <div className="flex items-center gap-2 pb-0.5">
-            {(dateFrom || dateTo) && (
-              <button
-                onClick={() => { setDateFrom(""); setDateTo(""); }}
-                className="text-[10px] text-muted-foreground hover:text-foreground underline"
-              >
-                Reset
-              </button>
-            )}
-          </div>
-        </div>
+        <label className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">{t("scan", "dateFrom")}</span>
+          <Input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            placeholder={daysAgo(30)}
+            className="text-xs h-8 w-36"
+          />
+        </label>
+        <label className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">{t("scan", "dateTo")}</span>
+          <Input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="text-xs h-8 w-36"
+          />
+        </label>
+        {(dateFrom || dateTo) && (
+          <button
+            onClick={() => { setDateFrom(""); setDateTo(""); }}
+            className="text-xs text-muted-foreground hover:text-foreground underline"
+          >
+            Reset
+          </button>
+        )}
         {rangeError && (
-          <p className="text-[10px] text-red-400">{rangeError}</p>
+          <span className="text-xs text-red-400">{rangeError}</span>
         )}
       </div>
 
-      {/* ─── 2. Scan buttons ─── */}
-      <div className="flex items-center gap-3 flex-wrap">
-        {/* Stop button — visible during scan */}
-        {isLoading && (
-          <Button
-            onClick={stopScan}
-            variant="outline"
-            size="lg"
-            className="gap-2 cursor-pointer border-red-400/40 text-red-400 hover:bg-red-400/15 hover:border-red-400"
-          >
-            <Square className="size-4 fill-current" />
-            Stop
-          </Button>
-        )}
+      {/* ─── 2. Stop button — only while a scan is in flight ─── */}
+      {isLoading && (
+        <Button
+          onClick={stopScan}
+          variant="outline"
+          size="lg"
+          className={cn(bigCta, "border-red-400/40 text-red-400 hover:bg-red-400/15 hover:border-red-400")}
+        >
+          <Square className="size-5 fill-current" />
+          Stop
+        </Button>
+      )}
 
-        {/* Meta Ads — with ad status dropdown */}
-        <div className="relative" ref={metaRef}>
-          <div className="flex">
-            <Button
-              onClick={() => scanMeta("ACTIVE")}
-              disabled={isLoading || rangeExceeded}
-              variant="outline"
-              size="lg"
-              className="rounded-r-none gap-2.5 cursor-pointer"
-            >
-              {loading === "meta" ? (
-                <RefreshCw className="size-5 animate-spin" />
-              ) : (
-                <MetaIcon className="size-5" />
+      {/* ─── 3. Channels — grouped by Paid / Organic ─── */}
+      <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
+        {/* Paid group */}
+        <div className="space-y-2">
+          <p className={groupLabel}>{t("scan", "paid")}</p>
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Meta Ads — with ad status dropdown */}
+            <div className="relative" ref={metaRef}>
+              <div className="flex">
+                <Button
+                  onClick={() => scanMeta("ACTIVE")}
+                  disabled={isLoading || rangeExceeded}
+                  variant="outline"
+                  size="lg"
+                  className={cn(bigCta, "rounded-r-none")}
+                >
+                  {loading === "meta" ? (
+                    <RefreshCw className="size-6 animate-spin" />
+                  ) : (
+                    <MetaIcon className="size-6" />
+                  )}
+                  {loading === "meta" ? t("scan", "scanning") : "Meta Ads"}
+                </Button>
+                <Button
+                  onClick={() => setShowMetaMenu(!showMetaMenu)}
+                  disabled={isLoading || rangeExceeded}
+                  variant="outline"
+                  size="lg"
+                  className="h-12 rounded-l-none border-l-0 px-3 cursor-pointer"
+                >
+                  <ChevronDown className="size-4" />
+                </Button>
+              </div>
+
+              {showMetaMenu && (
+                <div className="absolute left-0 top-full mt-1 z-20 w-48 rounded-lg border border-border bg-card shadow-lg p-1">
+                  <button
+                    onClick={() => scanMeta("ACTIVE")}
+                    className="flex items-center w-full rounded-md px-3 py-2 text-xs text-foreground hover:bg-muted transition-colors cursor-pointer"
+                  >
+                    {t("scan", "activeOnly")}
+                  </button>
+                  <button
+                    onClick={() => scanMeta("ALL")}
+                    className="flex items-center w-full rounded-md px-3 py-2 text-xs text-foreground hover:bg-muted transition-colors cursor-pointer"
+                  >
+                    {t("scan", "allAds")}
+                  </button>
+                </div>
               )}
-              {loading === "meta" ? t("scan", "scanning") : "Meta Ads"}
-            </Button>
+            </div>
+
+            {/* Google Ads */}
             <Button
-              onClick={() => setShowMetaMenu(!showMetaMenu)}
-              disabled={isLoading || rangeExceeded}
+              onClick={hasGoogleConfig ? scanGoogle : undefined}
+              disabled={!hasGoogleConfig || isLoading || rangeExceeded}
               variant="outline"
               size="lg"
-              className="rounded-l-none border-l-0 px-2 cursor-pointer"
+              className={hasGoogleConfig ? bigCta : bigCtaDisabled}
             >
-              <ChevronDown className="size-4" />
+              {loading === "google" ? (
+                <RefreshCw className="size-6 animate-spin" />
+              ) : (
+                <GoogleLogo className="size-6" />
+              )}
+              {loading === "google" ? t("scan", "scanningGoogle") : "Google Ads"}
             </Button>
           </div>
-
-          {showMetaMenu && (
-            <div className="absolute left-0 top-full mt-1 z-20 w-48 rounded-lg border border-border bg-card shadow-lg p-1">
-              <button
-                onClick={() => scanMeta("ACTIVE")}
-                className="flex items-center w-full rounded-md px-3 py-2 text-xs text-foreground hover:bg-muted transition-colors cursor-pointer"
-              >
-                {t("scan", "activeOnly")}
-              </button>
-              <button
-                onClick={() => scanMeta("ALL")}
-                className="flex items-center w-full rounded-md px-3 py-2 text-xs text-foreground hover:bg-muted transition-colors cursor-pointer"
-              >
-                {t("scan", "allAds")}
-              </button>
-            </div>
-          )}
         </div>
 
-        {/* Google Ads */}
-        <Button
-          onClick={hasGoogleConfig ? scanGoogle : undefined}
-          disabled={!hasGoogleConfig || isLoading || rangeExceeded}
-          variant="outline"
-          size="lg"
-          className={hasGoogleConfig
-            ? "gap-2.5 cursor-pointer"
-            : "gap-2.5 opacity-40 cursor-not-allowed"
-          }
-        >
-          {loading === "google" ? (
-            <RefreshCw className="size-5 animate-spin" />
-          ) : (
-            <GoogleLogo className="size-5" />
-          )}
-          {loading === "google" ? t("scan", "scanningGoogle") : "Google Ads"}
-        </Button>
+        {/* Divider between groups */}
+        <div className="hidden sm:block w-px self-stretch bg-border mt-6" />
 
-        {/* Instagram */}
-        <Button
-          onClick={hasInstagramConfig ? scanInstagram : undefined}
-          disabled={!hasInstagramConfig || isLoading}
-          variant="outline"
-          size="lg"
-          className={hasInstagramConfig
-            ? "gap-2.5 cursor-pointer"
-            : "gap-2.5 opacity-40 cursor-not-allowed"
-          }
-        >
-          {loading === "instagram" ? (
-            <RefreshCw className="size-5 animate-spin" />
-          ) : (
-            <InstagramIcon className="size-5" />
-          )}
-          {loading === "instagram" ? t("organic", "scanning") : "Instagram"}
-        </Button>
+        {/* Organic group */}
+        <div className="space-y-2">
+          <p className={groupLabel}>{t("scan", "organic")}</p>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Button
+              onClick={hasInstagramConfig ? scanInstagram : undefined}
+              disabled={!hasInstagramConfig || isLoading}
+              variant="outline"
+              size="lg"
+              className={hasInstagramConfig ? bigCta : bigCtaDisabled}
+            >
+              {loading === "instagram" ? (
+                <RefreshCw className="size-6 animate-spin" />
+              ) : (
+                <InstagramIcon className="size-6" />
+              )}
+              {loading === "instagram" ? t("organic", "scanning") : "Instagram"}
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* ─── 3. Missing config details (amber box) ─── */}

@@ -50,13 +50,13 @@ export function FrequencySelector({
   }
 
   return (
-    <label className="inline-flex items-center gap-1 text-xs cursor-pointer">
+    <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
       <span className="text-muted-foreground">{t("frequency", "schedule")}</span>
       <select
         value={value}
         onChange={onChange}
         disabled={pending}
-        className="bg-transparent text-foreground outline-none cursor-pointer disabled:opacity-50 text-xs underline underline-offset-2 decoration-dotted decoration-muted-foreground/50"
+        className="bg-transparent text-foreground font-medium outline-none cursor-pointer disabled:opacity-50 text-sm underline underline-offset-2 decoration-dotted decoration-muted-foreground/50"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value} className="bg-card">

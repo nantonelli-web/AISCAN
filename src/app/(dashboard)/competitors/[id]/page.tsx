@@ -144,14 +144,23 @@ export default async function CompetitorDetailPage({
           </div>
         </div>
 
-        {/* Row 2: Category + countries + schedule */}
-        <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-          {c.category && <Badge variant="muted">{c.category}</Badge>}
-          {c.country && (
-            <span>{t("competitors", "selectedCountries")} {c.country}</span>
+        {/* Meta rows — each fact on its own line for readability */}
+        <div className="flex flex-col gap-2 text-sm">
+          {c.category && (
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">{t("competitors", "industryLabel")}</span>
+              <Badge variant="muted">{c.category}</Badge>
+            </div>
           )}
-          <span className="text-border">·</span>
-          <FrequencySelector competitorId={c.id} initial={frequency} />
+          {c.country && (
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">{t("competitors", "selectedCountries")}</span>
+              <span className="text-foreground font-medium">{c.country}</span>
+            </div>
+          )}
+          <div className="flex items-center">
+            <FrequencySelector competitorId={c.id} initial={frequency} />
+          </div>
         </div>
       </div>
 
