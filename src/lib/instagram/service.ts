@@ -63,6 +63,10 @@ export interface InstagramScrapeResult {
 export interface InstagramScrapeOptions {
   username: string;
   maxPosts?: number;
+  /** ISO date (YYYY-MM-DD). Posts older than this are skipped by Apify. */
+  dateFrom?: string;
+  /** ISO date (YYYY-MM-DD). Posts newer than this are dropped post-fetch. */
+  dateTo?: string;
 }
 
 /**
@@ -169,13 +173,21 @@ export async function scrapeInstagramPosts(
     );
   }
 
-  const input = {
+  const input: Record<string, unknown> = {
     directUrls: [`https://www.instagram.com/${handle}/`],
     resultsType: "posts",
     resultsLimit: maxPosts,
   };
+  // Date filter: Apify's actor supports lower-bound filtering natively,
+  // which lets it stop scraping early (saves cost). Upper bound has to be
+  // filtered post-fetch since the actor fetches newest-first.
+  if (opts.dateFrom) {
+    input.onlyPostsNewerThan = opts.dateFrom;
+  }
 
-  console.log(`[Instagram] Starting: actor=${ACTOR_ID} user=${handle} max=${maxPosts}`);
+  console.log(
+    `[Instagram] Starting: actor=${ACTOR_ID} user=${handle} max=${maxPosts} from=${opts.dateFrom ?? "-"} to=${opts.dateTo ?? "-"}`
+  );
 
   const actorPath = `/acts/${encodeURIComponent(ACTOR_ID)}/runs?maxItems=${maxPosts}`;
   const run = await apifyFetch(actorPath, {
@@ -249,6 +261,21 @@ export async function scrapeInstagramPosts(
   } catch (normErr) {
     console.error(`[Instagram] Normalize failed:`, normErr);
     throw normErr;
+  }
+
+  // Apply upper-bound date filter (end of dateTo, inclusive).
+  if (opts.dateTo) {
+    const toMs = new Date(opts.dateTo).getTime() + 86_400_000 - 1;
+    const before = records.length;
+    records = records.filter((r) => {
+      if (!r.posted_at) return true;
+      return new Date(r.posted_at).getTime() <= toMs;
+    });
+    if (records.length !== before) {
+      console.log(
+        `[Instagram] Date filter (to=${opts.dateTo}): ${before} -> ${records.length}`
+      );
+    }
   }
 
   console.log(`[Instagram] Normalized: ${records.length} posts`);

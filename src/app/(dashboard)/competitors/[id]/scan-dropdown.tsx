@@ -195,6 +195,7 @@ export function ScanDropdown({ competitorId, hasGoogleConfig, hasInstagramConfig
   }
 
   async function scanInstagram() {
+    if (rangeExceeded) return;
     const controller = new AbortController();
     abortRef.current = controller;
     setLoading("instagram");
@@ -203,14 +204,22 @@ export function ScanDropdown({ competitorId, hasGoogleConfig, hasInstagramConfig
       const res = await fetch("/api/instagram/scan", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ competitor_id: competitorId, max_posts: 30 }),
+        body: JSON.stringify({
+          competitor_id: competitorId,
+          max_posts: 100,
+          date_from: effectiveFrom,
+          date_to: effectiveTo,
+        }),
         signal: controller.signal,
       });
       const json = await res.json();
       if (!res.ok) {
         toast.error(json.error ?? "Instagram scrape failed", { id: toastId });
       } else {
-        toast.success(`${json.records} ${t("organic", "postsSynced")}`, { id: toastId });
+        toast.success(
+          `${json.records} ${t("organic", "postsSynced")} (${rangeLabel})`,
+          { id: toastId }
+        );
         router.refresh();
       }
     } catch (e) {
@@ -363,7 +372,7 @@ export function ScanDropdown({ competitorId, hasGoogleConfig, hasInstagramConfig
           <div className="flex items-center gap-3 flex-wrap">
             <Button
               onClick={hasInstagramConfig ? scanInstagram : undefined}
-              disabled={!hasInstagramConfig || isLoading}
+              disabled={!hasInstagramConfig || isLoading || rangeExceeded}
               variant="outline"
               size="lg"
               className={hasInstagramConfig ? bigCta : bigCtaDisabled}

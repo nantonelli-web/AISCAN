@@ -543,7 +543,7 @@ export function CompareView({
 
         const body =
           channel === "instagram"
-            ? { competitor_id: id, max_posts: 30 }
+            ? { competitor_id: id, max_posts: 100 }
             : { competitor_id: id, max_items: 200 };
 
         await fetch(endpoint, {

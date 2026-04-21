@@ -15,6 +15,8 @@ export const maxDuration = 300; // seconds
 const schema = z.object({
   competitor_id: z.string().uuid(),
   max_posts: z.number().int().min(1).max(500).optional(),
+  date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 export async function POST(req: Request) {
@@ -133,6 +135,8 @@ export async function POST(req: Request) {
       scrapeInstagramPosts({
         username: igUsername,
         maxPosts: parsed.data.max_posts ?? 30,
+        dateFrom: parsed.data.date_from,
+        dateTo: parsed.data.date_to,
       }),
       scrapeInstagramProfile(igUsername),
     ]);
