@@ -564,6 +564,8 @@ const translations = {
       it: "Dati profilo non ancora disponibili. Rilancia uno scan Instagram per aggiornarli.",
       en: "Profile data not available yet. Re-run the Instagram scan to populate.",
     },
+    print: { it: "Stampa", en: "Print" },
+    printCoverTitle: { it: "Confronto brand", en: "Brand comparison" },
     generatedAt: { it: "Generato il", en: "Generated on" },
     regenerate: { it: "Rigenera", en: "Regenerate" },
     regenerating: { it: "Rigenerazione...", en: "Regenerating..." },
@@ -709,6 +711,10 @@ const translations = {
     volumePerCompetitor: {
       it: "Volume ads per brand",
       en: "Ad volume per brand",
+    },
+    postsVolumePerCompetitor: {
+      it: "Post per brand",
+      en: "Posts per brand",
     },
     globalFormatMix: { it: "Format mix (globale)", en: "Format mix (global)" },
     formatPerCompetitor: {

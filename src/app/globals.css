@@ -51,3 +51,27 @@ html, body {
 ::-webkit-scrollbar-track { background: var(--background); }
 ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 6px; }
 ::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
+
+/* Print: keep the dark theme on paper so colors/charts match screen.
+   Preserves background-color + border colors via color-adjust. */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+  html, body {
+    background: #0a0a0a !important;
+    color: var(--foreground);
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  /* Force items that should cover the full page */
+  .print-cover {
+    page-break-after: always;
+    break-after: page;
+  }
+}

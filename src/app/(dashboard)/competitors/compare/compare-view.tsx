@@ -16,6 +16,7 @@ import {
   ChevronDown,
   Trash2,
   ArrowLeft,
+  Printer,
 } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
@@ -285,7 +286,13 @@ export function CompareView({
           const data = await getRes.json();
           const normalized = normalizeStats(data.technical_data);
           const cachedKind = normalized?.[0]?.kind ?? null;
-          if (normalized && cachedKind === expectedKind) {
+          // Organic stats gained a `profile` field later — if the cached
+          // row predates that, refresh so the profile card actually shows.
+          const needsOrganicRefresh =
+            cachedKind === "organic" &&
+            normalized !== null &&
+            normalized.some((s) => !("profile" in (s as object)));
+          if (normalized && cachedKind === expectedKind && !needsOrganicRefresh) {
             setCache({
               technical_data: normalized,
               copy_analysis: data.copy_analysis,
@@ -672,7 +679,7 @@ export function CompareView({
         <button
           type="button"
           onClick={resetToSelection}
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-gold transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-gold transition-colors cursor-pointer print:hidden"
         >
           <ArrowLeft className="size-4" />
           {t("compare", "backToSelection")}
@@ -1020,37 +1027,84 @@ export function CompareView({
               </Button>
             </div>
           )}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between print:hidden">
             <p className="text-xs text-muted-foreground">
               {t("compare", "generatedAt")}{" "}
               {formatTimestamp(cache.created_at, locale)}
             </p>
-            {!cache.stale && (
+            <div className="flex items-center gap-2">
               <Button
                 size="sm"
                 variant="ghost"
                 className="text-xs text-muted-foreground hover:text-foreground"
-                onClick={handleRegenerate}
-                disabled={regenerating}
+                onClick={() => window.print()}
               >
-                {regenerating ? (
-                  <Loader2 className="size-3 animate-spin mr-1.5" />
-                ) : (
-                  <RefreshCw className="size-3 mr-1.5" />
-                )}
-                {regenerating
-                  ? t("compare", "regenerating")
-                  : t("compare", "regenerate")}
+                <Printer className="size-3 mr-1.5" />
+                {t("compare", "print")}
               </Button>
-            )}
+              {!cache.stale && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                  onClick={handleRegenerate}
+                  disabled={regenerating}
+                >
+                  {regenerating ? (
+                    <Loader2 className="size-3 animate-spin mr-1.5" />
+                  ) : (
+                    <RefreshCw className="size-3 mr-1.5" />
+                  )}
+                  {regenerating
+                    ? t("compare", "regenerating")
+                    : t("compare", "regenerate")}
+                </Button>
+              )}
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* Print cover — hidden on screen, becomes the first page when printing */}
+      {hasResults && (
+        <div className="hidden print:flex print-cover flex-col items-center justify-center min-h-[260mm] gap-8 text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.webp" alt="AISCAN" className="h-24" />
+          <div className="space-y-2">
+            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+              {t("compare", "printCoverTitle")}
+            </p>
+            <h1 className="text-3xl font-serif tracking-tight text-foreground">
+              {competitors
+                .filter((c) => selected.has(c.id))
+                .map((c) => c.page_name)
+                .join(" · ")}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {channel === "instagram"
+                ? "Instagram · Organic"
+                : channel === "meta"
+                  ? "Meta Ads · Paid"
+                  : channel === "google"
+                    ? "Google Ads · Paid"
+                    : channel === "all"
+                      ? t("compare", "allChannels")
+                      : ""}
+            </p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {new Date().toLocaleDateString(
+              locale === "it" ? "it-IT" : "en-GB",
+              { day: "2-digit", month: "long", year: "numeric" }
+            )}
+          </p>
         </div>
       )}
 
       {/* Tabs */}
       {hasResults && (
         <>
-          <div className="flex gap-1 bg-muted/50 rounded-lg p-1">
+          <div className="flex gap-1 bg-muted/50 rounded-lg p-1 print:hidden">
             <TabButton
               active={activeTab === "technical"}
               onClick={() => setActiveTab("technical")}
@@ -1141,7 +1195,7 @@ export function CompareView({
             ) : null)}
 
           {/* Bottom "back" action — same affordance at the end of the scroll */}
-          <div className="flex justify-center pt-6">
+          <div className="flex justify-center pt-6 print:hidden">
             <Button variant="outline" size="sm" onClick={resetToSelection} className="gap-1.5">
               <ArrowLeft className="size-3.5" /> {t("compare", "backToSelection")}
             </Button>
@@ -1739,7 +1793,7 @@ function OrganicBenchmarkCharts({
       {/* Posts per competitor */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("benchmarks", "volumePerCompetitor")}</CardTitle>
+          <CardTitle>{t("benchmarks", "postsVolumePerCompetitor")}</CardTitle>
         </CardHeader>
         <CardContent>
           <HorizontalBarChart
