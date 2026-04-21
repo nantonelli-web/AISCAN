@@ -353,12 +353,40 @@ async function computeOrganicStats(
       // it server-side so the UI always gets a plain handle to display.
       const rawHandle = comp?.instagram_username ?? null;
       const cleanHandle = rawHandle ? cleanInstagramUsername(rawHandle) : null;
+      // Legacy profiles may have "None,Brand" in businessCategoryName
+      // because the cleanup was added after the first scans. Normalize
+      // on read so existing rows display correctly.
+      type RawProfile = {
+        fullName: string | null;
+        biography: string | null;
+        followersCount: number | null;
+        followsCount: number | null;
+        postsCount: number | null;
+        profilePicUrl: string | null;
+        verified: boolean;
+        businessCategoryName: string | null;
+      } | null;
+      const storedProfile = (comp?.instagram_profile ?? null) as RawProfile;
+      const cleanedProfile: RawProfile = storedProfile
+        ? {
+            ...storedProfile,
+            businessCategoryName: (() => {
+              const raw = storedProfile.businessCategoryName;
+              if (!raw) return null;
+              const parts = raw
+                .split(",")
+                .map((s) => s.trim())
+                .filter((s) => s && s.toLowerCase() !== "none");
+              return parts.length > 0 ? parts.join(" · ") : null;
+            })(),
+          }
+        : null;
       return {
         id,
         name: comp?.page_name ?? "—",
         kind: "organic" as const,
         instagramUsername: cleanHandle ?? rawHandle,
-        profile: (comp?.instagram_profile ?? null) as {
+        profile: cleanedProfile as {
           fullName: string | null;
           biography: string | null;
           followersCount: number | null;

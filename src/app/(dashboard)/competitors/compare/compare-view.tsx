@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
+import { FallbackImage } from "@/components/ui/fallback-image";
 import { cn, formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { AnalysisReport } from "./analysis-report";
@@ -1385,11 +1386,11 @@ function OrganicProfileCard({
     <div className="rounded-lg border border-border p-4 space-y-3">
       <div className="flex items-start gap-3">
         {p?.profilePicUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <FallbackImage
             src={p.profilePicUrl}
             alt={stat.name}
             className="size-12 rounded-full object-cover border border-border shrink-0"
+            fallbackInitial={stat.name}
           />
         ) : (
           <div className="size-12 rounded-full bg-muted border border-border shrink-0 grid place-items-center text-muted-foreground font-semibold">
