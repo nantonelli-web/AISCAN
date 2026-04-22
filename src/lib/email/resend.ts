@@ -11,6 +11,10 @@ export function getResend(): Resend | null {
 const FROM =
   process.env.EMAIL_FROM ?? "AISCAN <noreply@nimadigital.ae>";
 
+// Logo served from the public production domain so email clients can
+// load it without being logged into the app. Emails must use absolute URLs.
+const LOGO_URL = "https://aiscan.biz/logo.webp";
+
 export interface NewAdsEmailData {
   competitorName: string;
   adsCount: number;
@@ -39,7 +43,7 @@ export async function sendNewAdsNotification(
 <body style="margin:0;padding:0;background:#0a0a0a;color:#f5f5f5;font-family:-apple-system,system-ui,'Segoe UI',Helvetica,Arial,sans-serif;">
   <div style="max-width:600px;margin:0 auto;padding:32px 24px;">
     <div style="text-align:center;margin-bottom:24px;">
-      <span style="color:#d4a843;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;">AISCAN · Ads Analysis Tool</span>
+      <img src="${LOGO_URL}" alt="AISCAN" height="48" style="display:inline-block;height:48px;width:auto;border:0;outline:none;text-decoration:none;" />
     </div>
 
     <div style="background:#121212;border:1px solid #232323;border-radius:12px;padding:24px;margin-bottom:24px;">
@@ -124,7 +128,7 @@ export async function sendWeeklyDigest(
 <body style="margin:0;padding:0;background:#0a0a0a;color:#f5f5f5;font-family:-apple-system,system-ui,'Segoe UI',Helvetica,Arial,sans-serif;">
   <div style="max-width:600px;margin:0 auto;padding:32px 24px;">
     <div style="text-align:center;margin-bottom:24px;">
-      <span style="color:#d4a843;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;">AISCAN · Weekly Digest</span>
+      <img src="${LOGO_URL}" alt="AISCAN" height="48" style="display:inline-block;height:48px;width:auto;border:0;outline:none;text-decoration:none;" />
     </div>
 
     <div style="background:#121212;border:1px solid #232323;border-radius:12px;padding:24px;margin-bottom:24px;">
