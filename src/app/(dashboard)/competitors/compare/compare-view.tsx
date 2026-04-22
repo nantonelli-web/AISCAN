@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   BarChart3,
   Pen,
@@ -173,6 +174,7 @@ export function CompareView({
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectedCountries, setSelectedCountries] = useState<Set<string>>(new Set());
+  const [countrySearch, setCountrySearch] = useState("");
   const [channel, setChannel] = useState<Channel | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("technical");
 
@@ -593,6 +595,34 @@ export function CompareView({
   // Full list of available countries, localized to current UI locale
   const allCountries = useMemo(() => getCountries(locale), [locale]);
 
+  // Countries that appear in the scan scope of the currently-selected
+  // brands — this is what the user almost always wants to pick from.
+  const scanScopeCountries = useMemo(() => {
+    const codes = new Set<string>();
+    for (const c of selectedComps) {
+      if (!c.country) continue;
+      for (const code of c.country.split(",").map((s) => s.trim()).filter(Boolean)) {
+        codes.add(code.toUpperCase());
+      }
+    }
+    return allCountries.filter((c) => codes.has(c.code));
+  }, [selectedComps, allCountries]);
+
+  // When the user types, match against the full ISO list (excluding the
+  // scan-scope suggestions to avoid duplicating them).
+  const countrySearchResults = useMemo(() => {
+    const q = countrySearch.trim().toLowerCase();
+    if (!q) return [];
+    const scopeCodes = new Set(scanScopeCountries.map((c) => c.code));
+    return allCountries
+      .filter((c) => !scopeCodes.has(c.code))
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)
+      )
+      .slice(0, 40);
+  }, [countrySearch, allCountries, scanScopeCountries]);
+
   // Group brands by client for the selector (same ordering as /competitors)
   const brandSections = useMemo(() => {
     const grouped = new Map<string | null, MaitCompetitor[]>();
@@ -758,45 +788,141 @@ export function CompareView({
         </CardContent>
       </Card>
 
-      {/* Country selector — visible after 2+ brands selected */}
+      {/* Country selector — redesigned: scope-first chips + searchable ISO */}
       {selected.size >= 2 && (
         <Card className="print:hidden">
           <CardHeader>
             <CardTitle className="text-sm">{t("compare", "selectCountries")}</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              {allCountries.map((c) => (
-                <Button
-                  key={c.code}
-                  variant={selectedCountries.has(c.code) ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => toggleCountry(c.code)}
-                  className="gap-1"
-                >
-                  <span className="font-medium">{c.code}</span>
-                  <span className="text-muted-foreground text-[10px]">{c.name}</span>
-                </Button>
-              ))}
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={selectAllCountries}
-                className="text-xs text-muted-foreground hover:text-gold transition-colors underline"
-              >
-                {t("compare", "selectAll")}
-              </button>
-              {selectedCountries.size > 0 && (
+          <CardContent className="space-y-4">
+            {/* Selected chips at the top, each removable */}
+            {selectedCountries.size > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                {[...selectedCountries]
+                  .map((code) => allCountries.find((c) => c.code === code))
+                  .filter((c): c is { code: string; name: string } => !!c)
+                  .map((c) => (
+                    <button
+                      key={c.code}
+                      type="button"
+                      onClick={() => toggleCountry(c.code)}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-gold/15 text-gold border border-gold/40 px-2.5 py-1 text-xs font-medium hover:bg-gold/25 transition-colors cursor-pointer"
+                    >
+                      <span>{c.code}</span>
+                      <span className="text-gold/80">{c.name}</span>
+                      <span className="ml-1">×</span>
+                    </button>
+                  ))}
                 <button
-                  onClick={() => { setSelectedCountries(new Set()); setChannel(null); setCache(null); setStats(null); setAiResult(null); setAiError(null); setMissingBrands([]); fetchingRef.current = ""; }}
-                  className="text-xs text-muted-foreground hover:text-red-400 transition-colors underline"
+                  onClick={() => {
+                    setSelectedCountries(new Set());
+                    setChannel(null);
+                    setCache(null);
+                    setStats(null);
+                    setAiResult(null);
+                    setAiError(null);
+                    setMissingBrands([]);
+                    fetchingRef.current = "";
+                  }}
+                  className="text-xs text-muted-foreground hover:text-red-500 underline ml-1"
                 >
-                  Reset
+                  {t("compare", "reset")}
                 </button>
+              </div>
+            )}
+
+            {/* Scope: countries already in the scan coverage of picked brands */}
+            {scanScopeCountries.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                    {t("compare", "scanScopeCountries")}
+                  </p>
+                  {scanScopeCountries.some((c) => !selectedCountries.has(c.code)) && (
+                    <button
+                      onClick={() => {
+                        setSelectedCountries(
+                          new Set(scanScopeCountries.map((c) => c.code))
+                        );
+                        setChannel(null);
+                        setCache(null);
+                        setStats(null);
+                        setAiResult(null);
+                        setAiError(null);
+                        setMissingBrands([]);
+                        fetchingRef.current = "";
+                      }}
+                      className="text-xs text-gold hover:underline"
+                    >
+                      {t("compare", "selectAllScope")}
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {scanScopeCountries.map((c) => {
+                    const isSelected = selectedCountries.has(c.code);
+                    return (
+                      <Button
+                        key={c.code}
+                        variant={isSelected ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => toggleCountry(c.code)}
+                        className="gap-1"
+                      >
+                        <span className="font-medium">{c.code}</span>
+                        <span className={cn("text-[10px]", isSelected ? "opacity-80" : "text-muted-foreground")}>
+                          {c.name}
+                        </span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Search the full ISO list for anything outside the scan scope */}
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium block">
+                {t("compare", "searchOtherCountries")}
+              </label>
+              <Input
+                value={countrySearch}
+                onChange={(e) => setCountrySearch(e.target.value)}
+                placeholder={t("compare", "searchCountryPlaceholder")}
+                className="h-9 text-sm"
+              />
+              {countrySearch.trim() && countrySearchResults.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {t("compare", "searchNoResults")}
+                </p>
+              )}
+              {countrySearchResults.length > 0 && (
+                <div className="flex flex-wrap gap-2 max-h-56 overflow-y-auto rounded-md border border-border p-2">
+                  {countrySearchResults.map((c) => {
+                    const isSelected = selectedCountries.has(c.code);
+                    return (
+                      <Button
+                        key={c.code}
+                        variant={isSelected ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => toggleCountry(c.code)}
+                        className="gap-1"
+                      >
+                        <span className="font-medium">{c.code}</span>
+                        <span className={cn("text-[10px]", isSelected ? "opacity-80" : "text-muted-foreground")}>
+                          {c.name}
+                        </span>
+                      </Button>
+                    );
+                  })}
+                </div>
               )}
             </div>
+
             {selectedCountries.size === 0 && (
-              <p className="text-xs text-muted-foreground">{t("compare", "selectCountriesHint")}</p>
+              <p className="text-xs text-muted-foreground">
+                {t("compare", "selectCountriesHint")}
+              </p>
             )}
           </CardContent>
         </Card>
@@ -1678,13 +1804,13 @@ function ObjectiveCard({
   const [expanded, setExpanded] = useState<string | null>(null);
 
   return (
-    <div className="rounded-lg border border-amber-500/30 overflow-hidden">
-      <div className="bg-amber-500/10 px-4 py-2 flex items-center gap-2">
-        <Target className="size-3.5 text-amber-400" />
+    <div className="rounded-lg border border-gold/30 overflow-hidden">
+      <div className="bg-gold/10 px-4 py-2 flex items-center gap-2">
+        <Target className="size-3.5 text-gold" />
         <p className="text-xs font-medium text-foreground">
           {t("compare", "estimatedObjective")}
         </p>
-        <span className="text-[9px] text-amber-400 border border-amber-500/30 rounded px-1.5 py-0.5 uppercase tracking-wider">
+        <span className="text-[9px] text-gold border border-gold/40 rounded px-1.5 py-0.5 uppercase tracking-wider">
           {t("compare", "estimate")}
         </span>
       </div>
@@ -1704,11 +1830,11 @@ function ObjectiveCard({
               <p className="text-[10px] text-muted-foreground mb-1 truncate">
                 {s.name}
               </p>
-              <p className="text-sm font-medium text-amber-400">{label}</p>
+              <p className="text-sm font-medium text-gold">{label}</p>
               <div className="flex items-center gap-2 mt-1">
                 <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-amber-400 rounded-full"
+                    className="h-full bg-gold rounded-full"
                     style={{ width: `${obj.confidence}%` }}
                   />
                 </div>
@@ -1732,7 +1858,7 @@ function ObjectiveCard({
                       key={i}
                       className="text-[10px] text-muted-foreground flex items-start gap-1.5"
                     >
-                      <span className="text-amber-400 mt-0.5">
+                      <span className="text-gold mt-0.5">
                         &bull;
                       </span>
                       {signal}
@@ -1744,8 +1870,8 @@ function ObjectiveCard({
           );
         })}
       </div>
-      <div className="bg-amber-500/5 px-4 py-2 border-t border-amber-500/20">
-        <p className="text-[9px] text-amber-400/70 leading-relaxed">
+      <div className="bg-gold/5 px-4 py-2 border-t border-gold/20">
+        <p className="text-[9px] text-gold/80 leading-relaxed">
           {t("compare", "objectiveDisclaimer")}
         </p>
       </div>

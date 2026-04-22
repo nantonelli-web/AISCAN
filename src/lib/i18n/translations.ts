@@ -588,6 +588,24 @@ const translations = {
       en: "Select the countries you want to compare on.",
     },
     selectAll: { it: "Seleziona tutti", en: "Select all" },
+    selectAllScope: { it: "Seleziona tutti", en: "Select all" },
+    reset: { it: "Reset", en: "Reset" },
+    scanScopeCountries: {
+      it: "Dai brand selezionati",
+      en: "From selected brands",
+    },
+    searchOtherCountries: {
+      it: "Cerca altri paesi",
+      en: "Search other countries",
+    },
+    searchCountryPlaceholder: {
+      it: "Es. Stati Uniti, Japan, DE…",
+      en: "E.g. United States, Japan, DE…",
+    },
+    searchNoResults: {
+      it: "Nessun paese trovato.",
+      en: "No country matches your search.",
+    },
     countryScanNeeded: {
       it: "Alcuni brand non sono stati scansionati per i paesi selezionati. Vuoi avviare la scansione?",
       en: "Some brands have not been scanned for the selected countries. Do you want to start the scan?",
