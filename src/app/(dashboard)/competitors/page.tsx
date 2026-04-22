@@ -103,7 +103,7 @@ export default async function CompetitorsPage() {
                 key={clientKey}
                 clientKey={clientKey}
                 clientName={section.client?.name ?? t("clients", "unassigned")}
-                clientColor={section.client?.color ?? "#3a3a3a"}
+                clientColor={section.client?.color ?? "#9ca3af"}
                 brandCount={section.brands.length}
               >
                 {section.brands.length === 0 ? (

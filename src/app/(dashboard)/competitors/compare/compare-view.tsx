@@ -731,7 +731,7 @@ export function CompareView({
                     // from the main brands page.
                     clientKey={`compare-${clientKey}`}
                     clientName={section.client?.name ?? t("clients", "unassigned")}
-                    clientColor={section.client?.color ?? "#3a3a3a"}
+                    clientColor={section.client?.color ?? "#9ca3af"}
                     brandCount={section.brands.length}
                   >
                     <div className="flex flex-wrap gap-2 ml-5">

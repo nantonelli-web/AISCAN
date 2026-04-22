@@ -16,18 +16,25 @@ import {
 } from "recharts";
 
 const GOLD = "#d4a843";
-const MUTED = "#3a3a3a";
+const MUTED = "#d1d5db";
+// Chart palette — saturated enough to read on white, same hues as before
 const COLORS = [GOLD, "#6b8e6b", "#5b7ea3", "#a06b5b", "#8a6bb0", "#5ba09b"];
+
+// Chart axes/grid/tooltip tuned for a light background
+const AXIS_TICK = "#5b6472";
+const GRID_STROKE = "#e5e7eb";
+const LEGEND_TEXT = "#5b6472";
 
 const tooltipStyle = {
   contentStyle: {
-    backgroundColor: "#1a1a1a",
-    border: "1px solid #2a2a2a",
+    backgroundColor: "#ffffff",
+    border: "1px solid #e5e7eb",
     borderRadius: "8px",
     fontSize: "12px",
-    color: "#f5f5f5",
+    color: "#0a0a0a",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
   },
-  itemStyle: { color: "#b0b0b0" },
+  itemStyle: { color: "#0a0a0a" },
 };
 
 export function VolumeChart({
@@ -38,17 +45,17 @@ export function VolumeChart({
   return (
     <ResponsiveContainer width="100%" height={300}>
       <BarChart data={data.slice(0, 10)} margin={{ left: 0, right: 16 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#232323" />
+        <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
         <XAxis
           dataKey="name"
-          tick={{ fill: "#b0b0b0", fontSize: 11 }}
+          tick={{ fill: AXIS_TICK, fontSize: 11 }}
           angle={-30}
           textAnchor="end"
           height={70}
         />
-        <YAxis tick={{ fill: "#b0b0b0", fontSize: 11 }} />
+        <YAxis tick={{ fill: AXIS_TICK, fontSize: 11 }} />
         <Tooltip {...tooltipStyle} />
-        <Legend wrapperStyle={{ fontSize: 12, color: "#b0b0b0" }} />
+        <Legend wrapperStyle={{ fontSize: 12, color: LEGEND_TEXT }} />
         <Bar dataKey="active" fill={GOLD} name="Active" radius={[4, 4, 0, 0]} />
         <Bar
           dataKey="inactive"
@@ -100,17 +107,17 @@ export function FormatStackedChart({
   return (
     <ResponsiveContainer width="100%" height={300}>
       <BarChart data={data.slice(0, 10)} margin={{ left: 0, right: 16 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#232323" />
+        <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
         <XAxis
           dataKey="name"
-          tick={{ fill: "#b0b0b0", fontSize: 11 }}
+          tick={{ fill: AXIS_TICK, fontSize: 11 }}
           angle={-30}
           textAnchor="end"
           height={70}
         />
-        <YAxis tick={{ fill: "#b0b0b0", fontSize: 11 }} />
+        <YAxis tick={{ fill: AXIS_TICK, fontSize: 11 }} />
         <Tooltip {...tooltipStyle} />
-        <Legend wrapperStyle={{ fontSize: 12, color: "#b0b0b0" }} />
+        <Legend wrapperStyle={{ fontSize: 12, color: LEGEND_TEXT }} />
         <Bar dataKey="image" stackId="a" fill={GOLD} name="Image" />
         <Bar dataKey="video" stackId="a" fill="#5b7ea3" name="Video" />
         <Bar dataKey="carousel" stackId="a" fill="#8a6bb0" name="Carousel" />
@@ -138,12 +145,12 @@ export function HorizontalBarChart({
         layout="vertical"
         margin={{ left: 10, right: 24 }}
       >
-        <CartesianGrid strokeDasharray="3 3" stroke="#232323" />
-        <XAxis type="number" tick={{ fill: "#b0b0b0", fontSize: 11 }} />
+        <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+        <XAxis type="number" tick={{ fill: AXIS_TICK, fontSize: 11 }} />
         <YAxis
           type="category"
           dataKey="name"
-          tick={{ fill: "#b0b0b0", fontSize: 11 }}
+          tick={{ fill: AXIS_TICK, fontSize: 11 }}
           width={120}
         />
         <Tooltip {...tooltipStyle} />
