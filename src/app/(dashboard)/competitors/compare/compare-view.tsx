@@ -1231,8 +1231,11 @@ export function CompareView({
         </div>
       )}
 
-      {/* Print cover — hidden on screen, becomes the first page when printing */}
-      {hasResults && (
+      {/* Print cover — temporarily disabled on user request (keep code for
+          later reactivation). Original markup preserved verbatim below.
+          TODO: flip ENABLE_PRINT_COVER back to true when the user asks
+          to restore it. */}
+      {false && hasResults && (
         <div className="hidden print:flex print-cover flex-col items-center justify-center min-h-[260mm] gap-8 text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.webp" alt="AISCAN" className="h-24" />
