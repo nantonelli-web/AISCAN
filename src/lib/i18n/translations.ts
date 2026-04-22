@@ -816,7 +816,20 @@ const translations = {
     defaultStyle: { it: "Template standard", en: "Standard template" },
     uploadTemplate: { it: "Carica template", en: "Upload template" },
     templateName: { it: "Nome template", en: "Template name" },
+    templateClient: { it: "Progetto / cliente", en: "Project / client" },
+    templateClientPlaceholder: {
+      it: "Seleziona un progetto…",
+      en: "Select a project…",
+    },
     uploadBtn: { it: "Carica", en: "Upload" },
+    uploadPickClient: {
+      it: "Seleziona un progetto a cui associare il template.",
+      en: "Select a project to assign the template to.",
+    },
+    uploadNoClients: {
+      it: "Crea prima un progetto nella sezione Brands.",
+      en: "Create a project first in the Brands section.",
+    },
     usingTemplate: { it: "Usando template", en: "Using template" },
     language: { it: "Lingua", en: "Language" },
     font: { it: "Font", en: "Font" },

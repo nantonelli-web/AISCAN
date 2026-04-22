@@ -69,7 +69,7 @@ const FONT_OPTIONS = [
 
 export function ReportBuilder({
   competitors,
-  clients: _clients,
+  clients,
   templates: initialTemplates,
   savedComparisons = [],
 }: {
@@ -78,7 +78,6 @@ export function ReportBuilder({
   templates: TemplateRecord[];
   savedComparisons?: SavedComparison[];
 }) {
-  void _clients; // clients list available for future use
   const { t, locale } = useT();
 
   // State
@@ -105,6 +104,7 @@ export function ReportBuilder({
   const [showUpload, setShowUpload] = useState(false);
   const [uploadName, setUploadName] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadClientId, setUploadClientId] = useState<string>("");
   const [uploading, setUploading] = useState(false);
   const [templates, setTemplates] = useState<TemplateRecord[]>(initialTemplates);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -321,9 +321,12 @@ export function ReportBuilder({
 
   async function handleUploadTemplate() {
     if (!uploadFile || !uploadName.trim()) return;
-    const clientIdForUpload = selectedClientId;
+    // Prefer the explicit client picked in the upload form. If empty, fall
+    // back to the client of the first selected brand (when the user has
+    // already gotten that far). Without either, block.
+    const clientIdForUpload = uploadClientId || selectedClientId || "";
     if (!clientIdForUpload) {
-      setError("Seleziona un brand assegnato a un cliente per caricare un template.");
+      setError(t("report", "uploadPickClient"));
       return;
     }
 
@@ -385,6 +388,7 @@ export function ReportBuilder({
       setShowUpload(false);
       setUploadName("");
       setUploadFile(null);
+      setUploadClientId("");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("report", "errorGeneration"));
     } finally {
@@ -795,108 +799,139 @@ export function ReportBuilder({
             </button>
           </div>
 
-          {/* Upload section */}
-          {selectedBrands.size > 0 && (
-            <>
-              {!showUpload && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowUpload(true)}
-                  className="gap-1.5"
+          {/* Upload section — available anytime, independent of brand pick */}
+          {!showUpload && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setShowUpload(true);
+                setUploadClientId(selectedClientId ?? "");
+              }}
+              className="gap-1.5"
+              disabled={clients.length === 0}
+              title={
+                clients.length === 0
+                  ? t("report", "uploadNoClients")
+                  : undefined
+              }
+            >
+              <Upload className="size-3.5" />
+              {t("report", "uploadTemplate")}
+            </Button>
+          )}
+
+          {showUpload && (
+            <div className="rounded-xl border border-border bg-muted/20 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
+                <p className="text-xs font-medium">{t("report", "uploadTemplate")}</p>
+                <button
+                  onClick={() => {
+                    setShowUpload(false);
+                    setUploadName("");
+                    setUploadFile(null);
+                    setUploadClientId("");
+                  }}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  <Upload className="size-3.5" />
-                  {t("report", "uploadTemplate")}
-                </Button>
-              )}
+                  <X className="size-4" />
+                </button>
+              </div>
 
-              {showUpload && (
-                <div className="rounded-xl border border-border bg-muted/20 overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
-                    <p className="text-xs font-medium">{t("report", "uploadTemplate")}</p>
-                    <button
-                      onClick={() => {
-                        setShowUpload(false);
-                        setUploadName("");
-                        setUploadFile(null);
-                      }}
-                      className="text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      <X className="size-4" />
-                    </button>
-                  </div>
+              <div className="p-4 space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-xs">
+                    {t("report", "templateClient")} <span className="text-red-400">*</span>
+                  </Label>
+                  <select
+                    value={uploadClientId}
+                    onChange={(e) => setUploadClientId(e.target.value)}
+                    className="w-full h-9 rounded-md border border-border bg-transparent px-3 text-sm outline-none focus:border-gold/50"
+                  >
+                    <option value="" className="bg-card">
+                      {t("report", "templateClientPlaceholder")}
+                    </option>
+                    {clients.map((c) => (
+                      <option key={c.id} value={c.id} className="bg-card">
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                  <div className="p-4 space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs">
-                        {t("report", "templateName")} <span className="text-red-400">*</span>
-                      </Label>
-                      <Input
-                        value={uploadName}
-                        onChange={(e) => setUploadName(e.target.value)}
-                        placeholder="Es. Brand Template Q1"
-                        className="h-9"
-                        required
-                      />
-                    </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">
+                    {t("report", "templateName")} <span className="text-red-400">*</span>
+                  </Label>
+                  <Input
+                    value={uploadName}
+                    onChange={(e) => setUploadName(e.target.value)}
+                    placeholder="Es. Brand Template Q1"
+                    className="h-9"
+                    required
+                  />
+                </div>
 
-                    <div className="space-y-2">
-                      <Label className="text-xs">
-                        File (.pptx) <span className="text-red-400">*</span>
-                      </Label>
-                      <div className="rounded-lg border border-dashed border-border p-4 text-center">
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept=".pptx"
-                          onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
-                          className="hidden"
-                          id="template-file-input"
-                        />
-                        {uploadFile ? (
-                          <div className="flex items-center justify-center gap-2">
-                            <FileText className="size-4 text-gold" />
-                            <span className="text-sm">{uploadFile.name}</span>
-                            <button
-                              onClick={() => {
-                                setUploadFile(null);
-                                if (fileInputRef.current) fileInputRef.current.value = "";
-                              }}
-                              className="text-muted-foreground hover:text-red-400"
-                            >
-                              <X className="size-3" />
-                            </button>
-                          </div>
-                        ) : (
-                          <label
-                            htmlFor="template-file-input"
-                            className="cursor-pointer space-y-1"
-                          >
-                            <Upload className="size-5 text-muted-foreground mx-auto" />
-                            <p className="text-xs text-muted-foreground">
-                              Clicca per selezionare un file PPTX
-                            </p>
-                          </label>
-                        )}
+                <div className="space-y-2">
+                  <Label className="text-xs">
+                    File (.pptx) <span className="text-red-400">*</span>
+                  </Label>
+                  <div className="rounded-lg border border-dashed border-border p-4 text-center">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pptx"
+                      onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
+                      className="hidden"
+                      id="template-file-input"
+                    />
+                    {uploadFile ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <FileText className="size-4 text-gold" />
+                        <span className="text-sm">{uploadFile.name}</span>
+                        <button
+                          onClick={() => {
+                            setUploadFile(null);
+                            if (fileInputRef.current) fileInputRef.current.value = "";
+                          }}
+                          className="text-muted-foreground hover:text-red-400"
+                        >
+                          <X className="size-3" />
+                        </button>
                       </div>
-                    </div>
-
-                    <Button
-                      className="w-full gap-1.5"
-                      disabled={!uploadFile || !uploadName.trim() || uploading}
-                      onClick={handleUploadTemplate}
-                    >
-                      {uploading ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Upload className="size-4" />
-                      )}
-                      {uploading ? "Caricamento..." : t("report", "uploadBtn")}
-                    </Button>
+                    ) : (
+                      <label
+                        htmlFor="template-file-input"
+                        className="cursor-pointer space-y-1"
+                      >
+                        <Upload className="size-5 text-muted-foreground mx-auto" />
+                        <p className="text-xs text-muted-foreground">
+                          Clicca per selezionare un file PPTX
+                        </p>
+                      </label>
+                    )}
                   </div>
                 </div>
-              )}
-            </>
+
+                <Button
+                  className="w-full gap-1.5"
+                  disabled={
+                    !uploadFile ||
+                    !uploadName.trim() ||
+                    !uploadClientId ||
+                    uploading
+                  }
+                  onClick={handleUploadTemplate}
+                >
+                  {uploading ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Upload className="size-4" />
+                  )}
+                  {uploading ? "Caricamento..." : t("report", "uploadBtn")}
+                </Button>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
