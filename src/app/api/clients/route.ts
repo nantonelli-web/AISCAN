@@ -62,7 +62,7 @@ export async function POST(req: Request) {
     .insert({
       workspace_id: profile.workspace_id,
       name: parsed.data.name,
-      color: parsed.data.color ?? "#d4a843",
+      color: parsed.data.color ?? "#2667ff",
     })
     .select("id, name, color")
     .single();

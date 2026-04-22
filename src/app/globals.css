@@ -10,10 +10,13 @@
   --border: #e5e7eb;
   --card: #ffffff;
   --card-foreground: #0a0a0a;
-  --gold: #d4a843;
-  --gold-foreground: #0a0a0a;
+  /* Brand accent — kept under the --gold variable name for compatibility
+     with existing bg-gold/text-gold/border-gold utilities throughout the
+     codebase. The actual colour is now royal blue #2667FF. */
+  --gold: #2667ff;
+  --gold-foreground: #ffffff;
   --destructive: #dc2626;
-  --ring: #d4a843;
+  --ring: #2667ff;
 }
 
 @theme inline {

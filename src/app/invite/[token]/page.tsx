@@ -91,7 +91,7 @@ export default async function InvitePage({
                 <div className="flex gap-2">
                   <a
                     href={`/login?redirect=/invite/${token}`}
-                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-9 px-4 py-2 bg-gold text-gold-foreground hover:bg-[#e5b94d] shadow-sm"
+                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-9 px-4 py-2 bg-gold text-gold-foreground hover:bg-[#4580ff] shadow-sm"
                   >
                     {t("invitePage", "loginBtn")}
                   </a>

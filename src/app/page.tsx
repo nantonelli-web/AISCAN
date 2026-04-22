@@ -234,7 +234,7 @@ export default async function LandingPage() {
       {/* ─── METRICS ────────────────────────────────────── */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{
-          backgroundImage: "radial-gradient(circle at 2px 2px, #d4a843 1px, transparent 0)",
+          backgroundImage: "radial-gradient(circle at 2px 2px, #2667ff 1px, transparent 0)",
           backgroundSize: "32px 32px",
         }} />
         <div className="relative mx-auto max-w-6xl px-6 py-24">

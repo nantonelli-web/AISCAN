@@ -51,7 +51,7 @@ export async function sendNewAdsNotification(
         ${data.adsCount} nuove ads rilevate
       </h1>
       <p style="margin:0;color:#b0b0b0;font-size:14px;">
-        <strong style="color:#d4a843;">${data.competitorName}</strong> ha pubblicato nuove creatività.
+        <strong style="color:#2667ff;">${data.competitorName}</strong> ha pubblicato nuove creatività.
       </p>
     </div>
 
@@ -67,7 +67,7 @@ export async function sendNewAdsNotification(
       <div>
         ${ad.headline ? `<p style="margin:0 0 4px;font-size:14px;font-weight:600;color:#f5f5f5;">${ad.headline}</p>` : ""}
         ${ad.adText ? `<p style="margin:0;font-size:12px;color:#b0b0b0;line-height:1.5;">${ad.adText.slice(0, 120)}${ad.adText.length > 120 ? "…" : ""}</p>` : ""}
-        <a href="${ad.adLibraryUrl}" style="display:inline-block;margin-top:8px;font-size:11px;color:#d4a843;text-decoration:none;">Vedi su Ad Library →</a>
+        <a href="${ad.adLibraryUrl}" style="display:inline-block;margin-top:8px;font-size:11px;color:#2667ff;text-decoration:none;">Vedi su Ad Library →</a>
       </div>
     </div>`
       )
@@ -76,7 +76,7 @@ export async function sendNewAdsNotification(
     ${data.adsCount > 5 ? `<p style="text-align:center;color:#b0b0b0;font-size:12px;">+ altre ${data.adsCount - 5} ads</p>` : ""}
 
     <div style="text-align:center;margin-top:24px;">
-      <a href="${data.dashboardUrl}" style="display:inline-block;background:#d4a843;color:#0a0a0a;font-size:14px;font-weight:600;padding:10px 24px;border-radius:8px;text-decoration:none;">
+      <a href="${data.dashboardUrl}" style="display:inline-block;background:#2667ff;color:#ffffff;font-size:14px;font-weight:600;padding:10px 24px;border-radius:8px;text-decoration:none;">
         Apri Dashboard
       </a>
     </div>
@@ -140,7 +140,7 @@ export async function sendWeeklyDigest(
       </p>
     </div>
 
-    <h2 style="font-size:13px;color:#d4a843;text-transform:uppercase;letter-spacing:0.1em;margin:24px 0 12px;">
+    <h2 style="font-size:13px;color:#2667ff;text-transform:uppercase;letter-spacing:0.1em;margin:24px 0 12px;">
       Attività competitor
     </h2>
     <div style="background:#121212;border:1px solid #232323;border-radius:12px;overflow:hidden;">
@@ -150,7 +150,7 @@ export async function sendWeeklyDigest(
       <div style="padding:12px 16px;${i > 0 ? "border-top:1px solid #232323;" : ""}display:flex;justify-content:space-between;align-items:center;">
         <span style="font-size:14px;font-weight:500;">${c.name}</span>
         <span style="font-size:12px;color:#b0b0b0;">
-          <strong style="color:#d4a843;">+${c.newAds}</strong> nuove · ${c.totalActive} attive
+          <strong style="color:#2667ff;">+${c.newAds}</strong> nuove · ${c.totalActive} attive
         </span>
       </div>`
         )
@@ -160,7 +160,7 @@ export async function sendWeeklyDigest(
     ${
       data.topAds.length > 0
         ? `
-    <h2 style="font-size:13px;color:#d4a843;text-transform:uppercase;letter-spacing:0.1em;margin:24px 0 12px;">
+    <h2 style="font-size:13px;color:#2667ff;text-transform:uppercase;letter-spacing:0.1em;margin:24px 0 12px;">
       Top creatività della settimana
     </h2>
     ${data.topAds
@@ -168,9 +168,9 @@ export async function sendWeeklyDigest(
       .map(
         (ad) => `
     <div style="background:#121212;border:1px solid #232323;border-radius:12px;padding:16px;margin-bottom:12px;">
-      <p style="margin:0 0 4px;font-size:11px;color:#d4a843;">${ad.competitorName}</p>
+      <p style="margin:0 0 4px;font-size:11px;color:#2667ff;">${ad.competitorName}</p>
       ${ad.headline ? `<p style="margin:0;font-size:14px;font-weight:500;">${ad.headline}</p>` : ""}
-      <a href="${ad.adLibraryUrl}" style="font-size:11px;color:#d4a843;text-decoration:none;">Vedi su Ad Library →</a>
+      <a href="${ad.adLibraryUrl}" style="font-size:11px;color:#2667ff;text-decoration:none;">Vedi su Ad Library →</a>
     </div>`
       )
       .join("")}`
@@ -178,7 +178,7 @@ export async function sendWeeklyDigest(
     }
 
     <div style="text-align:center;margin-top:24px;">
-      <a href="${data.dashboardUrl}" style="display:inline-block;background:#d4a843;color:#0a0a0a;font-size:14px;font-weight:600;padding:10px 24px;border-radius:8px;text-decoration:none;">
+      <a href="${data.dashboardUrl}" style="display:inline-block;background:#2667ff;color:#ffffff;font-size:14px;font-weight:600;padding:10px 24px;border-radius:8px;text-decoration:none;">
         Apri Dashboard
       </a>
     </div>

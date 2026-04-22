@@ -15,10 +15,10 @@ import {
   type PieLabelRenderProps,
 } from "recharts";
 
-const GOLD = "#d4a843";
+const GOLD = "#2667ff";
 const MUTED = "#d1d5db";
-// Chart palette — saturated enough to read on white, same hues as before
-const COLORS = [GOLD, "#6b8e6b", "#5b7ea3", "#a06b5b", "#8a6bb0", "#5ba09b"];
+// Chart palette — brand blue first, complementary hues that read on white
+const COLORS = [GOLD, "#6b8e6b", "#a06b5b", "#8a6bb0", "#5ba09b", "#c9961a"];
 
 // Chart axes/grid/tooltip tuned for a light background
 const AXIS_TICK = "#5b6472";
