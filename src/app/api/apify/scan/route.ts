@@ -7,6 +7,7 @@ import { resolvePageId } from "@/lib/meta/resolve-page-id";
 import { sendNewAdsNotification } from "@/lib/email/resend";
 import { storeAdImages, storeProfilePicture } from "@/lib/media/store-ad-images";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
+import { checkScanConcurrency } from "@/lib/rate-limit/scan-concurrency";
 
 export const maxDuration = 300; // seconds (Vercel hobby allows 60; pro 300)
 
@@ -52,12 +53,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Competitor not found" }, { status: 404 });
   }
 
-  // Credit check
-  const credits = await consumeCredits(user.id, "scan_meta", `Meta Ads scan: ${competitor.page_name}`);
-  if (!credits.ok) {
-    return NextResponse.json({ error: "Insufficient credits", balance: credits.balance, cost: 5 }, { status: 402 });
-  }
-
   const admin = createAdminClient();
 
   // Cleanup stale jobs: any "running" job older than 10 min → mark failed
@@ -68,6 +63,20 @@ export async function POST(req: Request) {
     .eq("competitor_id", competitor.id)
     .eq("status", "running")
     .lt("started_at", tenMinAgo);
+
+  const rate = await checkScanConcurrency(admin, {
+    workspaceId: competitor.workspace_id,
+    competitorId: competitor.id,
+  });
+  if (!rate.ok) {
+    return NextResponse.json({ error: rate.reason }, { status: 429 });
+  }
+
+  // Credit check AFTER rate check so we don't charge on 429.
+  const credits = await consumeCredits(user.id, "scan_meta", `Meta Ads scan: ${competitor.page_name}`);
+  if (!credits.ok) {
+    return NextResponse.json({ error: "Insufficient credits", balance: credits.balance, cost: 5 }, { status: 402 });
+  }
 
   // If page_id was never resolved, try again now
   let pageId = competitor.page_id;

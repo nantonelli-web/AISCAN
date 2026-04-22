@@ -9,10 +9,59 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 
 const BUCKET = "media";
 const BATCH_SIZE = 8;
 const DOWNLOAD_TIMEOUT = 10_000; // 10s per image
+
+/**
+ * Reject URLs that could hit internal infrastructure (AWS/GCP metadata,
+ * loopback, RFC1918 ranges). Returns true if the URL is a safe public target.
+ */
+function isPrivateIpv4(ip: string): boolean {
+  const parts = ip.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((p) => Number.isNaN(p))) return true;
+  const [a, b] = parts;
+  if (a === 10) return true;
+  if (a === 127) return true;
+  if (a === 0) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a >= 224) return true; // multicast + reserved
+  return false;
+}
+
+function isPrivateIpv6(ip: string): boolean {
+  const lower = ip.toLowerCase();
+  if (lower === "::1" || lower === "::") return true;
+  if (lower.startsWith("fe80:") || lower.startsWith("fc") || lower.startsWith("fd")) return true;
+  if (lower.startsWith("::ffff:")) return isPrivateIpv4(lower.slice(7));
+  return false;
+}
+
+async function isPublicHttpUrl(rawUrl: string): Promise<boolean> {
+  let u: URL;
+  try { u = new URL(rawUrl); } catch { return false; }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+  const host = u.hostname;
+  if (!host || host === "localhost") return false;
+  // Literal IP in hostname
+  const ipVer = isIP(host);
+  if (ipVer === 4) return !isPrivateIpv4(host);
+  if (ipVer === 6) return !isPrivateIpv6(host);
+  // DNS resolve
+  try {
+    const { address, family } = await lookup(host);
+    if (family === 4) return !isPrivateIpv4(address);
+    if (family === 6) return !isPrivateIpv6(address);
+    return false;
+  } catch {
+    return false;
+  }
+}
 
 interface AdRow {
   ad_archive_id: string;
@@ -44,10 +93,11 @@ async function downloadAndStore(
   source: string
 ): Promise<string | null> {
   try {
+    if (!(await isPublicHttpUrl(imageUrl))) return null;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT);
 
-    const res = await fetch(imageUrl, { signal: controller.signal });
+    const res = await fetch(imageUrl, { signal: controller.signal, redirect: "error" });
     clearTimeout(timer);
 
     if (!res.ok) return null;

@@ -7,6 +7,7 @@ import {
   cleanAdvertiserDomain,
 } from "@/lib/apify/google-ads-service";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
+import { checkScanConcurrency } from "@/lib/rate-limit/scan-concurrency";
 
 export const maxDuration = 300;
 
@@ -67,13 +68,29 @@ export async function POST(req: Request) {
     );
   }
 
-  // Credit check
+  const admin = createAdminClient();
+
+  // Cleanup stale jobs + concurrency gate BEFORE charging credits.
+  const tenMinAgoPre = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  await admin
+    .from("mait_scrape_jobs")
+    .update({ status: "failed", completed_at: new Date().toISOString(), error: "Timeout (stale)" })
+    .eq("competitor_id", competitor.id)
+    .eq("status", "running")
+    .lt("started_at", tenMinAgoPre);
+
+  const rate = await checkScanConcurrency(admin, {
+    workspaceId: competitor.workspace_id,
+    competitorId: competitor.id,
+  });
+  if (!rate.ok) {
+    return NextResponse.json({ error: rate.reason }, { status: 429 });
+  }
+
   const credits = await consumeCredits(user.id, "scan_google", `Google Ads scan: ${competitor.page_name}`);
   if (!credits.ok) {
     return NextResponse.json({ error: "Insufficient credits", balance: credits.balance, cost: 2 }, { status: 402 });
   }
-
-  const admin = createAdminClient();
 
   // Auto-heal legacy google_domain values stored as full URLs.
   if (competitor.google_domain) {
@@ -86,15 +103,6 @@ export async function POST(req: Request) {
       competitor.google_domain = cleaned;
     }
   }
-
-  // Cleanup stale jobs: any "running" job older than 10 min → mark failed
-  const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-  await admin
-    .from("mait_scrape_jobs")
-    .update({ status: "failed", completed_at: new Date().toISOString(), error: "Timeout (stale)" })
-    .eq("competitor_id", competitor.id)
-    .eq("status", "running")
-    .lt("started_at", tenMinAgo);
 
   // Create job row
   const { data: job, error: jobErr } = await admin

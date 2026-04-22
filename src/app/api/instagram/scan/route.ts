@@ -9,6 +9,7 @@ import {
 } from "@/lib/instagram/service";
 import { storeAdImages, storeProfilePicture } from "@/lib/media/store-ad-images";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
+import { checkScanConcurrency } from "@/lib/rate-limit/scan-concurrency";
 
 export const maxDuration = 300; // seconds
 
@@ -57,13 +58,29 @@ export async function POST(req: Request) {
     );
   }
 
-  // Credit check
+  const admin = createAdminClient();
+
+  // Stale-job cleanup + concurrency gate BEFORE charging credits.
+  const tenMinAgoPre = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  await admin
+    .from("mait_scrape_jobs")
+    .update({ status: "failed", completed_at: new Date().toISOString(), error: "Timeout (stale)" })
+    .eq("competitor_id", competitor.id)
+    .eq("status", "running")
+    .lt("started_at", tenMinAgoPre);
+
+  const rate = await checkScanConcurrency(admin, {
+    workspaceId: competitor.workspace_id,
+    competitorId: competitor.id,
+  });
+  if (!rate.ok) {
+    return NextResponse.json({ error: rate.reason }, { status: 429 });
+  }
+
   const credits = await consumeCredits(user.id, "scan_instagram", `Instagram scan: ${competitor.page_name}`);
   if (!credits.ok) {
     return NextResponse.json({ error: "Insufficient credits", balance: credits.balance, cost: 2 }, { status: 402 });
   }
-
-  const admin = createAdminClient();
 
   // Resolve instagram_username. If the stored value is a full URL or
   // "@handle" (legacy rows), normalize it and write the clean form back.

@@ -10,10 +10,18 @@ import { createClient } from "@/lib/supabase/client";
 import { GoogleIcon } from "@/components/ui/google-icon";
 import { useT } from "@/lib/i18n/context";
 
+// Only accept same-origin relative paths (must start with "/" and not "//").
+// Anything else — including absolute URLs — falls back to /dashboard.
+function sanitizeRedirect(raw: string | null): string {
+  if (!raw) return "/dashboard";
+  if (!raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) return "/dashboard";
+  return raw;
+}
+
 export function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const redirect = params.get("redirect") || "/dashboard";
+  const redirect = sanitizeRedirect(params.get("redirect"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);

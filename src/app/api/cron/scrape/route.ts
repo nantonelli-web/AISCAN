@@ -9,18 +9,16 @@ export const dynamic = "force-dynamic";
 
 /**
  * Vercel Cron entrypoint. Triggered by the schedules in vercel.json.
- *
- * Vercel signs each cron request with Authorization: Bearer <CRON_SECRET>.
- * If CRON_SECRET is not set, we still allow Vercel's own host header check
- * (process.env.VERCEL === "1") so the cron works on first deploy.
+ * Requires `Authorization: Bearer <CRON_SECRET>` on every request.
+ * If CRON_SECRET is missing from env, the endpoint refuses to run.
  */
 export async function GET(req: Request) {
-  const auth = req.headers.get("authorization");
   const expected = process.env.CRON_SECRET;
-  if (expected) {
-    if (auth !== `Bearer ${expected}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!expected) {
+    return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 });
+  }
+  if (req.headers.get("authorization") !== `Bearer ${expected}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const url = new URL(req.url);
