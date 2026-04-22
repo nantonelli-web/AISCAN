@@ -1,10 +1,14 @@
 import { SignJWT, jwtVerify } from "jose";
 
-const SECRET = new TextEncoder().encode(
-  process.env.ADMIN_JWT_SECRET ??
-    process.env.NEXTAUTH_SECRET ??
-    "fallback-secret-change-me"
-);
+function getSecret(): Uint8Array {
+  const raw = process.env.ADMIN_JWT_SECRET ?? process.env.NEXTAUTH_SECRET;
+  if (!raw || raw.length < 32) {
+    throw new Error(
+      "ADMIN_JWT_SECRET (or NEXTAUTH_SECRET) must be set to a value with at least 32 characters"
+    );
+  }
+  return new TextEncoder().encode(raw);
+}
 
 export async function createAdminToken(payload: {
   adminId: string;
@@ -15,12 +19,12 @@ export async function createAdminToken(payload: {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("24h")
-    .sign(SECRET);
+    .sign(getSecret());
 }
 
 export async function verifyAdminToken(token: string) {
   try {
-    const { payload } = await jwtVerify(token, SECRET);
+    const { payload } = await jwtVerify(token, getSecret());
     return payload as unknown as {
       adminId: string;
       email: string;

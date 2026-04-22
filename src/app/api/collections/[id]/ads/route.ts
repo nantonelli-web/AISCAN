@@ -7,6 +7,32 @@ const addSchema = z.object({
   ad_id: z.string().uuid(),
 });
 
+async function assertCollectionInWorkspace(
+  admin: ReturnType<typeof createAdminClient>,
+  collectionId: string,
+  workspaceId: string
+): Promise<boolean> {
+  const { data } = await admin
+    .from("mait_collections")
+    .select("workspace_id")
+    .eq("id", collectionId)
+    .single();
+  return data?.workspace_id === workspaceId;
+}
+
+async function assertAdInWorkspace(
+  admin: ReturnType<typeof createAdminClient>,
+  adId: string,
+  workspaceId: string
+): Promise<boolean> {
+  const { data } = await admin
+    .from("mait_ads_external")
+    .select("workspace_id")
+    .eq("id", adId)
+    .single();
+  return data?.workspace_id === workspaceId;
+}
+
 /** Add an ad to a collection */
 export async function POST(
   req: Request,
@@ -24,7 +50,23 @@ export async function POST(
   if (!parsed.success)
     return NextResponse.json({ error: "ad_id required" }, { status: 400 });
 
+  const { data: profile } = await supabase
+    .from("mait_users")
+    .select("workspace_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.workspace_id)
+    return NextResponse.json({ error: "No workspace" }, { status: 400 });
+
   const admin = createAdminClient();
+  const [collectionOk, adOk] = await Promise.all([
+    assertCollectionInWorkspace(admin, id, profile.workspace_id),
+    assertAdInWorkspace(admin, parsed.data.ad_id, profile.workspace_id),
+  ]);
+  if (!collectionOk || !adOk)
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+
   const { error } = await admin
     .from("mait_collection_ads")
     .upsert(
@@ -52,7 +94,19 @@ export async function DELETE(
   const adId = url.searchParams.get("ad_id");
   if (!adId) return NextResponse.json({ error: "ad_id required" }, { status: 400 });
 
+  const { data: profile } = await supabase
+    .from("mait_users")
+    .select("workspace_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.workspace_id)
+    return NextResponse.json({ error: "No workspace" }, { status: 400 });
+
   const admin = createAdminClient();
+  if (!(await assertCollectionInWorkspace(admin, id, profile.workspace_id)))
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+
   const { error } = await admin
     .from("mait_collection_ads")
     .delete()
