@@ -692,6 +692,8 @@ const translations = {
       it: "Analisi comparativa basata sulle ads scrappate.",
       en: "Comparative analysis based on scraped ads.",
     },
+    filterByProject: { it: "Progetto:", en: "Project:" },
+    allProjects: { it: "Tutti i progetti", en: "All projects" },
     noData: {
       it: "Nessun dato disponibile. Aggiungi dei brand e lancia almeno uno scan per popolare i benchmark.",
       en: "No data available. Add brands and run at least one scan to populate benchmarks.",

@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { computeBenchmarks } from "@/lib/analytics/benchmarks";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatNumber } from "@/lib/utils";
@@ -34,16 +35,116 @@ export default async function BenchmarksPage({
 }) {
   const sp = await searchParams;
   const channel = sp.channel === "google" ? "google" : "meta";
+  const rawClient = typeof sp.client === "string" ? sp.client : null;
   const { profile } = await getSessionUser();
   const supabase = await createClient();
-  const data = await computeBenchmarks(supabase, profile.workspace_id!, channel);
+  const admin = createAdminClient();
   const locale = await getLocale();
   const t = serverT(locale);
+
+  // Load clients + competitors so we can scope benchmarks to a project
+  const [{ data: clientsData }, { data: competitorsData }] = await Promise.all([
+    admin
+      .from("mait_clients")
+      .select("id, name, color")
+      .eq("workspace_id", profile.workspace_id!)
+      .order("name"),
+    supabase
+      .from("mait_competitors")
+      .select("id, client_id")
+      .eq("workspace_id", profile.workspace_id!),
+  ]);
+  const clients = (clientsData ?? []) as { id: string; name: string; color: string }[];
+  const allCompetitors = (competitorsData ?? []) as { id: string; client_id: string | null }[];
+
+  // Validate the active filter. "unassigned" is allowed as a pseudo-client
+  // id for brands not tied to any project.
+  const activeClient: "unassigned" | string | null =
+    rawClient === "unassigned"
+      ? "unassigned"
+      : rawClient && clients.some((c) => c.id === rawClient)
+        ? rawClient
+        : null;
+
+  const competitorIdsFilter: string[] | undefined = activeClient === null
+    ? undefined
+    : allCompetitors
+        .filter((c) =>
+          activeClient === "unassigned"
+            ? c.client_id === null
+            : c.client_id === activeClient
+        )
+        .map((c) => c.id);
+
+  const data = await computeBenchmarks(
+    supabase,
+    profile.workspace_id!,
+    channel,
+    competitorIdsFilter
+  );
 
   const channels = [
     { key: "meta" as const, label: "Meta Ads", icon: <MetaIcon className="size-3.5" /> },
     { key: "google" as const, label: "Google Ads", icon: <GoogleIcon className="size-3.5" /> },
   ];
+
+  // Keep channel param when switching client, and vice versa
+  function hrefFor(ch: string | null, cl: string | null): string {
+    const params = new URLSearchParams();
+    if (ch) params.set("channel", ch);
+    if (cl) params.set("client", cl);
+    const qs = params.toString();
+    return qs ? `/benchmarks?${qs}` : "/benchmarks";
+  }
+
+  const hasUnassigned = allCompetitors.some((c) => c.client_id === null);
+
+  const clientFilter = (
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mr-1">
+        {t("benchmarks", "filterByProject")}
+      </span>
+      <Link
+        href={hrefFor(channel, null)}
+        className={
+          activeClient === null
+            ? "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-gold/15 text-gold border border-gold/30 transition-colors"
+            : "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        }
+      >
+        {t("benchmarks", "allProjects")}
+      </Link>
+      {clients.map((c) => (
+        <Link
+          key={c.id}
+          href={hrefFor(channel, c.id)}
+          className={
+            activeClient === c.id
+              ? "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-gold/15 text-gold border border-gold/30 transition-colors"
+              : "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          }
+        >
+          <span
+            className="size-2.5 rounded-sm"
+            style={{ backgroundColor: c.color }}
+          />
+          {c.name}
+        </Link>
+      ))}
+      {hasUnassigned && (
+        <Link
+          href={hrefFor(channel, "unassigned")}
+          className={
+            activeClient === "unassigned"
+              ? "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-gold/15 text-gold border border-gold/30 transition-colors"
+              : "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          }
+        >
+          {t("clients", "unassigned")}
+        </Link>
+      )}
+    </div>
+  );
 
   if (data.totals.totalAds === 0) {
     return (
@@ -60,7 +161,7 @@ export default async function BenchmarksPage({
           {channels.map((ch) => (
             <Link
               key={ch.key}
-              href={`/benchmarks?channel=${ch.key}`}
+              href={hrefFor(ch.key, activeClient)}
               className={
                 channel === ch.key
                   ? "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-gold/15 text-gold border border-gold/30 transition-colors"
@@ -72,6 +173,8 @@ export default async function BenchmarksPage({
             </Link>
           ))}
         </div>
+
+        {clientFilter}
 
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground">
@@ -88,7 +191,7 @@ export default async function BenchmarksPage({
         <h1 className="text-2xl font-serif tracking-tight">{t("benchmarks", "title")}</h1>
         <p className="text-sm text-muted-foreground">
           {t("benchmarks", "comparativeAnalysis")} {formatNumber(data.totals.totalAds)} {t("benchmarks", "adsOf")}{" "}
-          {data.competitors.length} {t("benchmarks", "competitorsWord")}
+          {data.volumeByCompetitor.length} {t("benchmarks", "competitorsWord")}
         </p>
       </div>
 
@@ -97,7 +200,7 @@ export default async function BenchmarksPage({
         {channels.map((ch) => (
           <Link
             key={ch.key}
-            href={`/benchmarks?channel=${ch.key}`}
+            href={hrefFor(ch.key, activeClient)}
             className={
               channel === ch.key
                 ? "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-gold/15 text-gold border border-gold/30 transition-colors"
@@ -109,6 +212,8 @@ export default async function BenchmarksPage({
           </Link>
         ))}
       </div>
+
+      {clientFilter}
 
       {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
