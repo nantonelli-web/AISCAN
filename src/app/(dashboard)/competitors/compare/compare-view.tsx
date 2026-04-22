@@ -1940,7 +1940,7 @@ function OrganicBenchmarkCharts({
               data={data.postsPerWeekByCompetitor}
               dataKey="postsPerWeek"
               label={t("compare", "postsPerWeekUnit")}
-              color="#a06b5b"
+              color="#d97757"
             />
           </CardContent>
         </Card>
@@ -2073,7 +2073,7 @@ function BenchmarkCharts({
           <CardHeader><CardTitle>{t("benchmarks", "refreshRateChart")}</CardTitle></CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descRefreshRate")}</p>
-            <HorizontalBarChart data={data.refreshRate} dataKey="adsPerWeek" label={t("benchmarks", "adsPerWeekAxisLabel")} color="#a06b5b" />
+            <HorizontalBarChart data={data.refreshRate} dataKey="adsPerWeek" label={t("benchmarks", "adsPerWeekAxisLabel")} color="#d97757" />
           </CardContent>
         </Card>
       </div>
@@ -2104,7 +2104,7 @@ function BenchmarkCharts({
               <CardHeader><CardTitle>{t("benchmarks", "avgVariantsChart")}</CardTitle></CardHeader>
               <CardContent>
                 <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descAvgVariants")}</p>
-                <HorizontalBarChart data={data.avgVariantsByCompetitor} dataKey="variants" label={t("benchmarks", "variantsLabel")} color="#a06b5b" />
+                <HorizontalBarChart data={data.avgVariantsByCompetitor} dataKey="variants" label={t("benchmarks", "variantsLabel")} color="#d97757" />
               </CardContent>
             </Card>
           )}

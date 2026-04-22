@@ -367,7 +367,7 @@ export default async function BenchmarksPage({
               data={data.refreshRate}
               dataKey="adsPerWeek"
               label={t("benchmarks", "adsPerWeekAxisLabel")}
-              color="#a06b5b"
+              color="#d97757"
             />
           </CardContent>
         </Card>
@@ -420,7 +420,7 @@ export default async function BenchmarksPage({
                 data={data.avgVariantsByCompetitor}
                 dataKey="variants"
                 label={t("benchmarks", "variantsLabel")}
-                color="#a06b5b"
+                color="#d97757"
               />
             </CardContent>
           </Card>

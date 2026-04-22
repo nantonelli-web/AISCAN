@@ -46,6 +46,36 @@ const tooltipStyle = {
   itemStyle: { color: "#0a0a0a" },
 };
 
+/** In-slice percentage label, hidden for tiny slices that can't fit text. */
+function PieSlicePercent(props: PieLabelRenderProps) {
+  const cx = Number(props.cx);
+  const cy = Number(props.cy);
+  const innerRadius = Number(props.innerRadius);
+  const outerRadius = Number(props.outerRadius);
+  const midAngle = Number(props.midAngle);
+  const percent = Number(props.percent ?? 0);
+  const pct = Math.round(percent * 100);
+  if (pct < 6) return null;
+  const r = innerRadius + (outerRadius - innerRadius) * 0.55;
+  const RAD = Math.PI / 180;
+  const x = cx + r * Math.cos(-midAngle * RAD);
+  const y = cy + r * Math.sin(-midAngle * RAD);
+  return (
+    <text
+      x={x}
+      y={y}
+      fill="#ffffff"
+      textAnchor="middle"
+      dominantBaseline="central"
+      fontSize={12}
+      fontWeight={600}
+      style={{ pointerEvents: "none" }}
+    >
+      {pct}%
+    </text>
+  );
+}
+
 export function VolumeChart({
   data,
 }: {
@@ -83,7 +113,8 @@ export function FormatPieChart({
   data: { name: string; value: number }[];
 }) {
   // External pie labels get clipped by the narrow grid container, so the
-  // format is rendered in a legend beneath the donut instead.
+  // format is rendered in a legend beneath the donut instead. Percentages
+  // sit inside each slice (hidden on very small slices that can't fit text).
   return (
     <ResponsiveContainer width="100%" height={280}>
       <PieChart>
@@ -95,7 +126,7 @@ export function FormatPieChart({
           outerRadius={82}
           paddingAngle={3}
           dataKey="value"
-          label={false}
+          label={PieSlicePercent}
           labelLine={false}
         >
           {data.map((_, i) => (
@@ -185,8 +216,8 @@ export function PlatformChart({
   data: { name: string; count: number }[];
 }) {
   // Platform names (instagram, audience_network, messenger, …) are too long
-  // to render as external labels inside a narrow pie. Drop the labels and
-  // put the platform legend underneath so nothing gets clipped.
+  // to render as external labels inside a narrow pie. Legend below + in-slice
+  // percentages keeps the chart compact and readable.
   return (
     <ResponsiveContainer width="100%" height={280}>
       <PieChart>
@@ -194,10 +225,11 @@ export function PlatformChart({
           data={data}
           cx="50%"
           cy="45%"
+          innerRadius={30}
           outerRadius={80}
           paddingAngle={2}
           dataKey="count"
-          label={false}
+          label={PieSlicePercent}
           labelLine={false}
         >
           {data.map((_, i) => (
