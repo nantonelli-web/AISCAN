@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,7 +37,7 @@ import type {
 } from "@/lib/analytics/benchmarks";
 import type { CreativeAnalysisResult } from "@/lib/ai/creative-analysis";
 import type { MaitCompetitor } from "@/types";
-import { COUNTRIES } from "@/config/countries";
+import { getCountries } from "@/config/countries";
 
 type Tab = "technical" | "copy" | "visual" | "benchmark";
 type Channel = "all" | "meta" | "google" | "instagram";
@@ -587,8 +587,8 @@ export function CompareView({
     }
   }
 
-  // Full list of available countries
-  const allCountries = COUNTRIES;
+  // Full list of available countries, localized to current UI locale
+  const allCountries = useMemo(() => getCountries(locale), [locale]);
 
   function toggleCountry(code: string) {
     setSelectedCountries((prev) => {

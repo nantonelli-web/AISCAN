@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { X, Trash2, Plus } from "lucide-react";
@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import type { MaitCompetitor } from "@/types";
 
-import { COUNTRIES } from "@/config/countries";
+import { getCountries } from "@/config/countries";
 
 const CATEGORIES = [
   "Fashion",
@@ -73,7 +73,8 @@ export function EditCompetitorForm({
       .catch(() => {});
   }, []);
   const [countrySearch, setCountrySearch] = useState("");
-  const { t } = useT();
+  const { t, locale } = useT();
+  const countries = useMemo(() => getCountries(locale), [locale]);
 
   function toggleCountry(code: string) {
     setSelectedCountries((prev) =>
@@ -85,7 +86,7 @@ export function EditCompetitorForm({
     setSelectedCountries((prev) => prev.filter((c) => c !== code));
   }
 
-  const filteredCountries = COUNTRIES.filter(
+  const filteredCountries = countries.filter(
     (c) =>
       c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
       c.code.toLowerCase().includes(countrySearch.toLowerCase())

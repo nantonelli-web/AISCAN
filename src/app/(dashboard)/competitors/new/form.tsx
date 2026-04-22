@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { X, Plus } from "lucide-react";
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 
-import { COUNTRIES } from "@/config/countries";
+import { getCountries } from "@/config/countries";
 
 const CATEGORIES = [
   "Fashion",
@@ -62,7 +62,8 @@ export function NewCompetitorForm() {
       .then((d) => { if (Array.isArray(d)) setClients(d); })
       .catch(() => {});
   }, []);
-  const { t } = useT();
+  const { t, locale } = useT();
+  const countries = useMemo(() => getCountries(locale), [locale]);
 
   function toggleCountry(code: string) {
     setSelectedCountries((prev) =>
@@ -74,7 +75,7 @@ export function NewCompetitorForm() {
     setSelectedCountries((prev) => prev.filter((c) => c !== code));
   }
 
-  const filteredCountries = COUNTRIES.filter(
+  const filteredCountries = countries.filter(
     (c) =>
       c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
       c.code.toLowerCase().includes(countrySearch.toLowerCase())
@@ -268,7 +269,7 @@ export function NewCompetitorForm() {
           {selectedCountries.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-2">
               {selectedCountries.map((code) => {
-                const c = COUNTRIES.find((x) => x.code === code);
+                const c = countries.find((x) => x.code === code);
                 return (
                   <span
                     key={code}

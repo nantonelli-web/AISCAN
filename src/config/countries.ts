@@ -1,5 +1,5 @@
-// Complete ISO 3166-1 alpha-2 list. Names are localized to Italian via
-// Intl.DisplayNames so adding a new country never requires a code change.
+// Complete ISO 3166-1 alpha-2 list. Names are resolved at runtime via
+// Intl.DisplayNames so the country names match the current UI locale.
 const ISO_CODES = [
   "AD", "AE", "AF", "AG", "AI", "AL", "AM", "AO", "AQ", "AR", "AS", "AT", "AU",
   "AW", "AX", "AZ", "BA", "BB", "BD", "BE", "BF", "BG", "BH", "BI", "BJ", "BL",
@@ -23,9 +23,28 @@ const ISO_CODES = [
   "ZM", "ZW",
 ] as const;
 
-const display = new Intl.DisplayNames(["it"], { type: "region" });
-const collator = new Intl.Collator("it");
+export type CountryEntry = { code: string; name: string };
 
-export const COUNTRIES = ISO_CODES
-  .map((code) => ({ code, name: display.of(code) ?? code }))
-  .sort((a, b) => collator.compare(a.name, b.name));
+/**
+ * Returns all ISO 3166-1 countries with names localized to the given locale,
+ * sorted alphabetically using that locale's collation rules.
+ *
+ * Call this at render time in client components so users see the list in
+ * the language they picked in the app.
+ */
+export function getCountries(locale: string): CountryEntry[] {
+  const display = new Intl.DisplayNames([locale], { type: "region" });
+  const collator = new Intl.Collator(locale);
+  return ISO_CODES
+    .map((code) => ({ code, name: display.of(code) ?? code }))
+    .sort((a, b) => collator.compare(a.name, b.name));
+}
+
+/**
+ * Returns the localized name for a single country code, or the code itself
+ * if the locale/ICU data doesn't know it.
+ */
+export function getCountryName(code: string, locale: string): string {
+  const display = new Intl.DisplayNames([locale], { type: "region" });
+  return display.of(code) ?? code;
+}
