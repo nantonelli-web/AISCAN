@@ -170,19 +170,20 @@ export function PlatformChart({
 }: {
   data: { name: string; count: number }[];
 }) {
+  // Platform names (instagram, audience_network, messenger, …) are too long
+  // to render as external labels inside a narrow pie. Drop the labels and
+  // put the platform legend underneath so nothing gets clipped.
   return (
-    <ResponsiveContainer width="100%" height={250}>
+    <ResponsiveContainer width="100%" height={280}>
       <PieChart>
         <Pie
           data={data}
           cx="50%"
-          cy="50%"
-          outerRadius={90}
+          cy="45%"
+          outerRadius={80}
           paddingAngle={2}
           dataKey="count"
-          label={(props: PieLabelRenderProps) =>
-            `${props.name ?? ""} ${(((props.percent as number) ?? 0) * 100).toFixed(0)}%`
-          }
+          label={false}
           labelLine={false}
         >
           {data.map((_, i) => (
@@ -190,6 +191,11 @@ export function PlatformChart({
           ))}
         </Pie>
         <Tooltip {...tooltipStyle} />
+        <Legend
+          verticalAlign="bottom"
+          iconType="circle"
+          wrapperStyle={{ fontSize: 11, color: LEGEND_TEXT, lineHeight: "16px" }}
+        />
       </PieChart>
     </ResponsiveContainer>
   );

@@ -2,6 +2,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getLocale, serverT } from "@/lib/i18n/server";
+import { PrintButton } from "@/components/ui/print-button";
 import { ReportBuilder } from "./report-builder";
 import type { MaitCompetitor } from "@/types";
 
@@ -45,13 +46,16 @@ export default async function ReportPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-serif tracking-tight">
-          {t("report", "title")}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {t("report", "subtitle")}
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-serif tracking-tight">
+            {t("report", "title")}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {t("report", "subtitle")}
+          </p>
+        </div>
+        <PrintButton label={t("common", "print")} variant="outline" />
       </div>
       <ReportBuilder
         competitors={(competitors ?? []) as MaitCompetitor[]}

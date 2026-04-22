@@ -10,6 +10,7 @@ import { FrequencySelector } from "./frequency-selector";
 import { CollapsibleJobHistory } from "./collapsible-job-history";
 import { ChannelTabs } from "./channel-tabs";
 import { FallbackImage } from "@/components/ui/fallback-image";
+import { PrintButton } from "@/components/ui/print-button";
 import { formatDate } from "@/lib/utils";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import type { MaitAdExternal, MaitCompetitor, MaitOrganicPost, MaitScrapeJob } from "@/types";
@@ -90,12 +91,15 @@ export default async function CompetitorDetailPage({
 
   return (
     <div className="space-y-6">
-      <Link
-        href="/competitors"
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" /> {t("competitors", "allCompetitors")}
-      </Link>
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          href="/competitors"
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground print:hidden"
+        >
+          <ArrowLeft className="size-4" /> {t("competitors", "allCompetitors")}
+        </Link>
+        <PrintButton label={t("common", "print")} variant="outline" />
+      </div>
 
       {/* ─── Hero: brand identity ─────────────────────────────
           Max peso visivo — nome + avatar + URL + likes.
@@ -199,6 +203,10 @@ export default async function CompetitorDetailPage({
           totalViews,
         }}
       />
+
+      <div className="flex justify-center pt-2 print:hidden">
+        <PrintButton label={t("common", "print")} variant="outline" />
+      </div>
     </div>
   );
 }

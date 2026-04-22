@@ -7,6 +7,7 @@ import { AdCard } from "@/components/ads/ad-card";
 import { Badge } from "@/components/ui/badge";
 import { formatNumber } from "@/lib/utils";
 import { getLocale, serverT } from "@/lib/i18n/server";
+import { PrintButton } from "@/components/ui/print-button";
 import type { MaitAdExternal } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -72,13 +73,16 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-serif tracking-tight">
-          {t("dashboard", "greeting")}{profile.name ? `, ${profile.name.split(" ")[0]}` : ""}.
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {t("dashboard", "subtitle")}
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-serif tracking-tight">
+            {t("dashboard", "greeting")}{profile.name ? `, ${profile.name.split(" ")[0]}` : ""}.
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {t("dashboard", "subtitle")}
+          </p>
+        </div>
+        <PrintButton label={t("common", "print")} variant="outline" />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -147,6 +151,10 @@ export default async function DashboardPage() {
             ))}
           </CardContent>
         </Card>
+      </div>
+
+      <div className="flex justify-center pt-2 print:hidden">
+        <PrintButton label={t("common", "print")} variant="outline" />
       </div>
     </div>
   );

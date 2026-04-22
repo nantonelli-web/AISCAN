@@ -11,6 +11,7 @@ import {
   HorizontalBarChart,
   PlatformChart,
 } from "@/components/dashboard/benchmark-charts";
+import { PrintButton } from "@/components/ui/print-button";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { MetaIcon } from "@/components/ui/meta-icon";
 import Link from "next/link";
@@ -187,16 +188,19 @@ export default async function BenchmarksPage({
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-serif tracking-tight">{t("benchmarks", "title")}</h1>
-        <p className="text-sm text-muted-foreground">
-          {t("benchmarks", "comparativeAnalysis")} {formatNumber(data.totals.totalAds)} {t("benchmarks", "adsOf")}{" "}
-          {data.volumeByCompetitor.length} {t("benchmarks", "competitorsWord")}
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-serif tracking-tight">{t("benchmarks", "title")}</h1>
+          <p className="text-sm text-muted-foreground">
+            {t("benchmarks", "comparativeAnalysis")} {formatNumber(data.totals.totalAds)} {t("benchmarks", "adsOf")}{" "}
+            {data.volumeByCompetitor.length} {t("benchmarks", "competitorsWord")}
+          </p>
+        </div>
+        <PrintButton label={t("common", "print")} variant="outline" />
       </div>
 
       {/* Channel selector */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 print:hidden">
         {channels.map((ch) => (
           <Link
             key={ch.key}
@@ -213,7 +217,7 @@ export default async function BenchmarksPage({
         ))}
       </div>
 
-      {clientFilter}
+      <div className="print:hidden">{clientFilter}</div>
 
       {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
@@ -277,18 +281,29 @@ export default async function BenchmarksPage({
         </CardContent>
       </Card>
 
-      {/* CTA */}
+      {/* CTA — now broken down per brand, same layout as format mix */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("benchmarks", "topCta")}</CardTitle>
+          <CardTitle>{t("benchmarks", "topCtaPerBrand")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descTopCta")}</p>
-          <HorizontalBarChart
-            data={data.topCtas}
-            dataKey="count"
-            label={t("benchmarks", "adsLabel")}
-          />
+          <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descTopCtaPerBrand")}</p>
+          {data.ctaMixByCompetitor.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-4">{t("benchmarks", "noData")}</p>
+          ) : (
+            <div className={`grid gap-6 ${data.ctaMixByCompetitor.length <= 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
+              {data.ctaMixByCompetitor.map((entry) => (
+                <div key={entry.competitor} className="space-y-2">
+                  <p className="text-xs font-medium text-gold text-center">{entry.competitor}</p>
+                  <HorizontalBarChart
+                    data={entry.data}
+                    dataKey="count"
+                    label={t("benchmarks", "adsLabel")}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -429,6 +444,10 @@ export default async function BenchmarksPage({
           </CardContent>
         </Card>
       )}
+
+      <div className="flex justify-center pt-2 print:hidden">
+        <PrintButton label={t("common", "print")} variant="outline" />
+      </div>
     </div>
   );
 }

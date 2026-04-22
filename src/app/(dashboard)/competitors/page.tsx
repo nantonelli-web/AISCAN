@@ -10,6 +10,7 @@ import { formatDate } from "@/lib/utils";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { ScanAllButton } from "./scan-all-button";
 import { CollapsibleClientSection } from "./collapsible-client-section";
+import { PrintButton } from "@/components/ui/print-button";
 import type { MaitCompetitor, MaitClient } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -74,12 +75,13 @@ export default async function CompetitorsPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <PrintButton label={t("common", "print")} variant="outline" />
           {list.length > 0 && (
             <ScanAllButton
               competitors={list.map((c) => ({ id: c.id, page_name: c.page_name }))}
             />
           )}
-          <Button asChild>
+          <Button asChild className="print:hidden">
             <Link href="/competitors/new">
               <Plus className="size-4" /> {t("competitors", "addCompetitor")}
             </Link>
@@ -127,6 +129,12 @@ export default async function CompetitorsPage() {
           {list.map((c) => (
             <BrandCard key={c.id} brand={c} t={t} />
           ))}
+        </div>
+      )}
+
+      {list.length > 0 && (
+        <div className="flex justify-center pt-4 print:hidden">
+          <PrintButton label={t("common", "print")} variant="outline" />
         </div>
       )}
     </div>

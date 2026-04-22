@@ -38,6 +38,8 @@ export interface BenchmarkData {
   topCtas: { name: string; count: number }[];
   /** CTA usage per competitor (top 5 CTAs) */
   ctaByCompetitor: { name: string; [cta: string]: string | number }[];
+  /** Top CTAs per competitor — shape ready for per-brand pie/bar charts */
+  ctaMixByCompetitor: { competitor: string; data: { name: string; count: number }[] }[];
   /** Format mix per competitor (for individual pie charts) */
   formatMixByCompetitor: { competitor: string; data: { name: string; value: number }[] }[];
   /** Platform distribution */
@@ -184,9 +186,16 @@ export async function computeBenchmarks(
   // CTA per competitor (top 5 CTAs)
   const topCtaNames = topCtas.slice(0, 5).map((c) => c.name);
   const ctaByCompMap = new Map<string, Record<string, number>>();
+  // Per-competitor full CTA distribution (for per-brand charts, not limited
+  // to global top 5 — each brand may favour its own set of CTAs).
+  const fullCtaByCompMap = new Map<string, Map<string, number>>();
   for (const ad of ads) {
-    if (!ad.cta || !topCtaNames.includes(ad.cta)) continue;
+    if (!ad.cta) continue;
     const key = ad.competitor_id ?? "unknown";
+    const fullEntry = fullCtaByCompMap.get(key) ?? new Map<string, number>();
+    fullEntry.set(ad.cta, (fullEntry.get(ad.cta) ?? 0) + 1);
+    fullCtaByCompMap.set(key, fullEntry);
+    if (!topCtaNames.includes(ad.cta)) continue;
     const entry = ctaByCompMap.get(key) ?? {};
     entry[ad.cta] = (entry[ad.cta] ?? 0) + 1;
     ctaByCompMap.set(key, entry);
@@ -195,6 +204,21 @@ export async function computeBenchmarks(
     name: compMap.get(id) ?? "N/A",
     ...ctas,
   }));
+  // Top 6 CTAs per brand, descending by frequency, for the per-brand chart
+  const ctaMixByCompetitor = [...fullCtaByCompMap.entries()]
+    .map(([id, tagMap]) => ({
+      competitor: compMap.get(id) ?? "N/A",
+      data: [...tagMap.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 6)
+        .map(([name, count]) => ({ name, count })),
+    }))
+    .filter((e) => e.data.length > 0)
+    .sort((a, b) => {
+      const ta = a.data.reduce((s, d) => s + d.count, 0);
+      const tb = b.data.reduce((s, d) => s + d.count, 0);
+      return tb - ta;
+    });
 
   // ---- Platform distribution ----
   const platCount = new Map<string, number>();
@@ -383,6 +407,7 @@ export async function computeBenchmarks(
     formatMixByCompetitor,
     topCtas,
     ctaByCompetitor,
+    ctaMixByCompetitor,
     platformDistribution,
     platformByCompetitor,
     avgDurationByCompetitor,

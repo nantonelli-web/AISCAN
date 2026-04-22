@@ -725,6 +725,7 @@ const translations = {
       en: "Format mix per brand",
     },
     topCta: { it: "Top CTA", en: "Top CTA" },
+    topCtaPerBrand: { it: "Top CTA per brand", en: "Top CTA per brand" },
     platformDistribution: {
       it: "Distribuzione piattaforma",
       en: "Platform distribution",
@@ -764,6 +765,10 @@ const translations = {
     descTopCta: {
       it: "Le call-to-action piu utilizzate nelle ads monitorate.",
       en: "The most used call-to-actions in monitored ads.",
+    },
+    descTopCtaPerBrand: {
+      it: "Le CTA piu usate da ciascun brand nel periodo scansionato.",
+      en: "Top CTAs used by each brand within the scanned period.",
     },
     descPlatform: {
       it: "Distribuzione delle ads per piattaforma di pubblicazione.",
@@ -1196,6 +1201,7 @@ const translations = {
     error: { it: "Errore", en: "Error" },
     loading: { it: "Caricamento...", en: "Loading..." },
     ads: { it: "ads", en: "ads" },
+    print: { it: "Stampa", en: "Print" },
   },
 
   // ─── Language Switcher ─────────────────────────────────────

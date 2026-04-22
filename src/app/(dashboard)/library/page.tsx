@@ -5,6 +5,7 @@ import { OrganicPostCard } from "@/components/organic/organic-post-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { LibraryFilters } from "./filters";
 import { getLocale, serverT } from "@/lib/i18n/server";
+import { PrintButton } from "@/components/ui/print-button";
 import { getCompetitors } from "@/lib/library/cached-data";
 import type { MaitAdExternal, MaitOrganicPost } from "@/types";
 
@@ -95,17 +96,22 @@ export default async function LibraryPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-serif tracking-tight">{t("library", "title")}</h1>
-        <p className="text-sm text-muted-foreground">
-          {t("library", "subtitle")}
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-serif tracking-tight">{t("library", "title")}</h1>
+          <p className="text-sm text-muted-foreground">
+            {t("library", "subtitle")}
+          </p>
+        </div>
+        <PrintButton label={t("common", "print")} variant="outline" />
       </div>
 
-      <LibraryFilters
-        initial={sp}
-        competitors={competitors}
-      />
+      <div className="print:hidden">
+        <LibraryFilters
+          initial={sp}
+          competitors={competitors}
+        />
+      </div>
 
       {totalResults === 0 ? (
         <Card>
@@ -142,6 +148,10 @@ export default async function LibraryPage({
           )}
         </>
       )}
+
+      <div className="flex justify-center pt-4 print:hidden">
+        <PrintButton label={t("common", "print")} variant="outline" />
+      </div>
     </div>
   );
 }

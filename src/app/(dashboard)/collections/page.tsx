@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { FolderHeart } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { getLocale, serverT } from "@/lib/i18n/server";
+import { PrintButton } from "@/components/ui/print-button";
 
 export const dynamic = "force-dynamic";
 
@@ -28,11 +29,14 @@ export default async function CollectionsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-serif tracking-tight">{t("collections", "title")}</h1>
-        <p className="text-sm text-muted-foreground">
-          {t("collections", "subtitle")}
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-serif tracking-tight">{t("collections", "title")}</h1>
+          <p className="text-sm text-muted-foreground">
+            {t("collections", "subtitle")}
+          </p>
+        </div>
+        <PrintButton label={t("common", "print")} variant="outline" />
       </div>
 
       {collections.length === 0 ? (
@@ -69,6 +73,12 @@ export default async function CollectionsPage() {
               </Card>
             </Link>
           ))}
+        </div>
+      )}
+
+      {collections.length > 0 && (
+        <div className="flex justify-center pt-2 print:hidden">
+          <PrintButton label={t("common", "print")} variant="outline" />
         </div>
       )}
     </div>
