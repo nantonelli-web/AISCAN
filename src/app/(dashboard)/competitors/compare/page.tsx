@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CompareView } from "./compare-view";
 import { getLocale, serverT } from "@/lib/i18n/server";
-import type { MaitCompetitor } from "@/types";
+import type { MaitCompetitor, MaitClient } from "@/types";
 
 export const dynamic = "force-dynamic";
 
@@ -14,19 +14,25 @@ export default async function ComparePage() {
   const locale = await getLocale();
   const t = serverT(locale);
 
-  const [{ data: competitors }, { data: savedComparisons }] = await Promise.all([
-    supabase
-      .from("mait_competitors")
-      .select("*")
-      .eq("workspace_id", profile.workspace_id!)
-      .order("page_name"),
-    admin
-      .from("mait_comparisons")
-      .select("id, competitor_ids, locale, countries, channel, stale, created_at, updated_at")
-      .eq("workspace_id", profile.workspace_id!)
-      .order("updated_at", { ascending: false })
-      .limit(10),
-  ]);
+  const [{ data: competitors }, { data: savedComparisons }, { data: clientsData }] =
+    await Promise.all([
+      supabase
+        .from("mait_competitors")
+        .select("*")
+        .eq("workspace_id", profile.workspace_id!)
+        .order("page_name"),
+      admin
+        .from("mait_comparisons")
+        .select("id, competitor_ids, locale, countries, channel, stale, created_at, updated_at")
+        .eq("workspace_id", profile.workspace_id!)
+        .order("updated_at", { ascending: false })
+        .limit(10),
+      admin
+        .from("mait_clients")
+        .select("id, name, color, workspace_id")
+        .eq("workspace_id", profile.workspace_id!)
+        .order("name"),
+    ]);
 
   return (
     <div className="space-y-6">
@@ -40,6 +46,7 @@ export default async function ComparePage() {
       </div>
       <CompareView
         competitors={(competitors ?? []) as MaitCompetitor[]}
+        clients={(clientsData ?? []) as MaitClient[]}
         workspaceId={profile.workspace_id!}
         savedComparisons={(savedComparisons ?? []) as Array<{
           id: string;

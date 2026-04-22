@@ -21,6 +21,7 @@ import {
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
 import { FallbackImage } from "@/components/ui/fallback-image";
+import { CollapsibleClientSection } from "../collapsible-client-section";
 import { cn, formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { AnalysisReport } from "./analysis-report";
@@ -36,7 +37,7 @@ import type {
   OrganicBenchmarkData,
 } from "@/lib/analytics/benchmarks";
 import type { CreativeAnalysisResult } from "@/lib/ai/creative-analysis";
-import type { MaitCompetitor } from "@/types";
+import type { MaitCompetitor, MaitClient } from "@/types";
 import { getCountries } from "@/config/countries";
 
 type Tab = "technical" | "copy" | "visual" | "benchmark";
@@ -162,9 +163,11 @@ function channelLabel(ch: string | null | undefined, t: (s: string, k: string) =
 
 export function CompareView({
   competitors,
+  clients = [],
   savedComparisons = [],
 }: {
   competitors: MaitCompetitor[];
+  clients?: MaitClient[];
   workspaceId: string;
   savedComparisons?: SavedComparison[];
 }) {
@@ -590,6 +593,24 @@ export function CompareView({
   // Full list of available countries, localized to current UI locale
   const allCountries = useMemo(() => getCountries(locale), [locale]);
 
+  // Group brands by client for the selector (same ordering as /competitors)
+  const brandSections = useMemo(() => {
+    const grouped = new Map<string | null, MaitCompetitor[]>();
+    for (const c of competitors) {
+      const key = c.client_id ?? null;
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key)!.push(c);
+    }
+    const ordered: { client: MaitClient | null; brands: MaitCompetitor[] }[] = [];
+    for (const client of clients) {
+      const brands = grouped.get(client.id) ?? [];
+      if (brands.length > 0) ordered.push({ client, brands });
+    }
+    const unassigned = grouped.get(null) ?? [];
+    if (unassigned.length > 0) ordered.push({ client: null, brands: unassigned });
+    return ordered;
+  }, [competitors, clients]);
+
   function toggleCountry(code: string) {
     setSelectedCountries((prev) => {
       const next = new Set(prev);
@@ -687,7 +708,7 @@ export function CompareView({
         </button>
       )}
 
-      {/* Selector */}
+      {/* Selector — brands grouped by project, each group collapsible */}
       <Card className="print:hidden">
         <CardHeader>
           <CardTitle className="text-sm">
@@ -695,26 +716,44 @@ export function CompareView({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {competitors.map((c) => {
-              const isSelected = selected.has(c.id);
-              return (
-                <Button
-                  key={c.id}
-                  variant={isSelected ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => toggle(c.id)}
-                  disabled={!isSelected && selected.size >= 3}
-                >
-                  {c.page_name}
-                </Button>
-              );
-            })}
-          </div>
-          {competitors.length === 0 && (
+          {brandSections.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               {t("compare", "noCompetitorsInWorkspace")}
             </p>
+          ) : (
+            <div className="space-y-4">
+              {brandSections.map((section) => {
+                const clientKey = section.client?.id ?? "unassigned";
+                return (
+                  <CollapsibleClientSection
+                    key={clientKey}
+                    // Prefix so compare-view collapsed state is independent
+                    // from the main brands page.
+                    clientKey={`compare-${clientKey}`}
+                    clientName={section.client?.name ?? t("clients", "unassigned")}
+                    clientColor={section.client?.color ?? "#3a3a3a"}
+                    brandCount={section.brands.length}
+                  >
+                    <div className="flex flex-wrap gap-2 ml-5">
+                      {section.brands.map((c) => {
+                        const isSelected = selected.has(c.id);
+                        return (
+                          <Button
+                            key={c.id}
+                            variant={isSelected ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => toggle(c.id)}
+                            disabled={!isSelected && selected.size >= 3}
+                          >
+                            {c.page_name}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </CollapsibleClientSection>
+                );
+              })}
+            </div>
           )}
         </CardContent>
       </Card>
