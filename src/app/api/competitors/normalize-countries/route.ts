@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { toIsoCountry, coerceCountryForStorage } from "@/lib/meta/country-codes";
+import { coerceCountryForStorage } from "@/lib/meta/country-codes";
+
+// Either a single alpha-2 ("IT") or a canonical CSV of alpha-2s ("IT,DE,GB").
+const CANONICAL_SHAPE = /^[A-Z]{2}(,[A-Z]{2})*$/;
 
 /**
  * One-shot backfill: walk mait_competitors for the authenticated workspace
@@ -55,23 +58,26 @@ export async function POST(req: Request) {
   const updated: Change[] = [];
   const skipped: Change[] = [];
   const unchanged: number = rows?.filter((r) => {
-    const before = r.country as string | null;
-    if (before == null) return true;
-    const trimmed = before.trim();
-    return /^[A-Z]{2}$/.test(trimmed);
+    const before = (r.country as string | null)?.trim() ?? null;
+    if (!before) return true;
+    return CANONICAL_SHAPE.test(before);
   }).length ?? 0;
 
   for (const r of rows ?? []) {
     const before = (r.country as string | null) ?? null;
     if (before == null) continue;
     const trimmed = before.trim();
-    if (/^[A-Z]{2}$/.test(trimmed)) continue;
+    if (!trimmed) continue;
+    // Already in canonical form — no write needed.
+    if (CANONICAL_SHAPE.test(trimmed)) continue;
 
-    const normalised = toIsoCountry(trimmed);
-    const after = coerceCountryForStorage(trimmed);
-    // If normalisation fell back to the raw value (toIsoCountry returned
-    // null) we skip the write — no point overwriting "Italy" with "Italy".
-    if (!normalised) {
+    // coerceCountryForStorage handles both single values ("Italy" -> "IT")
+    // and comma-separated lists ("IT, DE, UK, FR, ES" -> "IT,DE,GB,FR,ES").
+    // If it cannot produce a canonical shape, we flag the row as unresolved.
+    const canonical = coerceCountryForStorage(trimmed) ?? trimmed;
+    const isCanonical = CANONICAL_SHAPE.test(canonical);
+
+    if (!isCanonical) {
       skipped.push({
         id: r.id,
         page_name: r.page_name,
@@ -85,7 +91,7 @@ export async function POST(req: Request) {
     if (!dryRun) {
       const { error: upErr } = await admin
         .from("mait_competitors")
-        .update({ country: normalised })
+        .update({ country: canonical })
         .eq("id", r.id)
         .eq("workspace_id", profile.workspace_id);
       if (upErr) {
@@ -94,7 +100,7 @@ export async function POST(req: Request) {
           id: r.id,
           page_name: r.page_name,
           before,
-          after: normalised,
+          after: canonical,
           resolved: false,
         });
         continue;
@@ -104,7 +110,7 @@ export async function POST(req: Request) {
       id: r.id,
       page_name: r.page_name,
       before,
-      after,
+      after: canonical,
       resolved: true,
     });
   }
