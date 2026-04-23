@@ -126,6 +126,14 @@ export interface BenchmarkData {
     countedInLast90d: number;
     sourceBreakdown: Record<string, number>;
   }[];
+  /** Higher-level diagnostic: what was the pool size that drove the
+   *  refresh rate, and did the competitor_id filter reach the DB? */
+  refreshRateMeta: {
+    allAdsMetaSize: number;
+    uniqueCompetitorIdsInPool: number;
+    competitorIdsFilterSize: number;
+    competitorIdsFilterSample: string[];
+  };
   /** AI-generated ads percentage per competitor */
   aiGeneratedByCompetitor: { name: string; percent: number }[];
   /** Advantage+ usage percentage per competitor */
@@ -930,6 +938,14 @@ export async function computeBenchmarks(
     avgCopyLengthByCompetitor,
     refreshRate,
     refreshRateDebug,
+    refreshRateMeta: {
+      allAdsMetaSize: allAdsMeta.length,
+      uniqueCompetitorIdsInPool: new Set(
+        allAdsMeta.map((r) => r.competitor_id ?? "null")
+      ).size,
+      competitorIdsFilterSize: competitorIds?.length ?? 0,
+      competitorIdsFilterSample: competitorIds?.slice(0, 3) ?? [],
+    },
     aiGeneratedByCompetitor,
     advantagePlusByCompetitor,
     avgVariantsByCompetitor,

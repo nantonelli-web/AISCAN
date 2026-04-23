@@ -330,7 +330,10 @@ export async function BenchmarkContent({
             {data.refreshRateDebug.length > 0 && (
               <div className="mt-3 pt-3 border-t border-border text-[10px] text-muted-foreground space-y-0.5">
                 <p className="font-semibold uppercase tracking-wider mb-1">Debug</p>
-                {data.refreshRateDebug.slice(0, 10).map((b) => {
+                <div className="mb-2 font-mono text-foreground">
+                  pool={data.refreshRateMeta.allAdsMetaSize} · uniqueComps={data.refreshRateMeta.uniqueCompetitorIdsInPool} · filter={data.refreshRateMeta.competitorIdsFilterSize} (sample: {data.refreshRateMeta.competitorIdsFilterSample.map((s) => s.slice(0, 8)).join(", ")})
+                </div>
+                {data.refreshRateDebug.map((b) => {
                   const src = Object.entries(b.sourceBreakdown)
                     .map(([k, v]) => `${k}:${v}`)
                     .join(" ");
