@@ -211,32 +211,47 @@ export async function computeBenchmarks(
     .order("created_at", { ascending: false })
     .limit(3000);
 
-  // Separate lightweight query used for the Volume chart — counts every ad
-  // (no 3000 cap) with only the two columns needed. Keeps the volume chart
-  // accurate and deterministic even when the heavy query is capped.
-  let volumeQuery = supabase
-    .from("mait_ads_external")
-    .select("competitor_id, status")
-    .eq("workspace_id", workspaceId)
-    .limit(100_000);
-
   if (source) {
     adsQuery = adsQuery.eq("source", source);
-    volumeQuery = volumeQuery.eq("source", source);
   }
   if (competitorIds && competitorIds.length > 0) {
     adsQuery = adsQuery.in("competitor_id", competitorIds);
-    volumeQuery = volumeQuery.in("competitor_id", competitorIds);
   }
 
-  const [{ data: competitors }, { data: rawAds }, { data: volumeRows }] = await Promise.all([
+  // Separate lightweight + paginated query used for the Volume chart.
+  // Supabase/PostgREST caps single responses (1000 rows by default) even if
+  // you pass a larger .limit(), so we page through with .range() until we
+  // have every (competitor_id, status) row. The 500k safety stop guards
+  // against a runaway loop if the table misbehaves.
+  async function fetchAllVolumeRows(): Promise<{ competitor_id: string | null; status: string | null }[]> {
+    const PAGE = 5000;
+    const SAFETY_CAP = 500_000;
+    const rows: { competitor_id: string | null; status: string | null }[] = [];
+    for (let from = 0; from < SAFETY_CAP; from += PAGE) {
+      let q = supabase
+        .from("mait_ads_external")
+        .select("competitor_id, status")
+        .eq("workspace_id", workspaceId)
+        .order("id")
+        .range(from, from + PAGE - 1);
+      if (source) q = q.eq("source", source);
+      if (competitorIds && competitorIds.length > 0) q = q.in("competitor_id", competitorIds);
+      const { data, error } = await q;
+      if (error || !data || data.length === 0) break;
+      rows.push(...data);
+      if (data.length < PAGE) break;
+    }
+    return rows;
+  }
+
+  const [{ data: competitors }, { data: rawAds }, volumeRows] = await Promise.all([
     supabase
       .from("mait_competitors")
       .select("id, page_name")
       .eq("workspace_id", workspaceId)
       .order("page_name"),
     adsQuery,
-    volumeQuery,
+    fetchAllVolumeRows(),
   ]);
 
   const comps = (competitors ?? []) as CompetitorRef[];
@@ -249,9 +264,9 @@ export async function computeBenchmarks(
     : null;
   const compMap = new Map(comps.map((c) => [c.id, c.page_name]));
 
-  // ---- Volume per competitor (driven by the uncapped lightweight query) ----
+  // ---- Volume per competitor (driven by the uncapped paginated query) ----
   const volumeMap = new Map<string, { active: number; inactive: number }>();
-  for (const row of (volumeRows ?? []) as { competitor_id: string | null; status: string | null }[]) {
+  for (const row of volumeRows) {
     const key = row.competitor_id ?? "unknown";
     const entry = volumeMap.get(key) ?? { active: 0, inactive: 0 };
     if (row.status === "ACTIVE") entry.active++;

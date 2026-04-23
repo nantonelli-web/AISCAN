@@ -86,41 +86,45 @@ export async function BenchmarkContent({
         </CardContent>
       </Card>
 
-      {/* UTM analysis per brand — audience + objective inference */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("benchmarks", "utmPerBrand")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descUtmPerBrand")}</p>
-          <div className="mb-4 rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-[11px] leading-relaxed text-orange-900">
-            {t("benchmarks", "utmDisclaimer")}
-          </div>
-          {data.utmInsightsByCompetitor.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-4">{t("benchmarks", "utmNoData")}</p>
-          ) : (
-            <div className={`grid gap-4 ${data.utmInsightsByCompetitor.length <= 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
-              {data.utmInsightsByCompetitor.map((entry) => (
-                <UtmInsightCard
-                  key={entry.competitor}
-                  competitor={entry.competitor}
-                  audience={entry.audience}
-                  objective={entry.objective}
-                  audienceConfidence={entry.audienceConfidence}
-                  objectiveConfidence={entry.objectiveConfidence}
-                  sampleCampaign={entry.sampleCampaign}
-                  audienceLabel={t("benchmarks", "utmAudience")}
-                  objectiveLabel={t("benchmarks", "utmObjective")}
-                  sampleLabel={t("benchmarks", "utmSampleCampaign")}
-                  confLabel={t("benchmarks", "utmConfidence")}
-                  audienceName={t("benchmarks", `audience_${entry.audience}`)}
-                  objectiveName={t("benchmarks", `objective_${entry.objective}`)}
-                />
-              ))}
+      {/* UTM analysis per brand — hidden pending further work on the
+          audience/objective inference. Computation is still done in
+          computeBenchmarks so nothing needs re-plumbing when we re-enable it. */}
+      {false && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("benchmarks", "utmPerBrand")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descUtmPerBrand")}</p>
+            <div className="mb-4 rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-[11px] leading-relaxed text-orange-900">
+              {t("benchmarks", "utmDisclaimer")}
             </div>
-          )}
-        </CardContent>
-      </Card>
+            {data.utmInsightsByCompetitor.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-4">{t("benchmarks", "utmNoData")}</p>
+            ) : (
+              <div className={`grid gap-4 ${data.utmInsightsByCompetitor.length <= 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
+                {data.utmInsightsByCompetitor.map((entry) => (
+                  <UtmInsightCard
+                    key={entry.competitor}
+                    competitor={entry.competitor}
+                    audience={entry.audience}
+                    objective={entry.objective}
+                    audienceConfidence={entry.audienceConfidence}
+                    objectiveConfidence={entry.objectiveConfidence}
+                    sampleCampaign={entry.sampleCampaign}
+                    audienceLabel={t("benchmarks", "utmAudience")}
+                    objectiveLabel={t("benchmarks", "utmObjective")}
+                    sampleLabel={t("benchmarks", "utmSampleCampaign")}
+                    confLabel={t("benchmarks", "utmConfidence")}
+                    audienceName={t("benchmarks", `audience_${entry.audience}`)}
+                    objectiveName={t("benchmarks", `objective_${entry.objective}`)}
+                  />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* CTA per brand */}
       <Card>
