@@ -327,6 +327,19 @@ export async function BenchmarkContent({
           <CardContent>
             <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descRefreshRate")}</p>
             <HorizontalBarChart data={data.refreshRate} dataKey="adsPerWeek" label={t("benchmarks", "adsPerWeekAxisLabel")} color="#d97757" />
+            {data.refreshRateDebug.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-border text-[10px] text-muted-foreground space-y-0.5">
+                <p className="font-semibold uppercase tracking-wider mb-1">Debug</p>
+                {data.refreshRateDebug.slice(0, 8).map((b) => (
+                  <div key={b.name} className="flex gap-2 tabular-nums">
+                    <span className="truncate flex-1">{b.name}</span>
+                    <span>total {b.totalInAds}</span>
+                    <span>withStart {b.withStartDate}</span>
+                    <span>last90d {b.countedInLast90d}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

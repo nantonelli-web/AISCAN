@@ -114,6 +114,17 @@ export interface BenchmarkData {
   avgCopyLengthByCompetitor: { name: string; chars: number }[];
   /** Ad refresh rate: avg new ads per week per competitor (last 90 days) */
   refreshRate: { name: string; adsPerWeek: number }[];
+  /**
+   * Diagnostic counts behind refreshRate. Lets the UI verify where the
+   * number comes from — total rows seen, rows with start_date, rows
+   * counted (start_date in last 90d). Exposed so we can eyeball the math.
+   */
+  refreshRateDebug: {
+    name: string;
+    totalInAds: number;
+    withStartDate: number;
+    countedInLast90d: number;
+  }[];
   /** AI-generated ads percentage per competitor */
   aiGeneratedByCompetitor: { name: string; percent: number }[];
   /** Advantage+ usage percentage per competitor */
@@ -704,11 +715,18 @@ export async function computeBenchmarks(
   // underlying ad had been running for months.
   const ninetyDaysAgo = Date.now() - 90 * 86_400_000;
   const recentByComp = new Map<string, number>();
+  // Diagnostic bookkeeping — how many ads the compute actually iterated
+  // per brand, plus how many had a start_date. Exposed in BenchmarkData
+  // so the UI can explain the refresh-rate number.
+  const totalInAdsByComp = new Map<string, number>();
+  const withStartDateByComp = new Map<string, number>();
   for (const ad of ads) {
+    const key = ad.competitor_id ?? "unknown";
+    totalInAdsByComp.set(key, (totalInAdsByComp.get(key) ?? 0) + 1);
     if (!ad.start_date) continue;
+    withStartDateByComp.set(key, (withStartDateByComp.get(key) ?? 0) + 1);
     const t = new Date(ad.start_date).getTime();
     if (Number.isNaN(t) || t < ninetyDaysAgo) continue;
-    const key = ad.competitor_id ?? "unknown";
     recentByComp.set(key, (recentByComp.get(key) ?? 0) + 1);
   }
   const weeks = 90 / 7;
@@ -718,6 +736,16 @@ export async function computeBenchmarks(
       adsPerWeek: Math.round((n / weeks) * 10) / 10,
     }))
     .sort((a, b) => b.adsPerWeek - a.adsPerWeek);
+  // Diagnostic: include EVERY brand we iterated, even those with zero
+  // ads-in-last-90d, so eyeballing "why is it X" is straightforward.
+  const refreshRateDebug = [...totalInAdsByComp.entries()]
+    .map(([id, total]) => ({
+      name: compMap.get(id) ?? "N/A",
+      totalInAds: total,
+      withStartDate: withStartDateByComp.get(id) ?? 0,
+      countedInLast90d: recentByComp.get(id) ?? 0,
+    }))
+    .sort((a, b) => b.countedInLast90d - a.countedInLast90d);
 
   // ---- AI-generated ads % per competitor ----
   const aiByComp = new Map<string, { total: number; ai: number }>();
@@ -886,6 +914,7 @@ export async function computeBenchmarks(
     avgDurationByCompetitor,
     avgCopyLengthByCompetitor,
     refreshRate,
+    refreshRateDebug,
     aiGeneratedByCompetitor,
     advantagePlusByCompetitor,
     avgVariantsByCompetitor,
