@@ -40,6 +40,8 @@ export interface BenchmarkData {
   ctaByCompetitor: { name: string; [cta: string]: string | number }[];
   /** Top CTAs per competitor — shape ready for per-brand pie/bar charts */
   ctaMixByCompetitor: { competitor: string; data: { name: string; count: number }[] }[];
+  /** Top UTM campaign values per competitor (top 6). Empty brands are dropped. */
+  utmCampaignsByCompetitor: { competitor: string; data: { name: string; count: number }[] }[];
   /** Format mix per competitor (for individual pie charts) */
   formatMixByCompetitor: { competitor: string; data: { name: string; value: number }[] }[];
   /** Platform distribution */
@@ -81,6 +83,29 @@ function normalizeCtaLabel(raw: string): string {
   return cleaned
     .toLowerCase()
     .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Return the ad's primary UTM signature. Prefer `utm_campaign`, fall back to
+ * `utm_content`, `utm_medium`, `utm_source`. Values are trimmed + lowercased
+ * so minor casing differences aggregate. Returns null when no UTM is present.
+ */
+function extractUtmCampaign(snapshot: Record<string, unknown> | null): string | null {
+  if (!snapshot) return null;
+  const cards = Array.isArray(snapshot.cards) ? (snapshot.cards as Array<Record<string, unknown>>) : [];
+  const urls: string[] = [];
+  if (typeof snapshot.linkUrl === "string") urls.push(snapshot.linkUrl);
+  for (const c of cards) if (typeof c.linkUrl === "string") urls.push(c.linkUrl);
+  for (const u of urls) {
+    try {
+      const p = new URL(u).searchParams;
+      const campaign = p.get("utm_campaign") ?? p.get("utm_content") ?? p.get("utm_medium") ?? p.get("utm_source");
+      if (campaign && campaign.trim()) return campaign.trim().toLowerCase().slice(0, 80);
+    } catch {
+      // malformed URL — skip
+    }
+  }
+  return null;
 }
 
 export async function computeBenchmarks(
@@ -246,6 +271,32 @@ export async function computeBenchmarks(
     .map(([id, tagMap]) => ({
       competitor: compMap.get(id) ?? "N/A",
       data: [...tagMap.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 6)
+        .map(([name, count]) => ({ name, count })),
+    }))
+    .filter((e) => e.data.length > 0)
+    .sort((a, b) => {
+      const ta = a.data.reduce((s, d) => s + d.count, 0);
+      const tb = b.data.reduce((s, d) => s + d.count, 0);
+      return tb - ta;
+    });
+
+  // ---- UTM campaigns per competitor ----
+  const utmByCompMap = new Map<string, Map<string, number>>();
+  for (const ad of ads) {
+    const snapshot = (ad.raw_data?.snapshot ?? null) as Record<string, unknown> | null;
+    const utm = extractUtmCampaign(snapshot);
+    if (!utm) continue;
+    const key = ad.competitor_id ?? "unknown";
+    const m = utmByCompMap.get(key) ?? new Map<string, number>();
+    m.set(utm, (m.get(utm) ?? 0) + 1);
+    utmByCompMap.set(key, m);
+  }
+  const utmCampaignsByCompetitor = [...utmByCompMap.entries()]
+    .map(([id, m]) => ({
+      competitor: compMap.get(id) ?? "N/A",
+      data: [...m.entries()]
         .sort((a, b) => b[1] - a[1])
         .slice(0, 6)
         .map(([name, count]) => ({ name, count })),
@@ -445,6 +496,7 @@ export async function computeBenchmarks(
     topCtas,
     ctaByCompetitor,
     ctaMixByCompetitor,
+    utmCampaignsByCompetitor,
     platformDistribution,
     platformByCompetitor,
     avgDurationByCompetitor,

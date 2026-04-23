@@ -744,6 +744,19 @@ const translations = {
     },
     topCta: { it: "Top CTA", en: "Top CTA" },
     topCtaPerBrand: { it: "Top CTA per brand", en: "Top CTA per brand" },
+    utmPerBrand: { it: "Analisi UTM per brand", en: "UTM analysis per brand" },
+    descUtmPerBrand: {
+      it: "I valori UTM più ricorrenti per ciascun brand (prima campaign, poi content, medium, source).",
+      en: "Most recurring UTM values for each brand (campaign first, falling back to content, medium, source).",
+    },
+    utmDisclaimer: {
+      it: "Attenzione: le UTM sono convenzioni proprietarie: ogni brand le costruisce con logica propria. Questi valori vanno interpretati nel contesto del brand.",
+      en: "Note: UTMs are proprietary conventions — each brand defines its own scheme. Interpret these values within each brand's context.",
+    },
+    utmNoData: {
+      it: "Nessuna UTM rilevata sui link delle ads scansionate.",
+      en: "No UTMs detected on the scanned ads' landing URLs.",
+    },
     platformDistribution: {
       it: "Distribuzione piattaforma",
       en: "Platform distribution",

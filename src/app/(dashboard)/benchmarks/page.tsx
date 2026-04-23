@@ -7,7 +7,6 @@ import { formatNumber } from "@/lib/utils";
 import {
   VolumeChart,
   FormatPieChart,
-  FormatStackedChart,
   HorizontalBarChart,
   PlatformChart,
 } from "@/components/dashboard/benchmark-charts";
@@ -270,14 +269,32 @@ export default async function BenchmarksPage({
         </CardContent>
       </Card>
 
-      {/* Format per competitor */}
+      {/* UTM analysis per brand — replaces the duplicated Format Mix stacked bar */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("benchmarks", "formatPerCompetitor")}</CardTitle>
+          <CardTitle>{t("benchmarks", "utmPerBrand")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descFormatStacked")}</p>
-          <FormatStackedChart data={data.formatByCompetitor} />
+          <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descUtmPerBrand")}</p>
+          <div className="mb-4 rounded-md border border-gold/20 bg-gold/5 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+            {t("benchmarks", "utmDisclaimer")}
+          </div>
+          {data.utmCampaignsByCompetitor.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-4">{t("benchmarks", "utmNoData")}</p>
+          ) : (
+            <div className={`grid gap-6 ${data.utmCampaignsByCompetitor.length <= 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
+              {data.utmCampaignsByCompetitor.map((entry) => (
+                <div key={entry.competitor} className="space-y-2">
+                  <p className="text-xs font-medium text-gold text-center">{entry.competitor}</p>
+                  <HorizontalBarChart
+                    data={entry.data}
+                    dataKey="count"
+                    label={t("benchmarks", "adsLabel")}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
