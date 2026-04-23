@@ -681,16 +681,17 @@ export async function computeBenchmarks(
     .sort((a, b) => b.chars - a.chars);
 
   // ---- Refresh rate (last 90 days) ----
-  // Driven by the ad's start_date (when Meta began delivering it), not by
-  // created_at (when our scraper inserted the row). A bulk re-scan bumps
-  // created_at for historical ads and would falsely inflate the refresh
-  // rate; start_date pins the metric to real-world launch timing.
+  // Only count ads with a real start_date — when Meta did not populate
+  // the field (common for DPA catalog ads) we cannot tell when the ad
+  // actually launched. The old fallback to created_at silently inflated
+  // the rate for DPA-heavy, multi-country brands: every catalog row
+  // scraped recently looked "new" via created_at even though the
+  // underlying ad had been running for months.
   const ninetyDaysAgo = Date.now() - 90 * 86_400_000;
   const recentByComp = new Map<string, number>();
   for (const ad of ads) {
-    const when = ad.start_date ?? ad.created_at;
-    if (!when) continue;
-    const t = new Date(when).getTime();
+    if (!ad.start_date) continue;
+    const t = new Date(ad.start_date).getTime();
     if (Number.isNaN(t) || t < ninetyDaysAgo) continue;
     const key = ad.competitor_id ?? "unknown";
     recentByComp.set(key, (recentByComp.get(key) ?? 0) + 1);
