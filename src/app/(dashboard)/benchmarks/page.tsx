@@ -150,9 +150,17 @@ export default async function BenchmarksPage({
   // Brands intersection: project ∩ countries. If a URL specifies brands, we
   // validate them against this intersection so stale URLs don't bleed across
   // country changes.
+  // A brand with a non-ISO value (e.g. "Italy" instead of "IT") gets treated
+  // the same as a brand with no country at all — included only when the
+  // user has "all countries" selected. Without this normalisation, legacy
+  // rows with full country names silently disappeared from every chart.
+  const ALL_COUNTRIES_SELECTED =
+    activeCountryCodes.length === availableCountries.length;
   const brandsInCountries = projectBrands.filter((b) => {
-    if (!b.country) return activeCountryCodes.length === availableCountries.length; // no-country rows only when "all"
-    return activeCountryCodes.includes(b.country.toUpperCase());
+    const raw = (b.country ?? "").trim().toUpperCase();
+    const isoCode = /^[A-Z]{2,3}$/.test(raw) ? raw : null;
+    if (!isoCode) return ALL_COUNTRIES_SELECTED;
+    return activeCountryCodes.includes(isoCode);
   });
   const brandsInCountriesIds = new Set(brandsInCountries.map((b) => b.id));
   const urlBrandIds = rawBrands
