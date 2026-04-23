@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { GoogleIcon } from "@/components/ui/google-icon";
 import { useT } from "@/lib/i18n/context";
+import { validatePassword, describeIssue, PASSWORD_MIN_LENGTH } from "@/lib/auth/password";
 
 export function RegisterForm() {
   const router = useRouter();
@@ -22,6 +23,11 @@ export function RegisterForm() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const check = validatePassword(password);
+    if (!check.ok) {
+      toast.error(describeIssue(check.issues[0]));
+      return;
+    }
     setLoading(true);
     const supabase = createClient();
     const { data, error } = await supabase.auth.signUp({
@@ -136,7 +142,7 @@ export function RegisterForm() {
             id="password"
             type="password"
             required
-            minLength={8}
+            minLength={PASSWORD_MIN_LENGTH}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />

@@ -2,40 +2,58 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createAdminToken } from "@/lib/admin-jwt";
+import { checkRate, recordAttempt } from "@/lib/rate-limit/admin-login";
+
+function getClientIp(request: Request): string | null {
+  const xff = request.headers.get("x-forwarded-for");
+  if (xff) return xff.split(",")[0]!.trim();
+  return request.headers.get("x-real-ip");
+}
 
 export async function POST(request: Request) {
   try {
-    const { email, password } = await request.json();
+    const { email: rawEmail, password } = await request.json();
 
-    if (!email || !password) {
+    if (!rawEmail || !password) {
       return NextResponse.json(
         { ok: false, error: "Email and password are required" },
         { status: 400 }
       );
     }
 
+    const email = String(rawEmail).toLowerCase().trim();
+    const ip = getClientIp(request);
     const supabase = createAdminClient();
+
+    const gate = await checkRate(supabase, { email, ip });
+    if (!gate.ok) {
+      return NextResponse.json(
+        { ok: false, error: "Too many attempts, try again later" },
+        { status: 429 }
+      );
+    }
 
     const { data: admin, error } = await supabase
       .from("mait_admins")
       .select("id, email, password_hash, name, role")
-      .eq("email", email.toLowerCase().trim())
+      .eq("email", email)
       .single();
 
-    if (error || !admin) {
+    // Always run a bcrypt comparison so response time does not leak whether
+    // the email exists. Compare against a dummy hash when the row is missing.
+    const dummyHash = "$2b$10$CwTycUXWue0Thq9StjUM0uJ8.tDmvl6ZvF3AfP1wG2JvxVGCfJc6W";
+    const hash = admin?.password_hash ?? dummyHash;
+    const valid = await bcrypt.compare(password, hash);
+
+    if (error || !admin || !valid) {
+      await recordAttempt(supabase, { email, ip, success: false });
       return NextResponse.json(
         { ok: false, error: "Invalid credentials" },
         { status: 401 }
       );
     }
 
-    const valid = await bcrypt.compare(password, admin.password_hash);
-    if (!valid) {
-      return NextResponse.json(
-        { ok: false, error: "Invalid credentials" },
-        { status: 401 }
-      );
-    }
+    await recordAttempt(supabase, { email, ip, success: true });
 
     const token = await createAdminToken({
       adminId: admin.id,
