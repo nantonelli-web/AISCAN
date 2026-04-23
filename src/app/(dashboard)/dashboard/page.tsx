@@ -19,13 +19,35 @@ export default async function DashboardPage() {
   const locale = await getLocale();
   const t = serverT(locale);
 
+  // Paginated fetch for the top-competitors aggregate: Supabase caps each
+  // response at 1000 rows, so .limit(2000) silently truncated for any
+  // workspace with > 1000 active ads. Walk .range() pages until exhausted.
+  async function fetchActiveAdCompetitors(): Promise<{ competitor_id: string | null }[]> {
+    const PAGE = 5000;
+    const SAFETY_CAP = 100_000;
+    const rows: { competitor_id: string | null }[] = [];
+    for (let from = 0; from < SAFETY_CAP; from += PAGE) {
+      const { data, error } = await supabase
+        .from("mait_ads_external")
+        .select("competitor_id")
+        .eq("workspace_id", wsId)
+        .eq("status", "ACTIVE")
+        .order("id")
+        .range(from, from + PAGE - 1);
+      if (error || !data || data.length === 0) break;
+      rows.push(...data);
+      if (data.length < PAGE) break;
+    }
+    return rows;
+  }
+
   const [
     { count: totalAds },
     { count: activeAds },
     { count: competitorsCount },
     { data: recentAds },
     { data: competitors },
-    { data: topCompRows },
+    topCompRows,
   ] = await Promise.all([
     supabase
       .from("mait_ads_external")
@@ -50,19 +72,14 @@ export default async function DashboardPage() {
       .from("mait_competitors")
       .select("id, page_name")
       .eq("workspace_id", wsId),
-    supabase
-      .from("mait_ads_external")
-      .select("competitor_id")
-      .eq("workspace_id", wsId)
-      .eq("status", "ACTIVE")
-      .limit(2000),
+    fetchActiveAdCompetitors(),
   ]);
 
   const compMap = new Map<string, string>(
     (competitors ?? []).map((c) => [c.id as string, c.page_name as string])
   );
   const counts = new Map<string, number>();
-  for (const row of (topCompRows ?? []) as { competitor_id: string | null }[]) {
+  for (const row of topCompRows) {
     if (!row.competitor_id) continue;
     counts.set(row.competitor_id, (counts.get(row.competitor_id) ?? 0) + 1);
   }

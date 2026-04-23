@@ -1375,6 +1375,32 @@ export function CompareView({
   );
 }
 
+/**
+ * Largest-remainder rounding. Given a list of counts, return integer
+ * percentages that sum to exactly 100. Using Math.round() per bucket plus a
+ * "100 - a - b" finaliser always dumped the rounding error into the last
+ * bucket, which is visually misleading when that bucket is NOT the dominant
+ * share. Totals of 0 map to all zeros.
+ */
+function percentSplit(counts: number[]): number[] {
+  const total = counts.reduce((a, b) => a + b, 0);
+  if (total === 0) return counts.map(() => 0);
+  const raw = counts.map((c) => (c / total) * 100);
+  const floors = raw.map(Math.floor);
+  let remainder = 100 - floors.reduce((a, b) => a + b, 0);
+  // Distribute the leftover to the buckets with the biggest fractional part.
+  const order = raw
+    .map((v, i) => ({ i, frac: v - Math.floor(v) }))
+    .sort((a, b) => b.frac - a.frac);
+  const out = [...floors];
+  for (const { i } of order) {
+    if (remainder <= 0) break;
+    out[i] += 1;
+    remainder -= 1;
+  }
+  return out;
+}
+
 function TabButton({
   active,
   onClick,
@@ -1689,9 +1715,15 @@ function OrganicTechnicalView({
         render={(s) => {
           const total = s.imageCount + s.videoCount + s.reelCount;
           if (total === 0) return "—";
-          const img = Math.round((s.imageCount / total) * 100);
-          const vid = Math.round((s.videoCount / total) * 100);
-          const reel = 100 - img - vid;
+          // Largest-remainder rounding so the three buckets always sum to
+          // exactly 100. Previously we rounded img/vid independently and
+          // made reel the leftover, which handed the remainder bias to the
+          // reel bucket even when image or video had the biggest fraction.
+          const [img, vid, reel] = percentSplit([
+            s.imageCount,
+            s.videoCount,
+            s.reelCount,
+          ]);
           return `${img}% img · ${vid}% video · ${reel}% reel`;
         }}
       />

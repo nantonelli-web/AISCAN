@@ -25,8 +25,8 @@ export default function Loading() {
         <SkeletonBar className="h-7 w-32" />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        {Array.from({ length: 6 }).map((_, i) => (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, i) => (
           <Card key={i}>
             <CardContent className="p-5 space-y-2">
               <SkeletonBar className="h-3 w-16" />

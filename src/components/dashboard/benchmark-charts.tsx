@@ -47,6 +47,22 @@ function colorForFormat(name: string, i: number): string {
   return FORMAT_COLOR[name] ?? COLORS[i % COLORS.length];
 }
 
+// Stable platform-name → color map. Same rationale as FORMAT_COLOR:
+// colouring by index made "Instagram" navy in one pie and teal in another
+// depending on how many platforms the brand actually used.
+const PLATFORM_COLOR: Record<string, string> = {
+  facebook: GOLD,
+  instagram: "#d97757",    // warm orange
+  messenger: "#2d8a87",    // teal
+  audience_network: "#8a6bb0", // violet
+  whatsapp: "#6b8e6b",     // olive
+  threads: "#5b7ea3",      // steel blue
+};
+function colorForPlatform(name: string, i: number): string {
+  const key = name.toLowerCase().replace(/\s+/g, "_");
+  return PLATFORM_COLOR[key] ?? COLORS[i % COLORS.length];
+}
+
 // Chart axes/grid/tooltip tuned for a light background
 const AXIS_TICK = "#5b6472";
 const GRID_STROKE = "#e5e7eb";
@@ -249,10 +265,13 @@ export function HorizontalBarChart({
   label: string;
   color?: string;
 }) {
+  // No .slice() cap — every brand passed in must show up, otherwise charts
+  // silently drop workspace members. Height scales with the row count so
+  // large comparisons just grow vertically.
   return (
     <ResponsiveContainer width="100%" height={Math.max(200, data.length * 36)}>
       <BarChart
-        data={data.slice(0, 12)}
+        data={data}
         layout="vertical"
         margin={{ left: 10, right: 24 }}
       >
@@ -283,7 +302,10 @@ export function PlatformChart({
 }) {
   // Platform names (instagram, audience_network, messenger, …) are too long
   // to render as external labels inside a narrow pie. Legend below + in-slice
-  // percentages keeps the chart compact and readable.
+  // percentages keeps the chart compact and readable. Colours are keyed by
+  // platform NAME so the same platform renders the same hue across every
+  // brand — otherwise the index shifts and Instagram flips navy / teal
+  // depending on which platforms the brand used.
   return (
     <ResponsiveContainer width="100%" height={280}>
       <PieChart>
@@ -298,8 +320,8 @@ export function PlatformChart({
           label={PieSlicePercent}
           labelLine={false}
         >
-          {data.map((_, i) => (
-            <Cell key={i} fill={COLORS[i % COLORS.length]} />
+          {data.map((d, i) => (
+            <Cell key={d.name} fill={colorForPlatform(d.name, i)} />
           ))}
         </Pie>
         <Tooltip {...tooltipStyle} />

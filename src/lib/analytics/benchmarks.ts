@@ -675,11 +675,17 @@ export async function computeBenchmarks(
     .sort((a, b) => b.chars - a.chars);
 
   // ---- Refresh rate (last 90 days) ----
+  // Driven by the ad's start_date (when Meta began delivering it), not by
+  // created_at (when our scraper inserted the row). A bulk re-scan bumps
+  // created_at for historical ads and would falsely inflate the refresh
+  // rate; start_date pins the metric to real-world launch timing.
   const ninetyDaysAgo = Date.now() - 90 * 86_400_000;
   const recentByComp = new Map<string, number>();
   for (const ad of ads) {
-    const t = new Date(ad.created_at).getTime();
-    if (t < ninetyDaysAgo) continue;
+    const when = ad.start_date ?? ad.created_at;
+    if (!when) continue;
+    const t = new Date(when).getTime();
+    if (Number.isNaN(t) || t < ninetyDaysAgo) continue;
     const key = ad.competitor_id ?? "unknown";
     recentByComp.set(key, (recentByComp.get(key) ?? 0) + 1);
   }
@@ -892,6 +898,7 @@ export interface OrganicBenchmarkData {
     image: number;
     video: number;
     reel: number;
+    carousel: number;
   }[];
   topHashtags: { name: string; count: number }[];
   hashtagByCompetitor: { name: string; [hashtag: string]: string | number }[];
@@ -1009,9 +1016,13 @@ export async function computeOrganicBenchmarks(
     postsInRange: inRangeCount.get(id) ?? 0,
   }));
 
-  function classify(p: OrganicRow): "image" | "video" | "reel" {
+  function classify(p: OrganicRow): "image" | "video" | "reel" | "carousel" {
     const t = (p.post_type ?? "").toLowerCase();
     if (t.includes("reel")) return "reel";
+    // Instagram carousel / sidecar album — a slider of images and/or videos.
+    // Meta's scraper returns either "CAROUSEL_ALBUM" or "Sidecar" for these
+    // posts; previously they were silently bucketed as "image".
+    if (t.includes("carousel") || t.includes("album") || t === "sidecar") return "carousel";
     if (p.video_url || t.includes("video")) return "video";
     return "image";
   }
@@ -1024,6 +1035,7 @@ export async function computeOrganicBenchmarks(
       image: number;
       video: number;
       reel: number;
+      carousel: number;
       likes: number[];
       comments: number[];
       views: number[];
@@ -1041,6 +1053,7 @@ export async function computeOrganicBenchmarks(
         image: 0,
         video: 0,
         reel: 0,
+        carousel: 0,
         likes: [] as number[],
         comments: [] as number[],
         views: [] as number[],
@@ -1076,6 +1089,7 @@ export async function computeOrganicBenchmarks(
         { name: "Image", value: v.image },
         { name: "Video", value: v.video },
         { name: "Reel", value: v.reel },
+        { name: "Carousel", value: v.carousel },
       ].filter((f) => f.value > 0),
     }))
     .sort((a, b) => {
@@ -1090,8 +1104,12 @@ export async function computeOrganicBenchmarks(
       image: v.image,
       video: v.video,
       reel: v.reel,
+      carousel: v.carousel,
     }))
-    .sort((a, b) => b.image + b.video + b.reel - (a.image + a.video + a.reel));
+    .sort((a, b) =>
+      (b.image + b.video + b.reel + b.carousel) -
+      (a.image + a.video + a.reel + a.carousel)
+    );
 
   // Hashtags
   const tagCount = new Map<string, number>();
