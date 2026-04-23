@@ -16,10 +16,12 @@
 
 // Manual aliases — shorthand or colloquial names users frequently type.
 const CANONICAL_ALIASES: Record<string, string> = {
+  // ISO exceptional reservations + common colloquial shorthands.
   UK: "GB",
   "GREAT BRITAIN": "GB",
   "UNITED KINGDOM": "GB",
   "REGNO UNITO": "GB",
+  EL: "GR", // Greece — UN code is "EL" but ISO prefers "GR"
   USA: "US",
   "UNITED STATES": "US",
   "UNITED STATES OF AMERICA": "US",
@@ -144,8 +146,13 @@ export function toIsoCountry(input: string | null | undefined): string | null {
   if (!trimmed) return null;
   const upper = trimmed.toUpperCase();
 
-  // Canonical: 2-letter alpha-2, always pass through.
-  if (/^[A-Z]{2}$/.test(upper)) return upper;
+  // Alpha-2 input: check aliases first (UK → GB, EL → GR), otherwise
+  // pass through. Previously we short-circuited alpha-2 before the alias
+  // lookup, which left "UK" in the DB instead of normalising to GB and
+  // broke the country filter when another brand used "GB".
+  if (/^[A-Z]{2}$/.test(upper)) {
+    return CANONICAL_ALIASES[upper] ?? upper;
+  }
 
   // Alpha-3 with a known mapping.
   if (/^[A-Z]{3}$/.test(upper)) {
