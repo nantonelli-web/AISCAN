@@ -29,7 +29,10 @@ export async function GET(req: Request) {
   if (competitorId) q = q.eq("competitor_id", competitorId);
 
   const { data, error } = await q;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[api/export/ads.csv]", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
 
   const headers = [
     "ad_archive_id",

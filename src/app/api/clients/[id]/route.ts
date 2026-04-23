@@ -38,7 +38,10 @@ export async function PATCH(
     .eq("id", id)
     .eq("workspace_id", profile.workspace_id);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[api/clients/:id]", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
   if (!count) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }
@@ -68,7 +71,10 @@ export async function DELETE(
     .delete({ count: "exact" })
     .eq("id", id)
     .eq("workspace_id", profile.workspace_id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[api/clients/:id]", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
   if (!count) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

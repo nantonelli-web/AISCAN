@@ -35,7 +35,8 @@ export async function GET(req: Request) {
     .select("id, workspace_id, page_id, page_name, page_url, country, monitor_config, google_advertiser_id, google_domain");
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[cron/scrape competitors list]", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 
   type CompRow = {

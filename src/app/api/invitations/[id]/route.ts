@@ -30,7 +30,10 @@ export async function DELETE(
     .eq("id", id)
     .eq("workspace_id", profile.workspace_id);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[api/invitations/:id]", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
   if (!count) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

@@ -32,7 +32,10 @@ export async function GET(req: Request) {
   }
 
   const { count: adCount, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[api/ai/tag/count]", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
 
   // Also count untagged organic posts
   let postQuery = supabase

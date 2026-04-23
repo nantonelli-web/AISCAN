@@ -31,7 +31,10 @@ export async function GET() {
     .eq("workspace_id", profile.workspace_id)
     .order("created_at", { ascending: false });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[api/collections]", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
 
   // Get ad count per collection
   const collections = await Promise.all(
@@ -80,6 +83,9 @@ export async function POST(req: Request) {
     .select("id")
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[api/collections]", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
   return NextResponse.json({ id: data.id });
 }

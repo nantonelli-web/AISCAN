@@ -74,7 +74,10 @@ export async function POST(
       { onConflict: "collection_id,ad_id" }
     );
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[api/collections/:id/ads]", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
   return NextResponse.json({ ok: true });
 }
 
@@ -113,6 +116,9 @@ export async function DELETE(
     .eq("collection_id", id)
     .eq("ad_id", adId);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[api/collections/:id/ads]", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
   return NextResponse.json({ ok: true });
 }

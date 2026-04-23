@@ -75,7 +75,10 @@ export async function POST(req: Request) {
     .select("id")
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[api/competitors]", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
   revalidateTag(competitorsTag(profile.workspace_id));
   return NextResponse.json({ id: data.id });
 }
@@ -98,7 +101,10 @@ export async function DELETE(req: Request) {
     .single();
 
   const { error } = await supabase.from("mait_competitors").delete().eq("id", id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[api/competitors]", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
   if (existing?.workspace_id) revalidateTag(competitorsTag(existing.workspace_id));
   return NextResponse.json({ ok: true });
 }

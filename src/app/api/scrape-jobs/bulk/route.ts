@@ -53,6 +53,9 @@ export async function DELETE(req: Request) {
     .delete()
     .in("id", parsed.data.ids);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[api/scrape-jobs/bulk]", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
   return NextResponse.json({ ok: true, deleted: parsed.data.ids.length });
 }

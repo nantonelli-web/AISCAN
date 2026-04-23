@@ -67,7 +67,10 @@ export async function POST(req: Request) {
   }
 
   const { data: ads, error } = await q;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[api/ai/tag]", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
   if (!ads || ads.length === 0) {
     return NextResponse.json({ ok: true, tagged: 0, message: "No untagged ads found." });
   }

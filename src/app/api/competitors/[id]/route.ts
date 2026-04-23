@@ -91,7 +91,10 @@ export async function PATCH(
     .select("workspace_id")
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[api/competitors/:id]", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
   if (updated?.workspace_id) revalidateTag(competitorsTag(updated.workspace_id));
   return NextResponse.json({ ok: true });
 }
@@ -114,7 +117,10 @@ export async function DELETE(
     .single();
 
   const { error } = await supabase.from("mait_competitors").delete().eq("id", id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[api/competitors/:id]", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
   if (existing?.workspace_id) revalidateTag(competitorsTag(existing.workspace_id));
   return NextResponse.json({ ok: true });
 }

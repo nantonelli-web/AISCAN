@@ -31,7 +31,10 @@ export async function GET() {
     .eq("workspace_id", profile.workspace_id)
     .order("name");
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[api/clients]", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
   return NextResponse.json(data);
 }
 
@@ -67,6 +70,9 @@ export async function POST(req: Request) {
     .select("id, name, color")
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[api/clients]", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
   return NextResponse.json(data);
 }

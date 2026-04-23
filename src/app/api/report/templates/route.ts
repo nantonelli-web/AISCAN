@@ -34,8 +34,10 @@ export async function GET(req: Request) {
   if (clientId) q = q.eq("client_id", clientId);
 
   const { data, error } = await q;
-  if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[api/report/templates GET]", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
   return NextResponse.json(data);
 }
 
