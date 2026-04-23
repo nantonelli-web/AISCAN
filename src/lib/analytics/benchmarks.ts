@@ -707,25 +707,32 @@ export async function computeBenchmarks(
     .sort((a, b) => b.chars - a.chars);
 
   // ---- Refresh rate (last 90 days) ----
-  // Only count ads with a real start_date — when Meta did not populate
-  // the field (common for DPA catalog ads) we cannot tell when the ad
-  // actually launched. The old fallback to created_at silently inflated
-  // the rate for DPA-heavy, multi-country brands: every catalog row
-  // scraped recently looked "new" via created_at even though the
-  // underlying ad had been running for months.
+  // CRITICAL: compute from allAdsMeta (the uncapped paginated volume
+  // set) instead of from `ads` (the heavy query filtered by the user's
+  // analysis range). The chart label is "Refresh rate (90d)" — a fixed
+  // rolling 90-day metric. It must NOT shrink when the user narrows the
+  // analysis range to last 7 days, and it must match the Compare view
+  // when the same brand and channel are selected.
+  //
+  // `allAdsMeta` only lacks the date-range filter; it still respects
+  // the source and competitor filters, and it is deduped by primary id
+  // (order("id") in fetchAllVolumeRows).
+  //
+  // Ads without a real start_date are skipped: Meta does not always
+  // populate the field for DPA catalog ads, and the older "fall back
+  // to created_at" trick falsely inflated the rate after bulk scans.
   const ninetyDaysAgo = Date.now() - 90 * 86_400_000;
   const recentByComp = new Map<string, number>();
-  // Diagnostic bookkeeping — how many ads the compute actually iterated
-  // per brand, plus how many had a start_date. Exposed in BenchmarkData
-  // so the UI can explain the refresh-rate number.
+  // Diagnostic bookkeeping — exposed via refreshRateDebug so the UI
+  // can explain where the number comes from.
   const totalInAdsByComp = new Map<string, number>();
   const withStartDateByComp = new Map<string, number>();
-  for (const ad of ads) {
-    const key = ad.competitor_id ?? "unknown";
+  for (const row of allAdsMeta) {
+    const key = row.competitor_id ?? "unknown";
     totalInAdsByComp.set(key, (totalInAdsByComp.get(key) ?? 0) + 1);
-    if (!ad.start_date) continue;
+    if (!row.start_date) continue;
     withStartDateByComp.set(key, (withStartDateByComp.get(key) ?? 0) + 1);
-    const t = new Date(ad.start_date).getTime();
+    const t = new Date(row.start_date).getTime();
     if (Number.isNaN(t) || t < ninetyDaysAgo) continue;
     recentByComp.set(key, (recentByComp.get(key) ?? 0) + 1);
   }
