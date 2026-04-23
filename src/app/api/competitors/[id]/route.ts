@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { competitorsTag } from "@/lib/library/cached-data";
 import { cleanInstagramUsername } from "@/lib/instagram/service";
 import { cleanAdvertiserDomain } from "@/lib/apify/google-ads-service";
+import { coerceCountryForStorage } from "@/lib/meta/country-codes";
 
 const patchSchema = z.object({
   // Monitor config fields
@@ -47,7 +48,7 @@ export async function PATCH(
   const directUpdate: Record<string, unknown> = {};
   if (page_name !== undefined) directUpdate.page_name = page_name;
   if (page_url !== undefined) directUpdate.page_url = page_url;
-  if (country !== undefined) directUpdate.country = country;
+  if (country !== undefined) directUpdate.country = coerceCountryForStorage(country);
   if (category !== undefined) directUpdate.category = category;
   if (client_id !== undefined) directUpdate.client_id = client_id;
   if (instagram_username !== undefined) {

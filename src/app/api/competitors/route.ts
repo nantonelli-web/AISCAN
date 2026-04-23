@@ -7,6 +7,7 @@ import { resolvePageId } from "@/lib/meta/resolve-page-id";
 import { competitorsTag } from "@/lib/library/cached-data";
 import { cleanInstagramUsername } from "@/lib/instagram/service";
 import { cleanAdvertiserDomain } from "@/lib/apify/google-ads-service";
+import { coerceCountryForStorage } from "@/lib/meta/country-codes";
 
 const schema = z.object({
   page_name: z.string().min(1).max(160),
@@ -61,7 +62,7 @@ export async function POST(req: Request) {
       page_name: parsed.data.page_name,
       page_url: parsed.data.page_url,
       page_id: pageId ?? null,
-      country: parsed.data.country ?? null,
+      country: coerceCountryForStorage(parsed.data.country ?? null),
       category: parsed.data.category ?? null,
       client_id: parsed.data.client_id ?? null,
       instagram_username: parsed.data.instagram_username
