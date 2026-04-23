@@ -1,5 +1,23 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+export type InferredAudience =
+  | "prospecting"
+  | "retargeting"
+  | "lookalike"
+  | "interest"
+  | "custom"
+  | "broad"
+  | "unknown";
+
+export type InferredObjective =
+  | "sales"
+  | "traffic"
+  | "awareness"
+  | "app_install"
+  | "engagement"
+  | "lead_generation"
+  | "unknown";
+
 interface AdRow {
   id: string;
   competitor_id: string | null;
@@ -40,8 +58,15 @@ export interface BenchmarkData {
   ctaByCompetitor: { name: string; [cta: string]: string | number }[];
   /** Top CTAs per competitor — shape ready for per-brand pie/bar charts */
   ctaMixByCompetitor: { competitor: string; data: { name: string; count: number }[] }[];
-  /** Top UTM campaign values per competitor (top 6). Empty brands are dropped. */
-  utmCampaignsByCompetitor: { competitor: string; data: { name: string; count: number }[] }[];
+  /** UTM-derived audience + objective inference per competitor. */
+  utmInsightsByCompetitor: {
+    competitor: string;
+    audience: InferredAudience;
+    objective: InferredObjective;
+    audienceConfidence: number; // 0-100
+    objectiveConfidence: number; // 0-100
+    sampleCampaign: string | null; // most frequent utm_campaign value for context
+  }[];
   /** Format mix per competitor (for individual pie charts) */
   formatMixByCompetitor: { competitor: string; data: { name: string; value: number }[] }[];
   /** Platform distribution */
@@ -108,32 +133,110 @@ function extractUtmCampaign(snapshot: Record<string, unknown> | null): string | 
   return null;
 }
 
+/**
+ * Extract every UTM value fragment from all landing URLs on this ad,
+ * split by the common separators (_ - / . space |). Returns the tokens so
+ * the caller can do keyword matching for audience/objective inference.
+ */
+function extractUtmTokens(snapshot: Record<string, unknown> | null): Set<string> {
+  const tokens = new Set<string>();
+  if (!snapshot) return tokens;
+  const cards = Array.isArray(snapshot.cards) ? (snapshot.cards as Array<Record<string, unknown>>) : [];
+  const urls: string[] = [];
+  if (typeof snapshot.linkUrl === "string") urls.push(snapshot.linkUrl);
+  for (const c of cards) if (typeof c.linkUrl === "string") urls.push(c.linkUrl);
+  for (const u of urls) {
+    try {
+      const p = new URL(u).searchParams;
+      for (const [k, v] of p.entries()) {
+        if (!k.toLowerCase().startsWith("utm_")) continue;
+        const full = v.trim().toLowerCase();
+        if (!full) continue;
+        tokens.add(full);
+        for (const piece of full.split(/[_\-\/\.\s|]+/)) {
+          if (piece.length >= 2) tokens.add(piece);
+        }
+      }
+    } catch {
+      // skip malformed
+    }
+  }
+  return tokens;
+}
+
+/**
+ * Rule-based audience inference from aggregated UTM tokens.
+ * Ordered by specificity — first hit wins.
+ */
+function inferAudienceFromTokens(tokens: Set<string>): { audience: InferredAudience; confidence: number } {
+  const hit = (list: string[]) => list.some((t) => tokens.has(t));
+  if (hit(["retargeting", "remarketing", "rmk", "rtg", "rtgt"])) return { audience: "retargeting", confidence: 85 };
+  if (hit(["lookalike", "lal", "lookal", "lk"])) return { audience: "lookalike", confidence: 80 };
+  if (hit(["prospecting", "prosp", "cold", "tof", "topfunnel"])) return { audience: "prospecting", confidence: 80 };
+  if (hit(["custom", "cust", "ca"])) return { audience: "custom", confidence: 60 };
+  if (hit(["interest", "interests", "int"])) return { audience: "interest", confidence: 55 };
+  if (hit(["broad", "open"])) return { audience: "broad", confidence: 55 };
+  return { audience: "unknown", confidence: 0 };
+}
+
+function inferObjectiveFromTokens(tokens: Set<string>): { objective: InferredObjective; confidence: number } {
+  const hit = (list: string[]) => list.some((t) => tokens.has(t));
+  if (hit(["purch", "purchase", "conversion", "conv", "vendita", "acquisto"])) return { objective: "sales", confidence: 85 };
+  if (hit(["perf", "performance", "sales", "sale"])) return { objective: "sales", confidence: 70 };
+  if (hit(["awareness", "reach", "notoriet", "awa", "branding"])) return { objective: "awareness", confidence: 80 };
+  if (hit(["videoviews", "video_views", "thruplay", "vv"])) return { objective: "awareness", confidence: 70 };
+  if (hit(["lead", "signup", "signup", "registr"])) return { objective: "lead_generation", confidence: 75 };
+  if (hit(["install", "download"])) return { objective: "app_install", confidence: 80 };
+  if (hit(["engagement", "interact", "interazion"])) return { objective: "engagement", confidence: 65 };
+  if (hit(["traffic", "traffico", "link_click", "click", "clic"])) return { objective: "traffic", confidence: 70 };
+  return { objective: "unknown", confidence: 0 };
+}
+
 export async function computeBenchmarks(
   supabase: SupabaseClient,
   workspaceId: string,
   source?: "meta" | "google",
   competitorIds?: string[]
 ): Promise<BenchmarkData> {
+  // Heavy query (format / CTA / UTM / tags / raw_data-dependent metrics).
+  // Capped to 3000 most-recent rows to keep payload sane; ORDER BY is
+  // CRUCIAL — without it PostgreSQL returns a non-deterministic subset
+  // and brands near the cap can randomly appear/disappear on each request.
   let adsQuery = supabase
     .from("mait_ads_external")
     .select(
       "id, competitor_id, cta, platforms, image_url, video_url, status, start_date, end_date, ad_text, created_at, raw_data"
     )
     .eq("workspace_id", workspaceId)
+    .order("created_at", { ascending: false })
     .limit(3000);
 
-  if (source) adsQuery = adsQuery.eq("source", source);
+  // Separate lightweight query used for the Volume chart — counts every ad
+  // (no 3000 cap) with only the two columns needed. Keeps the volume chart
+  // accurate and deterministic even when the heavy query is capped.
+  let volumeQuery = supabase
+    .from("mait_ads_external")
+    .select("competitor_id, status")
+    .eq("workspace_id", workspaceId)
+    .limit(100_000);
+
+  if (source) {
+    adsQuery = adsQuery.eq("source", source);
+    volumeQuery = volumeQuery.eq("source", source);
+  }
   if (competitorIds && competitorIds.length > 0) {
     adsQuery = adsQuery.in("competitor_id", competitorIds);
+    volumeQuery = volumeQuery.in("competitor_id", competitorIds);
   }
 
-  const [{ data: competitors }, { data: rawAds }] = await Promise.all([
+  const [{ data: competitors }, { data: rawAds }, { data: volumeRows }] = await Promise.all([
     supabase
       .from("mait_competitors")
       .select("id, page_name")
       .eq("workspace_id", workspaceId)
       .order("page_name"),
     adsQuery,
+    volumeQuery,
   ]);
 
   const comps = (competitors ?? []) as CompetitorRef[];
@@ -146,12 +249,12 @@ export async function computeBenchmarks(
     : null;
   const compMap = new Map(comps.map((c) => [c.id, c.page_name]));
 
-  // ---- Volume per competitor ----
+  // ---- Volume per competitor (driven by the uncapped lightweight query) ----
   const volumeMap = new Map<string, { active: number; inactive: number }>();
-  for (const ad of ads) {
-    const key = ad.competitor_id ?? "unknown";
+  for (const row of (volumeRows ?? []) as { competitor_id: string | null; status: string | null }[]) {
+    const key = row.competitor_id ?? "unknown";
     const entry = volumeMap.get(key) ?? { active: 0, inactive: 0 };
-    if (ad.status === "ACTIVE") entry.active++;
+    if (row.status === "ACTIVE") entry.active++;
     else entry.inactive++;
     volumeMap.set(key, entry);
   }
@@ -282,31 +385,49 @@ export async function computeBenchmarks(
       return tb - ta;
     });
 
-  // ---- UTM campaigns per competitor ----
-  const utmByCompMap = new Map<string, Map<string, number>>();
+  // ---- UTM insights: audience + objective inference per competitor ----
+  // Per brand we union all UTM tokens across all their ads, then run two
+  // rule-based inferences. We also keep the single most frequent
+  // utm_campaign value as a human-readable sample on the card.
+  const tokensByComp = new Map<string, Set<string>>();
+  const campaignFreqByComp = new Map<string, Map<string, number>>();
   for (const ad of ads) {
     const snapshot = (ad.raw_data?.snapshot ?? null) as Record<string, unknown> | null;
-    const utm = extractUtmCampaign(snapshot);
-    if (!utm) continue;
+    const tokens = extractUtmTokens(snapshot);
+    if (tokens.size === 0) continue;
     const key = ad.competitor_id ?? "unknown";
-    const m = utmByCompMap.get(key) ?? new Map<string, number>();
-    m.set(utm, (m.get(utm) ?? 0) + 1);
-    utmByCompMap.set(key, m);
+    const agg = tokensByComp.get(key) ?? new Set<string>();
+    for (const t of tokens) agg.add(t);
+    tokensByComp.set(key, agg);
+
+    const utmCampaign = extractUtmCampaign(snapshot);
+    if (utmCampaign) {
+      const m = campaignFreqByComp.get(key) ?? new Map<string, number>();
+      m.set(utmCampaign, (m.get(utmCampaign) ?? 0) + 1);
+      campaignFreqByComp.set(key, m);
+    }
   }
-  const utmCampaignsByCompetitor = [...utmByCompMap.entries()]
-    .map(([id, m]) => ({
-      competitor: compMap.get(id) ?? "N/A",
-      data: [...m.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 6)
-        .map(([name, count]) => ({ name, count })),
-    }))
-    .filter((e) => e.data.length > 0)
-    .sort((a, b) => {
-      const ta = a.data.reduce((s, d) => s + d.count, 0);
-      const tb = b.data.reduce((s, d) => s + d.count, 0);
-      return tb - ta;
-    });
+
+  const utmInsightsByCompetitor = [...tokensByComp.entries()]
+    .map(([id, tokens]) => {
+      const { audience, confidence: aConf } = inferAudienceFromTokens(tokens);
+      const { objective, confidence: oConf } = inferObjectiveFromTokens(tokens);
+      const campaignFreq = campaignFreqByComp.get(id);
+      const sampleCampaign = campaignFreq
+        ? [...campaignFreq.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+        : null;
+      return {
+        competitor: compMap.get(id) ?? "N/A",
+        audience,
+        objective,
+        audienceConfidence: aConf,
+        objectiveConfidence: oConf,
+        sampleCampaign,
+      };
+    })
+    // Drop brands where BOTH inferences failed — nothing useful to show.
+    .filter((e) => e.audience !== "unknown" || e.objective !== "unknown")
+    .sort((a, b) => (b.audienceConfidence + b.objectiveConfidence) - (a.audienceConfidence + a.objectiveConfidence));
 
   // ---- Platform distribution ----
   const platCount = new Map<string, number>();
@@ -496,7 +617,7 @@ export async function computeBenchmarks(
     topCtas,
     ctaByCompetitor,
     ctaMixByCompetitor,
-    utmCampaignsByCompetitor,
+    utmInsightsByCompetitor,
     platformDistribution,
     platformByCompetitor,
     avgDurationByCompetitor,
