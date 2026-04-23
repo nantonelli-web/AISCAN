@@ -124,6 +124,7 @@ export interface BenchmarkData {
     totalInAds: number;
     withStartDate: number;
     countedInLast90d: number;
+    sourceBreakdown: Record<string, number>;
   }[];
   /** AI-generated ads percentage per competitor */
   aiGeneratedByCompetitor: { name: string; percent: number }[];
@@ -314,14 +315,15 @@ export async function computeBenchmarks(
     status: string | null;
     start_date: string | null;
     end_date: string | null;
+    source: string | null;
   }[]> {
     const PAGE = 5000;
     const SAFETY_CAP = 500_000;
-    const rows: { competitor_id: string | null; status: string | null; start_date: string | null; end_date: string | null }[] = [];
+    const rows: { competitor_id: string | null; status: string | null; start_date: string | null; end_date: string | null; source: string | null }[] = [];
     for (let from = 0; from < SAFETY_CAP; from += PAGE) {
       let q = supabase
         .from("mait_ads_external")
-        .select("competitor_id, status, start_date, end_date")
+        .select("competitor_id, status, start_date, end_date, source")
         .eq("workspace_id", workspaceId)
         .order("id")
         .range(from, from + PAGE - 1);
@@ -727,9 +729,14 @@ export async function computeBenchmarks(
   // can explain where the number comes from.
   const totalInAdsByComp = new Map<string, number>();
   const withStartDateByComp = new Map<string, number>();
+  const sourceBreakdownByComp = new Map<string, Record<string, number>>();
   for (const row of allAdsMeta) {
     const key = row.competitor_id ?? "unknown";
     totalInAdsByComp.set(key, (totalInAdsByComp.get(key) ?? 0) + 1);
+    const srcKey = row.source ?? "(null)";
+    const srcMap = sourceBreakdownByComp.get(key) ?? {};
+    srcMap[srcKey] = (srcMap[srcKey] ?? 0) + 1;
+    sourceBreakdownByComp.set(key, srcMap);
     if (!row.start_date) continue;
     withStartDateByComp.set(key, (withStartDateByComp.get(key) ?? 0) + 1);
     const t = new Date(row.start_date).getTime();
@@ -751,6 +758,7 @@ export async function computeBenchmarks(
       totalInAds: total,
       withStartDate: withStartDateByComp.get(id) ?? 0,
       countedInLast90d: recentByComp.get(id) ?? 0,
+      sourceBreakdown: sourceBreakdownByComp.get(id) ?? {},
     }))
     .sort((a, b) => b.countedInLast90d - a.countedInLast90d);
 

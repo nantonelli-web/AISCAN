@@ -330,14 +330,19 @@ export async function BenchmarkContent({
             {data.refreshRateDebug.length > 0 && (
               <div className="mt-3 pt-3 border-t border-border text-[10px] text-muted-foreground space-y-0.5">
                 <p className="font-semibold uppercase tracking-wider mb-1">Debug</p>
-                {data.refreshRateDebug.slice(0, 8).map((b) => (
-                  <div key={b.name} className="flex gap-2 tabular-nums">
-                    <span className="truncate flex-1">{b.name}</span>
-                    <span>total {b.totalInAds}</span>
-                    <span>withStart {b.withStartDate}</span>
-                    <span>last90d {b.countedInLast90d}</span>
-                  </div>
-                ))}
+                {data.refreshRateDebug.slice(0, 10).map((b) => {
+                  const src = Object.entries(b.sourceBreakdown)
+                    .map(([k, v]) => `${k}:${v}`)
+                    .join(" ");
+                  return (
+                    <div key={b.name} className="flex gap-2 tabular-nums">
+                      <span className="truncate flex-1">{b.name}</span>
+                      <span>total {b.totalInAds}</span>
+                      <span>last90d {b.countedInLast90d}</span>
+                      <span className="font-mono">{src}</span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>
