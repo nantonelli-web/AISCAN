@@ -148,6 +148,8 @@ export async function POST(req: Request) {
 
 /**
  * Resolve Stripe price ID to subscription tier.
+ * Two separate equality queries avoid PostgREST filter-string injection
+ * from user-controlled priceId values.
  */
 async function resolveTier(
   admin: ReturnType<typeof createAdminClient>,
@@ -155,11 +157,18 @@ async function resolveTier(
 ): Promise<string | null> {
   if (!priceId) return null;
 
-  const { data: plan } = await admin
-    .from("mait_subscription_plans")
-    .select("tier")
-    .or(`stripe_monthly_price_id.eq.${priceId},stripe_yearly_price_id.eq.${priceId}`)
-    .single();
+  const [monthly, yearly] = await Promise.all([
+    admin
+      .from("mait_subscription_plans")
+      .select("tier")
+      .eq("stripe_monthly_price_id", priceId)
+      .maybeSingle(),
+    admin
+      .from("mait_subscription_plans")
+      .select("tier")
+      .eq("stripe_yearly_price_id", priceId)
+      .maybeSingle(),
+  ]);
 
-  return plan?.tier ?? null;
+  return monthly.data?.tier ?? yearly.data?.tier ?? null;
 }

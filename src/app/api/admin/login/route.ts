@@ -43,14 +43,16 @@ export async function POST(request: Request) {
       role: admin.role,
     });
 
-    const isProduction = process.env.NODE_ENV === "production";
+    // Secure cookie everywhere except local `next dev` (localhost HTTP).
+    // Vercel preview + production are both served over HTTPS.
+    const isLocalDev = process.env.NODE_ENV === "development";
 
     const response = NextResponse.json({ ok: true });
     response.cookies.set("admin_session", token, {
       httpOnly: true,
-      secure: isProduction,
+      secure: !isLocalDev,
       sameSite: "lax",
-      maxAge: 60 * 60 * 24, // 24 hours
+      maxAge: 60 * 60 * 4, // 4 hours — matches JWT TTL
       path: "/",
     });
 

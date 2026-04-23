@@ -18,7 +18,7 @@ export async function createAdminToken(payload: {
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("24h")
+    .setExpirationTime("4h")
     .sign(getSecret());
 }
 
