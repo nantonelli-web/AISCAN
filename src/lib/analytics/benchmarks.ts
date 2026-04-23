@@ -92,7 +92,7 @@ export async function computeBenchmarks(
   let adsQuery = supabase
     .from("mait_ads_external")
     .select(
-      "id, competitor_id, cta, platforms, video_url, status, start_date, end_date, ad_text, created_at, raw_data"
+      "id, competitor_id, cta, platforms, image_url, video_url, status, start_date, end_date, ad_text, created_at, raw_data"
     )
     .eq("workspace_id", workspaceId)
     .limit(3000);
@@ -113,6 +113,12 @@ export async function computeBenchmarks(
 
   const comps = (competitors ?? []) as CompetitorRef[];
   const ads = (rawAds ?? []) as AdRow[];
+  // When a project filter is applied we want every brand in the filter scope
+  // to appear in "volume per brand" even if it has zero ads so the chart
+  // reflects the whole project — not just brands with scanned ads.
+  const scopedCompetitorIds = competitorIds && competitorIds.length > 0
+    ? new Set(competitorIds)
+    : null;
   const compMap = new Map(comps.map((c) => [c.id, c.page_name]));
 
   // ---- Volume per competitor ----
@@ -124,7 +130,13 @@ export async function computeBenchmarks(
     else entry.inactive++;
     volumeMap.set(key, entry);
   }
+  // Pad with zero-ads brands so the chart always shows the full project scope.
+  const volumeIds = scopedCompetitorIds ?? new Set(comps.map((c) => c.id));
+  for (const id of volumeIds) {
+    if (!volumeMap.has(id)) volumeMap.set(id, { active: 0, inactive: 0 });
+  }
   const volumeByCompetitor = [...volumeMap.entries()]
+    .filter(([id]) => id !== "unknown" && (!scopedCompetitorIds || scopedCompetitorIds.has(id)))
     .map(([id, v]) => ({ name: compMap.get(id) ?? "N/A", ...v }))
     .sort((a, b) => b.active + b.inactive - (a.active + a.inactive));
 
@@ -142,14 +154,22 @@ export async function computeBenchmarks(
     const entry = formatByComp.get(key) ?? { image: 0, video: 0, carousel: 0, unknown: 0 };
     const snapshot = (ad.raw_data?.snapshot ?? null) as Record<string, unknown> | null;
     const displayFormat = (snapshot?.displayFormat as string) ?? null;
+    const cards = Array.isArray(snapshot?.cards) ? (snapshot?.cards as unknown[]) : null;
+    const videos = Array.isArray(snapshot?.videos) ? (snapshot?.videos as unknown[]) : null;
+    // True carousel formats: DPA (catalog carousel) and CAROUSEL.
+    // DCO is a delivery mode (Dynamic Creative Optimization) that can resolve
+    // to image, video, OR carousel — inspect the snapshot cards/videos.
+    const isDpaOrCarousel = displayFormat === "DPA" || displayFormat === "CAROUSEL";
+    const isDco = displayFormat === "DCO";
 
-    if (displayFormat === "DPA" || displayFormat === "DCO" || displayFormat === "CAROUSEL") {
+    if (isDpaOrCarousel || (cards && cards.length > 1)) {
       carouselCount++;
       entry.carousel++;
-    } else if (displayFormat === "VIDEO" || (!displayFormat && ad.video_url)) {
+    } else if (displayFormat === "VIDEO" || (videos && videos.length > 0) || (!displayFormat && ad.video_url)) {
       videoCount++;
       entry.video++;
-    } else if (displayFormat === "IMAGE" || (!displayFormat && ad.image_url)) {
+    } else if (displayFormat === "IMAGE" || (!displayFormat && ad.image_url) || isDco) {
+      // DCO without a video in the snapshot → default to image; DPA already handled above.
       imageCount++;
       entry.image++;
     } else {

@@ -81,9 +81,33 @@ export function VolumeChart({
 }: {
   data: { name: string; active: number; inactive: number }[];
 }) {
+  // Vertical bars read well up to ~8 brands; past that, x-axis labels crowd
+  // each other and chart compresses. Switch to a horizontal layout whose
+  // height grows with the brand count.
+  if (data.length > 8) {
+    const height = Math.max(240, data.length * 36);
+    return (
+      <ResponsiveContainer width="100%" height={height}>
+        <BarChart data={data} layout="vertical" margin={{ left: 10, right: 24 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+          <XAxis type="number" tick={{ fill: AXIS_TICK, fontSize: 11 }} />
+          <YAxis
+            type="category"
+            dataKey="name"
+            tick={{ fill: AXIS_TICK, fontSize: 11 }}
+            width={140}
+          />
+          <Tooltip {...tooltipStyle} />
+          <Legend wrapperStyle={{ fontSize: 12, color: LEGEND_TEXT }} />
+          <Bar dataKey="active" stackId="a" fill={GOLD} name="Active" radius={[0, 4, 4, 0]} />
+          <Bar dataKey="inactive" stackId="a" fill={MUTED} name="Inactive" radius={[0, 4, 4, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    );
+  }
   return (
     <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={data.slice(0, 10)} margin={{ left: 0, right: 16 }}>
+      <BarChart data={data} margin={{ left: 0, right: 16 }}>
         <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
         <XAxis
           dataKey="name"
@@ -149,9 +173,32 @@ export function FormatStackedChart({
 }: {
   data: { name: string; image: number; video: number; carousel: number; unknown: number }[];
 }) {
+  if (data.length > 8) {
+    const height = Math.max(240, data.length * 36);
+    return (
+      <ResponsiveContainer width="100%" height={height}>
+        <BarChart data={data} layout="vertical" margin={{ left: 10, right: 24 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+          <XAxis type="number" tick={{ fill: AXIS_TICK, fontSize: 11 }} />
+          <YAxis
+            type="category"
+            dataKey="name"
+            tick={{ fill: AXIS_TICK, fontSize: 11 }}
+            width={140}
+          />
+          <Tooltip {...tooltipStyle} />
+          <Legend wrapperStyle={{ fontSize: 12, color: LEGEND_TEXT }} />
+          <Bar dataKey="image" stackId="a" fill={COLORS[0]} name="Image" />
+          <Bar dataKey="video" stackId="a" fill={COLORS[1]} name="Video" />
+          <Bar dataKey="carousel" stackId="a" fill={COLORS[2]} name="Carousel" />
+          <Bar dataKey="unknown" stackId="a" fill={MUTED} name="Other" />
+        </BarChart>
+      </ResponsiveContainer>
+    );
+  }
   return (
     <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={data.slice(0, 10)} margin={{ left: 0, right: 16 }}>
+      <BarChart data={data} margin={{ left: 0, right: 16 }}>
         <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
         <XAxis
           dataKey="name"
