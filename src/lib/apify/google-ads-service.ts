@@ -118,6 +118,9 @@ function normalize(ad: RawGoogleAd): NormalizedAd {
       : null,
     status,
     raw_data: ad as unknown as Record<string, unknown>,
+    // Google ads are not scraped per-country — scan_countries stays null
+    // and the Benchmarks country filter does not apply to them.
+    scan_countries: null,
   };
 }
 

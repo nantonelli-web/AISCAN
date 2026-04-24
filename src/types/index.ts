@@ -66,6 +66,10 @@ export interface MaitAdExternal {
   status: string | null;
   source: AdSource;
   raw_data: Record<string, unknown> | null;
+  /** ISO-2 codes passed to Apify when this ad was scraped. NULL for
+   *  legacy rows (scanned before per-country scraping) and for Google
+   *  ads (not scraped per-country). */
+  scan_countries: string[] | null;
   created_at: string;
 }
 

@@ -55,6 +55,11 @@ export interface NormalizedAd {
   end_date: string | null;
   status: string | null;
   raw_data: Record<string, unknown>;
+  /** ISO-2 codes passed to Apify when this ad was scraped. Populated by
+   *  the service layer, not by normalize(). `null` means "unknown" —
+   *  reserved for the legacy country=ALL path and kept null-safe in the
+   *  DB column. */
+  scan_countries: string[] | null;
 }
 
 export interface ScrapeResult {
@@ -76,8 +81,87 @@ export interface ScrapeOptions {
   dateTo?: string;
 }
 
+/**
+ * Scrape Meta ads for a competitor. When `opts.country` is a single
+ * ISO-2 code OR a CSV list, the function issues ONE Apify call per
+ * country. This is mandatory so every stored ad carries a specific
+ * country (in `scan_countries`) and downstream filters can answer
+ * "give me Marina Rinaldi's FR ads" accurately.
+ *
+ * Multi-country flow:
+ *   - split CSV into `[IT, DE, FR, ...]`
+ *   - fire one `scrapeMetaAdsSingleCountry` per entry, sequentially
+ *   - dedup the returned ads by `ad_archive_id`: if the same ad shows
+ *     up in multiple country scans, keep ONE row whose `scan_countries`
+ *     is the union of every country where we saw it
+ *
+ * `country=ALL` is no longer used — if `opts.country` is empty we fall
+ * back to a single ALL scan and emit ads with `scan_countries = null`.
+ * That path is reserved for brands not yet configured with a country.
+ */
 export async function scrapeMetaAds(
   opts: ScrapeOptions
+): Promise<ScrapeResult> {
+  const rawCountry = opts.country?.trim() ?? "";
+  const countryList = rawCountry
+    ? rawCountry
+        .split(",")
+        .map((c) => c.trim().toUpperCase())
+        .filter(Boolean)
+    : [];
+
+  // No country configured — legacy behavior (ALL), scan_countries = null.
+  if (countryList.length === 0) {
+    return scrapeMetaAdsSingleCountry({ ...opts, country: undefined }, null);
+  }
+
+  // Single country — one scan, scan_countries = [country].
+  if (countryList.length === 1) {
+    return scrapeMetaAdsSingleCountry({ ...opts, country: countryList[0] }, [
+      countryList[0],
+    ]);
+  }
+
+  // Multi-country — N scans, dedup by ad_archive_id, union scan_countries.
+  const byArchiveId = new Map<string, NormalizedAd>();
+  const startUrls: string[] = [];
+  const runIds: string[] = [];
+  let totalCostCu = 0;
+  for (const country of countryList) {
+    const partial = await scrapeMetaAdsSingleCountry(
+      { ...opts, country },
+      [country],
+    );
+    totalCostCu += partial.costCu;
+    startUrls.push(partial.startUrl);
+    runIds.push(partial.runId);
+    for (const ad of partial.records) {
+      const existing = byArchiveId.get(ad.ad_archive_id);
+      if (existing) {
+        const merged = new Set<string>(existing.scan_countries ?? []);
+        for (const c of ad.scan_countries ?? []) merged.add(c);
+        existing.scan_countries = [...merged];
+      } else {
+        byArchiveId.set(ad.ad_archive_id, ad);
+      }
+    }
+  }
+
+  return {
+    runId: runIds.join(","),
+    records: [...byArchiveId.values()],
+    costCu: totalCostCu,
+    startUrl: startUrls[0] ?? "",
+    debug: { countriesScanned: countryList, runIds, startUrls },
+  };
+}
+
+/** Single-country scrape path. Every ad it returns has its
+ *  `scan_countries` set to the supplied `scanCountries` argument (or
+ *  null for the legacy ALL path). */
+async function scrapeMetaAdsSingleCountry(
+  opts: ScrapeOptions,
+  scanCountries: string[] | null,
 ): Promise<ScrapeResult> {
   const startUrl =
     opts.pageUrl?.includes("ads/library")
@@ -85,9 +169,7 @@ export async function scrapeMetaAds(
       : buildAdLibraryUrl({
           pageId: opts.pageId,
           searchQuery: opts.pageId ? undefined : opts.pageName,
-          // Use ALL when multiple countries are configured so we don't
-          // miss ads targeting other regions (e.g. DE for a German brand).
-          country: opts.country?.includes(",") ? "ALL" : opts.country,
+          country: opts.country,
           active: opts.active,
           dateFrom: opts.dateFrom,
           dateTo: opts.dateTo,
@@ -98,12 +180,9 @@ export async function scrapeMetaAds(
     startUrls: [{ url: startUrl }],
     maxItems,
   };
-  // Pass dates as direct actor input fields (some actors read these
-  // instead of / in addition to the URL query params).
   if (opts.dateFrom) input.startDate = opts.dateFrom;
   if (opts.dateTo) input.endDate = opts.dateTo;
 
-  // maxItems is passed both in input AND as query param (pay-per-result billing)
   const actorPath = `/acts/${encodeURIComponent(ACTOR_ID)}/runs?maxItems=${maxItems}`;
   const run = await apifyFetch(actorPath, {
     method: "POST",
@@ -118,11 +197,9 @@ export async function scrapeMetaAds(
     throw new Error("Apify run started but no datasetId returned.");
   }
 
-  // Poll until the run finishes (max ~5 min)
   let status = run.data?.status ?? run.status ?? "RUNNING";
   const startTime = Date.now();
   const maxWait = 5 * 60 * 1000;
-
   while (
     (status === "RUNNING" || status === "READY") &&
     Date.now() - startTime < maxWait
@@ -131,19 +208,19 @@ export async function scrapeMetaAds(
     const runInfo = await apifyFetch(`/actor-runs/${runId}`);
     status = runInfo.data?.status ?? runInfo.status ?? status;
   }
-
   if (status !== "SUCCEEDED") {
     throw new Error(`Apify run ended with status: ${status}`);
   }
 
   const dataset = await apifyFetch(
-    `/datasets/${datasetId}/items?format=json&limit=1000`
+    `/datasets/${datasetId}/items?format=json&limit=1000`,
   );
   const items: RawAd[] = Array.isArray(dataset) ? dataset : dataset.items ?? [];
 
   const records = items
     .map(normalize)
-    .filter((a): a is NormalizedAd => !!a.ad_archive_id);
+    .filter((a): a is NormalizedAd => !!a.ad_archive_id)
+    .map((a) => ({ ...a, scan_countries: scanCountries }));
 
   let costCu = 0;
   try {
@@ -315,5 +392,9 @@ function normalize(ad: RawAd): NormalizedAd {
       toIso(ad.endDateFormatted ?? ad.endDate),
     status: ad.isActive ? "ACTIVE" : ad.adStatus ?? "INACTIVE",
     raw_data: ad as unknown as Record<string, unknown>,
+    // Caller (scrapeMetaAdsSingleCountry) overrides this with the actual
+    // scanned-country list; normalize() does not know which country this
+    // run was targeting.
+    scan_countries: null,
   };
 }

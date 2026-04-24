@@ -29,8 +29,10 @@ export async function BenchmarkContent({
   dateFrom: string;
   dateTo: string;
   /** ISO alpha-2 codes. When NOT covering every workspace country the
-   *  filter is applied at ad level (via raw_data.targetedOrReachedCountries)
-   *  so multi-country brands are comparable to single-country ones. */
+   *  filter is applied at ad level against scan_countries (the ISO codes
+   *  we passed Apify at scrape time), so multi-country brands are
+   *  comparable to single-country ones. Ads without scan_countries
+   *  (legacy rows) are excluded until their brand is re-scanned. */
   countries?: string[];
 }) {
   const supabase = await createClient();

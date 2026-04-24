@@ -57,7 +57,11 @@ export default async function AdDetailPage({
   const isAaaEligible = (raw?.isAaaEligible as boolean) ?? false;
   const isReshared = (snapshot?.isReshared as boolean) ?? false;
   const collationCount = (raw?.collationCount as number) ?? null;
-  const targetedCountries = (raw?.targetedOrReachedCountries as string[]) ?? [];
+  // Countries we explicitly scanned this ad in. raw_data.
+  // targetedOrReachedCountries used to source this but Meta never
+  // populates it; scan_countries is the set of ISO codes we passed
+  // Apify, so it is the only signal we have.
+  const targetedCountries = ad.scan_countries ?? [];
   const insights = extractAdInsights(raw);
   const genderLabelKey: Record<NonNullable<typeof insights.genderLabel>, string> = {
     all: "genderAll",
