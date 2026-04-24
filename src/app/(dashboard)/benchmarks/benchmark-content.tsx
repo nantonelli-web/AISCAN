@@ -21,12 +21,17 @@ export async function BenchmarkContent({
   competitorIdsFilter,
   dateFrom,
   dateTo,
+  countries,
 }: {
   workspaceId: string;
   channel: "meta" | "google" | "instagram";
   competitorIdsFilter: string[] | undefined;
   dateFrom: string;
   dateTo: string;
+  /** ISO alpha-2 codes. When NOT covering every workspace country the
+   *  filter is applied at ad level (via raw_data.targetedOrReachedCountries)
+   *  so multi-country brands are comparable to single-country ones. */
+  countries?: string[];
 }) {
   const supabase = await createClient();
   const locale = await getLocale();
@@ -51,7 +56,8 @@ export async function BenchmarkContent({
     channel,
     competitorIdsFilter,
     dateFrom,
-    dateTo
+    dateTo,
+    countries
   );
 
   // Scan-coverage check — split selected brands into two buckets:

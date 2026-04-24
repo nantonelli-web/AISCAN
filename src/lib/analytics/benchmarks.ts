@@ -262,7 +262,27 @@ export async function computeBenchmarks(
    * (they are still active OR they ended on/after `dateFrom`). */
   dateFrom?: string,
   dateTo?: string,
+  /** ISO alpha-2 country codes. If provided, ads are filtered at ad level
+   * by overlap with `raw_data.targetedOrReachedCountries`. Ads lacking
+   * that field are excluded when this filter is active. Intended to make
+   * multi-country brands comparable to single-country brands (pick FR →
+   * only FR-targeting ads count). */
+  countries?: string[],
 ): Promise<BenchmarkData> {
+  const countrySet = countries && countries.length > 0
+    ? new Set(countries.map((c) => c.toUpperCase()))
+    : null;
+  /** True iff the ad targets at least one of the selected countries. */
+  function adMatchesCountries(raw: Record<string, unknown> | null | undefined): boolean {
+    if (!countrySet) return true;
+    const list = (raw as { targetedOrReachedCountries?: unknown } | null | undefined)
+      ?.targetedOrReachedCountries;
+    if (!Array.isArray(list) || list.length === 0) return false;
+    for (const c of list) {
+      if (typeof c === "string" && countrySet.has(c.toUpperCase())) return true;
+    }
+    return false;
+  }
   // Heavy query (format / CTA / UTM / tags / raw_data-dependent metrics).
   // Paginated with .range() because PostgREST caps each response at 1000
   // rows regardless of .limit().
@@ -305,12 +325,16 @@ export async function computeBenchmarks(
     }
     // Final dedupe: if the provider still returned the same row on
     // consecutive pages, strip the duplicates here so every metric sees
-    // each ad exactly once.
+    // each ad exactly once. Also apply the ad-level country filter — we
+    // do it in JS because raw_data.targetedOrReachedCountries lives
+    // inside a JSONB column and PostgREST's @> operator on nested
+    // arrays is clunky.
     const seen = new Set<string>();
     const unique: AdRow[] = [];
     for (const r of rows) {
       if (!r.id || seen.has(r.id)) continue;
       seen.add(r.id);
+      if (!adMatchesCountries(r.raw_data)) continue;
       unique.push(r);
     }
     return unique;
@@ -328,14 +352,20 @@ export async function computeBenchmarks(
     start_date: string | null;
     end_date: string | null;
     source: string | null;
+    targetedCountries: string[] | null;
   }[]> {
     const PAGE = 1000;
     const SAFETY_CAP = 500_000;
-    const rows: { competitor_id: string | null; status: string | null; start_date: string | null; end_date: string | null; source: string | null }[] = [];
+    const rows: { competitor_id: string | null; status: string | null; start_date: string | null; end_date: string | null; source: string | null; targetedCountries: string[] | null }[] = [];
     for (let from = 0; from < SAFETY_CAP; from += PAGE) {
       let q = supabase
         .from("mait_ads_external")
-        .select("competitor_id, status, start_date, end_date, source")
+        // raw_data->targetedOrReachedCountries selected via JSON path so
+        // the lightweight query stays small but still carries the per-ad
+        // country list for the ad-level country filter.
+        .select(
+          "competitor_id, status, start_date, end_date, source, targetedCountries:raw_data->targetedOrReachedCountries"
+        )
         .eq("workspace_id", workspaceId)
         .order("id")
         .range(from, from + PAGE - 1);
@@ -343,10 +373,19 @@ export async function computeBenchmarks(
       if (competitorIds && competitorIds.length > 0) q = q.in("competitor_id", competitorIds);
       const { data, error } = await q;
       if (error || !data || data.length === 0) break;
-      rows.push(...data);
+      rows.push(...(data as typeof rows));
       if (data.length < PAGE) break;
     }
-    return rows;
+    // Apply the country filter at ad level, same as the heavy query.
+    if (!countrySet) return rows;
+    return rows.filter((r) => {
+      const list = r.targetedCountries;
+      if (!Array.isArray(list) || list.length === 0) return false;
+      for (const c of list) {
+        if (typeof c === "string" && countrySet.has(c.toUpperCase())) return true;
+      }
+      return false;
+    });
   }
 
   const [{ data: competitors }, rawAdsPages, allAdsMeta] = await Promise.all([

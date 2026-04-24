@@ -324,6 +324,10 @@ export default async function BenchmarksPage({
           competitorIdsFilter={activeBrandIds}
           dateFrom={dateFrom}
           dateTo={dateTo}
+          // Only pass a country filter when the user has narrowed the
+          // selection — "all countries selected" is a no-op and would
+          // needlessly trigger the per-ad filter.
+          countries={ALL_COUNTRIES_SELECTED ? undefined : activeCountryCodes}
         />
       </Suspense>
 
