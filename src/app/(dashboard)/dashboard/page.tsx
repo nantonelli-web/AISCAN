@@ -23,7 +23,7 @@ export default async function DashboardPage() {
   // response at 1000 rows, so .limit(2000) silently truncated for any
   // workspace with > 1000 active ads. Walk .range() pages until exhausted.
   async function fetchActiveAdCompetitors(): Promise<{ competitor_id: string | null }[]> {
-    const PAGE = 5000;
+    const PAGE = 1000;
     const SAFETY_CAP = 100_000;
     const rows: { competitor_id: string | null }[] = [];
     for (let from = 0; from < SAFETY_CAP; from += PAGE) {

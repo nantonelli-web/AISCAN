@@ -273,7 +273,11 @@ export async function computeBenchmarks(
   // tiebreaker makes the sort total and the page walk deterministic.
   // An additional id-based dedupe at the end is belt-and-suspenders.
   async function fetchAllHeavyRows(): Promise<AdRow[]> {
-    const PAGE = 2000;
+    // PAGE must match (or be smaller than) the Supabase response cap.
+    // Supabase caps .range() responses at 1000 rows; any larger PAGE made
+    // the `data.length < PAGE` break condition trigger after a single
+    // iteration, so pagination silently stopped at 1000 total rows.
+    const PAGE = 1000;
     const SAFETY_CAP = 15_000;
     const rows: AdRow[] = [];
     for (let from = 0; from < SAFETY_CAP; from += PAGE) {
@@ -325,7 +329,7 @@ export async function computeBenchmarks(
     end_date: string | null;
     source: string | null;
   }[]> {
-    const PAGE = 5000;
+    const PAGE = 1000;
     const SAFETY_CAP = 500_000;
     const rows: { competitor_id: string | null; status: string | null; start_date: string | null; end_date: string | null; source: string | null }[] = [];
     for (let from = 0; from < SAFETY_CAP; from += PAGE) {
@@ -1023,7 +1027,7 @@ export async function computeOrganicBenchmarks(
   // warning but only 5k in the charts. Posts are lightweight (no JSONB
   // heavy fields) so the 30k cap is safe.
   async function fetchAllPosts(): Promise<OrganicRow[]> {
-    const PAGE = 5000;
+    const PAGE = 1000;
     const SAFETY_CAP = 30_000;
     const rows: OrganicRow[] = [];
     for (let from = 0; from < SAFETY_CAP; from += PAGE) {
@@ -1056,7 +1060,7 @@ export async function computeOrganicBenchmarks(
   async function fetchCoverageRows(): Promise<
     { competitor_id: string | null; posted_at: string | null }[]
   > {
-    const PAGE = 5000;
+    const PAGE = 1000;
     const SAFETY_CAP = 500_000;
     const rows: { competitor_id: string | null; posted_at: string | null }[] = [];
     for (let from = 0; from < SAFETY_CAP; from += PAGE) {

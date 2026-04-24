@@ -42,7 +42,7 @@ export async function GET(req: Request) {
         created_at: string;
       }[]
     > {
-      const PAGE = 5000;
+      const PAGE = 1000;
       const SAFETY_CAP = 100_000;
       const rows: {
         competitor_id: string | null;
