@@ -330,7 +330,10 @@ export async function BenchmarkContent({
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>{t("benchmarks", "refreshRateChart")}</CardTitle>
+            <CardTitle>
+              {t("benchmarks", "refreshRateChart")} ({data.refreshRateWindowDays}
+              {t("benchmarks", "refreshRateWindowSuffix")})
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descRefreshRate")}</p>

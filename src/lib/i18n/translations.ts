@@ -555,7 +555,9 @@ const translations = {
     avgDurationDays: { it: "gg", en: "d" },
     avgCopyLength: { it: "Lungh. media copy", en: "Avg. copy length" },
     avgCopyChars: { it: "chr", en: "chr" },
-    refreshRate: { it: "Refresh rate (90gg)", en: "Refresh rate (90d)" },
+    refreshRate: { it: "Refresh rate", en: "Refresh rate" },
+    /** Day suffix used when composing "Refresh rate (Ngg)" / "(Nd)". */
+    refreshRateWindowSuffix: { it: "gg", en: "d" },
     adsPerWeek: { it: "ads/sett.", en: "ads/wk" },
     latestAds: { it: "Ultime ads", en: "Latest ads" },
     // Organic-specific Technical tab keys
@@ -855,7 +857,9 @@ const translations = {
       it: "Lunghezza media copy",
       en: "Avg. copy length",
     },
-    refreshRateChart: { it: "Refresh rate (90gg)", en: "Refresh rate (90d)" },
+    refreshRateChart: { it: "Refresh rate", en: "Refresh rate" },
+    /** Day suffix used when composing "Refresh rate (Ngg)" / "(Nd)". */
+    refreshRateWindowSuffix: { it: "gg", en: "d" },
     daysLabel: { it: "Giorni", en: "Days" },
     charsLabel: { it: "Caratteri", en: "Characters" },
     adsPerWeekLabel: { it: "Ads/settimana", en: "Ads/week" },
@@ -900,8 +904,8 @@ const translations = {
       en: "Average ad copy length in characters per brand.",
     },
     descRefreshRate: {
-      it: "Quante nuove ads vengono pubblicate in media ogni settimana. Calcolato sulle ads create negli ultimi 90 giorni diviso per il numero di settimane. Un valore alto indica un brand che aggiorna frequentemente i propri creativi.",
-      en: "How many new ads are published on average each week. Calculated from ads created in the last 90 days divided by the number of weeks. A high value indicates a brand that frequently refreshes its creatives.",
+      it: "Quante nuove ads vengono pubblicate in media ogni settimana. La finestra coincide con il range date selezionato in alto. Un valore alto indica un brand che aggiorna frequentemente i propri creativi.",
+      en: "How many new ads are published on average each week. The window matches the date range selected above. A high value indicates a brand that frequently refreshes its creatives.",
     },
     descAiGenerated: {
       it: "Percentuale di ads create con strumenti di intelligenza artificiale.",

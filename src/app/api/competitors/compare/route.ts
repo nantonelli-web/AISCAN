@@ -6,6 +6,10 @@ import { inferObjective } from "@/lib/analytics/objective-inference";
 
 const schema = z.object({
   ids: z.array(z.string().uuid()).min(2).max(3),
+  /** Optional ISO dates. When supplied, the refresh-rate window
+   *  matches dateFrom→dateTo instead of the legacy fixed 90d. */
+  date_from: z.string().optional(),
+  date_to: z.string().optional(),
 });
 
 export async function POST(req: Request) {
@@ -22,6 +26,21 @@ export async function POST(req: Request) {
   }
 
   const admin = createAdminClient();
+
+  // Window for the refresh-rate metric. When the caller passes
+  // date_from/date_to we honour it; otherwise default to a rolling 90d
+  // ending today so the legacy contract is preserved.
+  const windowToMs = parsed.data.date_to
+    ? new Date(parsed.data.date_to + "T23:59:59Z").getTime()
+    : Date.now();
+  const windowFromMs = parsed.data.date_from
+    ? new Date(parsed.data.date_from).getTime()
+    : windowToMs - 90 * 86_400_000;
+  const windowDays = Math.max(
+    1,
+    Math.round((windowToMs - windowFromMs) / 86_400_000),
+  );
+  const windowWeeks = windowDays / 7;
 
   const results = await Promise.all(
     parsed.data.ids.map(async (id) => {
@@ -107,15 +126,15 @@ export async function POST(req: Request) {
           ? Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length)
           : 0;
 
-      // Refresh rate (90 days) — uses start_date so a recent bulk scan
-      // does not inflate the metric via created_at.
-      const ninetyAgo = Date.now() - 90 * 86_400_000;
+      // Refresh rate over the caller-supplied window (or default 90d).
+      // Uses start_date — created_at would inflate the rate after a
+      // bulk back-fill scan because every row lands at insert time.
       const recent = adsList.filter((a) => {
         if (!a.start_date) return false;
         const t = new Date(a.start_date).getTime();
-        return Number.isFinite(t) && t > ninetyAgo;
+        return Number.isFinite(t) && t >= windowFromMs && t <= windowToMs;
       }).length;
-      const adsPerWeek = Math.round((recent / (90 / 7)) * 10) / 10;
+      const adsPerWeek = Math.round((recent / windowWeeks) * 10) / 10;
 
       // Latest ads
       const latestAds = adsList
@@ -153,5 +172,5 @@ export async function POST(req: Request) {
     })
   );
 
-  return NextResponse.json(results);
+  return NextResponse.json({ results, refreshRateWindowDays: windowDays });
 }

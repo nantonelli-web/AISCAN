@@ -113,18 +113,25 @@ export interface BenchmarkData {
   avgDurationByCompetitor: { name: string; days: number }[];
   /** Average copy length per competitor */
   avgCopyLengthByCompetitor: { name: string; chars: number }[];
-  /** Ad refresh rate: avg new ads per week per competitor (last 90 days) */
+  /** Ad refresh rate: avg new ads per week per competitor over
+   *  `refreshRateWindowDays`. The window matches the user-selected
+   *  dateFrom/dateTo so refresh rate is comparable to the rest of the
+   *  benchmark, instead of being a fixed 90d figure that misrepresents
+   *  brands scanned with a shorter range. */
   refreshRate: { name: string; adsPerWeek: number }[];
+  /** Window the refresh rate was computed over (in days). UI uses this
+   *  to label the chart dynamically — "Refresh rate (30gg)" etc. */
+  refreshRateWindowDays: number;
   /**
    * Diagnostic counts behind refreshRate. Lets the UI verify where the
    * number comes from — total rows seen, rows with start_date, rows
-   * counted (start_date in last 90d). Exposed so we can eyeball the math.
+   * counted in the window. Exposed so we can eyeball the math.
    */
   refreshRateDebug: {
     name: string;
     totalInAds: number;
     withStartDate: number;
-    countedInLast90d: number;
+    countedInWindow: number;
     sourceBreakdown: Record<string, number>;
   }[];
   /** Higher-level diagnostic: what was the pool size that drove the
@@ -749,22 +756,41 @@ export async function computeBenchmarks(
     }))
     .sort((a, b) => b.chars - a.chars);
 
-  // ---- Refresh rate (last 90 days) ----
-  // CRITICAL: compute from allAdsMeta (the uncapped paginated volume
-  // set) instead of from `ads` (the heavy query filtered by the user's
-  // analysis range). The chart label is "Refresh rate (90d)" — a fixed
-  // rolling 90-day metric. It must NOT shrink when the user narrows the
-  // analysis range to last 7 days, and it must match the Compare view
-  // when the same brand and channel are selected.
+  // ---- Refresh rate ----
+  // Window matches the user-selected dateFrom/dateTo so refresh rate is
+  // comparable across brands evaluated under the same analysis window.
+  // The old "fixed 90d" baked in two bugs at once: (a) brands scanned
+  // with a 30d date_from looked artificially inactive because the
+  // numerator only had 30d of data while the denominator was 12.86
+  // weeks; (b) two analyses on different windows could not be compared
+  // because the metric ignored the chosen window.
   //
-  // `allAdsMeta` only lacks the date-range filter; it still respects
-  // the source and competitor filters, and it is deduped by primary id
-  // (order("id") in fetchAllVolumeRows).
+  // Defaults: when neither dateFrom nor dateTo is set, fall back to
+  // the legacy 90d rolling window so existing API consumers keep
+  // working. When dateFrom is set without dateTo, the window ends
+  // today.
+  //
+  // Computed from allAdsMeta (the uncapped paginated volume set), not
+  // from `ads`, because `ads` is already filtered by the heavy date
+  // range / overlap predicate. allAdsMeta still respects the source
+  // and competitor filters, so the windowing here is purely a
+  // start_date check.
   //
   // Ads without a real start_date are skipped: Meta does not always
   // populate the field for DPA catalog ads, and the older "fall back
   // to created_at" trick falsely inflated the rate after bulk scans.
-  const ninetyDaysAgo = Date.now() - 90 * 86_400_000;
+  const windowToMs = dateTo
+    ? new Date(dateTo + "T23:59:59Z").getTime()
+    : Date.now();
+  const windowFromMs = dateFrom
+    ? new Date(dateFrom).getTime()
+    : windowToMs - 90 * 86_400_000;
+  // Round window to whole days for the label, never below 1 to keep
+  // the divisor sane on tiny ranges.
+  const windowDays = Math.max(
+    1,
+    Math.round((windowToMs - windowFromMs) / 86_400_000),
+  );
   const recentByComp = new Map<string, number>();
   // Diagnostic bookkeeping — exposed via refreshRateDebug so the UI
   // can explain where the number comes from.
@@ -781,10 +807,10 @@ export async function computeBenchmarks(
     if (!row.start_date) continue;
     withStartDateByComp.set(key, (withStartDateByComp.get(key) ?? 0) + 1);
     const t = new Date(row.start_date).getTime();
-    if (Number.isNaN(t) || t < ninetyDaysAgo) continue;
+    if (Number.isNaN(t) || t < windowFromMs || t > windowToMs) continue;
     recentByComp.set(key, (recentByComp.get(key) ?? 0) + 1);
   }
-  const weeks = 90 / 7;
+  const weeks = windowDays / 7;
   const refreshRate = [...recentByComp.entries()]
     .map(([id, n]) => ({
       name: compMap.get(id) ?? "N/A",
@@ -792,16 +818,16 @@ export async function computeBenchmarks(
     }))
     .sort((a, b) => b.adsPerWeek - a.adsPerWeek);
   // Diagnostic: include EVERY brand we iterated, even those with zero
-  // ads-in-last-90d, so eyeballing "why is it X" is straightforward.
+  // ads-in-window, so eyeballing "why is it X" is straightforward.
   const refreshRateDebug = [...totalInAdsByComp.entries()]
     .map(([id, total]) => ({
       name: compMap.get(id) ?? "N/A",
       totalInAds: total,
       withStartDate: withStartDateByComp.get(id) ?? 0,
-      countedInLast90d: recentByComp.get(id) ?? 0,
+      countedInWindow: recentByComp.get(id) ?? 0,
       sourceBreakdown: sourceBreakdownByComp.get(id) ?? {},
     }))
-    .sort((a, b) => b.countedInLast90d - a.countedInLast90d);
+    .sort((a, b) => b.countedInWindow - a.countedInWindow);
 
   // ---- AI-generated ads % per competitor ----
   const aiByComp = new Map<string, { total: number; ai: number }>();
@@ -974,6 +1000,7 @@ export async function computeBenchmarks(
     avgDurationByCompetitor,
     avgCopyLengthByCompetitor,
     refreshRate,
+    refreshRateWindowDays: windowDays,
     refreshRateDebug,
     refreshRateMeta: {
       allAdsMetaSize: allAdsMeta.length,

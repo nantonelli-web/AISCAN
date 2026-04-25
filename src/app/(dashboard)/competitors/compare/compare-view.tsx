@@ -2231,7 +2231,12 @@ function BenchmarkCharts({
           </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>{t("benchmarks", "refreshRateChart")}</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>
+              {t("benchmarks", "refreshRateChart")} ({data.refreshRateWindowDays}
+              {t("benchmarks", "refreshRateWindowSuffix")})
+            </CardTitle>
+          </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descRefreshRate")}</p>
             <HorizontalBarChart data={data.refreshRate} dataKey="adsPerWeek" label={t("benchmarks", "adsPerWeekAxisLabel")} color="#d97757" />

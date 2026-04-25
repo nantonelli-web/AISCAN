@@ -916,7 +916,7 @@ function addPdfBenchmarkPage(
     [label(locale, "Ads attive", "Active ads"), (b) => String(b.activeAds)],
     [label(locale, "Durata media", "Avg. duration"), (b) => b.avgDuration > 0 ? `${b.avgDuration} ${label(locale, "gg", "d")}` : "\u2014"],
     [label(locale, "Lungh. media copy", "Avg. copy length"), (b) => b.avgCopyLength > 0 ? `${b.avgCopyLength} chr` : "\u2014"],
-    [label(locale, "Refresh rate (90gg)", "Refresh rate (90d)"), (b) => b.adsPerWeek > 0 ? `${b.adsPerWeek} ads/${label(locale, "sett", "wk")}` : "\u2014"],
+    [label(locale, "Refresh rate", "Refresh rate"), (b) => b.adsPerWeek > 0 ? `${b.adsPerWeek} ads/${label(locale, "sett", "wk")}` : "\u2014"],
     [label(locale, "Format mix", "Format mix"), fmtMix],
     [label(locale, "Top CTA", "Top CTA"), (b) => b.topCtas.length > 0 ? b.topCtas.slice(0, 3).map((c) => c.name).join(", ") : "\u2014"],
     [label(locale, "Piattaforme", "Platforms"), (b) => b.platforms.length > 0 ? b.platforms.map((p) => p.name).join(", ") : "\u2014"],

@@ -19,6 +19,10 @@ const postSchema = z.object({
   locale: z.enum(["it", "en"]).optional(),
   channel: z.enum(["all", "meta", "google", "instagram"]).optional().default("meta"),
   countries: z.array(z.string()).optional(),
+  /** Optional ISO dates. When supplied, the refresh-rate / posts-per-week
+   *  metrics use this window instead of the legacy fixed 90d. */
+  date_from: z.string().optional(),
+  date_to: z.string().optional(),
   sections: z
     .array(z.enum(["technical", "copy", "visual"]))
     .min(1)
@@ -76,7 +80,10 @@ type AdRow = {
 async function computeTechnicalStats(
   ids: string[],
   admin: ReturnType<typeof createAdminClient>,
-  source?: "meta" | "google"
+  source?: "meta" | "google",
+  /** Window for the refresh-rate metric, in absolute milliseconds. The
+   *  caller computes it from optional date_from/date_to (default 90d). */
+  refreshRate?: { fromMs: number; toMs: number; weeks: number },
 ) {
   return Promise.all(
     ids.map(async (id) => {
@@ -191,18 +198,20 @@ async function computeTechnicalStats(
           ? Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length)
           : 0;
 
-      // Refresh rate (90 days). Driven by start_date (real Meta launch),
-      // not created_at (our DB insert time). When the scraper recently
-      // imported a brand's catalog, every row has created_at near "now"
-      // and falsely inflates the rate. Ads without a start_date are
-      // skipped rather than guessed.
-      const ninetyAgo = Date.now() - 90 * 86_400_000;
+      // Refresh rate over the caller-supplied window (default 90d).
+      // Driven by start_date (real Meta launch), not created_at (our DB
+      // insert time). When the scraper recently imported a brand's
+      // catalog, every row has created_at near "now" and falsely inflates
+      // the rate. Ads without a start_date are skipped.
+      const fromMs = refreshRate?.fromMs ?? Date.now() - 90 * 86_400_000;
+      const toMs = refreshRate?.toMs ?? Date.now();
+      const weeks = refreshRate?.weeks ?? 90 / 7;
       const recent = adsList.filter((a) => {
         if (!a.start_date) return false;
         const t = new Date(a.start_date).getTime();
-        return Number.isFinite(t) && t > ninetyAgo;
+        return Number.isFinite(t) && t >= fromMs && t <= toMs;
       }).length;
-      const adsPerWeek = Math.round((recent / (90 / 7)) * 10) / 10;
+      const adsPerWeek = Math.round((recent / weeks) * 10) / 10;
 
       // Latest ads
       const latestAds = adsList
@@ -300,7 +309,8 @@ type OrganicRow = {
 
 async function computeOrganicStats(
   ids: string[],
-  admin: ReturnType<typeof createAdminClient>
+  admin: ReturnType<typeof createAdminClient>,
+  refreshRate?: { fromMs: number; toMs: number; weeks: number },
 ) {
   return Promise.all(
     ids.map(async (id) => {
@@ -373,17 +383,19 @@ async function computeOrganicStats(
             )
           : 0;
 
-      // Cadence (posts/week over last 90 days). Use posted_at (real
-      // Instagram publish date); fall back to nothing when it's missing.
-      // Previously a created_at fallback falsely counted back-filled
-      // posts as "recent" right after a scan.
-      const ninetyAgo = Date.now() - 90 * 86_400_000;
+      // Cadence (posts/week over the caller-supplied window, default 90d).
+      // Use posted_at (real Instagram publish date); fall back to nothing
+      // when it's missing. Previously a created_at fallback falsely
+      // counted back-filled posts as "recent" right after a scan.
+      const fromMs = refreshRate?.fromMs ?? Date.now() - 90 * 86_400_000;
+      const toMs = refreshRate?.toMs ?? Date.now();
+      const weeks = refreshRate?.weeks ?? 90 / 7;
       const recent = list.filter((p) => {
         if (!p.posted_at) return false;
         const when = new Date(p.posted_at).getTime();
-        return Number.isFinite(when) && when > ninetyAgo;
+        return Number.isFinite(when) && when >= fromMs && when <= toMs;
       }).length;
-      const postsPerWeek = Math.round((recent / (90 / 7)) * 10) / 10;
+      const postsPerWeek = Math.round((recent / weeks) * 10) / 10;
 
       // Latest posts (5 most recent)
       const latestPosts = list.slice(0, 5).map((p) => ({
@@ -612,16 +624,39 @@ export async function POST(req: Request) {
 
   const isOrganic = parsed.data.channel === "instagram";
 
+  // Refresh-rate window — same shape used in benchmarks.ts. Defaults to
+  // a rolling 90d ending today when the caller does not supply dates.
+  const refreshToMs = parsed.data.date_to
+    ? new Date(parsed.data.date_to + "T23:59:59Z").getTime()
+    : Date.now();
+  const refreshFromMs = parsed.data.date_from
+    ? new Date(parsed.data.date_from).getTime()
+    : refreshToMs - 90 * 86_400_000;
+  const refreshDays = Math.max(
+    1,
+    Math.round((refreshToMs - refreshFromMs) / 86_400_000),
+  );
+  const refreshWindow = {
+    fromMs: refreshFromMs,
+    toMs: refreshToMs,
+    weeks: refreshDays / 7,
+  };
+
   // Technical data — branch on channel. Instagram pulls from organic
   // posts and returns a differently-shaped record (kind: "organic").
   if (sections.includes("technical")) {
     if (isOrganic) {
-      payload.technical_data = await computeOrganicStats(ids, admin);
+      payload.technical_data = await computeOrganicStats(ids, admin, refreshWindow);
     } else {
       const source = parsed.data.channel === "all"
         ? undefined
         : (parsed.data.channel as "meta" | "google");
-      payload.technical_data = await computeTechnicalStats(ids, admin, source);
+      payload.technical_data = await computeTechnicalStats(
+        ids,
+        admin,
+        source,
+        refreshWindow,
+      );
     }
   }
 
@@ -707,7 +742,10 @@ export async function POST(req: Request) {
     result = data;
   }
 
-  return NextResponse.json(result);
+  // The window length is computed metadata, not stored in the
+  // comparisons table — surface it on the response so the UI can
+  // label "Refresh rate (Nd)" without re-deriving the window.
+  return NextResponse.json({ ...result, refresh_rate_window_days: refreshDays });
 }
 
 /* ── DELETE /api/comparisons ─────────────────────────────── */
