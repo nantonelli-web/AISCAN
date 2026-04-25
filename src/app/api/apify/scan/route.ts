@@ -114,7 +114,7 @@ export async function POST(req: Request) {
       pageName: competitor.page_name ?? undefined,
       pageUrl: competitor.page_url,
       country: competitor.country ?? undefined,
-      maxItems: parsed.data.max_items ?? 200,
+      maxItems: parsed.data.max_items ?? 500,
       // Product rule: only scan active ads. Inactive / stopped creatives are
       // not analysed — removing the toggle avoids surprising users who would
       // otherwise see thousands of archived ads counted as current signals.

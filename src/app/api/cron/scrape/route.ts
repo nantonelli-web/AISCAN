@@ -84,7 +84,7 @@ export async function GET(req: Request) {
         pageName: (c as { page_name?: string }).page_name ?? undefined,
         pageUrl: c.page_url,
         country: c.country ?? undefined,
-        maxItems: c.monitor_config?.max_items ?? 200,
+        maxItems: c.monitor_config?.max_items ?? 500,
         active: true,
       });
 
@@ -123,7 +123,7 @@ export async function GET(req: Request) {
             advertiserId: c.google_advertiser_id ?? undefined,
             advertiserDomain: c.google_domain ?? undefined,
             dateFrom: thirtyDaysAgo,
-            maxResults: c.monitor_config?.max_items ?? 200,
+            maxResults: c.monitor_config?.max_items ?? 500,
           });
           if (gResult.records.length > 0) {
             const gRows = gResult.records.map((r) => ({

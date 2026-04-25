@@ -29,7 +29,7 @@ export function ScanGoogleButton({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           competitor_id: competitorId,
-          max_items: 200,
+          max_items: 500,
         }),
       });
       const json = await res.json();

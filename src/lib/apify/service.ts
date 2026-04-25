@@ -175,7 +175,13 @@ async function scrapeMetaAdsSingleCountry(
           dateTo: opts.dateTo,
         });
 
-  const maxItems = opts.maxItems ?? 200;
+  // Default 500 per country call: 200 was the MVP placeholder and capped
+  // active heavy advertisers (e.g. Axel Arigato hit 200 exactly). 500 is
+  // the sweet spot — covers virtually every fashion brand we have, fits
+  // inside Vercel maxDuration=300 with margin, and the per-country loop
+  // multiplies it by N for multi-market brands. The route validation
+  // still allows up to 1000 if a caller passes a higher max_items.
+  const maxItems = opts.maxItems ?? 500;
   const input: Record<string, unknown> = {
     startUrls: [{ url: startUrl }],
     maxItems,

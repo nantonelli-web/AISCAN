@@ -126,7 +126,7 @@ export function ScanDropdown({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           competitor_id: competitorId,
-          max_items: 200,
+          max_items: 500,
           date_from: effectiveFrom,
           date_to: effectiveTo,
         }),
@@ -164,7 +164,7 @@ export function ScanDropdown({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           competitor_id: competitorId,
-          max_items: 200,
+          max_items: 500,
           date_from: effectiveFrom,
           date_to: effectiveTo,
         }),

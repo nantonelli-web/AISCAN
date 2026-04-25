@@ -131,7 +131,7 @@ export async function POST(req: Request) {
         : undefined,
       dateFrom: parsed.data.date_from,
       dateTo: parsed.data.date_to,
-      maxResults: parsed.data.max_items ?? 200,
+      maxResults: parsed.data.max_items ?? 500,
     });
 
     // Upsert ads (no image download — Google CDN URLs are persistent)

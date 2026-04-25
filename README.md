@@ -124,7 +124,7 @@ src/
 curl -X POST http://localhost:3000/api/apify/scan \
   -H 'content-type: application/json' \
   -H 'cookie: <copy from browser devtools after login>' \
-  -d '{ "competitor_id": "<uuid>", "max_items": 200 }'
+  -d '{ "competitor_id": "<uuid>", "max_items": 500 }'
 ```
 
 The endpoint:
