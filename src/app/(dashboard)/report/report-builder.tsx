@@ -46,6 +46,11 @@ interface SavedComparison {
   updated_at: string;
   hasCopy: boolean;
   hasVisual: boolean;
+  /** Analysis window stored alongside the comparison (migration 0019).
+   *  Forwarded to /api/report/generate so the report metrics use the
+   *  same window the user saw in Compare. NULL for legacy rows. */
+  date_from: string | null;
+  date_to: string | null;
 }
 
 type ReportType = "single" | "comparison";
@@ -267,13 +272,22 @@ export function ReportBuilder({
 
     try {
       // For comparison mode, use brand IDs from first selected comparison
-      const idsForReport = reportType === "comparison"
-        ? (() => {
-            const firstScId = [...selectedComparisonIds][0];
-            const sc = savedComparisons.find((s) => s.id === firstScId);
-            return sc?.competitor_ids ?? [];
-          })()
-        : selectedArray;
+      let idsForReport: string[];
+      let reportDateFrom: string | null = null;
+      let reportDateTo: string | null = null;
+      if (reportType === "comparison") {
+        const firstScId = [...selectedComparisonIds][0];
+        const sc = savedComparisons.find((s) => s.id === firstScId);
+        idsForReport = sc?.competitor_ids ?? [];
+        // Inherit the comparison's analysis window so the report
+        // header and refresh-rate denominator align with what the
+        // user saw in Compare. Legacy comparisons (date_from null)
+        // fall back to the API's 90d default.
+        reportDateFrom = sc?.date_from ?? null;
+        reportDateTo = sc?.date_to ?? null;
+      } else {
+        idsForReport = selectedArray;
+      }
 
       const res = await fetch("/api/report/generate", {
         method: "POST",
@@ -287,6 +301,9 @@ export function ReportBuilder({
           locale: reportLocale,
           sections: [...contentSections],
           font_family: fontFamily,
+          ...(reportDateFrom && reportDateTo
+            ? { date_from: reportDateFrom, date_to: reportDateTo }
+            : {}),
         }),
       });
 

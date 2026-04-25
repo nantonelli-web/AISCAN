@@ -36,10 +36,15 @@ export default async function ReportPage() {
     .eq("workspace_id", profile.workspace_id!)
     .order("created_at", { ascending: false });
 
-  // Fetch saved comparisons (last 20, most recent first)
+  // Fetch saved comparisons (last 20, most recent first). date_from /
+  // date_to are the analysis window persisted at save time — flowed
+  // through to /api/report/generate so the report metrics use that
+  // same window instead of an unrelated default.
   const { data: savedComparisons } = await admin
     .from("mait_comparisons")
-    .select("id, competitor_ids, locale, stale, updated_at, copy_analysis, visual_analysis")
+    .select(
+      "id, competitor_ids, locale, stale, updated_at, copy_analysis, visual_analysis, date_from, date_to"
+    )
     .eq("workspace_id", profile.workspace_id!)
     .order("updated_at", { ascending: false })
     .limit(20);
@@ -69,6 +74,8 @@ export default async function ReportPage() {
           updated_at: sc.updated_at as string,
           hasCopy: sc.copy_analysis != null,
           hasVisual: sc.visual_analysis != null,
+          date_from: (sc.date_from as string | null) ?? null,
+          date_to: (sc.date_to as string | null) ?? null,
         }))}
       />
     </div>

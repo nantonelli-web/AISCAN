@@ -20,6 +20,11 @@ const schema = z.object({
   locale: z.enum(["it", "en"]),
   sections: z.array(z.enum(["technical", "copy", "visual", "benchmark"])).optional(),
   font_family: z.string().max(60).optional(),
+  /** Optional analysis window. When supplied, ALL metrics — totals,
+   *  format mix, refresh rate, etc. — are scoped to ads/posts overlapping
+   *  the range. Mirrors the Compare/Benchmarks contract. Default 90d. */
+  date_from: z.string().optional(),
+  date_to: z.string().optional(),
 });
 
 /**
@@ -29,7 +34,11 @@ const schema = z.object({
 async function fetchBrandData(
   admin: ReturnType<typeof createAdminClient>,
   competitorId: string,
-  source?: "meta" | "google"
+  source?: "meta" | "google",
+  /** When supplied, restricts the ad query AND the refresh-rate
+   *  denominator to this window. Default behaviour (no range) keeps
+   *  the legacy 90d rolling window so older callers continue to work. */
+  window?: { fromMs: number; toMs: number; weeks: number; from: string; to: string },
 ): Promise<BrandData> {
   let adsQuery = admin
     .from("mait_ads_external")
@@ -39,6 +48,12 @@ async function fetchBrandData(
     .eq("competitor_id", competitorId)
     .limit(500);
   if (source) adsQuery = adsQuery.eq("source", source);
+  // Same overlap predicate as benchmarks.ts.
+  if (window) {
+    adsQuery = adsQuery
+      .lte("start_date", window.to)
+      .or(`end_date.gte.${window.from},end_date.is.null,status.eq.ACTIVE`);
+  }
 
   const [{ data: comp }, { data: ads }] = await Promise.all([
     admin
@@ -136,16 +151,17 @@ async function fetchBrandData(
       ? Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length)
       : 0;
 
-  // Refresh rate (90 days)
-  // Refresh rate (90 days) — uses start_date; see benchmarks.ts for the
-  // rationale. created_at shifts with scans and falsely inflates the rate.
-  const ninetyAgo = Date.now() - 90 * 86_400_000;
+  // Refresh rate over the supplied window (default 90d). Uses
+  // start_date — see benchmarks.ts for why created_at would distort.
+  const fromMs = window?.fromMs ?? Date.now() - 90 * 86_400_000;
+  const toMs = window?.toMs ?? Date.now();
+  const weeks = window?.weeks ?? 90 / 7;
   const recent = adsList.filter((a) => {
     if (!a.start_date) return false;
     const t = new Date(a.start_date).getTime();
-    return Number.isFinite(t) && t > ninetyAgo;
+    return Number.isFinite(t) && t >= fromMs && t <= toMs;
   }).length;
-  const adsPerWeek = Math.round((recent / (90 / 7)) * 10) / 10;
+  const adsPerWeek = Math.round((recent / weeks) * 10) / 10;
 
   // Advantage+ usage (Meta-specific flag in raw_data.isAaaEligible)
   const aaaCount = isGoogle
@@ -288,20 +304,29 @@ async function fetchBrandData(
  */
 async function fetchInstagramBrandData(
   admin: ReturnType<typeof createAdminClient>,
-  competitorId: string
+  competitorId: string,
+  window?: { fromMs: number; toMs: number; weeks: number; from: string; to: string },
 ): Promise<BrandData> {
+  const postsQuery = admin
+    .from("mait_organic_posts")
+    .select(
+      "post_id, caption, display_url, video_url, post_type, likes_count, comments_count, posted_at, created_at"
+    )
+    .eq("competitor_id", competitorId)
+    .order("posted_at", { ascending: false, nullsFirst: false })
+    .limit(500);
+  if (window) {
+    postsQuery
+      .gte("posted_at", window.from)
+      .lte("posted_at", window.to + "T23:59:59Z");
+  }
   const [{ data: comp }, { data: posts }] = await Promise.all([
     admin
       .from("mait_competitors")
       .select("id, page_name, last_scraped_at")
       .eq("id", competitorId)
       .single(),
-    admin
-      .from("mait_organic_posts")
-      .select("post_id, caption, display_url, video_url, post_type, likes_count, comments_count, posted_at, created_at")
-      .eq("competitor_id", competitorId)
-      .order("posted_at", { ascending: false, nullsFirst: false })
-      .limit(500),
+    postsQuery,
   ]);
 
   type PostRow = {
@@ -339,14 +364,17 @@ async function fetchInstagramBrandData(
     ? Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length)
     : 0;
 
-  // Refresh rate — organic posts, based on posted_at (Instagram publish).
-  const ninetyAgo = Date.now() - 90 * 86_400_000;
+  // Posts-per-week over the supplied window (default 90d). Driven by
+  // posted_at (real Instagram publish date).
+  const fromMs = window?.fromMs ?? Date.now() - 90 * 86_400_000;
+  const toMs = window?.toMs ?? Date.now();
+  const weeks = window?.weeks ?? 90 / 7;
   const recent = postsList.filter((p) => {
     if (!p.posted_at) return false;
     const when = new Date(p.posted_at).getTime();
-    return Number.isFinite(when) && when > ninetyAgo;
+    return Number.isFinite(when) && when >= fromMs && when <= toMs;
   }).length;
-  const adsPerWeek = Math.round((recent / (90 / 7)) * 10) / 10;
+  const adsPerWeek = Math.round((recent / weeks) * 10) / 10;
 
   const latestAds = postsList.slice(0, 6).map((p) => ({
     headline: p.caption?.slice(0, 80) ?? null,
@@ -429,6 +457,33 @@ export async function POST(req: Request) {
   const { type, channel, competitor_ids, template_id, format, locale } = parsed.data;
   const sections: SectionType[] = (parsed.data.sections as SectionType[] | undefined) ?? ["technical"];
 
+  // Resolve the analysis window. Mirrors the Compare/Benchmarks
+  // contract: when the caller supplies dates, every metric — totals,
+  // format mix, refresh rate, per-week — is scoped to ads/posts
+  // overlapping that window. Without dates we fall back to a rolling
+  // 90d so older callers keep their behaviour.
+  const reportToMs = parsed.data.date_to
+    ? new Date(parsed.data.date_to + "T23:59:59Z").getTime()
+    : Date.now();
+  const reportFromMs = parsed.data.date_from
+    ? new Date(parsed.data.date_from).getTime()
+    : reportToMs - 90 * 86_400_000;
+  const reportDays = Math.max(
+    1,
+    Math.round((reportToMs - reportFromMs) / 86_400_000),
+  );
+  const reportFromIso =
+    parsed.data.date_from ?? new Date(reportFromMs).toISOString().slice(0, 10);
+  const reportToIso =
+    parsed.data.date_to ?? new Date(reportToMs).toISOString().slice(0, 10);
+  const reportWindow = {
+    fromMs: reportFromMs,
+    toMs: reportToMs,
+    weeks: reportDays / 7,
+    from: reportFromIso,
+    to: reportToIso,
+  };
+
   // Validate: single requires exactly 1, comparison requires 2-3
   if (type === "single" && competitor_ids.length !== 1) {
     return NextResponse.json({ error: "Single report requires exactly 1 brand" }, { status: 400 });
@@ -481,9 +536,14 @@ export async function POST(req: Request) {
     Promise.all(
       competitor_ids.map(async (id) => {
         if (channel === "instagram") {
-          return fetchInstagramBrandData(admin, id);
+          return fetchInstagramBrandData(admin, id, reportWindow);
         }
-        return fetchBrandData(admin, id, channel === "all" ? undefined : channel);
+        return fetchBrandData(
+          admin,
+          id,
+          channel === "all" ? undefined : channel,
+          reportWindow,
+        );
       })
     ),
   ]);
@@ -585,27 +645,29 @@ export async function POST(req: Request) {
       const brand = brands[0];
       const safeName = brand.name.replace(/[^a-zA-Z0-9_-]/g, "_");
 
+      const range = { from: reportFromIso, to: reportToIso };
       if (format === "pptx") {
-        const buf = await generateSinglePptx(brand, themeConfig, locale, sections, copyAnalysis, visualAnalysis, channel);
+        const buf = await generateSinglePptx(brand, themeConfig, locale, sections, copyAnalysis, visualAnalysis, channel, range);
         fileBytes = new Uint8Array(buf);
         fileName = `AISCAN_Report_${safeName}.pptx`;
         contentType = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
       } else {
-        const buf = await generateSinglePdf(brand, themeConfig, locale, sections, copyAnalysis, visualAnalysis);
+        const buf = await generateSinglePdf(brand, themeConfig, locale, sections, copyAnalysis, visualAnalysis, range);
         fileBytes = new Uint8Array(buf);
         fileName = `AISCAN_Report_${safeName}.pdf`;
         contentType = "application/pdf";
       }
     } else {
       const brandNames = brands.map((b) => b.name.replace(/[^a-zA-Z0-9_-]/g, "_")).join("_vs_");
+      const range = { from: reportFromIso, to: reportToIso };
 
       if (format === "pptx") {
-        const buf = await generateComparisonPptx(brands, themeConfig, locale, sections, copyAnalysis, visualAnalysis, channel);
+        const buf = await generateComparisonPptx(brands, themeConfig, locale, sections, copyAnalysis, visualAnalysis, channel, range);
         fileBytes = new Uint8Array(buf);
         fileName = `AISCAN_Comparison_${brandNames}.pptx`;
         contentType = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
       } else {
-        const buf = await generateComparisonPdf(brands, themeConfig, locale, sections, copyAnalysis, visualAnalysis);
+        const buf = await generateComparisonPdf(brands, themeConfig, locale, sections, copyAnalysis, visualAnalysis, range);
         fileBytes = new Uint8Array(buf);
         fileName = `AISCAN_Comparison_${brandNames}.pdf`;
         contentType = "application/pdf";

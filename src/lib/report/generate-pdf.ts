@@ -950,7 +950,12 @@ export async function generateSinglePdf(
   locale: Locale = "it",
   sections: SectionType[] = ["technical"],
   copyAnalysis?: CreativeAnalysisResult["copywriterReport"] | null,
-  visualAnalysis?: CreativeAnalysisResult["creativeDirectorReport"] | null
+  visualAnalysis?: CreativeAnalysisResult["creativeDirectorReport"] | null,
+  // dateRange parameter kept for symmetry with generateSinglePptx —
+  // the PDF currently does not render a date label, but accepting the
+  // param means the caller can pass the same arguments to either
+  // generator without conditional plumbing.
+  _dateRange?: { from: string; to: string },
 ): Promise<ArrayBuffer> {
   const t = theme ?? DEFAULT_THEME;
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -1000,7 +1005,8 @@ export async function generateComparisonPdf(
   locale: Locale = "it",
   sections: SectionType[] = ["technical"],
   copyAnalysis?: CreativeAnalysisResult["copywriterReport"] | null,
-  visualAnalysis?: CreativeAnalysisResult["creativeDirectorReport"] | null
+  visualAnalysis?: CreativeAnalysisResult["creativeDirectorReport"] | null,
+  _dateRange?: { from: string; to: string },
 ): Promise<ArrayBuffer> {
   const t = theme ?? DEFAULT_THEME;
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });

@@ -162,15 +162,40 @@ function addLogo(slide: PptxGenJS.Slide, theme: ThemeConfig) {
   }
 }
 
-/** Compute a readable date range from brand data (earliest lastScrapedAt to now) */
-function computeDateRange(brands: BrandData[], locale: Locale): string {
+/**
+ * Render a readable date range for the cover / footer slides.
+ * When the caller supplies an explicit window (the user-selected
+ * Compare/Benchmarks range), we use it verbatim. Without it we fall
+ * back to the legacy heuristic of "90d before earliest scan → now",
+ * which is approximate but never lies for legacy callers.
+ */
+function computeDateRange(
+  brands: BrandData[],
+  locale: Locale,
+  dateRange?: { from: string; to: string },
+): string {
+  const fmt = (d: Date) =>
+    d.toLocaleDateString(locale === "en" ? "en-GB" : "it-IT", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  if (dateRange) {
+    const start = new Date(dateRange.from);
+    const end = new Date(dateRange.to);
+    if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+      return `${fmt(start)} – ${fmt(end)}`;
+    }
+  }
   const now = new Date();
-  // Use the earliest lastScrapedAt or fall back to 90 days ago
-  const dates = brands.map((b) => b.lastScrapedAt ? new Date(b.lastScrapedAt).getTime() : 0).filter((d) => d > 0);
-  const earliest = dates.length > 0 ? new Date(Math.min(...dates)) : new Date(now.getTime() - 90 * 86_400_000);
-  // Go back 90 days from earliest scan for the data range
+  const dates = brands
+    .map((b) => (b.lastScrapedAt ? new Date(b.lastScrapedAt).getTime() : 0))
+    .filter((d) => d > 0);
+  const earliest =
+    dates.length > 0
+      ? new Date(Math.min(...dates))
+      : new Date(now.getTime() - 90 * 86_400_000);
   const rangeStart = new Date(earliest.getTime() - 90 * 86_400_000);
-  const fmt = (d: Date) => d.toLocaleDateString(locale === "en" ? "en-GB" : "it-IT", { day: "2-digit", month: "short", year: "numeric" });
   return `${fmt(rangeStart)} – ${fmt(now)}`;
 }
 
@@ -1216,7 +1241,8 @@ function compCover(
   brands: BrandData[],
   theme: ThemeConfig,
   locale: Locale,
-  channel: string = "meta"
+  channel: string = "meta",
+  dateRange?: { from: string; to: string },
 ) {
   const slide = pptx.addSlide();
   addLogo(slide, theme);
@@ -1287,8 +1313,8 @@ function compCover(
   );
 
   // Channel + date range + production date
-  const dateRange = computeDateRange(brands, locale);
-  slide.addText(`${channelLabel(channel, locale)} \u00B7 ${dateRange}`, {
+  const renderedRange = computeDateRange(brands, locale, dateRange);
+  slide.addText(`${channelLabel(channel, locale)} \u00B7 ${renderedRange}`, {
     x: PAD,
     y: 2.95,
     w: SW - 2 * PAD,
@@ -1326,7 +1352,8 @@ function compOverviewDashboard(
   pptx: PptxGenJS,
   brands: BrandData[],
   theme: ThemeConfig,
-  locale: Locale
+  locale: Locale,
+  dateRange?: { from: string; to: string },
 ) {
   const slide = pptx.addSlide();
   addLogo(slide, theme);
@@ -1344,7 +1371,7 @@ function compOverviewDashboard(
   });
 
   // Date range subtitle
-  slide.addText(computeDateRange(brands, locale), {
+  slide.addText(computeDateRange(brands, locale, dateRange), {
     x: PAD,
     y: 0.42,
     w: SW - 2 * PAD,
@@ -2195,7 +2222,13 @@ export async function generateSinglePptx(
   sections: SectionType[] = ["technical"],
   copyAnalysis?: CreativeAnalysisResult["copywriterReport"] | null,
   visualAnalysis?: CreativeAnalysisResult["creativeDirectorReport"] | null,
-  channel: string = "meta"
+  channel: string = "meta",
+  /** User-selected analysis window (the same range Compare/Benchmarks
+   *  applied). Optional — when missing, slides keep the legacy
+   *  "earliest scan → now, minus 90d" rendering. Currently only the
+   *  comparison cover slide displays it; included on the single
+   *  signature too so future single-brand slides can adopt it. */
+  dateRange?: { from: string; to: string },
 ): Promise<Buffer> {
   const t = theme ?? DEFAULT_THEME;
   const pptx = new PptxGenJS();
@@ -2269,7 +2302,11 @@ export async function generateComparisonPptx(
   sections: SectionType[] = ["technical"],
   copyAnalysis?: CreativeAnalysisResult["copywriterReport"] | null,
   visualAnalysis?: CreativeAnalysisResult["creativeDirectorReport"] | null,
-  channel: string = "meta"
+  channel: string = "meta",
+  /** User-selected analysis window — flows into the cover and
+   *  dashboard date-range labels so the report header matches the
+   *  metric scope. */
+  dateRange?: { from: string; to: string },
 ): Promise<Buffer> {
   const t = theme ?? DEFAULT_THEME;
   const pptx = new PptxGenJS();
@@ -2284,11 +2321,11 @@ export async function generateComparisonPptx(
   const hasBenchmark = sections.includes("benchmark");
 
   // Slide 1: Cover
-  compCover(pptx, brands, t, locale, channel);
+  compCover(pptx, brands, t, locale, channel, dateRange);
 
   // Slide 2: Overview Dashboard table
   if (hasTechnical) {
-    compOverviewDashboard(pptx, brands, t, locale);
+    compOverviewDashboard(pptx, brands, t, locale, dateRange);
   }
 
   // Slide 3: Objectives + Format Distribution

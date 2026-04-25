@@ -82,8 +82,14 @@ async function computeTechnicalStats(
   admin: ReturnType<typeof createAdminClient>,
   source?: "meta" | "google",
   /** Window for the refresh-rate metric, in absolute milliseconds. The
-   *  caller computes it from optional date_from/date_to (default 90d). */
+   *  caller computes it from optional date_from/date_to (default 90d).
+   *  When provided, the underlying ad query is also filtered to ads
+   *  overlapping the window, so EVERY metric (totals, format mix, CTA,
+   *  duration, ...) is scoped to the same range. */
   refreshRate?: { fromMs: number; toMs: number; weeks: number },
+  /** ISO dates the SQL filter uses (must equal the bounds of `refreshRate`).
+   *  Kept separate because PostgREST wants ISO strings, not ms. */
+  dateFilter?: { from: string; to: string },
 ) {
   return Promise.all(
     ids.map(async (id) => {
@@ -110,6 +116,16 @@ async function computeTechnicalStats(
             .order("ad_archive_id", { ascending: false })
             .range(from, from + PAGE - 1);
           if (source) q = q.eq("source", source);
+          // Same overlap predicate as benchmarks.ts: ad started on/before
+          // dateTo AND (still active OR ended on/after dateFrom). This
+          // keeps Compare and Benchmarks reading the same dataset for the
+          // same window.
+          if (dateFilter) {
+            q = q.lte("start_date", dateFilter.to);
+            q = q.or(
+              `end_date.gte.${dateFilter.from},end_date.is.null,status.eq.ACTIVE`
+            );
+          }
           const { data, error } = await q;
           if (error || !data || data.length === 0) break;
           rows.push(...(data as AdRow[]));
@@ -311,24 +327,33 @@ async function computeOrganicStats(
   ids: string[],
   admin: ReturnType<typeof createAdminClient>,
   refreshRate?: { fromMs: number; toMs: number; weeks: number },
+  /** Same as in computeTechnicalStats — filters the post query so every
+   *  metric is scoped to the chosen window. */
+  dateFilter?: { from: string; to: string },
 ) {
   return Promise.all(
     ids.map(async (id) => {
+      const postsQuery = admin
+        .from("mait_organic_posts")
+        .select(
+          "post_id, post_url, post_type, caption, display_url, video_url, likes_count, comments_count, video_views, hashtags, posted_at, created_at"
+        )
+        .eq("competitor_id", id)
+        .eq("platform", "instagram")
+        .order("posted_at", { ascending: false, nullsFirst: false })
+        .limit(500);
+      if (dateFilter) {
+        postsQuery
+          .gte("posted_at", dateFilter.from)
+          .lte("posted_at", dateFilter.to + "T23:59:59Z");
+      }
       const [{ data: comp }, { data: posts }] = await Promise.all([
         admin
           .from("mait_competitors")
           .select("id, page_name, instagram_username, instagram_profile")
           .eq("id", id)
           .single(),
-        admin
-          .from("mait_organic_posts")
-          .select(
-            "post_id, post_url, post_type, caption, display_url, video_url, likes_count, comments_count, video_views, hashtags, posted_at, created_at"
-          )
-          .eq("competitor_id", id)
-          .eq("platform", "instagram")
-          .order("posted_at", { ascending: false, nullsFirst: false })
-          .limit(500),
+        postsQuery,
       ]);
 
       const list = (posts ?? []) as OrganicRow[];
@@ -649,9 +674,21 @@ export async function POST(req: Request) {
 
   // Technical data — branch on channel. Instagram pulls from organic
   // posts and returns a differently-shaped record (kind: "organic").
+  // dateFilter (when caller supplied dates) narrows the SQL queries so
+  // every Compare metric — not just refresh rate — sees the same set
+  // of ads/posts the user has windowed to.
+  const dateFilter =
+    parsed.data.date_from && parsed.data.date_to
+      ? { from: parsed.data.date_from, to: parsed.data.date_to }
+      : undefined;
   if (sections.includes("technical")) {
     if (isOrganic) {
-      payload.technical_data = await computeOrganicStats(ids, admin, refreshWindow);
+      payload.technical_data = await computeOrganicStats(
+        ids,
+        admin,
+        refreshWindow,
+        dateFilter,
+      );
     } else {
       const source = parsed.data.channel === "all"
         ? undefined
@@ -661,6 +698,7 @@ export async function POST(req: Request) {
         admin,
         source,
         refreshWindow,
+        dateFilter,
       );
     }
   }
