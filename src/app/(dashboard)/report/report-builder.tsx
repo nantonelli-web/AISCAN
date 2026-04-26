@@ -51,6 +51,10 @@ interface SavedComparison {
    *  same window the user saw in Compare. NULL for legacy rows. */
   date_from: string | null;
   date_to: string | null;
+  /** Filters that scoped the saved Compare. Forwarded to the report
+   *  pipeline so the generated PPTX/PDF reflects the same selection. */
+  countries: string[] | null;
+  channel: string | null;
 }
 
 type ReportType = "single" | "comparison";
@@ -275,16 +279,30 @@ export function ReportBuilder({
       let idsForReport: string[];
       let reportDateFrom: string | null = null;
       let reportDateTo: string | null = null;
+      let reportCountries: string[] | null = null;
+      let reportChannel: ReportChannel = channel;
       if (reportType === "comparison") {
         const firstScId = [...selectedComparisonIds][0];
         const sc = savedComparisons.find((s) => s.id === firstScId);
         idsForReport = sc?.competitor_ids ?? [];
-        // Inherit the comparison's analysis window so the report
-        // header and refresh-rate denominator align with what the
-        // user saw in Compare. Legacy comparisons (date_from null)
-        // fall back to the API's 90d default.
+        // Inherit every analysis filter the user picked when saving
+        // the comparison so the report is a one-to-one snapshot.
+        // Legacy rows (where these were not yet persisted) fall back
+        // to the API defaults.
         reportDateFrom = sc?.date_from ?? null;
         reportDateTo = sc?.date_to ?? null;
+        reportCountries = sc?.countries ?? null;
+        const savedChannel = sc?.channel as ReportChannel | null | undefined;
+        if (
+          savedChannel === "meta" ||
+          savedChannel === "google" ||
+          savedChannel === "instagram" ||
+          savedChannel === "all"
+        ) {
+          reportChannel = savedChannel;
+        } else {
+          reportChannel = "meta";
+        }
       } else {
         idsForReport = selectedArray;
       }
@@ -294,7 +312,7 @@ export function ReportBuilder({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           type: reportType,
-          channel: reportType === "comparison" ? "meta" : channel,
+          channel: reportType === "comparison" ? reportChannel : channel,
           competitor_ids: idsForReport,
           template_id: templateId ?? undefined,
           format,
@@ -303,6 +321,9 @@ export function ReportBuilder({
           font_family: fontFamily,
           ...(reportDateFrom && reportDateTo
             ? { date_from: reportDateFrom, date_to: reportDateTo }
+            : {}),
+          ...(reportCountries && reportCountries.length > 0
+            ? { countries: reportCountries }
             : {}),
         }),
       });

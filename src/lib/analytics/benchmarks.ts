@@ -1290,7 +1290,21 @@ export async function computeOrganicBenchmarks(
       recent: number;
     }
   >();
-  const ninetyAgo = Date.now() - 90 * 86_400_000;
+  // Window for posts-per-week mirrors the ads side (computeBenchmarks):
+  // tracks the user-selected analysis range, falls back to a rolling
+  // 90d when none is supplied, and is reused as the denominator below
+  // so post cadence is comparable between brands evaluated under the
+  // same window.
+  const organicWindowToMs = dateTo
+    ? new Date(dateTo + "T23:59:59Z").getTime()
+    : Date.now();
+  const organicWindowFromMs = dateFrom
+    ? new Date(dateFrom).getTime()
+    : organicWindowToMs - 90 * 86_400_000;
+  const organicWindowDays = Math.max(
+    1,
+    Math.round((organicWindowToMs - organicWindowFromMs) / 86_400_000),
+  );
 
   for (const p of posts) {
     const key = p.competitor_id ?? "unknown";
@@ -1318,7 +1332,9 @@ export async function computeOrganicBenchmarks(
     const when = p.posted_at
       ? new Date(p.posted_at).getTime()
       : new Date(p.created_at).getTime();
-    if (when > ninetyAgo) entry.recent++;
+    if (when >= organicWindowFromMs && when <= organicWindowToMs) {
+      entry.recent++;
+    }
     byComp.set(key, entry);
   }
 
@@ -1408,10 +1424,11 @@ export async function computeOrganicBenchmarks(
       chars: avg(v.captions),
     }))
     .sort((a, b) => b.chars - a.chars);
+  const organicWindowWeeks = organicWindowDays / 7;
   const postsPerWeekByCompetitor = [...byComp.entries()]
     .map(([id, v]) => ({
       name: compMap.get(id) ?? "N/A",
-      postsPerWeek: Math.round((v.recent / (90 / 7)) * 10) / 10,
+      postsPerWeek: Math.round((v.recent / organicWindowWeeks) * 10) / 10,
     }))
     .sort((a, b) => b.postsPerWeek - a.postsPerWeek);
 

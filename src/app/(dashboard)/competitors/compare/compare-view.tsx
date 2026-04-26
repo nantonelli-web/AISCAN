@@ -355,12 +355,24 @@ export function CompareView({
           const countriesMatch =
             cachedCountries.length === currentCountries.length &&
             cachedCountries.every((c, i) => c === currentCountries[i]);
+          // Schema/math version: any row written before the latest
+          // computation change has data_version below the current one
+          // and must regenerate. Solves "fix is deployed but the page
+          // still shows the pre-fix numbers" once and for all.
+          const cachedDataVersion =
+            typeof data.data_version === "number" ? data.data_version : 0;
+          const currentDataVersion =
+            typeof data.current_data_version === "number"
+              ? data.current_data_version
+              : 0;
+          const versionFresh = cachedDataVersion >= currentDataVersion;
           if (
             normalized &&
             cachedKind === expectedKind &&
             !needsOrganicRefresh &&
             windowMatches &&
-            countriesMatch
+            countriesMatch &&
+            versionFresh
           ) {
             setCache({
               technical_data: normalized,

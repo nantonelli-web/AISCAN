@@ -12,6 +12,18 @@ import { cleanInstagramUsername } from "@/lib/instagram/service";
 
 export const maxDuration = 300;
 
+/**
+ * Bump this when the math/shape of `technical_data` changes so older
+ * cached rows are recomputed instead of silently returning stale
+ * numbers. The frontend treats `data_version < CURRENT_DATA_VERSION`
+ * as a cache miss in fetchComparison.
+ *
+ * History:
+ *   - v0: legacy rows (default before this column existed)
+ *   - v1: country filter applied to technical stats SQL query
+ */
+const CURRENT_DATA_VERSION = 1;
+
 /* ── Schemas ─────────────────────────────────────────────── */
 
 const postSchema = z.object({
@@ -600,7 +612,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  return NextResponse.json(data);
+  return NextResponse.json({
+    ...data,
+    current_data_version: CURRENT_DATA_VERSION,
+  });
 }
 
 /* ── POST /api/comparisons ───────────────────────────────── */
@@ -662,6 +677,9 @@ export async function POST(req: Request) {
   // the legacy "no window → 90d default" semantics for old rows.
   payload.date_from = parsed.data.date_from ?? null;
   payload.date_to = parsed.data.date_to ?? null;
+  // Stamp the schema/math version so any cache row written before a
+  // formula change is automatically invalidated by the client.
+  payload.data_version = CURRENT_DATA_VERSION;
 
   const isOrganic = parsed.data.channel === "instagram";
 
@@ -808,7 +826,11 @@ export async function POST(req: Request) {
   // The window length is computed metadata, not stored in the
   // comparisons table — surface it on the response so the UI can
   // label "Refresh rate (Nd)" without re-deriving the window.
-  return NextResponse.json({ ...result, refresh_rate_window_days: refreshDays });
+  return NextResponse.json({
+    ...result,
+    refresh_rate_window_days: refreshDays,
+    current_data_version: CURRENT_DATA_VERSION,
+  });
 }
 
 /* ── DELETE /api/comparisons ─────────────────────────────── */

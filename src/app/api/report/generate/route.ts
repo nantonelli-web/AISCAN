@@ -25,6 +25,10 @@ const schema = z.object({
    *  the range. Mirrors the Compare/Benchmarks contract. Default 90d. */
   date_from: z.string().optional(),
   date_to: z.string().optional(),
+  /** Optional ISO-2 country codes. When supplied (and channel is meta),
+   *  the ad query overlaps scan_countries with this list — same
+   *  semantics as Compare and Benchmarks. */
+  countries: z.array(z.string()).optional(),
 });
 
 /**
@@ -39,6 +43,12 @@ async function fetchBrandData(
    *  denominator to this window. Default behaviour (no range) keeps
    *  the legacy 90d rolling window so older callers continue to work. */
   window?: { fromMs: number; toMs: number; weeks: number; from: string; to: string },
+  /** When supplied (and source is meta), restricts the ad query to
+   *  ads whose scan_countries overlap this list. Same predicate as
+   *  Benchmarks and Compare; legacy rows with NULL scan_countries are
+   *  excluded. Skipped when source is google (Google Ads has no
+   *  per-country scan signal). */
+  countries?: string[],
 ): Promise<BrandData> {
   let adsQuery = admin
     .from("mait_ads_external")
@@ -53,6 +63,9 @@ async function fetchBrandData(
     adsQuery = adsQuery
       .lte("start_date", window.to)
       .or(`end_date.gte.${window.from},end_date.is.null,status.eq.ACTIVE`);
+  }
+  if (countries && countries.length > 0 && source !== "google") {
+    adsQuery = adsQuery.overlaps("scan_countries", countries);
   }
 
   const [{ data: comp }, { data: ads }] = await Promise.all([
@@ -543,6 +556,7 @@ export async function POST(req: Request) {
           id,
           channel === "all" ? undefined : channel,
           reportWindow,
+          parsed.data.countries,
         );
       })
     ),
