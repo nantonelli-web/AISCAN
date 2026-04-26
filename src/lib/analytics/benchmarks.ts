@@ -351,6 +351,7 @@ export async function computeBenchmarks(
   // you pass a larger .limit(), so we page through with .range() until we
   // have every row. The 500k safety stop guards against a runaway loop.
   async function fetchAllVolumeRows(): Promise<{
+    id: string;
     competitor_id: string | null;
     status: string | null;
     start_date: string | null;
@@ -359,12 +360,26 @@ export async function computeBenchmarks(
   }[]> {
     const PAGE = 1000;
     const SAFETY_CAP = 500_000;
-    const rows: { competitor_id: string | null; status: string | null; start_date: string | null; end_date: string | null; source: string | null }[] = [];
+    type Row = {
+      id: string;
+      competitor_id: string | null;
+      status: string | null;
+      start_date: string | null;
+      end_date: string | null;
+      source: string | null;
+    };
+    const rows: Row[] = [];
     for (let from = 0; from < SAFETY_CAP; from += PAGE) {
+      // `id` is included in the SELECT only so we can dedupe at the
+      // end. PostgREST occasionally returned the same row on
+      // consecutive pages in earlier audits when the order key had
+      // ties — id is unique so it is impossible by definition with
+      // `order("id")`, but the dedupe is cheap and protects every
+      // metric downstream from any future regression.
       let q = supabase
         .from("mait_ads_external")
         .select(
-          "competitor_id, status, start_date, end_date, source"
+          "id, competitor_id, status, start_date, end_date, source"
         )
         .eq("workspace_id", workspaceId)
         .order("id")
@@ -379,10 +394,17 @@ export async function computeBenchmarks(
       }
       const { data, error } = await q;
       if (error || !data || data.length === 0) break;
-      rows.push(...(data as typeof rows));
+      rows.push(...(data as Row[]));
       if (data.length < PAGE) break;
     }
-    return rows;
+    const seen = new Set<string>();
+    const unique: Row[] = [];
+    for (const r of rows) {
+      if (!r.id || seen.has(r.id)) continue;
+      seen.add(r.id);
+      unique.push(r);
+    }
+    return unique;
   }
 
   const [{ data: competitors }, rawAdsPages, allAdsMeta] = await Promise.all([
