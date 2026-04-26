@@ -341,11 +341,26 @@ export function CompareView({
           const cachedFrom = (data.date_from as string | null) ?? null;
           const cachedTo = (data.date_to as string | null) ?? null;
           const windowMatches = cachedFrom === dateFrom && cachedTo === dateTo;
+          // Country mismatch is the same kind of staleness — the cached
+          // technical_data was computed for a different selection.
+          // Compare as sorted sets so [IT,FR] vs [FR,IT] is a match.
+          const cachedCountries = Array.isArray(data.countries)
+            ? [...(data.countries as string[])]
+                .map((c) => c.toUpperCase())
+                .sort()
+            : [];
+          const currentCountries = [...selectedCountries]
+            .map((c) => c.toUpperCase())
+            .sort();
+          const countriesMatch =
+            cachedCountries.length === currentCountries.length &&
+            cachedCountries.every((c, i) => c === currentCountries[i]);
           if (
             normalized &&
             cachedKind === expectedKind &&
             !needsOrganicRefresh &&
-            windowMatches
+            windowMatches &&
+            countriesMatch
           ) {
             setCache({
               technical_data: normalized,

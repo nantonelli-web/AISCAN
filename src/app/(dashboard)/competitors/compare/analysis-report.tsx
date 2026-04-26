@@ -22,6 +22,12 @@ export function AnalysisReport({
       return <AgentFailed text={t("creativeAnalysis", "copywriterFailed")} />;
     }
     const report = result.copywriterReport;
+    // Defensive guard: cached reports from before the server-side
+    // normalizer could have a non-array `brandAnalyses`. Render the
+    // failed state instead of crashing on `.map`.
+    if (!Array.isArray(report.brandAnalyses)) {
+      return <AgentFailed text={t("creativeAnalysis", "copywriterFailed")} />;
+    }
     return (
       <div className="space-y-4">
         <div className={cn("grid gap-4", report.brandAnalyses.length === 2 ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1 md:grid-cols-3")}>
@@ -63,6 +69,9 @@ export function AnalysisReport({
     return <AgentFailed text={t("creativeAnalysis", "creativeDirectorFailed")} />;
   }
   const report = result.creativeDirectorReport;
+  if (!Array.isArray(report.brandAnalyses)) {
+    return <AgentFailed text={t("creativeAnalysis", "creativeDirectorFailed")} />;
+  }
   return (
     <div className="space-y-4">
       <div className={cn("grid gap-4", report.brandAnalyses.length === 2 ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1 md:grid-cols-3")}>
@@ -89,8 +98,31 @@ export function AnalysisReport({
   );
 }
 
-function Field({ label, value, highlight }: { label: string; value: string; highlight?: "positive" | "negative" }) {
-  if (!value) return null;
+/**
+ * Render a per-brand AI field. The server-side normalizer guarantees
+ * `value` is a string, but historically the model returned the field
+ * as a comparative object keyed by brand name (React error #31). Keep
+ * a final coerce here as a belt-and-suspenders so any future schema
+ * drift degrades gracefully instead of crashing the page.
+ */
+function Field({
+  label,
+  value,
+  highlight,
+}: {
+  label: string;
+  value: unknown;
+  highlight?: "positive" | "negative";
+}) {
+  let text: string;
+  if (typeof value === "string") {
+    text = value;
+  } else if (value == null) {
+    text = "";
+  } else {
+    text = JSON.stringify(value).slice(0, 400);
+  }
+  if (!text) return null;
   return (
     <div>
       <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">{label}</p>
@@ -99,17 +131,25 @@ function Field({ label, value, highlight }: { label: string; value: string; high
         highlight === "positive" && "text-emerald-400",
         highlight === "negative" && "text-gold",
         !highlight && "text-foreground"
-      )}>{value}</p>
+      )}>{text}</p>
     </div>
   );
 }
 
-function HighlightCard({ label, text }: { label: string; text: string }) {
-  if (!text) return null;
+function HighlightCard({ label, text }: { label: string; text: unknown }) {
+  // Same defensive coerce as `Field` — protects against the model
+  // returning an object instead of a plain string.
+  const safe =
+    typeof text === "string"
+      ? text
+      : text == null
+        ? ""
+        : JSON.stringify(text).slice(0, 800);
+  if (!safe) return null;
   return (
     <div className="rounded-lg border border-gold/20 bg-gold/5 p-4">
       <p className="text-[10px] uppercase tracking-wider text-gold mb-2">{label}</p>
-      <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">{text}</p>
+      <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">{safe}</p>
     </div>
   );
 }

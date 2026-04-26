@@ -62,6 +62,121 @@ function stripMarkdownFences(text: string): string {
 }
 
 /**
+ * Coerce an AI-returned value into a single string, even if the model
+ * occasionally answers a per-brand field with a comparative object
+ * keyed by brand name (e.g. `{ "Marina Rinaldi": "...", "Ulla Popken": "..." }`).
+ * Without this guard the React renderer hits error #31 when it tries
+ * to render the object directly.
+ *
+ * Resolution order:
+ *   1. Already a string → return as-is.
+ *   2. Object with a key matching `brandName` → use that value.
+ *   3. Object → return the first string value found.
+ *   4. Array → join with " · ".
+ *   5. Anything else → stringified, truncated to 400 chars.
+ */
+function coerceString(v: unknown, brandName: string): string {
+  if (typeof v === "string") return v;
+  if (v == null) return "";
+  if (Array.isArray(v)) {
+    return v
+      .map((x) => (typeof x === "string" ? x : JSON.stringify(x)))
+      .join(" · ");
+  }
+  if (typeof v === "object") {
+    const obj = v as Record<string, unknown>;
+    const direct = obj[brandName];
+    if (typeof direct === "string") return direct;
+    for (const value of Object.values(obj)) {
+      if (typeof value === "string" && value) return value;
+    }
+    return JSON.stringify(v).slice(0, 400);
+  }
+  return String(v).slice(0, 400);
+}
+
+function coerceStringArray(v: unknown, brandName: string): string[] {
+  if (Array.isArray(v)) {
+    return v.flatMap((x) => {
+      if (typeof x === "string") return [x];
+      if (typeof x === "object" && x !== null) {
+        const sub = (x as Record<string, unknown>)[brandName];
+        if (typeof sub === "string") return [sub];
+      }
+      return [];
+    });
+  }
+  if (typeof v === "object" && v !== null) {
+    const obj = v as Record<string, unknown>;
+    const direct = obj[brandName];
+    if (Array.isArray(direct)) {
+      return direct.filter((x): x is string => typeof x === "string");
+    }
+  }
+  return [];
+}
+
+/**
+ * Normalize a raw copywriter response. Guarantees every per-brand
+ * field is a plain string (or string[] for emotionalTriggers) so the
+ * React renderer cannot trip over schema drift.
+ */
+function normalizeCopywriterReport(
+  raw: unknown,
+): CreativeAnalysisResult["copywriterReport"] {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const inputBrands = Array.isArray(r.brandAnalyses) ? r.brandAnalyses : [];
+  const brandAnalyses: CopywriterBrandAnalysis[] = inputBrands.map((b) => {
+    const entry = (b ?? {}) as Record<string, unknown>;
+    const name =
+      typeof entry.brandName === "string" ? entry.brandName : "";
+    return {
+      brandName: name,
+      toneOfVoice: coerceString(entry.toneOfVoice, name),
+      copyStyle: coerceString(entry.copyStyle, name),
+      emotionalTriggers: coerceStringArray(entry.emotionalTriggers, name),
+      ctaPatterns: coerceString(entry.ctaPatterns, name),
+      strengths: coerceString(entry.strengths, name),
+      weaknesses: coerceString(entry.weaknesses, name),
+    };
+  });
+  return {
+    brandAnalyses,
+    comparison: coerceString(r.comparison, ""),
+    recommendations: coerceString(r.recommendations, ""),
+  };
+}
+
+function normalizeCreativeDirectorReport(
+  raw: unknown,
+): CreativeAnalysisResult["creativeDirectorReport"] {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const inputBrands = Array.isArray(r.brandAnalyses) ? r.brandAnalyses : [];
+  const brandAnalyses: CreativeDirectorBrandAnalysis[] = inputBrands.map((b) => {
+    const entry = (b ?? {}) as Record<string, unknown>;
+    const name =
+      typeof entry.brandName === "string" ? entry.brandName : "";
+    return {
+      brandName: name,
+      visualStyle: coerceString(entry.visualStyle, name),
+      colorPalette: coerceString(entry.colorPalette, name),
+      photographyStyle: coerceString(entry.photographyStyle, name),
+      brandConsistency: coerceString(entry.brandConsistency, name),
+      formatPreferences: coerceString(entry.formatPreferences, name),
+      strengths: coerceString(entry.strengths, name),
+      weaknesses: coerceString(entry.weaknesses, name),
+    };
+  });
+  return {
+    brandAnalyses,
+    comparison: coerceString(r.comparison, ""),
+    recommendations: coerceString(r.recommendations, ""),
+  };
+}
+
+/**
  * Copywriter Agent — analyzes ad text (headline, copy, CTA) across brands.
  * Uses DeepSeek V3.2 via OpenRouter.
  */
@@ -170,7 +285,7 @@ Important:
 
     const clean = stripMarkdownFences(text);
     const parsed = JSON.parse(clean);
-    return parsed as CreativeAnalysisResult["copywriterReport"];
+    return normalizeCopywriterReport(parsed);
   } catch (e) {
     console.error("Copywriter agent failed:", e);
     return null;
@@ -307,7 +422,7 @@ Important:
 
     const clean = stripMarkdownFences(text);
     const parsed = JSON.parse(clean);
-    return parsed as CreativeAnalysisResult["creativeDirectorReport"];
+    return normalizeCreativeDirectorReport(parsed);
   } catch (e) {
     console.error("Creative Director agent failed:", e);
     return null;

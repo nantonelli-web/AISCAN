@@ -90,6 +90,10 @@ async function computeTechnicalStats(
   /** ISO dates the SQL filter uses (must equal the bounds of `refreshRate`).
    *  Kept separate because PostgREST wants ISO strings, not ms. */
   dateFilter?: { from: string; to: string },
+  /** ISO-2 country codes selected in the Compare UI. When provided,
+   *  the underlying ad query is restricted to ads whose scan_countries
+   *  overlap the selection — same contract as Benchmarks. */
+  countriesFilter?: string[],
 ) {
   return Promise.all(
     ids.map(async (id) => {
@@ -125,6 +129,13 @@ async function computeTechnicalStats(
             q = q.or(
               `end_date.gte.${dateFilter.from},end_date.is.null,status.eq.ACTIVE`
             );
+          }
+          // Country overlap (PostgREST `.overlaps` → array && operator).
+          // Ads with scan_countries=NULL never overlap and are dropped
+          // when the user has narrowed the filter — same semantics as
+          // the Benchmarks ad-level filter.
+          if (countriesFilter && countriesFilter.length > 0) {
+            q = q.overlaps("scan_countries", countriesFilter);
           }
           const { data, error } = await q;
           if (error || !data || data.length === 0) break;
@@ -681,6 +692,14 @@ export async function POST(req: Request) {
     parsed.data.date_from && parsed.data.date_to
       ? { from: parsed.data.date_from, to: parsed.data.date_to }
       : undefined;
+  // Country filter: same overlap semantics as Benchmarks. Empty list
+  // and undefined both mean "no narrowing"; an explicit subset of the
+  // brand's configured countries restricts the ad query so the
+  // Compare numbers reflect the user's selection.
+  const countriesFilter =
+    Array.isArray(parsed.data.countries) && parsed.data.countries.length > 0
+      ? parsed.data.countries.map((c) => c.toUpperCase())
+      : undefined;
   if (sections.includes("technical")) {
     if (isOrganic) {
       payload.technical_data = await computeOrganicStats(
@@ -699,6 +718,7 @@ export async function POST(req: Request) {
         source,
         refreshWindow,
         dateFilter,
+        countriesFilter,
       );
     }
   }
