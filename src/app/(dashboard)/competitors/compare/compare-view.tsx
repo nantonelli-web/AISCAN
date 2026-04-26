@@ -1460,9 +1460,17 @@ export function CompareView({
               <LoadingState text={t("compare", "generating")} />
             ) : stats && stats.length >= 2 ? (
               stats[0].kind === "organic" ? (
-                <OrganicTechnicalView stats={stats as OrganicCompStats[]} t={t} />
+                <OrganicTechnicalView
+                  stats={stats as OrganicCompStats[]}
+                  t={t}
+                  refreshRateWindowDays={refreshRateWindowDays}
+                />
               ) : (
-                <AdsTechnicalView stats={stats as AdsCompStats[]} t={t} />
+                <AdsTechnicalView
+                  stats={stats as AdsCompStats[]}
+                  t={t}
+                  refreshRateWindowDays={refreshRateWindowDays}
+                />
               )
             ) : null)}
           {/* Copy Tab */}
@@ -1603,9 +1611,11 @@ function ErrorState({ text }: { text: string }) {
 function AdsTechnicalView({
   stats,
   t,
+  refreshRateWindowDays,
 }: {
   stats: AdsCompStats[];
   t: (s: string, k: string) => string;
+  refreshRateWindowDays: number;
 }) {
   return (
     <div className="space-y-4">
@@ -1814,9 +1824,11 @@ function ProfileStat({ label, value }: { label: string; value: string }) {
 function OrganicTechnicalView({
   stats,
   t,
+  refreshRateWindowDays,
 }: {
   stats: OrganicCompStats[];
   t: (s: string, k: string) => string;
+  refreshRateWindowDays: number;
 }) {
   // Hide the profile banner entirely if no brand has profile data yet —
   // keeps the UI clean for brands scanned before profile scraping existed.
@@ -1852,7 +1864,7 @@ function OrganicTechnicalView({
         highlight
       />
       <CompareTable
-        label={t("compare", "postsPerWeek")}
+        label={`${t("compare", "postsPerWeek")} (${refreshRateWindowDays}${t("compare", "refreshRateWindowSuffix")})`}
         stats={stats}
         render={(s) =>
           s.postsPerWeek > 0
