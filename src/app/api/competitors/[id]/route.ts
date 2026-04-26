@@ -102,16 +102,18 @@ export async function PATCH(
 }
 
 /**
- * Delete a competitor and everything associated with it.
+ * Hard delete a competitor and everything attached to it. The user's
+ * stance is "non occupiamo risorse inutilmente" — no orphan rows, no
+ * orphan storage objects, no stale cached comparisons.
  *
- * Foreign keys on the related tables are inconsistent — some cascade
- * (`mait_organic_posts`, `mait_collection_ads` via ads), others set
- * NULL (`mait_ads_external`, `mait_scrape_jobs`, `mait_alerts`). If we
- * relied on the FKs alone, deleting a brand would leave orphan ads and
- * jobs sitting in tables forever. So we do the cleanup explicitly with
- * the admin client (RLS would block the orphan rows once the parent is
- * gone). Order matters: ads → jobs → alerts → competitor, so each step
- * can hit FK-set-null cleanly.
+ * Foreign keys on the related tables are inconsistent — `mait_organic_posts`
+ * cascades, but `mait_ads_external`, `mait_scrape_jobs`, `mait_alerts`
+ * are `on delete set null`. So those need explicit DELETEs. Saved
+ * comparisons reference competitors via an array column with no FK,
+ * so they are also wiped manually. Storage objects (profile picture +
+ * ad/post creatives) live in the `media` bucket under predictable
+ * paths and are removed best-effort — failures here do not block the
+ * row deletion.
  */
 export async function DELETE(
   _req: Request,
@@ -133,13 +135,56 @@ export async function DELETE(
   if (existingErr || !existing) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+  const workspaceId = existing.workspace_id as string;
 
   const admin = createAdminClient();
 
-  // Wipe the related rows first. `mait_ads_external` is the heaviest
-  // and will also cascade to mait_collection_ads + mait_ads_tags via
-  // its own FKs. Jobs and alerts are small but would otherwise survive
-  // with competitor_id = NULL because their FK is `on delete set null`.
+  // Capture every storage path we will need to remove BEFORE the rows
+  // are deleted — once the rows are gone we cannot enumerate the
+  // adArchiveId / post_id values that map to bucket keys.
+  const [{ data: adKeys }, { data: postKeys }] = await Promise.all([
+    admin
+      .from("mait_ads_external")
+      .select("ad_archive_id, source")
+      .eq("competitor_id", id),
+    admin
+      .from("mait_organic_posts")
+      .select("post_id, platform")
+      .eq("competitor_id", id),
+  ]);
+
+  // Storage layout (`storeAdImages` → `downloadAndStore`):
+  //   media/{workspaceId}/{source}/{adArchiveId}.{ext}
+  //   media/{workspaceId}/profiles/profile_{competitorId}.{ext}
+  // Three plausible extensions per file; the storage API simply
+  // ignores keys that do not exist, so listing all three is safe.
+  const STORAGE_EXTS = ["jpg", "png", "webp"] as const;
+  const storageKeys: string[] = [];
+  for (const ext of STORAGE_EXTS) {
+    storageKeys.push(`${workspaceId}/profiles/profile_${id}.${ext}`);
+  }
+  for (const r of adKeys ?? []) {
+    const archive = (r as { ad_archive_id: string | null }).ad_archive_id;
+    const source = (r as { source: string | null }).source ?? "meta";
+    if (!archive) continue;
+    for (const ext of STORAGE_EXTS) {
+      storageKeys.push(`${workspaceId}/${source}/${archive}.${ext}`);
+    }
+  }
+  for (const p of postKeys ?? []) {
+    const postId = (p as { post_id: string | null }).post_id;
+    const platform =
+      (p as { platform: string | null }).platform ?? "instagram";
+    if (!postId) continue;
+    for (const ext of STORAGE_EXTS) {
+      storageKeys.push(`${workspaceId}/${platform}/${postId}.${ext}`);
+    }
+  }
+
+  // Wipe related DB rows. Order: ads → jobs → alerts → comparisons →
+  // competitor. mait_ads_external cascades to mait_collection_ads and
+  // mait_ads_tags via its own FKs. mait_organic_posts cascades from
+  // the competitor delete itself.
   const adsDel = await admin
     .from("mait_ads_external")
     .delete()
@@ -165,17 +210,19 @@ export async function DELETE(
     console.error("[api/competitors/:id alerts cleanup]", alertsDel.error);
   }
 
-  // Saved comparisons reference competitors via an array column, so
-  // they have no FK at all. Mark any that include this brand as stale
-  // so the user knows the cached technical_data no longer matches the
-  // current set of brands. Deleting them outright would surprise users
-  // who saved the comparison earlier.
-  await admin
+  // Saved comparisons that include this brand are deleted outright.
+  // They reference the brand by an array column with no FK, so without
+  // explicit cleanup they would point to a non-existent competitor and
+  // their cached technical_data would still hold the deleted brand's
+  // metrics — useless to anyone.
+  const compDel = await admin
     .from("mait_comparisons")
-    .update({ stale: true, updated_at: new Date().toISOString() })
+    .delete()
     .contains("competitor_ids", [id]);
+  if (compDel.error) {
+    console.error("[api/competitors/:id comparisons cleanup]", compDel.error);
+  }
 
-  // mait_organic_posts cascades automatically (FK is on delete cascade).
   const { error } = await admin
     .from("mait_competitors")
     .delete()
@@ -184,6 +231,26 @@ export async function DELETE(
     console.error("[api/competitors/:id]", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
-  revalidateTag(competitorsTag(existing.workspace_id));
+
+  // Storage cleanup is best-effort: failures here would leave orphan
+  // bytes in the bucket but should not block the user's destructive
+  // intent. Supabase remove() accepts up to 1000 keys per call.
+  if (storageKeys.length > 0) {
+    const CHUNK = 900;
+    for (let i = 0; i < storageKeys.length; i += CHUNK) {
+      const chunk = storageKeys.slice(i, i + CHUNK);
+      const { error: storageErr } = await admin.storage
+        .from("media")
+        .remove(chunk);
+      if (storageErr) {
+        console.error(
+          "[api/competitors/:id storage cleanup]",
+          storageErr.message,
+        );
+      }
+    }
+  }
+
+  revalidateTag(competitorsTag(workspaceId));
   return NextResponse.json({ ok: true });
 }

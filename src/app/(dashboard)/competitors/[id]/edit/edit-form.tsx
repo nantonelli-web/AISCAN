@@ -50,9 +50,14 @@ export function EditCompetitorForm({
 }: {
   competitor: MaitCompetitor;
   /** Pre-fetched on the server so the destructive-action dialog can
-   *  show concrete numbers ("36 ads, 12 post, 4 scan job") without an
-   *  extra round trip the moment the user clicks Delete. */
-  deleteCounts?: { ads: number; posts: number; jobs: number };
+   *  show concrete numbers ("36 ads, 12 post, 4 scan job, 2 compare")
+   *  without an extra round trip the moment the user clicks Delete. */
+  deleteCounts?: {
+    ads: number;
+    posts: number;
+    jobs: number;
+    comparisons: number;
+  };
 }) {
   const router = useRouter();
   const [pageName, setPageName] = useState(competitor.page_name);
@@ -370,7 +375,8 @@ export function EditCompetitorForm({
             {deleteCounts &&
               (deleteCounts.ads > 0 ||
                 deleteCounts.posts > 0 ||
-                deleteCounts.jobs > 0) && (
+                deleteCounts.jobs > 0 ||
+                deleteCounts.comparisons > 0) && (
                 <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-0.5">
                   {deleteCounts.ads > 0 && (
                     <li>
@@ -388,6 +394,14 @@ export function EditCompetitorForm({
                     <li>
                       <b className="text-foreground">{deleteCounts.jobs}</b>{" "}
                       {t("editCompetitor", "deleteCountJobs")}
+                    </li>
+                  )}
+                  {deleteCounts.comparisons > 0 && (
+                    <li>
+                      <b className="text-foreground">
+                        {deleteCounts.comparisons}
+                      </b>{" "}
+                      {t("editCompetitor", "deleteCountComparisons")}
                     </li>
                   )}
                 </ul>

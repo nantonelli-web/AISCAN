@@ -21,7 +21,12 @@ export function DeleteBrandButton({
 }: {
   competitorId: string;
   competitorName: string;
-  counts: { ads: number; posts: number; jobs: number };
+  counts: {
+    ads: number;
+    posts: number;
+    jobs: number;
+    comparisons: number;
+  };
 }) {
   const router = useRouter();
   const { t } = useT();
@@ -75,7 +80,10 @@ export function DeleteBrandButton({
             {t("editCompetitor", "deleteWarning")}
           </p>
         </div>
-        {(counts.ads > 0 || counts.posts > 0 || counts.jobs > 0) && (
+        {(counts.ads > 0 ||
+          counts.posts > 0 ||
+          counts.jobs > 0 ||
+          counts.comparisons > 0) && (
           <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-0.5">
             {counts.ads > 0 && (
               <li>
@@ -93,6 +101,12 @@ export function DeleteBrandButton({
               <li>
                 <b className="text-foreground">{counts.jobs}</b>{" "}
                 {t("editCompetitor", "deleteCountJobs")}
+              </li>
+            )}
+            {counts.comparisons > 0 && (
+              <li>
+                <b className="text-foreground">{counts.comparisons}</b>{" "}
+                {t("editCompetitor", "deleteCountComparisons")}
               </li>
             )}
           </ul>

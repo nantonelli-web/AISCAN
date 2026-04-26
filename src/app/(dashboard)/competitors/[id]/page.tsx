@@ -58,6 +58,7 @@ export default async function CompetitorDetailPage({
     { count: adCount },
     { count: postCount },
     { count: jobCount },
+    { count: comparisonCount },
   ] = await Promise.all([
     supabase
       .from("mait_ads_external")
@@ -95,11 +96,16 @@ export default async function CompetitorDetailPage({
       .from("mait_scrape_jobs")
       .select("id", { count: "exact", head: true })
       .eq("competitor_id", id),
+    supabase
+      .from("mait_comparisons")
+      .select("id", { count: "exact", head: true })
+      .contains("competitor_ids", [id]),
   ]);
   const deleteCounts = {
     ads: adCount ?? 0,
     posts: postCount ?? 0,
     jobs: jobCount ?? 0,
+    comparisons: comparisonCount ?? 0,
   };
 
   const adsList = (ads ?? []) as MaitAdExternal[];

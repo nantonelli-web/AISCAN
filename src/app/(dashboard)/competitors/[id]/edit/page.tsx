@@ -36,7 +36,7 @@ export default async function EditCompetitorPage({
 
   // Lightweight counts for the delete confirmation dialog. Head + exact
   // count returns only the row count, not any data, so this is cheap.
-  const [adsRes, postsRes, jobsRes] = await Promise.all([
+  const [adsRes, postsRes, jobsRes, compRes] = await Promise.all([
     supabase
       .from("mait_ads_external")
       .select("id", { count: "exact", head: true })
@@ -49,11 +49,16 @@ export default async function EditCompetitorPage({
       .from("mait_scrape_jobs")
       .select("id", { count: "exact", head: true })
       .eq("competitor_id", id),
+    supabase
+      .from("mait_comparisons")
+      .select("id", { count: "exact", head: true })
+      .contains("competitor_ids", [id]),
   ]);
   const deleteCounts = {
     ads: adsRes.count ?? 0,
     posts: postsRes.count ?? 0,
     jobs: jobsRes.count ?? 0,
+    comparisons: compRes.count ?? 0,
   };
 
   return (

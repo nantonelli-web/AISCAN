@@ -334,6 +334,7 @@ const translations = {
     deleteCountAds: { it: "ads in archivio", en: "ads in archive" },
     deleteCountPosts: { it: "post Instagram", en: "Instagram posts" },
     deleteCountJobs: { it: "scan precedenti", en: "previous scans" },
+    deleteCountComparisons: { it: "comparison salvate", en: "saved comparisons" },
     confirmDelete: { it: "Elimina definitivamente", en: "Delete permanently" },
     deletingProgress: { it: "Eliminazione...", en: "Deleting..." },
     deleted: { it: "Brand eliminato.", en: "Brand deleted." },
