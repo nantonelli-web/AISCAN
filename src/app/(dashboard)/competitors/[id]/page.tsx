@@ -1,20 +1,20 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Pencil } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { ScanDropdown } from "./scan-dropdown";
 import { FrequencySelector } from "./frequency-selector";
 import { CollapsibleJobHistory } from "./collapsible-job-history";
-import { ChannelTabs } from "./channel-tabs";
+import { BrandChannelsSection } from "./brand-channels-section";
+import { BrandChannelsSkeleton } from "./brand-channels-skeleton";
 import { DeleteBrandButton } from "./delete-brand-button";
 import { FallbackImage } from "@/components/ui/fallback-image";
 import { PrintButton } from "@/components/ui/print-button";
-import { formatDate } from "@/lib/utils";
 import { getLocale, serverT } from "@/lib/i18n/server";
-import type { MaitAdExternal, MaitCompetitor, MaitOrganicPost, MaitScrapeJob } from "@/types";
+import type { MaitCompetitor, MaitScrapeJob } from "@/types";
 
 export const dynamic = "force-dynamic";
 
@@ -29,45 +29,28 @@ export default async function CompetitorDetailPage({
   const locale = await getLocale();
   const t = serverT(locale);
 
-  // Specific fields only — `select("*")` was pulling every column on this
-  // hot path. mait_competitors has ~25 columns; we use ~10.
-  const { data: competitor } = await supabase
-    .from("mait_competitors")
-    .select(
-      "id, workspace_id, page_name, page_url, country, category, monitor_config, profile_picture_url, instagram_username, google_advertiser_id, google_domain"
-    )
-    .eq("id", id)
-    .single();
-
-  if (!competitor) notFound();
-  const c = competitor as MaitCompetitor;
-
-  // Limit was 120 ads + 120 organic posts, each row carrying a full
-  // raw_data JSONB (50–200 KB on Meta, smaller on Instagram). On a
-  // multi-country brand that meant ~10–25 MB serialised through the
-  // RSC payload before the page rendered, which felt biblical to the
-  // user. 30 is enough to populate the channel tabs above the fold;
-  // load-more / pagination can be added later if needed. `description`
-  // is only read by the ad detail page so we drop it here too.
-  // adCount / postCount / jobCount feed the delete-confirmation
-  // dialog with concrete numbers; head+exact returns only the count.
+  // Lightweight queries that drive the page shell — competitor row,
+  // recent jobs, delete-dialog counts, plus a single-row projection
+  // of the latest ad's pageLikeCount for the hero. The heavy 30-ads
+  // + 30-posts fetch lives in BrandChannelsSection and streams in
+  // behind a Suspense boundary so the user sees the brand chrome
+  // immediately on click.
   const [
-    { data: ads },
+    { data: competitor },
     { data: jobs },
-    { data: organicPosts },
     { count: adCount },
     { count: postCount },
     { count: jobCount },
     { count: comparisonCount },
+    { data: latestAd },
   ] = await Promise.all([
     supabase
-      .from("mait_ads_external")
+      .from("mait_competitors")
       .select(
-        "id, workspace_id, competitor_id, ad_archive_id, headline, ad_text, cta, image_url, video_url, landing_url, platforms, status, start_date, end_date, created_at, raw_data, source"
+        "id, workspace_id, page_name, page_url, country, category, monitor_config, profile_picture_url, instagram_username, google_advertiser_id, google_domain"
       )
-      .eq("competitor_id", id)
-      .order("start_date", { ascending: false, nullsFirst: false })
-      .limit(30),
+      .eq("id", id)
+      .single(),
     supabase
       .from("mait_scrape_jobs")
       .select(
@@ -76,14 +59,6 @@ export default async function CompetitorDetailPage({
       .eq("competitor_id", id)
       .order("started_at", { ascending: false })
       .limit(10),
-    supabase
-      .from("mait_organic_posts")
-      .select(
-        "id, workspace_id, competitor_id, platform, post_id, post_url, post_type, caption, display_url, video_url, likes_count, comments_count, shares_count, video_views, video_play_count, hashtags, mentions, tagged_users, posted_at, raw_data, created_at"
-      )
-      .eq("competitor_id", id)
-      .order("posted_at", { ascending: false, nullsFirst: false })
-      .limit(30),
     supabase
       .from("mait_ads_external")
       .select("id", { count: "exact", head: true })
@@ -100,7 +75,25 @@ export default async function CompetitorDetailPage({
       .from("mait_comparisons")
       .select("id", { count: "exact", head: true })
       .contains("competitor_ids", [id]),
+    // Single-row, JSON-projected fetch for the hero metadata.
+    // page_like_count and the snapshot profile picture come from
+    // the most recent ad's raw_data — projecting the two fields
+    // directly keeps the request tiny instead of pulling 50–200 KB
+    // of unrelated raw_data just to read two scalars.
+    supabase
+      .from("mait_ads_external")
+      .select(
+        "page_like_count:raw_data->snapshot->pageLikeCount, page_profile_picture_url:raw_data->snapshot->>pageProfilePictureUrl"
+      )
+      .eq("competitor_id", id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
+
+  if (!competitor) notFound();
+  const c = competitor as MaitCompetitor;
+  const jobsList = (jobs ?? []) as MaitScrapeJob[];
   const deleteCounts = {
     ads: adCount ?? 0,
     posts: postCount ?? 0,
@@ -108,9 +101,6 @@ export default async function CompetitorDetailPage({
     comparisons: comparisonCount ?? 0,
   };
 
-  const adsList = (ads ?? []) as MaitAdExternal[];
-  const jobsList = (jobs ?? []) as MaitScrapeJob[];
-  const organicList = (organicPosts ?? []) as MaitOrganicPost[];
   // A fresh-enough running job (<10 min) means the scan is genuinely in
   // flight. Beyond that the cron cleanup will flip it to failed, so we
   // intentionally skip displaying a stale stop button for zombie rows.
@@ -119,39 +109,22 @@ export default async function CompetitorDetailPage({
     (j) => j.status === "running" && j.started_at && new Date(j.started_at).getTime() > tenMinAgoMs
   );
 
-  // Organic engagement stats. Instagram returns likes_count = -1 when
-  // the account has hidden likes (an Instagram setting). Treat any
-  // negative value as "unknown" — never include it in the average,
-  // never display it. Same for comments and views, even though those
-  // are rarely hidden, just in case.
-  const organicCount = organicList.length;
-  const validLikes = organicList
-    .map((p) => p.likes_count ?? -1)
-    .filter((n) => n >= 0);
-  const validComments = organicList
-    .map((p) => p.comments_count ?? -1)
-    .filter((n) => n >= 0);
-  const validViews = organicList
-    .map((p) => p.video_views ?? -1)
-    .filter((n) => n >= 0);
-  const avgLikes = validLikes.length > 0
-    ? Math.round(validLikes.reduce((s, n) => s + n, 0) / validLikes.length)
-    : null;
-  const avgComments = validComments.length > 0
-    ? Math.round(validComments.reduce((s, n) => s + n, 0) / validComments.length)
-    : null;
-  const totalViews = validViews.reduce((s, n) => s + n, 0);
+  // PostgREST returns the JSON-path projections as their underlying
+  // type. Coerce defensively in case scan_data shape ever drifts.
+  const heroLatestAd = latestAd as
+    | { page_like_count: number | null; page_profile_picture_url: string | null }
+    | null;
+  const pageProfilePicture =
+    c.profile_picture_url ??
+    heroLatestAd?.page_profile_picture_url ??
+    null;
+  const pageLikeCount =
+    typeof heroLatestAd?.page_like_count === "number"
+      ? heroLatestAd.page_like_count
+      : null;
+
   const frequency = ((c.monitor_config as { frequency?: string })?.frequency ??
     "manual") as "manual" | "daily" | "weekly";
-
-  // Profile picture: prefer saved permanent URL, fall back to raw_data
-  const latestRaw = adsList[0]?.raw_data as Record<string, unknown> | null;
-  const latestSnapshot = latestRaw?.snapshot as Record<string, unknown> | null;
-  const pageProfilePicture = c.profile_picture_url
-    ?? (latestSnapshot?.pageProfilePictureUrl as string)
-    ?? null;
-  const pageLikeCount = (latestSnapshot?.pageLikeCount as number) ?? null;
-  const pageCategories = (latestSnapshot?.pageCategories as string[]) ?? [];
 
   function formatCompactNumber(n: number): string {
     if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
@@ -267,18 +240,11 @@ export default async function CompetitorDetailPage({
       {/* ─── Scan history (collapsible) ──────────────────────── */}
       {jobsList.length > 0 && <CollapsibleJobHistory jobs={jobsList} />}
 
-      {/* ─── Channel tabs: Meta Ads / Google Ads / Instagram ── */}
-      <ChannelTabs
-        competitorId={c.id}
-        ads={adsList}
-        organicPosts={organicList}
-        organicStats={{
-          count: organicCount,
-          avgLikes,
-          avgComments,
-          totalViews,
-        }}
-      />
+      {/* ─── Channel tabs: streamed via Suspense so the heavy
+          ads + posts fetch does not block the page chrome above. */}
+      <Suspense fallback={<BrandChannelsSkeleton />}>
+        <BrandChannelsSection competitorId={c.id} />
+      </Suspense>
 
       <div className="flex justify-center pt-2 print:hidden">
         <PrintButton label={t("common", "print")} variant="outline" />
