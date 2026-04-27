@@ -1063,7 +1063,7 @@ function addCopyAnalysisSlide(
     addLogo(slide, theme);
     slide.background = { color: hex(contentBg(theme)) };
 
-    slide.addText(`${label(locale, "Analisi Copy", "Copy Analysis")} \u2014 ${a.brandName}`, {
+    slide.addText(`${label(locale, "AI - Analisi Copy", "AI - Copy Analysis")} \u2014 ${a.brandName}`, {
       x: PAD, y: 0.15, w: SW - 2 * PAD, h: 0.35,
       fontSize: 14, fontFace: theme.fonts.heading, color: hex(theme.colors.primary), bold: true,
     });
@@ -1151,7 +1151,7 @@ function addVisualAnalysisSlide(
     addLogo(slide, theme);
     slide.background = { color: hex(contentBg(theme)) };
 
-    slide.addText(`${label(locale, "Analisi Creativa", "Creative Analysis")} \u2014 ${a.brandName}`, {
+    slide.addText(`${label(locale, "AI - Analisi Creativa", "AI - Creative Analysis")} \u2014 ${a.brandName}`, {
       x: PAD, y: 0.15, w: SW - 2 * PAD, h: 0.35,
       fontSize: 14, fontFace: theme.fonts.heading, color: hex(theme.colors.primary), bold: true,
     });

@@ -388,7 +388,7 @@ function addPdfCopyAnalysis(
 
   doc.setFontSize(18);
   doc.setTextColor(pr, pg, pb);
-  doc.text(label(locale, "Analisi Copy (AI)", "Copy Analysis (AI)"), MARGIN, 18);
+  doc.text(label(locale, "AI - Analisi Copy", "AI - Copy Analysis"), MARGIN, 18);
 
   const analyses = copyReport.brandAnalyses;
   const numBrands = analyses.length;
@@ -455,7 +455,7 @@ function addPdfVisualAnalysis(
 
   doc.setFontSize(18);
   doc.setTextColor(pr, pg, pb);
-  doc.text(label(locale, "Analisi Creativa (AI)", "Creative Analysis (AI)"), MARGIN, 18);
+  doc.text(label(locale, "AI - Analisi Creativa", "AI - Creative Analysis"), MARGIN, 18);
 
   const analyses = visualReport.brandAnalyses;
   const numBrands = analyses.length;
