@@ -16,6 +16,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
  *     returned an empty dataset (page_id wrong, page deleted, etc.)
  *
  * GET /api/competitors/scan-debug?id=<competitor_id>
+ *   (param name is `id`, not `competitor_id` — historic naming)
  */
 export async function GET(req: Request) {
   try {
@@ -102,10 +103,132 @@ export async function GET(req: Request) {
         annotatedJobs.find((j) => j.status === "succeeded") ?? null,
     };
 
+    // ── DB-side stats on mait_ads_external ─────────────────────
+    // Surfaces inflation that the records_count in the latest job
+    // can't explain on its own — typically stale ACTIVE rows from
+    // older scans whose start_date sits outside the most recent
+    // scan window, so the reconcile pass never had a chance to
+    // flip them to INACTIVE.
+    const lastSucceeded = annotatedJobs.find((j) => j.status === "succeeded");
+    const lastWindowFrom = lastSucceeded?.date_from ?? null;
+    const wsId = profile.workspace_id;
+
+    const [
+      totalAdsRes,
+      activeRes,
+      metaRes,
+      googleRes,
+      staleRes,
+      earliestRes,
+      latestRes,
+      countryRowsRes,
+    ] = await Promise.all([
+      admin
+        .from("mait_ads_external")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", wsId)
+        .eq("competitor_id", competitorId),
+      admin
+        .from("mait_ads_external")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", wsId)
+        .eq("competitor_id", competitorId)
+        .eq("status", "ACTIVE"),
+      admin
+        .from("mait_ads_external")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", wsId)
+        .eq("competitor_id", competitorId)
+        .eq("source", "meta"),
+      admin
+        .from("mait_ads_external")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", wsId)
+        .eq("competitor_id", competitorId)
+        .eq("source", "google"),
+      // The reconcile only flips ACTIVE→INACTIVE for rows whose
+      // start_date is INSIDE the just-scanned window. Anything
+      // older that is still ACTIVE means either the brand actually
+      // ran a long-lived ad (legit) or the row is a zombie left
+      // over from an older scan (the bug we are hunting).
+      lastWindowFrom
+        ? admin
+            .from("mait_ads_external")
+            .select("id", { count: "exact", head: true })
+            .eq("workspace_id", wsId)
+            .eq("competitor_id", competitorId)
+            .eq("status", "ACTIVE")
+            .lt("start_date", lastWindowFrom)
+        : Promise.resolve({ count: null as number | null }),
+      admin
+        .from("mait_ads_external")
+        .select("start_date")
+        .eq("workspace_id", wsId)
+        .eq("competitor_id", competitorId)
+        .not("start_date", "is", null)
+        .order("start_date", { ascending: true })
+        .limit(1)
+        .maybeSingle(),
+      admin
+        .from("mait_ads_external")
+        .select("start_date")
+        .eq("workspace_id", wsId)
+        .eq("competitor_id", competitorId)
+        .not("start_date", "is", null)
+        .order("start_date", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      // scan_countries is meta-specific (Google ads carry no
+      // per-country signal). Capped at 5000 rows so a runaway
+      // brand cannot blow up the response payload.
+      admin
+        .from("mait_ads_external")
+        .select("scan_countries")
+        .eq("workspace_id", wsId)
+        .eq("competitor_id", competitorId)
+        .not("scan_countries", "is", null)
+        .limit(5000),
+    ]);
+
+    const totalAds = totalAdsRes.count ?? 0;
+    const active = activeRes.count ?? 0;
+    const inactive = Math.max(0, totalAds - active);
+
+    const byCountry: Record<string, number> = {};
+    for (const row of countryRowsRes.data ?? []) {
+      const codes = (row as { scan_countries: string[] | null }).scan_countries;
+      if (!Array.isArray(codes)) continue;
+      for (const c of codes) {
+        if (typeof c === "string" && c) {
+          byCountry[c] = (byCountry[c] ?? 0) + 1;
+        }
+      }
+    }
+
+    const dbStats = {
+      totalAds,
+      active,
+      inactive,
+      bySource: {
+        meta: metaRes.count ?? 0,
+        google: googleRes.count ?? 0,
+      },
+      byCountry,
+      earliestStart: earliestRes.data?.start_date ?? null,
+      latestStart: latestRes.data?.start_date ?? null,
+      // null when no successful scan exists — without a window we
+      // cannot say whether an ACTIVE row is "outside" or not.
+      staleActiveOutsideLastWindow:
+        lastWindowFrom !== null ? (staleRes.count ?? 0) : null,
+      lastSucceededWindowFrom: lastWindowFrom,
+      countryRowsTruncated: (countryRowsRes.data?.length ?? 0) >= 5000,
+    };
+
     return NextResponse.json({
       ok: true,
       competitor,
       summary,
+      dbStats,
       jobs: annotatedJobs,
     });
   } catch (e) {
