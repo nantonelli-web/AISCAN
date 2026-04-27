@@ -264,6 +264,7 @@ const translations = {
       en: "Click Add brand to get started.",
     },
     lastScan: { it: "Ultimo scan:", en: "Last scan:" },
+    scanPeriod: { it: "Periodo:", en: "Period:" },
     allCompetitors: { it: "Tutti i brand", en: "All brands" },
     exportCsv: { it: "Export CSV", en: "Export CSV" },
     noAdsCollected: {

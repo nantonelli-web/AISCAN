@@ -21,7 +21,7 @@ export default async function CompetitorsPage() {
   const locale = await getLocale();
   const t = serverT(locale);
 
-  const [{ data: competitors }, { data: clientsData }] = await Promise.all([
+  const [{ data: competitors }, { data: clientsData }, { data: recentJobs }] = await Promise.all([
     supabase
       .from("mait_competitors")
       .select("id, workspace_id, client_id, page_name, page_id, page_url, category, country, instagram_username, google_advertiser_id, google_domain, profile_picture_url, monitor_config, last_scraped_at, created_at")
@@ -32,10 +32,37 @@ export default async function CompetitorsPage() {
       .select("id, name, color, workspace_id")
       .eq("workspace_id", profile.workspace_id!)
       .order("name"),
+    // Pull every succeeded scan for the workspace ordered most-recent
+    // first; the loop below keeps only the first occurrence per
+    // competitor so we get the latest scan window per brand without
+    // running one query per row.
+    admin
+      .from("mait_scrape_jobs")
+      .select("competitor_id, date_from, date_to, started_at")
+      .eq("workspace_id", profile.workspace_id!)
+      .eq("status", "succeeded")
+      .order("started_at", { ascending: false }),
   ]);
 
   const list = (competitors ?? []) as MaitCompetitor[];
   const clients = (clientsData ?? []) as MaitClient[];
+
+  // Build a per-competitor map of the latest scan window. Cron jobs
+  // and full-archive manual scans store NULL for both bounds — those
+  // rows are kept in the map but the UI just renders the run date
+  // without a period suffix.
+  const lastScanRangeByCompetitor = new Map<
+    string,
+    { from: string | null; to: string | null }
+  >();
+  for (const j of recentJobs ?? []) {
+    const cid = (j as { competitor_id: string | null }).competitor_id;
+    if (!cid || lastScanRangeByCompetitor.has(cid)) continue;
+    lastScanRangeByCompetitor.set(cid, {
+      from: (j as { date_from: string | null }).date_from ?? null,
+      to: (j as { date_to: string | null }).date_to ?? null,
+    });
+  }
 
   // Group brands by client
   const grouped = new Map<string | null, MaitCompetitor[]>();
@@ -109,7 +136,12 @@ export default async function CompetitorsPage() {
                 ) : (
                   <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 ml-5">
                     {section.brands.map((c) => (
-                      <BrandCard key={c.id} brand={c} t={t} />
+                      <BrandCard
+                        key={c.id}
+                        brand={c}
+                        lastScanRange={lastScanRangeByCompetitor.get(c.id) ?? null}
+                        t={t}
+                      />
                     ))}
                   </div>
                 )}
@@ -121,7 +153,12 @@ export default async function CompetitorsPage() {
         // Flat view (no clients created yet)
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {list.map((c) => (
-            <BrandCard key={c.id} brand={c} t={t} />
+            <BrandCard
+              key={c.id}
+              brand={c}
+              lastScanRange={lastScanRangeByCompetitor.get(c.id) ?? null}
+              t={t}
+            />
           ))}
         </div>
       )}
@@ -137,11 +174,18 @@ export default async function CompetitorsPage() {
 
 function BrandCard({
   brand: c,
+  lastScanRange,
   t,
 }: {
   brand: MaitCompetitor;
+  /** Date window the latest succeeded scan covered. NULL bounds mean
+   *  full-archive scan (cron, or manual scan without a window) — in
+   *  that case we render only the run date, not a period. */
+  lastScanRange: { from: string | null; to: string | null } | null;
   t: (section: string, key: string) => string;
 }) {
+  const hasPeriod =
+    lastScanRange && lastScanRange.from && lastScanRange.to;
   return (
     <Card className="hover:border-gold/50 transition-colors h-full relative">
       <Link href={`/competitors/${c.id}`} className="absolute inset-0 z-0" />
@@ -159,10 +203,18 @@ function BrandCard({
           {c.country && <Badge variant="muted">{c.country}</Badge>}
           {c.category && <Badge variant="muted">{c.category}</Badge>}
         </div>
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">
-            {t("competitors", "lastScan")} {formatDate(c.last_scraped_at)}
-          </p>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">
+              {t("competitors", "lastScan")} {formatDate(c.last_scraped_at)}
+            </p>
+            {hasPeriod && (
+              <p className="text-[11px] text-muted-foreground/80 mt-0.5">
+                {t("competitors", "scanPeriod")}{" "}
+                {formatDate(lastScanRange.from)} → {formatDate(lastScanRange.to)}
+              </p>
+            )}
+          </div>
           <Link
             href={`/competitors/${c.id}/edit?from=brands`}
             className="size-7 rounded-md border border-border hover:bg-muted hover:border-gold/40 grid place-items-center text-muted-foreground hover:text-gold transition-colors pointer-events-auto"

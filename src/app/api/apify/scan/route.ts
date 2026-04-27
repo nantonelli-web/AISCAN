@@ -94,13 +94,17 @@ export async function POST(req: Request) {
     }
   }
 
-  // Create job row
+  // Create job row. date_from/date_to capture the user-requested
+  // window so the brand list can later display "scan period
+  // 22/03 → 22/04" without re-deriving from the ads.
   const { data: job, error: jobErr } = await admin
     .from("mait_scrape_jobs")
     .insert({
       workspace_id: competitor.workspace_id,
       competitor_id: competitor.id,
       status: "running",
+      date_from: parsed.data.date_from ?? null,
+      date_to: parsed.data.date_to ?? null,
     })
     .select("id")
     .single();

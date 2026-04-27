@@ -140,13 +140,17 @@ export async function POST(req: Request) {
     );
   }
 
-  // Create job row (same pattern as Meta/Google scans)
+  // Create job row (same pattern as Meta/Google scans). Persist the
+  // requested window so /competitors can show the period covered by
+  // the latest scan beneath the run date.
   const { data: job, error: jobErr } = await admin
     .from("mait_scrape_jobs")
     .insert({
       workspace_id: competitor.workspace_id,
       competitor_id: competitor.id,
       status: "running",
+      date_from: parsed.data.date_from ?? null,
+      date_to: parsed.data.date_to ?? null,
     })
     .select("id")
     .single();
