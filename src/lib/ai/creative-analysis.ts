@@ -1,15 +1,20 @@
 /**
  * AI Creative Analysis — two-agent system for comparative ad analysis.
  *
- * 1. Copywriter Agent (DeepSeek V3.2) — analyzes text: headlines, copy, CTA
- * 2. Creative Director Agent (Gemini Flash Lite) — analyzes images/visuals
+ * 1. Copywriter Agent (Claude Haiku 4.5) — analyzes text: headlines, copy, CTA
+ * 2. Creative Director Agent (Gemini 2.5 Flash) — analyzes images/visuals
  *
- * Both use OpenRouter with the same API key.
+ * Both use OpenRouter with the same API key. Three model tiers were
+ * evaluated on 2026-04-27: cheap (DeepSeek V3.2 + Gemini 2.0 Flash
+ * Lite), pragmatic (current), premium (Claude Sonnet 4.5 on both).
+ * The pragmatic tier costs ~$0.025 per Compare — negligible — and
+ * delivers native-quality Italian narrative + proper multimodal
+ * vision. See memory/project_ai_model_options.md for the matrix.
  */
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const COPYWRITER_MODEL = "deepseek/deepseek-v3.2";
-const CREATIVE_DIRECTOR_MODEL = "google/gemini-2.0-flash-lite-001";
+const COPYWRITER_MODEL = "anthropic/claude-haiku-4.5";
+const CREATIVE_DIRECTOR_MODEL = "google/gemini-2.5-flash";
 
 export interface BrandAdData {
   brandName: string;
