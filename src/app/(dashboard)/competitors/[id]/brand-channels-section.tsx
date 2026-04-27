@@ -34,7 +34,7 @@ export async function BrandChannelsSection({
     supabase
       .from("mait_ads_external")
       .select(
-        "id, workspace_id, competitor_id, ad_archive_id, headline, ad_text, cta, image_url, video_url, landing_url, platforms, status, start_date, end_date, created_at, raw_data, source"
+        "id, workspace_id, competitor_id, ad_archive_id, headline, ad_text, cta, image_url, video_url, landing_url, platforms, status, start_date, end_date, created_at, raw_data, source, scan_countries"
       )
       .eq("competitor_id", competitorId)
       .order("start_date", { ascending: false, nullsFirst: false })
