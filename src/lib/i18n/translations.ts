@@ -278,6 +278,7 @@ const translations = {
     industryLabel: { it: "Settore:", en: "Industry:" },
     channelAll: { it: "Tutti", en: "All" },
     filterBy: { it: "Filtra per:", en: "Filter by:" },
+    filterByCountry: { it: "Paese:", en: "Country:" },
     ofTotal: { it: "di", en: "of" },
     noMetaAds: { it: "Nessuna Meta Ad raccolta.", en: "No Meta Ads collected." },
     noGoogleAds: { it: "Nessuna Google Ad raccolta.", en: "No Google Ads collected." },
