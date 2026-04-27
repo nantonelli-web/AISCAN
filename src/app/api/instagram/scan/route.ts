@@ -175,6 +175,32 @@ export async function POST(req: Request) {
       scrapeInstagramProfile(igUsername),
     ]);
 
+    // Abort checkpoint: user clicked Stop while Apify was still
+    // returning. Skip every downstream side-effect (profile update,
+    // comparison invalidation, posts upsert, success update) so
+    // partial data never lands and the job row keeps the failed
+    // state set by /api/apify/abort.
+    {
+      const { data: jobNow } = await admin
+        .from("mait_scrape_jobs")
+        .select("status")
+        .eq("id", job.id)
+        .maybeSingle();
+      if (jobNow?.status === "failed") {
+        await refundCredits(
+          user.id,
+          "scan_instagram",
+          `Instagram scan aborted: ${competitor.page_name}`,
+        );
+        return NextResponse.json({
+          ok: false,
+          aborted: true,
+          job_id: job.id,
+          records: 0,
+        });
+      }
+    }
+
     if (profile) {
       // Instagram CDN URLs for profile pics expire — download once and
       // replace with a permanent Supabase-hosted URL.
@@ -243,6 +269,30 @@ export async function POST(req: Request) {
         throw upErr;
       }
       console.log(`[Instagram route] Upsert OK`);
+    }
+
+    // Abort checkpoint #2: stop landed AFTER the upsert (rare race).
+    // Partial data is in DB; we keep the job row honestly marked
+    // failed/aborted instead of overwriting to succeeded.
+    {
+      const { data: jobNow } = await admin
+        .from("mait_scrape_jobs")
+        .select("status")
+        .eq("id", job.id)
+        .maybeSingle();
+      if (jobNow?.status === "failed") {
+        await refundCredits(
+          user.id,
+          "scan_instagram",
+          `Instagram scan aborted (post-commit): ${competitor.page_name}`,
+        );
+        return NextResponse.json({
+          ok: false,
+          aborted: true,
+          partial_records: result.records.length,
+          job_id: job.id,
+        });
+      }
     }
 
     // Update job as succeeded

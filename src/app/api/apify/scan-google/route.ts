@@ -137,6 +137,31 @@ export async function POST(req: Request) {
       maxResults: parsed.data.max_items ?? 500,
     });
 
+    // Abort checkpoint #1: user clicked Stop while Apify was still
+    // returning. Skip the upsert + final update so partial data
+    // never lands in mait_ads_external and the job row keeps the
+    // failed/aborted state set by /api/apify/abort.
+    {
+      const { data: jobNow } = await admin
+        .from("mait_scrape_jobs")
+        .select("status")
+        .eq("id", job.id)
+        .maybeSingle();
+      if (jobNow?.status === "failed") {
+        await refundCredits(
+          user.id,
+          "scan_google",
+          `Google Ads scan aborted: ${competitor.page_name}`,
+        );
+        return NextResponse.json({
+          ok: false,
+          aborted: true,
+          job_id: job.id,
+          records: 0,
+        });
+      }
+    }
+
     // Upsert ads (no image download — Google CDN URLs are persistent)
     if (result.records.length > 0) {
       const rows = result.records.map((r) => ({
@@ -150,6 +175,30 @@ export async function POST(req: Request) {
         .from("mait_ads_external")
         .upsert(rows, { onConflict: "workspace_id,ad_archive_id,source" });
       if (upErr) throw upErr;
+    }
+
+    // Abort checkpoint #2: stop landed AFTER the upsert (rare, narrow
+    // race). Some partial data is in DB; we keep the job row honestly
+    // marked failed/aborted instead of overwriting to succeeded.
+    {
+      const { data: jobNow } = await admin
+        .from("mait_scrape_jobs")
+        .select("status")
+        .eq("id", job.id)
+        .maybeSingle();
+      if (jobNow?.status === "failed") {
+        await refundCredits(
+          user.id,
+          "scan_google",
+          `Google Ads scan aborted (post-commit): ${competitor.page_name}`,
+        );
+        return NextResponse.json({
+          ok: false,
+          aborted: true,
+          partial_records: result.records.length,
+          job_id: job.id,
+        });
+      }
     }
 
     await admin

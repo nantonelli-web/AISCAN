@@ -12,6 +12,30 @@ import { checkScanConcurrency } from "@/lib/rate-limit/scan-concurrency";
 
 export const maxDuration = 300; // seconds (Vercel hobby allows 60; pro 300)
 
+/**
+ * Re-read the job row from the DB to see whether the abort endpoint
+ * flipped it to failed while the long Vercel Lambda was mid-flight.
+ *
+ * The fresh job row was created with status=running by this same
+ * route; the stale-cleanup at the top of the route only touches rows
+ * older than 10 minutes, so any flip to failed mid-run is caused by
+ * /api/apify/abort (i.e. the user clicked Stop). Returning true at
+ * the call sites lets us skip the upsert and the success update so
+ * partial Apify results never land in mait_ads_external and the job
+ * row stays correctly marked as failed/aborted.
+ */
+async function jobWasAborted(
+  admin: ReturnType<typeof createAdminClient>,
+  jobId: string,
+): Promise<boolean> {
+  const { data } = await admin
+    .from("mait_scrape_jobs")
+    .select("status")
+    .eq("id", jobId)
+    .maybeSingle();
+  return data?.status === "failed";
+}
+
 const schema = z.object({
   competitor_id: z.string().uuid(),
   max_items: z.number().int().min(1).max(1000).optional(),
@@ -128,6 +152,25 @@ export async function POST(req: Request) {
       dateTo: parsed.data.date_to,
     });
 
+    // Abort checkpoint #1: user clicked Stop while Apify was still
+    // returning. Skip the upsert + final update so the partial data
+    // never lands in mait_ads_external and the job row keeps the
+    // failed/aborted state set by /api/apify/abort. Refund credits
+    // so the user is not charged for a scan they cancelled.
+    if (await jobWasAborted(admin, job.id)) {
+      await refundCredits(
+        user.id,
+        "scan_meta",
+        `Meta Ads scan aborted: ${competitor.page_name}`,
+      );
+      return NextResponse.json({
+        ok: false,
+        aborted: true,
+        job_id: job.id,
+        records: 0,
+      });
+    }
+
     // Download images to permanent storage, then upsert ads
     if (result.records.length > 0) {
       const rows = result.records.map((r) => ({
@@ -181,6 +224,25 @@ export async function POST(req: Request) {
           `[scan] Reconciled ${inactivated} stale ACTIVE ads for ${competitor.page_name}`,
         );
       }
+    }
+
+    // Abort checkpoint #2: stop landed AFTER the upsert (rare, narrow
+    // race). Some partial data is in DB at this point — we cannot
+    // undo it without complex tracking — but at least the job row
+    // stays honestly marked failed/aborted instead of being
+    // overwritten to succeeded with an inconsistent error field.
+    if (await jobWasAborted(admin, job.id)) {
+      await refundCredits(
+        user.id,
+        "scan_meta",
+        `Meta Ads scan aborted (post-commit): ${competitor.page_name}`,
+      );
+      return NextResponse.json({
+        ok: false,
+        aborted: true,
+        partial_records: result.records.length,
+        job_id: job.id,
+      });
     }
 
     await admin
