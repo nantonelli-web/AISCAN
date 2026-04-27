@@ -10,6 +10,12 @@ const csp = [
   "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
+  // media-src must be explicit — otherwise the browser falls back to
+  // default-src 'self' and silently blocks every <video>/<audio> with
+  // a cross-origin source. Ad creatives play directly from
+  // *.fbcdn.net / *.cdninstagram.com / scontent.* without any local
+  // proxy, so the policy has to allow https: + blob:.
+  "media-src 'self' https: blob:",
   "font-src 'self' data:",
   "connect-src 'self' https: wss:",
   "frame-ancestors 'none'",
