@@ -2359,13 +2359,15 @@ function BenchmarkCharts({
 }) {
   return (
     <div className="space-y-6">
-      {/* KPI cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      {/* KPI cards — same 5 the Benchmarks page exposes. The
+          aiGeneratedPercent KPI was removed there as a UX call (the
+          per-brand chart below still surfaces the same signal); we
+          mirror it here so Compare and Benchmarks stay aligned. */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <BenchmarkStat label={t("benchmarks", "totalAds")} value={formatNumber(data.totals.totalAds)} />
         <BenchmarkStat label={t("benchmarks", "activeAds")} value={formatNumber(data.totals.activeAds)} />
         <BenchmarkStat label={t("benchmarks", "avgCampaignDuration")} value={`${data.totals.avgDuration}gg`} />
         <BenchmarkStat label={t("benchmarks", "avgCopyLength")} value={`${data.totals.avgCopyLength} chr`} />
-        <BenchmarkStat label={t("benchmarks", "aiGeneratedPercent")} value={`${data.totals.aiGeneratedPercent}%`} />
         <BenchmarkStat label={t("benchmarks", "advantagePlusPercent")} value={`${data.totals.advantagePlusPercent}%`} />
       </div>
 
