@@ -18,12 +18,40 @@ import type { MaitCompetitor, MaitScrapeJob } from "@/types";
 
 export const dynamic = "force-dynamic";
 
+type TabFilter = "all" | "meta" | "google" | "instagram";
+type StatusFilter = "active" | "inactive" | null;
+
+function parseTab(raw: string | string[] | undefined): TabFilter {
+  if (raw === "meta" || raw === "google" || raw === "instagram") return raw;
+  return "all";
+}
+function parseStatus(raw: string | string[] | undefined): StatusFilter {
+  if (raw === "active" || raw === "inactive") return raw;
+  return null;
+}
+
 export default async function CompetitorDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
+  const sp = await searchParams;
+  // URL-driven filters so Country / Status / Channel hit the DB instead
+  // of a 30-ad client-side cache. Without this the country pill showed
+  // misleading numbers for big brands (e.g. Sezane GB = 1 of 415 because
+  // the 30 most-recent ads had only one GB row).
+  const tab = parseTab(sp.tab);
+  const statusFilter = parseStatus(sp.status);
+  const countriesFilter =
+    typeof sp.countries === "string"
+      ? sp.countries
+          .split(",")
+          .map((c) => c.trim().toUpperCase())
+          .filter(Boolean)
+      : [];
   await getSessionUser();
   const supabase = await createClient();
   const locale = await getLocale();
@@ -46,6 +74,7 @@ export default async function CompetitorDetailPage({
     { count: jobCount },
     { count: comparisonCount },
     { data: latestAd },
+    { data: countryRows },
   ] = await Promise.all([
     supabase
       .from("mait_competitors")
@@ -116,6 +145,20 @@ export default async function CompetitorDetailPage({
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    // Brand-wide scan_countries — drives the Country dropdown and
+    // must NOT depend on the active filters (otherwise picking
+    // status=active would shrink the dropdown to currently-active
+    // countries). Lives in the shell so it is fetched once per
+    // page load and reused as the Suspense child re-renders on
+    // every filter change. 5000-row cap is a safety net; brands
+    // with more ads still get a representative country list.
+    supabase
+      .from("mait_ads_external")
+      .select("scan_countries")
+      .eq("competitor_id", id)
+      .eq("source", "meta")
+      .not("scan_countries", "is", null)
+      .limit(5000),
   ]);
 
   if (!competitor) notFound();
@@ -139,6 +182,37 @@ export default async function CompetitorDetailPage({
     meta: metaActiveCount ?? 0,
     google: googleActiveCount ?? 0,
   };
+
+  // Brand-wide country tally. Driven by every Meta ad we have for the
+  // brand (capped at 5000 rows above), so the dropdown always offers
+  // every market the brand has been scanned in — independent of any
+  // active Status / Channel filter the user picked.
+  const countryTally = new Map<string, number>();
+  for (const row of (countryRows ?? []) as { scan_countries: string[] | null }[]) {
+    if (!Array.isArray(row.scan_countries)) continue;
+    for (const code of row.scan_countries) {
+      if (typeof code === "string" && code) {
+        countryTally.set(code, (countryTally.get(code) ?? 0) + 1);
+      }
+    }
+  }
+  let displayNames: Intl.DisplayNames | null = null;
+  try {
+    displayNames = new Intl.DisplayNames([locale], { type: "region" });
+  } catch {
+    displayNames = null;
+  }
+  const availableCountries = [...countryTally.entries()]
+    .map(([code, count]) => {
+      let name = code;
+      try {
+        name = displayNames?.of(code) ?? code;
+      } catch {
+        name = code;
+      }
+      return { code, count, name };
+    })
+    .sort((a, b) => b.count - a.count);
 
   // A fresh-enough running job (<10 min) means the scan is genuinely in
   // flight. Beyond that the cron cleanup will flip it to failed, so we
@@ -281,11 +355,18 @@ export default async function CompetitorDetailPage({
 
       {/* ─── Channel tabs: streamed via Suspense so the heavy
           ads + posts fetch does not block the page chrome above. */}
-      <Suspense fallback={<BrandChannelsSkeleton />}>
+      <Suspense
+        key={`${tab}|${statusFilter ?? "all"}|${countriesFilter.join(",")}`}
+        fallback={<BrandChannelsSkeleton />}
+      >
         <BrandChannelsSection
           competitorId={c.id}
           channelTotals={channelTotals}
           activeTotals={activeTotals}
+          availableCountries={availableCountries}
+          tab={tab}
+          statusFilter={statusFilter}
+          countriesFilter={countriesFilter}
         />
       </Suspense>
 

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useMemo } from "react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { AdCard } from "@/components/ads/ad-card";
 import { OrganicPostCard } from "@/components/organic/organic-post-card";
@@ -44,6 +45,20 @@ interface Props {
    *  so the Active badge matches the brand reality, not the loaded
    *  sample. Inactive = total − active. */
   activeTotals: { meta: number; google: number };
+  /** Filter-aware per-source counts. Drive the "(X of Y)" caption
+   *  above each grid so Y reflects the user's active narrowing,
+   *  not the brand-wide channel total. */
+  filteredTotals: { meta: number; google: number };
+  /** URL-driven filter state. Pills navigate the URL; the server
+   *  re-runs the ads query with these applied so the 30-row cap
+   *  operates AFTER filtering. */
+  tab: "all" | "meta" | "google" | "instagram";
+  statusFilter: "active" | "inactive" | null;
+  countriesFilter: string[];
+  /** Brand-wide country list (from page shell, not the loaded
+   *  sample) so the dropdown always shows every market — even
+   *  the ones whose ads dropped out under the active filters. */
+  availableCountries: { code: string; count: number; name: string }[];
   organicStats: {
     count: number;
     /** null when every post has likes hidden (Instagram setting) —
@@ -55,131 +70,68 @@ interface Props {
   };
 }
 
-function isChannel(v: string | null): v is Channel {
-  return v === "all" || v === "meta" || v === "google" || v === "instagram";
-}
-
 export function ChannelTabs({
   competitorId,
   ads,
   organicPosts,
   channelTotals,
   activeTotals,
+  filteredTotals,
+  availableCountries,
+  tab,
+  statusFilter,
+  countriesFilter,
   organicStats,
 }: Props) {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const initialFromUrl = searchParams.get("tab");
-  const [channel, setChannel] = useState<Channel>(
-    isChannel(initialFromUrl) ? initialFromUrl : "all",
+  const { t } = useT();
+
+  // URL-derived filter state. Pills navigate to a new URL; the server
+  // re-runs the query with the new filters so the 30-row cap is
+  // applied AFTER filtering. No client-side state — ads come from
+  // the server already filtered.
+  const channel: Channel = tab;
+  const status: Status = statusFilter ?? "all";
+  const selectedCountries = useMemo(
+    () => new Set(countriesFilter),
+    [countriesFilter],
   );
-  // When the user runs a scan and scan-dropdown rewrites the URL with
-  // ?tab=instagram, the searchParams update fires this effect and we
-  // sync the local state. Without this the user would still see
-  // whichever tab they had open before the scan.
-  useEffect(() => {
-    const t = searchParams.get("tab");
-    if (isChannel(t) && t !== channel) setChannel(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
-  // Country filter only applies to Meta — Google + Instagram do not
-  // carry scan_countries — so we clear any selection when the channel
-  // switches away from Meta to avoid an invisible filter.
-  useEffect(() => {
-    if (channel === "google" || channel === "instagram") {
-      setSelectedCountries(new Set());
+
+  // Build a URL with one or more search params updated. Passing null
+  // removes the param, so e.g. picking "All" on the Status pills
+  // drops `status` from the URL entirely (cleaner bookmarkable state).
+  function buildHref(updates: Record<string, string | null>): string {
+    const next = new URLSearchParams(searchParams);
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === null || value === "") next.delete(key);
+      else next.set(key, value);
     }
-  }, [channel]);
-  const { t, locale } = useT();
+    const qs = next.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  }
 
-  // Country filter — multi-select Set, empty = "All countries" (no
-  // filter). Same convention as the Benchmarks CountryFilter so the
-  // two pages share UX vocabulary.
-  const [selectedCountries, setSelectedCountries] = useState<Set<string>>(
-    new Set(),
-  );
-
-  // Status filter — meaningful only on paid channels (Meta + Google).
-  // Instagram has no ACTIVE/INACTIVE concept on organic posts, so it
-  // is reset alongside country when the user switches to Instagram.
-  const [status, setStatus] = useState<Status>("all");
-  useEffect(() => {
-    if (channel === "instagram") setStatus("all");
-  }, [channel]);
-
-  // Status helper — Meta + Google share the same ACTIVE / INACTIVE
-  // shape on mait_ads_external.status. Anything not "ACTIVE" is treated
-  // as inactive (covers ENDED + null + future variants).
-  const matchesStatus = (a: MaitAdExternal) => {
-    if (status === "all") return true;
-    const s = (a as unknown as Record<string, unknown>).status;
-    if (status === "active") return s === "ACTIVE";
-    return s !== "ACTIVE";
-  };
-
-  // Split ads by source — then filter by status. Meta also gets the
-  // country filter applied below.
+  // Split incoming ads by source so the "all" view can group Meta and
+  // Google sections separately. Server has already applied the active
+  // filters — no further status/country narrowing needed here.
   const metaAdsAll = ads.filter((a) => {
     const src = (a as unknown as Record<string, unknown>).source;
-    return src !== "google" && matchesStatus(a);
+    return src !== "google";
   });
   const googleAds = ads.filter((a) => {
     const src = (a as unknown as Record<string, unknown>).source;
-    return src === "google" && matchesStatus(a);
+    return src === "google";
   });
-
-  // Available countries = union of scan_countries across the loaded
-  // Meta sample. We localize the names with Intl.DisplayNames so the
-  // dropdown shows "Italy" / "Italia" instead of just "IT", matching
-  // the Benchmarks country popover.
-  const availableCountries = useMemo(() => {
-    const tally = new Map<string, number>();
-    for (const ad of metaAdsAll) {
-      const list = (ad as unknown as { scan_countries?: string[] | null })
-        .scan_countries;
-      if (!Array.isArray(list)) continue;
-      for (const c of list) {
-        if (typeof c === "string" && c) {
-          tally.set(c, (tally.get(c) ?? 0) + 1);
-        }
-      }
-    }
-    let display: Intl.DisplayNames | null = null;
-    try {
-      display = new Intl.DisplayNames([locale], { type: "region" });
-    } catch {
-      display = null;
-    }
-    return [...tally.entries()]
-      .map(([code, count]) => {
-        let name = code;
-        try {
-          name = display?.of(code) ?? code;
-        } catch {
-          name = code;
-        }
-        return { code, count, name };
-      })
-      .sort((a, b) => b.count - a.count);
-  }, [metaAdsAll, locale]);
 
   const showCountryFilter =
     availableCountries.length > 0 &&
     (channel === "all" || channel === "meta");
 
-  // Apply the country filter to the Meta ads only — Google + Instagram
-  // have no per-country signal, so they pass through unchanged.
-  // Empty selection = no filter (show all countries) — same convention
-  // as the Benchmarks CountryFilter.
-  const metaAds =
-    selectedCountries.size === 0
-      ? metaAdsAll
-      : metaAdsAll.filter((a) => {
-          const list = (a as unknown as { scan_countries?: string[] | null })
-            .scan_countries;
-          return (
-            Array.isArray(list) && list.some((c) => selectedCountries.has(c))
-          );
-        });
+  // Server has already applied the country filter at the DB query, so
+  // the metaAdsAll set is already narrowed. Keep the alias for the
+  // existing render code that reads `metaAds`.
+  const metaAds = metaAdsAll;
 
   // Channel badge counts honour the active Status filter: when the
   // user picks "Active", each channel chip shows its DB-wide active
@@ -224,7 +176,7 @@ export function ChannelTabs({
   ];
 
   // Filter out channels with 0 items (except "all")
-  const visibleTabs = tabs.filter((tab) => tab.key === "all" || tab.count > 0);
+  const visibleTabs = tabs.filter((entry) => entry.key === "all" || entry.count > 0);
 
   const showMeta = channel === "all" || channel === "meta";
   const showGoogle = channel === "all" || channel === "google";
@@ -253,16 +205,23 @@ export function ChannelTabs({
           <span className="text-[10px] uppercase tracking-wider text-foreground font-bold">
             {t("competitors", "filterByChannel")}
           </span>
-          {visibleTabs.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setChannel(tab.key)}
-              className={chipClass(channel === tab.key)}
+          {visibleTabs.map((p) => (
+            <Link
+              key={p.key}
+              href={buildHref({
+                tab: p.key === "all" ? null : p.key,
+                // Switching to Instagram disables the country filter
+                // (organic posts have no scan_countries). Drop the
+                // selection rather than carrying an invisible filter.
+                ...(p.key === "instagram" || p.key === "google"
+                  ? { countries: null }
+                  : {}),
+              })}
+              className={chipClass(channel === p.key)}
             >
-              {tab.icon}
-              {tab.label}
-            </button>
+              {p.icon}
+              {p.label}
+            </Link>
           ))}
         </div>
 
@@ -274,14 +233,15 @@ export function ChannelTabs({
                 {t("competitors", "filterByStatus")}
               </span>
               {statusPills.map((p) => (
-                <button
+                <Link
                   key={p.key}
-                  type="button"
-                  onClick={() => setStatus(p.key)}
+                  href={buildHref({
+                    status: p.key === "all" ? null : p.key,
+                  })}
                   className={chipClass(status === p.key)}
                 >
                   {p.label}
-                </button>
+                </Link>
               ))}
             </div>
           </>
@@ -290,9 +250,9 @@ export function ChannelTabs({
 
       {/* ─── Country row (Meta only) ─────────────────────────
           Same dropdown grammar as the Benchmarks CountryFilter:
-          searchable list with checkboxes. Auto-applies on toggle
-          (no Apply button) since the underlying filter is purely
-          client-side. */}
+          searchable list with checkboxes. Filter is applied at the
+          DB query (server) so the 30-row cap is post-filter — picking
+          GB on Sezane no longer shows "1 of 415". */}
       {showCountryFilter && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-3 print:hidden">
           <span className="text-[10px] uppercase tracking-wider text-foreground font-bold mr-1">
@@ -301,7 +261,14 @@ export function ChannelTabs({
           <CountryFilterDropdown
             availableCountries={availableCountries}
             selected={selectedCountries}
-            onChange={setSelectedCountries}
+            onChange={(next) => {
+              const codes = [...next];
+              router.push(
+                buildHref({
+                  countries: codes.length > 0 ? codes.join(",") : null,
+                }),
+              );
+            }}
           />
         </div>
       )}
@@ -320,8 +287,8 @@ export function ChannelTabs({
                   <p className="text-sm font-medium">Meta Ads</p>
                   <span className="text-xs text-muted-foreground">
                     ({metaAds.length}
-                    {metaCount > metaAds.length
-                      ? ` ${t("competitors", "ofTotal")} ${metaCount}`
+                    {filteredTotals.meta > metaAds.length
+                      ? ` ${t("competitors", "ofTotal")} ${filteredTotals.meta}`
                       : ""}
                     )
                   </span>
@@ -352,8 +319,8 @@ export function ChannelTabs({
                 <p className="text-sm font-medium">Google Ads</p>
                 <span className="text-xs text-muted-foreground">
                   ({googleAds.length}
-                  {googleCount > googleAds.length
-                    ? ` ${t("competitors", "ofTotal")} ${googleCount}`
+                  {filteredTotals.google > googleAds.length
+                    ? ` ${t("competitors", "ofTotal")} ${filteredTotals.google}`
                     : ""}
                   )
                 </span>
@@ -376,7 +343,7 @@ export function ChannelTabs({
                   {visibleAds.length}
                   {(() => {
                     const total =
-                      channel === "meta" ? metaCount : googleCount;
+                      channel === "meta" ? filteredTotals.meta : filteredTotals.google;
                     return total > visibleAds.length
                       ? ` ${t("competitors", "ofTotal")} ${total}`
                       : "";
