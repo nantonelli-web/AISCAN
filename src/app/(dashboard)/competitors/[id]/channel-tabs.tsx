@@ -116,9 +116,14 @@ export function ChannelTabs({
   // Split server-rendered ads by source so the "all" view can group
   // Meta and Google sections separately. Server has already applied
   // every active filter — no further client-side narrowing needed.
+  // Strict equality on source: filteredTotals.meta is computed via
+  // .eq("source", "meta") on the server, so the client filter must
+  // match exactly. Using `!== "google"` would pick up legacy rows
+  // with source=NULL and inflate metaAds.length past filteredTotals.meta,
+  // which silently hid the Load more button on brands with any null-source rows.
   const serverMetaAds = ads.filter((a) => {
     const src = (a as unknown as Record<string, unknown>).source;
-    return src !== "google";
+    return src === "meta";
   });
   const serverGoogleAds = ads.filter((a) => {
     const src = (a as unknown as Record<string, unknown>).source;
@@ -360,17 +365,17 @@ export function ChannelTabs({
                 ))}
               </div>
               {filteredTotals.meta > metaAds.length && (
-                <div className="flex justify-center pt-2 print:hidden">
+                <div className="flex justify-center pt-3 print:hidden">
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="lg"
                     onClick={() => loadMore("meta")}
                     disabled={loadingMore !== null}
-                    className="gap-2 cursor-pointer"
+                    className="gap-2 cursor-pointer min-w-[240px] h-12 text-sm font-medium"
                   >
                     {loadingMore === "meta" ? (
                       <>
-                        <Loader2 className="size-3.5 animate-spin" />
+                        <Loader2 className="size-4 animate-spin" />
                         {t("competitors", "loadingMore")}
                       </>
                     ) : (
@@ -401,17 +406,17 @@ export function ChannelTabs({
                 ))}
               </div>
               {filteredTotals.google > googleAds.length && (
-                <div className="flex justify-center pt-2 print:hidden">
+                <div className="flex justify-center pt-3 print:hidden">
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="lg"
                     onClick={() => loadMore("google")}
                     disabled={loadingMore !== null}
-                    className="gap-2 cursor-pointer"
+                    className="gap-2 cursor-pointer min-w-[240px] h-12 text-sm font-medium"
                   >
                     {loadingMore === "google" ? (
                       <>
-                        <Loader2 className="size-3.5 animate-spin" />
+                        <Loader2 className="size-4 animate-spin" />
                         {t("competitors", "loadingMore")}
                       </>
                     ) : (
@@ -463,17 +468,17 @@ export function ChannelTabs({
                 if (total <= visibleAds.length) return null;
                 const remaining = total - visibleAds.length;
                 return (
-                  <div className="flex justify-center pt-2 print:hidden">
+                  <div className="flex justify-center pt-3 print:hidden">
                     <Button
                       variant="outline"
-                      size="sm"
+                      size="lg"
                       onClick={() => loadMore(channel)}
                       disabled={loadingMore !== null}
-                      className="gap-2 cursor-pointer"
+                      className="gap-2 cursor-pointer min-w-[240px] h-12 text-sm font-medium"
                     >
                       {loadingMore === channel ? (
                         <>
-                          <Loader2 className="size-3.5 animate-spin" />
+                          <Loader2 className="size-4 animate-spin" />
                           {t("competitors", "loadingMore")}
                         </>
                       ) : (

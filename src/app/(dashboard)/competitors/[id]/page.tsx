@@ -370,7 +370,7 @@ export default async function CompetitorDetailPage({
         />
       </Suspense>
 
-      <div className="flex justify-center pt-2 print:hidden">
+      <div className="flex justify-end pt-2 print:hidden">
         <PrintButton label={t("common", "print")} variant="outline" />
       </div>
     </div>
