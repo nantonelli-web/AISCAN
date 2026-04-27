@@ -224,11 +224,227 @@ export async function GET(req: Request) {
       countryRowsTruncated: (countryRowsRes.data?.length ?? 0) >= 5000,
     };
 
+    // ── Media health: image / video / carousel diagnostics ──────
+    // Surfaces three classes of broken creatives:
+    //  - image_url is null → extraction failed at scrape time
+    //  - image_url is on fbcdn (not Supabase) → storeAdImages did
+    //    not run or failed; the URL will expire within hours/days
+    //  - displayFormat=VIDEO but video_url is null → video field
+    //    extraction failed (or actor changed shape)
+    //
+    // Light first pass: project only the columns we need across
+    // every Meta ad (capped at 5000 rows) to compute aggregates.
+    // Heavy second pass: pull a few full rows for each problem
+    // bucket so the user can see exactly what raw_data looks like.
+    const SAMPLE_CAP = 5000;
+    const { data: lightRows } = await admin
+      .from("mait_ads_external")
+      .select(
+        "id, image_url, video_url, status, displayFormat:raw_data->snapshot->>displayFormat",
+      )
+      .eq("workspace_id", wsId)
+      .eq("competitor_id", competitorId)
+      .eq("source", "meta")
+      .limit(SAMPLE_CAP);
+
+    type LightRow = {
+      id: string;
+      image_url: string | null;
+      video_url: string | null;
+      status: string | null;
+      displayFormat: string | null;
+    };
+    const rows = (lightRows ?? []) as LightRow[];
+
+    let imageWithSupabase = 0;
+    let imageWithFbcdn = 0;
+    let imageNull = 0;
+    let imageOther = 0;
+    let videosTotal = 0;
+    let videosWithUrl = 0;
+    const formatBreakdown: Record<string, number> = {};
+    for (const r of rows) {
+      // Image bucket
+      if (!r.image_url) imageNull++;
+      else if (r.image_url.includes("supabase.co/storage")) imageWithSupabase++;
+      else if (
+        r.image_url.includes("fbcdn.net") ||
+        r.image_url.includes("cdninstagram.com") ||
+        r.image_url.startsWith("https://scontent.")
+      )
+        imageWithFbcdn++;
+      else imageOther++;
+      // Video bucket
+      const fmt = (r.displayFormat ?? "").toUpperCase();
+      formatBreakdown[fmt || "(null)"] =
+        (formatBreakdown[fmt || "(null)"] ?? 0) + 1;
+      if (fmt === "VIDEO") {
+        videosTotal++;
+        if (r.video_url) videosWithUrl++;
+      }
+    }
+
+    // Heavy samples: 5 rows in each problem bucket with full
+    // raw_data so we can see exactly what came back from Apify.
+    // Each query is keyed off a different problem; running them in
+    // parallel keeps the latency tight.
+    const SAMPLE_FIELDS =
+      "id, ad_archive_id, headline, image_url, video_url, status, raw_data";
+    const [
+      { data: samplesNoImage },
+      { data: samplesFbcdnImage },
+      { data: samplesVideoNoUrl },
+      { data: samplesCarousel },
+    ] = await Promise.all([
+      admin
+        .from("mait_ads_external")
+        .select(SAMPLE_FIELDS)
+        .eq("workspace_id", wsId)
+        .eq("competitor_id", competitorId)
+        .eq("source", "meta")
+        .is("image_url", null)
+        .order("created_at", { ascending: false })
+        .limit(5),
+      admin
+        .from("mait_ads_external")
+        .select(SAMPLE_FIELDS)
+        .eq("workspace_id", wsId)
+        .eq("competitor_id", competitorId)
+        .eq("source", "meta")
+        .not("image_url", "is", null)
+        .not("image_url", "ilike", "%supabase%")
+        .order("created_at", { ascending: false })
+        .limit(5),
+      admin
+        .from("mait_ads_external")
+        .select(SAMPLE_FIELDS)
+        .eq("workspace_id", wsId)
+        .eq("competitor_id", competitorId)
+        .eq("source", "meta")
+        .filter("raw_data->snapshot->>displayFormat", "eq", "VIDEO")
+        .is("video_url", null)
+        .order("created_at", { ascending: false })
+        .limit(5),
+      // Carousel sample — the user reports some carousels also miss
+      // images. These have displayFormat in {DPA, DCO, CAROUSEL}.
+      // We pull samples regardless of image_url state so the user
+      // can compare a healthy carousel with a broken one.
+      admin
+        .from("mait_ads_external")
+        .select(SAMPLE_FIELDS)
+        .eq("workspace_id", wsId)
+        .eq("competitor_id", competitorId)
+        .eq("source", "meta")
+        .filter("raw_data->snapshot->>displayFormat", "in", "(DPA,DCO,CAROUSEL)")
+        .order("created_at", { ascending: false })
+        .limit(5),
+    ]);
+
+    // Slim the sample rows: raw_data is huge (50–200 KB each), but
+    // for diagnosis we only need the subset that drives the UI's
+    // image/video resolution. Project the JSON paths we care about
+    // and drop the rest.
+    type RawSample = {
+      id: string;
+      ad_archive_id: string | null;
+      headline: string | null;
+      image_url: string | null;
+      video_url: string | null;
+      status: string | null;
+      raw_data: Record<string, unknown> | null;
+    };
+    function slim(row: RawSample) {
+      const raw = (row.raw_data ?? {}) as Record<string, unknown>;
+      const snapshot = (raw.snapshot ?? {}) as Record<string, unknown>;
+      const cards = Array.isArray(snapshot.cards) ? snapshot.cards : [];
+      const images = Array.isArray(snapshot.images) ? snapshot.images : [];
+      const videos = Array.isArray(snapshot.videos) ? snapshot.videos : [];
+      const firstCard = (cards[0] ?? {}) as Record<string, unknown>;
+      const firstImage = (images[0] ?? {}) as Record<string, unknown>;
+      const firstVideo = (videos[0] ?? {}) as Record<string, unknown>;
+      return {
+        id: row.id,
+        ad_archive_id: row.ad_archive_id,
+        headline: row.headline,
+        status: row.status,
+        image_url: row.image_url,
+        video_url: row.video_url,
+        displayFormat: snapshot.displayFormat ?? null,
+        adSnapshotUrl: raw.adSnapshotUrl ?? null,
+        snapshot: {
+          cardCount: cards.length,
+          imageCount: images.length,
+          videoCount: videos.length,
+          firstCardImage:
+            (firstCard.originalImageUrl as string | null) ??
+            (firstCard.resizedImageUrl as string | null) ??
+            (firstCard.videoPreviewImageUrl as string | null) ??
+            null,
+          firstCardVideo:
+            (firstCard.videoHdUrl as string | null) ??
+            (firstCard.videoSdUrl as string | null) ??
+            null,
+          firstImageUrl:
+            (firstImage.originalImageUrl as string | null) ??
+            (firstImage.resizedImageUrl as string | null) ??
+            null,
+          firstVideoHd:
+            (firstVideo.videoHdUrl as string | null) ?? null,
+          firstVideoSd:
+            (firstVideo.videoSdUrl as string | null) ?? null,
+          firstVideoPreview:
+            (firstVideo.videoPreviewImageUrl as string | null) ?? null,
+        },
+      };
+    }
+
+    const mediaHealth = {
+      // Aggregates over up to SAMPLE_CAP Meta rows (truncated flag
+      // tells the user when their brand exceeds the cap)
+      sampledRows: rows.length,
+      sampledTruncated: rows.length >= SAMPLE_CAP,
+      imageHealth: {
+        withSupabaseUrl: imageWithSupabase,
+        withFbcdnUrl: imageWithFbcdn,
+        withOtherUrl: imageOther,
+        nullImageUrl: imageNull,
+        // Broken = anything that is not a permanent Supabase URL.
+        // fbcdn is the dominant case; "other" is hosts we have not
+        // explicitly classified yet (worth investigating if non-zero).
+        likelyBrokenPct:
+          rows.length > 0
+            ? Math.round(
+                ((imageWithFbcdn + imageOther + imageNull) / rows.length) * 100,
+              )
+            : 0,
+      },
+      videoHealth: {
+        videosTotal,
+        videosWithUrl,
+        videosWithoutUrl: videosTotal - videosWithUrl,
+        // No videos are persisted — every video_url points at fbcdn
+        // and expires within hours. The CSP fix unblocks playback;
+        // permanent storage is still TODO if we want videos to last.
+        note:
+          "video_url points directly at fbcdn — expires after a few hours. CSP media-src fix lets fresh videos play; older ones may still 404 from CDN.",
+      },
+      formatBreakdown,
+      samples: {
+        withoutImage: (samplesNoImage as RawSample[] | null)?.map(slim) ?? [],
+        withFbcdnImage:
+          (samplesFbcdnImage as RawSample[] | null)?.map(slim) ?? [],
+        videoFormatNoUrl:
+          (samplesVideoNoUrl as RawSample[] | null)?.map(slim) ?? [],
+        carousel: (samplesCarousel as RawSample[] | null)?.map(slim) ?? [],
+      },
+    };
+
     return NextResponse.json({
       ok: true,
       competitor,
       summary,
       dbStats,
+      mediaHealth,
       jobs: annotatedJobs,
     });
   } catch (e) {
