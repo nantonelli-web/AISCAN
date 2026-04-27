@@ -573,6 +573,7 @@ const translations = {
     applyRange: { it: "Applica", en: "Apply" },
     resetRange: { it: "Reset", en: "Reset" },
     latestAds: { it: "Ultime ads", en: "Latest ads" },
+    noPreview: { it: "Nessuna anteprima", en: "No preview" },
     // Organic-specific Technical tab keys
     totalPosts: { it: "Post totali", en: "Total posts" },
     postsPerWeek: { it: "Frequenza post", en: "Posting cadence" },

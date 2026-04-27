@@ -68,6 +68,8 @@ interface AdsCompStats {
   latestAds: {
     headline: string | null;
     image_url: string | null;
+    video_url: string | null;
+    ad_text: string | null;
     ad_archive_id: string;
   }[];
 }
@@ -1745,31 +1747,64 @@ function AdsTechnicalView({
             {stats.map((s) => (
               <div key={s.id} className="space-y-3">
                 <p className="text-xs font-medium text-gold">{s.name}</p>
-                {s.latestAds.slice(0, 3).map((ad) => (
-                  <a
-                    key={ad.ad_archive_id}
-                    href={`https://www.facebook.com/ads/library/?id=${ad.ad_archive_id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block rounded-lg border border-border overflow-hidden hover:border-gold/40 transition-colors"
-                  >
-                    {ad.image_url && !ad.image_url.includes("/render_ad/") ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={ad.image_url}
-                        alt=""
-                        className="w-full aspect-video object-cover"
-                      />
-                    ) : (
-                      <div className="aspect-video bg-muted grid place-items-center text-xs text-muted-foreground">
-                        {ad.headline ?? "Ad"}
-                      </div>
-                    )}
-                    {ad.headline && (
-                      <p className="p-2 text-xs line-clamp-1">{ad.headline}</p>
-                    )}
-                  </a>
-                ))}
+                {s.latestAds.slice(0, 3).map((ad) => {
+                  // Resolve preview media in priority order so video
+                  // creatives (which previously fell through to the
+                  // "Ad" placeholder when image_url was null) actually
+                  // render. /render_ad/ is Meta's HTML iframe URL —
+                  // not a real image, treat as missing.
+                  const hasImage =
+                    ad.image_url && !ad.image_url.includes("/render_ad/");
+                  const hasVideo = !!ad.video_url;
+                  return (
+                    <a
+                      key={ad.ad_archive_id}
+                      href={`https://www.facebook.com/ads/library/?id=${ad.ad_archive_id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block rounded-lg border border-border overflow-hidden hover:border-gold/40 transition-colors"
+                    >
+                      {hasImage ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={ad.image_url!}
+                          alt=""
+                          className="w-full aspect-video object-cover"
+                        />
+                      ) : hasVideo ? (
+                        <video
+                          src={ad.video_url!}
+                          className="w-full aspect-video object-cover bg-black"
+                          muted
+                          playsInline
+                          preload="metadata"
+                        />
+                      ) : (
+                        // No media at all — text-only creative. Show a
+                        // styled preview with the headline / first line
+                        // of copy so the tile is not just "Ad".
+                        <div className="aspect-video bg-muted px-3 py-2 flex flex-col justify-between gap-1 text-[11px] leading-tight">
+                          {ad.headline && (
+                            <p className="font-semibold line-clamp-2">{ad.headline}</p>
+                          )}
+                          {ad.ad_text && (
+                            <p className="text-muted-foreground line-clamp-3">
+                              {ad.ad_text}
+                            </p>
+                          )}
+                          {!ad.headline && !ad.ad_text && (
+                            <span className="m-auto text-muted-foreground">
+                              {t("compare", "noPreview")}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {ad.headline && (
+                        <p className="p-2 text-xs line-clamp-1">{ad.headline}</p>
+                      )}
+                    </a>
+                  );
+                })}
               </div>
             ))}
           </div>

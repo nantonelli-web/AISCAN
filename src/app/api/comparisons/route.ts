@@ -29,8 +29,11 @@ export const maxDuration = 300;
  *   - v2: shared duration / CTA / format helpers — sub-day campaigns
  *         now count as 1 day instead of being dropped, format mix
  *         uses the displayFormat-aware classifier
+ *   - v3: latestAds payload includes video_url + ad_text so the
+ *         Compare grid can render video creatives + text-only
+ *         fallbacks instead of the empty "Ad" placeholder
  */
-const CURRENT_DATA_VERSION = 2;
+const CURRENT_DATA_VERSION = 3;
 
 /* ── Schemas ─────────────────────────────────────────────── */
 
@@ -262,7 +265,12 @@ async function computeTechnicalStats(
       }).length;
       const adsPerWeek = Math.round((recent / weeks) * 10) / 10;
 
-      // Latest ads
+      // Latest ads. Many Marina-style brands run video creatives where
+      // image_url is null but video_url has the asset; without
+      // exposing video_url here the Compare grid would fall back to
+      // the empty "Ad" placeholder for every video. Carry both, plus
+      // ad_text as a copy-only fallback for text-heavy creatives that
+      // ship without any media.
       const latestAds = adsList
         .sort(
           (a, b) =>
@@ -273,6 +281,8 @@ async function computeTechnicalStats(
         .map((a) => ({
           headline: a.headline,
           image_url: a.image_url,
+          video_url: a.video_url,
+          ad_text: a.ad_text,
           ad_archive_id: a.ad_archive_id,
         }));
 
