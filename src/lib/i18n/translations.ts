@@ -825,12 +825,12 @@ const translations = {
     paidChannels: { it: "Paid", en: "Paid" },
     organicChannels: { it: "Organic", en: "Organic" },
     noScanWarningTitle: {
-      it: "Brand senza scansioni {channel}",
-      en: "Brands with no {channel} scans",
+      it: "Brand non visibili nei grafici {channel}",
+      en: "Brands missing from {channel} charts",
     },
     noScanWarningBody: {
-      it: "Questi brand non hanno scansioni del canale {channel} e non compaiono nei grafici sotto. Lancia uno scan per includerli nel confronto.",
-      en: "These brands have no {channel} scans and are missing from the charts below. Run a scan to include them in the comparison.",
+      it: "Questi brand non compaiono nei grafici sotto. Possibili motivi: non sono mai stati scansionati per {channel}, oppure non hanno ad nei paesi, nello stato (Attive/Non attive) o nel periodo selezionati. Lancia uno scan o allenta i filtri per includerli nel confronto.",
+      en: "These brands are missing from the charts below. Possible reasons: they were never scanned for {channel}, or they have no ads in the selected countries, status (Active/Inactive) or date range. Run a scan or relax the filters to include them.",
     },
     coverageWarningTitle: { it: "Attenzione: copertura non uniforme tra i brand", en: "Warning: uneven scan coverage between brands" },
     coverageWarningBody: {
