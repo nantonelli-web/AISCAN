@@ -42,6 +42,25 @@ function isPrivateIpv6(ip: string): boolean {
   return false;
 }
 
+/**
+ * Hostnames we trust to be public CDNs by definition. Skipping the
+ * DNS check for these is safe (they cannot point at internal infra)
+ * and necessary because some Facebook edge nodes (e.g. *.fna.fbcdn.net
+ * regional appliances) do not always resolve from a Vercel datacenter
+ * — the lookup throws, isPublicHttpUrl returns false, and the image
+ * is silently dropped. Production data showed ~12% of Sezane Meta
+ * ads losing their image_url to exactly this path.
+ */
+const TRUSTED_CDN_HOST_PATTERNS = [
+  /(?:^|\.)fbcdn\.net$/,
+  /(?:^|\.)cdninstagram\.com$/,
+  /(?:^|\.)scontent\..*$/,
+];
+
+function hostIsTrustedCdn(host: string): boolean {
+  return TRUSTED_CDN_HOST_PATTERNS.some((p) => p.test(host));
+}
+
 async function isPublicHttpUrl(rawUrl: string): Promise<boolean> {
   let u: URL;
   try { u = new URL(rawUrl); } catch { return false; }
@@ -52,7 +71,10 @@ async function isPublicHttpUrl(rawUrl: string): Promise<boolean> {
   const ipVer = isIP(host);
   if (ipVer === 4) return !isPrivateIpv4(host);
   if (ipVer === 6) return !isPrivateIpv6(host);
-  // DNS resolve
+  // Public CDN allowlist: skip DNS resolution. The fetch itself has
+  // a timeout, so unreachable nodes still fail safely.
+  if (hostIsTrustedCdn(host)) return true;
+  // DNS resolve for everything else (catches user-supplied URLs)
   try {
     const { address, family } = await lookup(host);
     if (family === 4) return !isPrivateIpv4(address);

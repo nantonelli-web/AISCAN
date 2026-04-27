@@ -479,13 +479,18 @@ function normalize(ad: RawAd): NormalizedAd {
   const firstImage = snap?.images?.[0];
   const firstVideo = snap?.videos?.[0];
 
-  // Extract image: cards > snapshot.images > snapshot.extraImages
+  // Extract image: cards > snapshot.images > snapshot.videos[].preview
+  // > extraImages. The firstVideo.videoPreviewImageUrl fallback covers
+  // VIDEO-only ads (cardCount=0, imageCount=0, videoCount>=1) which
+  // would otherwise land with image_url=null and render as an empty
+  // placeholder. Meta always ships a preview JPG with each video.
   const imageUrl =
     card?.originalImageUrl ??
     card?.resizedImageUrl ??
     card?.videoPreviewImageUrl ??
     firstImage?.originalImageUrl ??
     firstImage?.resizedImageUrl ??
+    firstVideo?.videoPreviewImageUrl ??
     snap?.extraImages?.[0]?.originalImageUrl ??
     snap?.extraImages?.[0]?.resizedImageUrl ??
     null;
