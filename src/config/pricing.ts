@@ -2,18 +2,17 @@
 // AISCAN -- Pricing & Credit Configuration
 // ---------------------------------------------------------------------------
 //
-// Pricing model (since 2026-04-28): credit packs, one-time payment.
-// The previous subscription tiers (Scout/Analyst/Strategist/Agency)
-// were retired in favour of a pure pay-as-you-go pack model — same
-// formula AICREA uses. Every workspace owner still gets a free
-// monthly allowance (`MONTHLY_FREE_CREDITS`) so trial users can
-// onboard without a card; on top of that, packs are perpetual top-ups
-// purchased via Stripe Checkout.
+// Pricing model (since 2026-04-28): credit packs, manual recharge.
+// Mirrors the AICREA flow 1:1 — same packs, same prices, same
+// "click pack → email a request to admin → admin fulfils manually"
+// mechanism. NO online payment is currently surfaced; the customer
+// pays offline (bonifico, etc.) and the admin grants credits after
+// receiving the funds.
 //
 // The legacy `SubscriptionTier` type is kept ONLY because the DB
 // column `mait_users.subscription_tier` still exists; new accounts
-// land on "scout" and stay there. Subscription endpoints are no
-// longer surfaced in the UI.
+// land on "scout" and stay there. Every workspace owner gets a
+// free monthly allowance (`MONTHLY_FREE_CREDITS`) regardless.
 // ---------------------------------------------------------------------------
 
 export type SubscriptionTier = 'scout' | 'analyst' | 'strategist' | 'agency';
@@ -42,81 +41,48 @@ export type CreditAction =
 export const MONTHLY_FREE_CREDITS = 10;
 
 // ---------------------------------------------------------------------------
-// Credit packs (one-time top-ups)
+// Credit packs (manual recharge, AICREA-style)
 // ---------------------------------------------------------------------------
-
-export type CreditPackId = 'starter' | 'pro' | 'business' | 'agency';
+// Same packs and prices as AICREA so the two products share a pricing
+// surface and customers can move between them without rethinking the
+// economics. Recharge happens offline — the user picks a pack, the
+// app emails the request to the AISCAN admin and persists it on
+// `mait_credit_requests`; the admin then fulfils manually via the
+// existing `mait_add_credits` RPC.
 
 export interface CreditPack {
-  id: CreditPackId;
-  name: string;
-  /** Credits added to the workspace balance on successful payment. */
+  /** Credits added to the workspace balance once the admin fulfils. */
   credits: number;
-  /** Total price the user pays in USD. */
-  priceUsd: number;
-  /** Display tagline rendered under the price. Free-form, locale-neutral. */
-  tagline: string;
-  /** When true, the UI highlights this pack as the recommended choice. */
-  popular?: boolean;
-  /** Stripe Price ID env var name. The actual price id lives in
-   *  Vercel env vars (one per pack), so rotating Stripe products does
-   *  not require a code redeploy — only an env update. */
-  stripePriceEnv: string;
+  /** Gross EUR price the customer is invoiced. */
+  priceEur: number;
+  /** Discount badge value vs the smallest pack (0 = no badge). */
+  savingsPercent: number;
 }
 
-/** Effective $/credit for a pack — useful for the UI to render
- *  "$0.36 per credit" tooltips and bulk-discount badges. */
+/** Effective €/credit for a pack — used by the UI for the per-credit
+ *  unit price under each card. */
 export function pricePerCredit(pack: CreditPack): number {
-  return pack.priceUsd / pack.credits;
+  return pack.priceEur / pack.credits;
 }
 
-/** Pack catalogue — proposal B from the pricing discussion on
- *  2026-04-28. Numbers anchor on the previous subscription rate
- *  (~$0.36/credit) and gain progressive bulk discount up to ~20%
- *  on the Agency pack. */
+/** Pack catalogue — copied from AICREA. The largest pack (1000) is
+ *  rendered as "best value" rather than the middle one. */
 export const creditPacks: CreditPack[] = [
-  {
-    id: 'starter',
-    name: 'Starter',
-    credits: 25,
-    priceUsd: 10,
-    tagline: '$0.40 per credit · trial volume',
-    stripePriceEnv: 'STRIPE_PRICE_PACK_STARTER',
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    credits: 80,
-    priceUsd: 29,
-    tagline: '$0.363 per credit',
-    popular: true,
-    stripePriceEnv: 'STRIPE_PRICE_PACK_PRO',
-  },
-  {
-    id: 'business',
-    name: 'Business',
-    credits: 250,
-    priceUsd: 79,
-    tagline: '$0.316 per credit · 13% off',
-    stripePriceEnv: 'STRIPE_PRICE_PACK_BUSINESS',
-  },
-  {
-    id: 'agency',
-    name: 'Agency',
-    credits: 650,
-    priceUsd: 189,
-    tagline: '$0.291 per credit · 20% off',
-    stripePriceEnv: 'STRIPE_PRICE_PACK_AGENCY',
-  },
+  { credits: 50,   priceEur: 15,  savingsPercent: 0 },
+  { credits: 100,  priceEur: 25,  savingsPercent: 17 },
+  { credits: 250,  priceEur: 55,  savingsPercent: 27 },
+  { credits: 500,  priceEur: 99,  savingsPercent: 34 },
+  { credits: 1000, priceEur: 179, savingsPercent: 40 },
 ];
 
-/** Lookup by id with a clear error so we never silently fall
- *  through to undefined when a malformed payload reaches the
- *  checkout endpoint. */
-export function getCreditPack(id: string): CreditPack {
-  const pack = creditPacks.find((p) => p.id === id);
+/** Lookup by credits — when a request payload arrives, we trust only
+ *  numeric credits (not arbitrary metadata) and look up the canonical
+ *  price server-side. Throws on unknown packs so a forged payload
+ *  cannot fabricate a 999999-credit request. */
+export function getCreditPack(credits: number): CreditPack {
+  const pack = creditPacks.find((p) => p.credits === credits);
   if (!pack) {
-    throw new Error(`Unknown credit pack: ${id}`);
+    throw new Error(`Unknown credit pack: ${credits} credits`);
   }
   return pack;
 }
