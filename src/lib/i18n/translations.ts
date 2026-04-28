@@ -93,11 +93,13 @@ const translations = {
     // Pricing
     pricingTitle: { it: "Pack di crediti", en: "Credit packs" },
     pricingSubtitle: {
-      it: "Paga solo quando ti serve. Una tantum, nessun abbonamento, i crediti non scadono.",
-      en: "Pay as you go. One-time, no subscription, credits never expire.",
+      it: "Scegli il pack che ti serve. Ti contattiamo via email per il pagamento, i crediti non scadono.",
+      en: "Pick the pack you need. We will email you for payment, credits never expire.",
     },
     pricingOneTime: { it: "una tantum", en: "one-time" },
     pricingCreditsLabel: { it: "crediti", en: "credits" },
+    pricingPerCredit: { it: "/ credito", en: "/ credit" },
+    pricingBestValue: { it: "Migliore", en: "Best value" },
     pricingPerk1: { it: "I crediti non scadono", en: "Credits never expire" },
     pricingPerk2: { it: "Tutti i canali inclusi", en: "All channels included" },
     pricingPerk3: { it: "Suite AI completa", en: "Full AI suite" },
@@ -1383,24 +1385,26 @@ const translations = {
     // Recharge module
     rechargeTitle: { it: "Ricarica crediti", en: "Top up credits" },
     rechargeSubtitle: {
-      it: "Acquista un pack una tantum. Nessun abbonamento, i crediti non scadono.",
-      en: "Buy a pack once. No subscription, credits never expire.",
+      it: "Scegli un pack: ti contattiamo via email per il pagamento e poi accreditiamo i crediti sul tuo workspace.",
+      en: "Pick a pack: we will email you for payment, then credit your workspace once we receive the funds.",
+    },
+    rechargeOfflineHint: {
+      it: "Pagamento offline (bonifico). Nessun addebito immediato. I crediti acquistati non scadono.",
+      en: "Offline payment (bank transfer). No immediate charge. Purchased credits never expire.",
     },
     creditsUnit: { it: "crediti", en: "credits" },
-    popularBadge: { it: "Più scelto", en: "Most popular" },
-    buyButton: { it: "Acquista", en: "Buy" },
-    redirecting: { it: "Apertura Stripe…", en: "Opening Stripe…" },
-    rechargeSuccess: {
-      it: "Pagamento ricevuto. I crediti saranno disponibili tra pochi secondi.",
-      en: "Payment received. Credits will land within a few seconds.",
-    },
-    rechargeCancelled: {
-      it: "Ricarica annullata.",
-      en: "Recharge cancelled.",
+    perCredit: { it: "per credito", en: "per credit" },
+    popularBadge: { it: "Piu scelto", en: "Most popular" },
+    bestValue: { it: "Migliore", en: "Best value" },
+    requestButton: { it: "Richiedi", en: "Request" },
+    sendingRequest: { it: "Invio...", en: "Sending..." },
+    rechargeRequestSent: {
+      it: "Richiesta inviata. Ti contatteremo via email a breve.",
+      en: "Request sent. We will contact you via email shortly.",
     },
     rechargeError: {
-      it: "Errore durante la creazione della sessione di pagamento.",
-      en: "Error while creating the payment session.",
+      it: "Errore durante l'invio della richiesta. Riprova.",
+      en: "Error while submitting the request. Try again.",
     },
   },
 

@@ -238,3 +238,124 @@ export async function sendWeeklyDigest(
     html,
   });
 }
+
+/* ── Credit recharge request ─────────────────────────────── */
+
+export interface CreditRechargeEmailData {
+  /** End-user details so the admin can identify who to contact. */
+  userName: string;
+  userEmail: string;
+  /** Workspace name + id — useful when an admin manages many workspaces. */
+  workspaceName: string;
+  workspaceId: string;
+  /** Pack details. Re-resolved server-side from `pricing.ts` to
+   *  prevent a forged client payload from spoofing the price. */
+  credits: number;
+  priceEur: number;
+  /** Direct link to the admin requests panel so the admin can
+   *  fulfil with one click. */
+  adminPanelUrl: string;
+}
+
+/**
+ * Notify the AISCAN admin (defaults to aiscan@nimadigital.ae, can be
+ * overridden via CREDITS_REQUEST_EMAIL env var) that a workspace has
+ * requested a credit recharge. Mirrors the AICREA layout so the two
+ * inboxes feel consistent.
+ *
+ * The email is fire-and-forget: failures are logged but do not block
+ * the API response — the request row is already in the DB, so the
+ * admin can also see it from the panel even if Resend is misbehaving.
+ */
+export async function sendCreditRechargeRequest(
+  data: CreditRechargeEmailData,
+): Promise<void> {
+  const resend = getResend();
+  if (!resend) {
+    console.error(
+      "[Resend] RESEND_API_KEY missing — credit recharge email NOT sent",
+    );
+    return;
+  }
+
+  const to = process.env.CREDITS_REQUEST_EMAIL ?? "aiscan@nimadigital.ae";
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:${EMAIL_BG};color:${TEXT_PRIMARY};font-family:-apple-system,system-ui,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <div style="max-width:600px;margin:0 auto;padding:32px 24px;">
+    <div style="text-align:center;margin-bottom:24px;">
+      <img src="${LOGO_URL}" alt="AISCAN" height="40" style="display:inline-block;height:40px;width:auto;border:0;outline:none;text-decoration:none;" />
+    </div>
+
+    <div style="background:${CARD_BG};border:1px solid ${CARD_BORDER};border-radius:12px;padding:24px;margin-bottom:24px;">
+      <h1 style="margin:0 0 8px;font-size:20px;color:${TEXT_PRIMARY};">
+        Richiesta ricarica crediti
+      </h1>
+      <p style="margin:0;color:${TEXT_MUTED};font-size:14px;">
+        Un workspace ha chiesto di acquistare un pack.
+      </p>
+    </div>
+
+    <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+      <tr>
+        <td style="padding:8px 0;color:${TEXT_MUTED};width:140px;">Cliente</td>
+        <td style="padding:8px 0;font-weight:600;color:${TEXT_PRIMARY};">${esc(data.userName)}</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 0;color:${TEXT_MUTED};">Email</td>
+        <td style="padding:8px 0;"><a href="mailto:${esc(data.userEmail)}" style="color:${BRAND};text-decoration:none;">${esc(data.userEmail)}</a></td>
+      </tr>
+      <tr>
+        <td style="padding:8px 0;color:${TEXT_MUTED};">Workspace</td>
+        <td style="padding:8px 0;font-weight:500;color:${TEXT_PRIMARY};">${esc(data.workspaceName)}</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 0;color:${TEXT_MUTED};">Crediti richiesti</td>
+        <td style="padding:8px 0;font-weight:700;font-size:18px;color:${TEXT_PRIMARY};">${data.credits.toLocaleString("it-IT")}</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 0;color:${TEXT_MUTED};">Prezzo pack</td>
+        <td style="padding:8px 0;font-weight:700;font-size:18px;color:${TEXT_PRIMARY};">€${data.priceEur.toFixed(2)}</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 0;color:${TEXT_MUTED};">Data</td>
+        <td style="padding:8px 0;color:${TEXT_PRIMARY};">${new Date().toLocaleString("it-IT", { dateStyle: "long", timeStyle: "short" })}</td>
+      </tr>
+    </table>
+
+    <p style="margin:0 0 16px;color:${TEXT_MUTED};font-size:13px;line-height:1.5;">
+      Rispondi a questa email per contattare il cliente direttamente.
+    </p>
+
+    <div style="text-align:center;margin-top:24px;">
+      <a href="${safeUrl(data.adminPanelUrl)}" style="display:inline-block;background:${BRAND};color:${BRAND_FG};font-size:14px;font-weight:600;padding:10px 24px;border-radius:8px;text-decoration:none;">
+        Apri admin panel
+      </a>
+    </div>
+
+    <p style="text-align:center;margin-top:32px;font-size:10px;color:${FOOTER_MUTED};letter-spacing:0.1em;text-transform:uppercase;">
+      NIMA Digital Consulting FZCO · Dubai
+    </p>
+  </div>
+</body>
+</html>`;
+
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to: [to],
+      replyTo: data.userEmail,
+      subject: safeSubject(
+        `[AISCAN] Richiesta ricarica - ${data.credits} crediti (€${data.priceEur})`,
+      ),
+      html,
+    });
+  } catch (e) {
+    // Log only — the DB row is the source of truth, the admin will
+    // see the request from the panel anyway.
+    console.error("[Resend] sendCreditRechargeRequest failed:", e);
+  }
+}

@@ -265,46 +265,39 @@ export default async function LandingPage() {
             </p>
           </div>
 
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {creditPacks.map((pack) => {
-              const perCredit = (pack.priceUsd / pack.credits).toFixed(3);
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
+            {creditPacks.map((pack, idx) => {
+              const isLast = idx === creditPacks.length - 1;
+              const perCredit = (pack.priceEur / pack.credits).toFixed(2);
               return (
                 <div
-                  key={pack.id}
-                  className={`rounded-xl border p-6 flex flex-col transition-all duration-300 hover:shadow-[0_10px_40px_rgba(212,168,67,0.05)] ${
-                    pack.popular
+                  key={pack.credits}
+                  className={`rounded-xl border p-5 flex flex-col items-center text-center transition-all duration-300 hover:shadow-[0_10px_40px_rgba(212,168,67,0.05)] relative ${
+                    isLast
                       ? "border-gold bg-gold/5 ring-1 ring-gold/30"
                       : "border-border bg-card hover:border-gold/30"
                   }`}
                 >
-                  {pack.popular && (
-                    <span className="text-[10px] uppercase tracking-wider text-gold font-semibold mb-3">
-                      {t("landing", "pricingPopular")}
+                  {pack.savingsPercent > 0 && (
+                    <span className={`absolute -top-2 left-1/2 -translate-x-1/2 text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md font-semibold ${
+                      isLast
+                        ? "bg-gold text-black"
+                        : "bg-muted text-foreground border border-border"
+                    }`}>
+                      {isLast ? t("landing", "pricingBestValue") : `−${pack.savingsPercent}%`}
                     </span>
                   )}
-                  <h3 className="text-lg font-semibold">{pack.name}</h3>
-                  <div className="mt-3 mb-1">
-                    <span className="text-4xl font-serif">${pack.priceUsd}</span>
-                    <span className="text-sm text-muted-foreground"> {t("landing", "pricingOneTime")}</span>
+                  <div className="text-2xl font-serif mt-2">
+                    {pack.credits.toLocaleString("it-IT")}
                   </div>
-                  <p className="text-xs text-muted-foreground mb-4">
-                    {pack.credits} {t("landing", "pricingCreditsLabel")} · ${perCredit}/credit
+                  <p className="text-xs text-muted-foreground mb-3">
+                    {t("landing", "pricingCreditsLabel")}
                   </p>
-                  <ul className="space-y-2 mb-6 flex-1 text-sm text-muted-foreground">
-                    <li className="flex items-start gap-2">
-                      <Check className="size-4 text-gold shrink-0 mt-0.5" />
-                      <span>{t("landing", "pricingPerk1")}</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Check className="size-4 text-gold shrink-0 mt-0.5" />
-                      <span>{t("landing", "pricingPerk2")}</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Check className="size-4 text-gold shrink-0 mt-0.5" />
-                      <span>{t("landing", "pricingPerk3")}</span>
-                    </li>
-                  </ul>
-                  <Button asChild variant={pack.popular ? "default" : "outline"} className="w-full">
+                  <div className="text-2xl font-semibold text-gold mb-1">€{pack.priceEur}</div>
+                  <p className="text-[11px] text-muted-foreground mb-5">
+                    €{perCredit} {t("landing", "pricingPerCredit")}
+                  </p>
+                  <Button asChild variant={isLast ? "default" : "outline"} size="sm" className="w-full mt-auto">
                     <Link href="/register">{t("landing", "pricingCtaPaid")}</Link>
                   </Button>
                 </div>
