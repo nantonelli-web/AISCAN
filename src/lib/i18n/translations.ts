@@ -1284,6 +1284,7 @@ const translations = {
     totalViews: { it: "Views totali", en: "Total views" },
     totalPosts: { it: "Post organici", en: "Organic posts" },
     viewOnInstagram: { it: "Instagram", en: "Instagram" },
+    viewOnTiktok: { it: "TikTok", en: "TikTok" },
     posts: { it: "post", en: "posts" },
     postsLabel: { it: "Post", en: "Posts" },
     avgViews: { it: "Views medie", en: "Avg. views" },

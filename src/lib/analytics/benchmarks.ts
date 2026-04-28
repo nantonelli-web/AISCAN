@@ -1420,7 +1420,7 @@ export async function computeOrganicBenchmarks(
     { reelCount: number; originalAudio: number; trendingAudio: number }
   >();
   const trendingAudioCounts = new Map<string, number>();
-  let allReelDurations: number[] = [];
+  const allReelDurations: number[] = [];
 
   for (const p of posts) {
     const isReel = (p.post_type ?? "").toLowerCase() === "reel";

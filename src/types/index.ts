@@ -111,3 +111,34 @@ export interface MaitOrganicPost {
   raw_data: Record<string, unknown> | null;
   created_at: string;
 }
+
+export interface MaitTikTokPost {
+  id: string;
+  workspace_id: string;
+  competitor_id: string | null;
+  post_id: string;
+  post_url: string | null;
+  caption: string | null;
+  text_language: string | null;
+  cover_url: string | null;
+  video_url: string | null;
+  duration_seconds: number | null;
+  is_slideshow: boolean;
+  is_pinned: boolean;
+  is_ad: boolean;
+  is_sponsored: boolean;
+  play_count: number;
+  digg_count: number;
+  share_count: number;
+  comment_count: number;
+  collect_count: number;
+  music_id: string | null;
+  music_name: string | null;
+  music_author: string | null;
+  music_original: boolean | null;
+  hashtags: string[];
+  mentions: string[];
+  posted_at: string | null;
+  raw_data: Record<string, unknown> | null;
+  created_at: string;
+}

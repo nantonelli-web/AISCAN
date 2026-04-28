@@ -18,11 +18,11 @@ import type { MaitCompetitor, MaitScrapeJob } from "@/types";
 
 export const dynamic = "force-dynamic";
 
-type TabFilter = "all" | "meta" | "google" | "instagram";
+type TabFilter = "all" | "meta" | "google" | "instagram" | "tiktok";
 type StatusFilter = "active" | "inactive" | null;
 
 function parseTab(raw: string | string[] | undefined): TabFilter {
-  if (raw === "meta" || raw === "google" || raw === "instagram") return raw;
+  if (raw === "meta" || raw === "google" || raw === "instagram" || raw === "tiktok") return raw;
   return "all";
 }
 function parseStatus(raw: string | string[] | undefined): StatusFilter {
@@ -71,6 +71,7 @@ export default async function CompetitorDetailPage({
     { count: metaActiveCount },
     { count: googleActiveCount },
     { count: postCount },
+    { count: tiktokPostCount },
     { count: jobCount },
     { count: comparisonCount },
     { data: latestAd },
@@ -124,6 +125,10 @@ export default async function CompetitorDetailPage({
       .select("id", { count: "exact", head: true })
       .eq("competitor_id", id),
     supabase
+      .from("mait_tiktok_posts")
+      .select("id", { count: "exact", head: true })
+      .eq("competitor_id", id),
+    supabase
       .from("mait_scrape_jobs")
       .select("id", { count: "exact", head: true })
       .eq("competitor_id", id),
@@ -169,14 +174,16 @@ export default async function CompetitorDetailPage({
   const organicTotal = postCount ?? 0;
   const deleteCounts = {
     ads: metaTotal + googleTotal,
-    posts: organicTotal,
+    posts: organicTotal + (tiktokPostCount ?? 0),
     jobs: jobCount ?? 0,
     comparisons: comparisonCount ?? 0,
   };
+  const tiktokTotal = tiktokPostCount ?? 0;
   const channelTotals = {
     meta: metaTotal,
     google: googleTotal,
     instagram: organicTotal,
+    tiktok: tiktokTotal,
   };
   const activeTotals = {
     meta: metaActiveCount ?? 0,

@@ -7,17 +7,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AdCard } from "@/components/ads/ad-card";
 import { OrganicPostCard } from "@/components/organic/organic-post-card";
+import { TikTokPostCard } from "@/components/organic/tiktok-post-card";
 import { TagButton } from "@/components/ads/tag-button";
 import { AI_TAGS_ENABLED } from "@/config/features";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
+import { TikTokIcon } from "@/components/ui/tiktok-icon";
 import { Download, Loader2 } from "lucide-react";
 import { formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { CountryFilterDropdown } from "./country-filter-dropdown";
-import type { MaitAdExternal, MaitOrganicPost } from "@/types";
+import type { MaitAdExternal, MaitOrganicPost, MaitTikTokPost } from "@/types";
 
-type Channel = "all" | "meta" | "google" | "instagram";
+type Channel = "all" | "meta" | "google" | "instagram" | "tiktok";
 type Status = "all" | "active" | "inactive";
 
 /* ─── Platform icons (small, inline) ─── */
@@ -39,10 +41,11 @@ interface Props {
   competitorId: string;
   ads: MaitAdExternal[];
   organicPosts: MaitOrganicPost[];
+  tiktokPosts: MaitTikTokPost[];
   /** DB-wide totals per channel — drive the filter chip badges so the
    *  user sees the real count for the brand, not the lazy-loaded
    *  array length (which is capped at 30 for performance). */
-  channelTotals: { meta: number; google: number; instagram: number };
+  channelTotals: { meta: number; google: number; instagram: number; tiktok: number };
   /** DB-wide active-only counts per source — fed to the Status pill
    *  so the Active badge matches the brand reality, not the loaded
    *  sample. Inactive = total − active. */
@@ -54,7 +57,7 @@ interface Props {
   /** URL-driven filter state. Pills navigate the URL; the server
    *  re-runs the ads query with these applied so the 30-row cap
    *  operates AFTER filtering. */
-  tab: "all" | "meta" | "google" | "instagram";
+  tab: "all" | "meta" | "google" | "instagram" | "tiktok";
   statusFilter: "active" | "inactive" | null;
   countriesFilter: string[];
   /** Brand-wide country list (from page shell, not the loaded
@@ -70,12 +73,19 @@ interface Props {
     avgComments: number | null;
     totalViews: number;
   };
+  tiktokStats: {
+    count: number;
+    avgLikes: number | null;
+    avgComments: number | null;
+    totalViews: number;
+  };
 }
 
 export function ChannelTabs({
   competitorId,
   ads,
   organicPosts,
+  tiktokPosts,
   channelTotals,
   activeTotals,
   filteredTotals,
@@ -84,6 +94,7 @@ export function ChannelTabs({
   statusFilter,
   countriesFilter,
   organicStats,
+  tiktokStats,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -131,6 +142,9 @@ export function ChannelTabs({
     return src === "google";
   });
 
+  // Country filter only narrows Meta ads (Google rows have NULL
+  // scan_countries; Instagram and TikTok do not carry the column).
+  // Showing it on those tabs would imply a filter that does nothing.
   const showCountryFilter =
     availableCountries.length > 0 &&
     (channel === "all" || channel === "meta");
@@ -207,24 +221,26 @@ export function ChannelTabs({
         ? activeTotals.google
         : Math.max(0, channelTotals.google - activeTotals.google);
   const instagramCount = channelTotals.instagram;
+  const tiktokCount = channelTotals.tiktok;
 
   const tabs: { key: Channel; label: string; count: number; icon?: React.ReactNode }[] = [
     {
       key: "all",
       label: t("competitors", "channelAll"),
-      count: metaCount + googleCount + instagramCount,
+      count: metaCount + googleCount + instagramCount + tiktokCount,
     },
     { key: "meta", label: "Meta Ads", count: metaCount, icon: <MetaIcon className="size-3.5" /> },
     { key: "google", label: "Google Ads", count: googleCount, icon: <GoogleIcon className="size-3.5" /> },
     { key: "instagram", label: "Instagram", count: instagramCount, icon: <InstagramIcon className="size-3.5" /> },
+    { key: "tiktok", label: "TikTok", count: tiktokCount, icon: <TikTokIcon className="size-3.5" /> },
   ];
 
-  // Status pills — paid channels only (Instagram organic posts have
-  // no ACTIVE/INACTIVE concept). Counts come from the head+exact
-  // queries done in the parent page; we drop them from the pill UI
-  // itself to mirror Benchmarks but keep the structure here in case
-  // we want them back as e.g. tooltips or sidebar copy.
-  const showStatusFilter = channel !== "instagram";
+  // Status pills — paid channels only (Instagram & TikTok organic
+  // posts have no ACTIVE/INACTIVE concept). Counts come from the
+  // head+exact queries done in the parent page; we drop them from
+  // the pill UI itself to mirror Benchmarks but keep the structure
+  // here in case we want them back as e.g. tooltips or sidebar copy.
+  const showStatusFilter = channel !== "instagram" && channel !== "tiktok";
   const statusPills: { key: Status; label: string }[] = [
     { key: "all", label: t("competitors", "channelAll") },
     { key: "active", label: t("competitors", "statusActive") },
@@ -237,9 +253,11 @@ export function ChannelTabs({
   const showMeta = channel === "all" || channel === "meta";
   const showGoogle = channel === "all" || channel === "google";
   const showInstagram = channel === "all" || channel === "instagram";
+  const showTiktok = channel === "all" || channel === "tiktok";
 
   const visibleAds = channel === "meta" ? metaAds : channel === "google" ? googleAds : channel === "all" ? ads : [];
   const visibleOrganic = showInstagram ? organicPosts : [];
+  const visibleTiktok = showTiktok ? tiktokPosts : [];
 
   // Identical chip class to Benchmarks: flat pill, gold/15 selected,
   // neutral border otherwise. No count badge — counts are already
@@ -590,8 +608,88 @@ export function ChannelTabs({
         </div>
       )}
 
+      {/* ─── TikTok section ─── */}
+      {showTiktok && (
+        <div className="space-y-4">
+          {tiktokStats.count > 0 && channel === "tiktok" && (
+            <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+              <Card>
+                <CardContent className="py-4 text-center">
+                  <p className="text-2xl font-semibold">
+                    {channelTotals.tiktok}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{t("organic", "totalPosts")}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="py-4 text-center">
+                  <p className="text-2xl font-semibold">
+                    {tiktokStats.avgLikes != null ? formatNumber(tiktokStats.avgLikes) : "—"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{t("organic", "avgLikes")}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="py-4 text-center">
+                  <p className="text-2xl font-semibold">
+                    {tiktokStats.avgComments != null ? formatNumber(tiktokStats.avgComments) : "—"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{t("organic", "avgComments")}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="py-4 text-center">
+                  <p className="text-2xl font-semibold">{formatNumber(tiktokStats.totalViews)}</p>
+                  <p className="text-xs text-muted-foreground">{t("organic", "totalViews")}</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {visibleTiktok.length === 0 ? (
+            channel === "tiktok" && (
+              <Card>
+                <CardContent className="py-12 text-center text-muted-foreground text-sm">
+                  {t("organic", "noPostsYet")}
+                </CardContent>
+              </Card>
+            )
+          ) : (
+            <>
+              {channel === "all" && (
+                <div className="flex items-center gap-2 pt-4 border-t border-border">
+                  <TikTokIcon className="size-4 text-gold" />
+                  <p className="text-sm font-medium">TikTok</p>
+                  <span className="text-xs text-muted-foreground">
+                    ({visibleTiktok.length}
+                    {channelTotals.tiktok > visibleTiktok.length
+                      ? ` ${t("competitors", "ofTotal")} ${channelTotals.tiktok}`
+                      : ""}
+                    )
+                  </span>
+                </div>
+              )}
+              {channel === "tiktok" && (
+                <p className="text-sm text-muted-foreground">
+                  {visibleTiktok.length}
+                  {channelTotals.tiktok > visibleTiktok.length
+                    ? ` ${t("competitors", "ofTotal")} ${channelTotals.tiktok}`
+                    : ""}
+                  {" "}{t("organic", "postsCount")}
+                </p>
+              )}
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {visibleTiktok.map((post) => (
+                  <TikTokPostCard key={post.id} post={post} />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Empty state for "all" when nothing exists */}
-      {channel === "all" && ads.length === 0 && organicPosts.length === 0 && (
+      {channel === "all" && ads.length === 0 && organicPosts.length === 0 && tiktokPosts.length === 0 && (
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground">
             {t("competitors", "noAdsCollected")}

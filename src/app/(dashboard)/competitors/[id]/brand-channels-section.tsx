@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { ChannelTabs } from "./channel-tabs";
-import type { MaitAdExternal, MaitOrganicPost } from "@/types";
+import type { MaitAdExternal, MaitOrganicPost, MaitTikTokPost } from "@/types";
 
 /**
  * The heavy half of the brand detail page — 30 ads + 30 organic
@@ -31,7 +31,7 @@ export async function BrandChannelsSection({
    *  parent page). The lazy ad/post lists are capped at 30 for
    *  performance, so the filter chips would otherwise display the
    *  loaded length (always 30) instead of the brand actual totals. */
-  channelTotals: { meta: number; google: number; instagram: number };
+  channelTotals: { meta: number; google: number; instagram: number; tiktok: number };
   /** DB-wide active-only counts per source — drive the Status pill
    *  badge (Active / Inactive) so the row reflects the brand reality
    *  rather than the loaded sample. */
@@ -44,7 +44,7 @@ export async function BrandChannelsSection({
    *  cap operates AFTER filtering, not before. Without this the
    *  Country pill on a big brand showed "1 of 415" because the 30
    *  most-recent ads happened to have only one matching country. */
-  tab: "all" | "meta" | "google" | "instagram";
+  tab: "all" | "meta" | "google" | "instagram" | "tiktok";
   statusFilter: "active" | "inactive" | null;
   countriesFilter: string[];
 }) {
@@ -68,7 +68,8 @@ export async function BrandChannelsSection({
   // to a no-result set to skip the wire transfer.
   if (tab === "meta") adsQuery = adsQuery.eq("source", "meta");
   else if (tab === "google") adsQuery = adsQuery.eq("source", "google");
-  else if (tab === "instagram") adsQuery = adsQuery.eq("source", "__none__");
+  else if (tab === "instagram" || tab === "tiktok")
+    adsQuery = adsQuery.eq("source", "__none__");
 
   if (statusFilter === "active") adsQuery = adsQuery.eq("status", "ACTIVE");
   else if (statusFilter === "inactive") adsQuery = adsQuery.neq("status", "ACTIVE");
@@ -109,6 +110,7 @@ export async function BrandChannelsSection({
   const [
     { data: ads },
     { data: organicPosts },
+    { data: tiktokPosts },
     { count: metaFiltered },
     { count: googleFiltered },
   ] = await Promise.all([
@@ -121,12 +123,21 @@ export async function BrandChannelsSection({
       .eq("competitor_id", competitorId)
       .order("posted_at", { ascending: false, nullsFirst: false })
       .limit(30),
+    supabase
+      .from("mait_tiktok_posts")
+      .select(
+        "id, workspace_id, competitor_id, post_id, post_url, caption, text_language, cover_url, video_url, duration_seconds, is_slideshow, is_pinned, is_ad, is_sponsored, play_count, digg_count, share_count, comment_count, collect_count, music_id, music_name, music_author, music_original, hashtags, mentions, posted_at, raw_data, created_at"
+      )
+      .eq("competitor_id", competitorId)
+      .order("posted_at", { ascending: false, nullsFirst: false })
+      .limit(30),
     metaCountQuery,
     googleCountQuery,
   ]);
 
   const adsList = (ads ?? []) as MaitAdExternal[];
   const organicList = (organicPosts ?? []) as MaitOrganicPost[];
+  const tiktokList = (tiktokPosts ?? []) as MaitTikTokPost[];
 
   // Organic engagement: Instagram returns -1 on accounts with hidden
   // likes — treat negatives as unknown so a brand with hidden likes
@@ -150,11 +161,36 @@ export async function BrandChannelsSection({
       : null;
   const totalViews = validViews.reduce((s, n) => s + n, 0);
 
+  // TikTok engagement averages — same defensive treatment as Instagram
+  // (negative counters are treated as missing, not zero), even though
+  // TikTok does not currently expose a "hidden likes" mode. Keeps the
+  // shape symmetric with Instagram so any future actor that returns
+  // -1 for hidden fields would not skew the averages.
+  const ttValidPlays = tiktokList
+    .map((p) => p.play_count ?? -1)
+    .filter((n) => n >= 0);
+  const ttValidLikes = tiktokList
+    .map((p) => p.digg_count ?? -1)
+    .filter((n) => n >= 0);
+  const ttValidComments = tiktokList
+    .map((p) => p.comment_count ?? -1)
+    .filter((n) => n >= 0);
+  const ttAvgLikes =
+    ttValidLikes.length > 0
+      ? Math.round(ttValidLikes.reduce((s, n) => s + n, 0) / ttValidLikes.length)
+      : null;
+  const ttAvgComments =
+    ttValidComments.length > 0
+      ? Math.round(ttValidComments.reduce((s, n) => s + n, 0) / ttValidComments.length)
+      : null;
+  const ttTotalViews = ttValidPlays.reduce((s, n) => s + n, 0);
+
   return (
     <ChannelTabs
       competitorId={competitorId}
       ads={adsList}
       organicPosts={organicList}
+      tiktokPosts={tiktokList}
       channelTotals={channelTotals}
       activeTotals={activeTotals}
       filteredTotals={{
@@ -170,6 +206,12 @@ export async function BrandChannelsSection({
         avgLikes,
         avgComments,
         totalViews,
+      }}
+      tiktokStats={{
+        count: tiktokList.length,
+        avgLikes: ttAvgLikes,
+        avgComments: ttAvgComments,
+        totalViews: ttTotalViews,
       }}
     />
   );
