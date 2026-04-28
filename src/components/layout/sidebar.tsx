@@ -15,6 +15,7 @@ import {
   FileText,
   LogOut,
   Coins,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
@@ -29,6 +30,7 @@ const itemDefs = [
   { href: "/library", key: "library", icon: Library, aliases: [] as string[] },
   { href: "/collections", key: "collections", icon: FolderHeart, aliases: [] as string[] },
   { href: "/benchmarks", key: "benchmarks", icon: Target, aliases: [] as string[] },
+  { href: "/serp", key: "serp", icon: Search, aliases: [] as string[] },
   { href: "/report", key: "report", icon: FileText, aliases: [] as string[] },
   // { href: "/alerts", key: "alerts", icon: Bell }, // hidden — info already visible in brand scan history
   { href: "/credits", key: "credits", icon: Coins, aliases: [] as string[] },
