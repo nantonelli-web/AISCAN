@@ -8,6 +8,7 @@ export type CreditAction =
   | 'scan_meta'
   | 'scan_google'
   | 'scan_instagram'
+  | 'scan_tiktok'
   | 'ai_tagging'
   | 'ai_analysis'
   | 'report_single'
@@ -107,6 +108,12 @@ export const creditCosts: Record<CreditAction, number> = {
   scan_meta: 5,
   scan_google: 2,
   scan_instagram: 2,
+  // TikTok actor (clockworks/tiktok-scraper) costs $1.70/1000 results
+  // — ~74% of the Instagram actor cost ($2.30/1000), but priced at the
+  // same 2 credits to keep the credit menu round and avoid sub-credit
+  // pricing. Re-evaluate if real-world TikTok runs come in heavier per
+  // result (e.g. residential proxy add-on or longer poll cycles).
+  scan_tiktok: 2,
   ai_tagging: 1,
   ai_analysis: 3,
   report_single: 2,
