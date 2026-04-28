@@ -317,6 +317,8 @@ const translations = {
     selectCategory: { it: "Seleziona categoria", en: "Select category" },
     instagramLabel: { it: "Username Instagram", en: "Instagram username" },
     instagramPlaceholder: { it: "es. nike (senza @)", en: "e.g. nike (without @)" },
+    tiktokLabel: { it: "Username TikTok", en: "TikTok username" },
+    tiktokPlaceholder: { it: "es. nike (senza @)", en: "e.g. nike (without @)" },
     googleAdsSection: { it: "Google Ads", en: "Google Ads" },
     googleDomainLabel: { it: "Dominio del sito web dell'inserzionista", en: "Advertiser website domain" },
     googleDomainPlaceholder: { it: "es. nike.com", en: "e.g. nike.com" },

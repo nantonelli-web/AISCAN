@@ -6,6 +6,7 @@ import { extractPageIdentifier } from "@/lib/meta/url";
 import { resolvePageId } from "@/lib/meta/resolve-page-id";
 import { competitorsTag } from "@/lib/library/cached-data";
 import { cleanInstagramUsername } from "@/lib/instagram/service";
+import { cleanTikTokUsername } from "@/lib/tiktok/service";
 import { cleanAdvertiserDomain } from "@/lib/apify/google-ads-service";
 import { coerceCountryForStorage } from "@/lib/meta/country-codes";
 
@@ -16,6 +17,7 @@ const schema = z.object({
   category: z.string().max(80).nullable().optional(),
   client_id: z.string().uuid().nullable().optional(),
   instagram_username: z.string().max(60).nullable().optional(),
+  tiktok_username: z.string().max(60).nullable().optional(),
   google_advertiser_id: z.string().max(80).nullable().optional(),
   google_domain: z.string().max(200).nullable().optional(),
 });
@@ -67,6 +69,9 @@ export async function POST(req: Request) {
       client_id: parsed.data.client_id ?? null,
       instagram_username: parsed.data.instagram_username
         ? cleanInstagramUsername(parsed.data.instagram_username)
+        : null,
+      tiktok_username: parsed.data.tiktok_username
+        ? cleanTikTokUsername(parsed.data.tiktok_username)
         : null,
       google_advertiser_id: parsed.data.google_advertiser_id ?? null,
       google_domain: parsed.data.google_domain

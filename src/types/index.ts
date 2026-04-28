@@ -39,6 +39,8 @@ export interface MaitCompetitor {
   category: string | null;
   country: string | null;
   instagram_username: string | null;
+  tiktok_username: string | null;
+  tiktok_profile: Record<string, unknown> | null;
   google_advertiser_id: string | null;
   google_domain: string | null;
   profile_picture_url: string | null;

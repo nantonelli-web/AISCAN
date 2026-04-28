@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { competitorsTag } from "@/lib/library/cached-data";
 import { cleanInstagramUsername } from "@/lib/instagram/service";
+import { cleanTikTokUsername } from "@/lib/tiktok/service";
 import { cleanAdvertiserDomain } from "@/lib/apify/google-ads-service";
 import { coerceCountryForStorage } from "@/lib/meta/country-codes";
 
@@ -19,6 +20,7 @@ const patchSchema = z.object({
   category: z.string().max(80).nullable().optional(),
   client_id: z.string().uuid().nullable().optional(),
   instagram_username: z.string().max(60).nullable().optional(),
+  tiktok_username: z.string().max(60).nullable().optional(),
   google_advertiser_id: z.string().max(80).nullable().optional(),
   google_domain: z.string().max(200).nullable().optional(),
 });
@@ -42,7 +44,7 @@ export async function PATCH(
 
   const {
     frequency, max_items, page_name, page_url, country, category,
-    client_id, instagram_username, google_advertiser_id, google_domain,
+    client_id, instagram_username, tiktok_username, google_advertiser_id, google_domain,
   } = parsed.data;
 
   // Separate monitor_config fields from direct fields
@@ -56,6 +58,11 @@ export async function PATCH(
     // Accept @handle, handle, or full profile URL; store only the clean handle.
     directUpdate.instagram_username = instagram_username
       ? cleanInstagramUsername(instagram_username)
+      : null;
+  }
+  if (tiktok_username !== undefined) {
+    directUpdate.tiktok_username = tiktok_username
+      ? cleanTikTokUsername(tiktok_username)
       : null;
   }
   if (google_advertiser_id !== undefined) directUpdate.google_advertiser_id = google_advertiser_id;
