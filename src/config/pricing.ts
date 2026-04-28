@@ -9,6 +9,7 @@ export type CreditAction =
   | 'scan_google'
   | 'scan_instagram'
   | 'scan_tiktok'
+  | 'scan_snapchat'
   | 'ai_tagging'
   | 'ai_analysis'
   | 'report_single'
@@ -114,6 +115,13 @@ export const creditCosts: Record<CreditAction, number> = {
   // pricing. Re-evaluate if real-world TikTok runs come in heavier per
   // result (e.g. residential proxy add-on or longer poll cycles).
   scan_tiktok: 2,
+  // Snapchat actor (automation-lab/snapchat-scraper) costs ~$0.0017
+  // per profile (one row per scan, no per-post amplification like
+  // TikTok or Instagram). Charging the platform minimum of 1 credit
+  // matches the AI-tagging cost and reflects the per-scan footprint
+  // honestly. If we ever ingest spotlights/highlights as separate
+  // entities we'll need to revisit.
+  scan_snapchat: 1,
   ai_tagging: 1,
   ai_analysis: 3,
   report_single: 2,
