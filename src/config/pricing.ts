@@ -12,6 +12,7 @@ export type CreditAction =
   | 'scan_snapchat'
   | 'scan_youtube'
   | 'scan_serp'
+  | 'scan_maps'
   | 'ai_tagging'
   | 'ai_analysis'
   | 'report_single'
@@ -137,6 +138,13 @@ export const creditCosts: Record<CreditAction, number> = {
   // of the lot. 1 credit aligned with the other "snapshot-style"
   // scans (Snapchat/YouTube).
   scan_serp: 1,
+  // Google Maps actor (compass/crawler-google-places) costs $2.10
+  // per 1000 places. A default 20-place scan with 10 bundled reviews
+  // each runs ~$0.04 — slightly more than the other "1 credit" scans
+  // because we get places AND reviews in one run, and the dataset
+  // per item is much heavier than a SERP page. 2 credits aligned
+  // with TikTok's pricing tier (~$0.05 per scan).
+  scan_maps: 2,
   ai_tagging: 1,
   ai_analysis: 3,
   report_single: 2,
