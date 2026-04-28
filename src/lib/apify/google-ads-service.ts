@@ -89,8 +89,23 @@ export function cleanAdvertiserDomain(raw: string | null | undefined): string | 
 function normalize(ad: RawGoogleAd): NormalizedAd {
   const adId = ad.creativeId ?? "";
 
-  // Status: if lastShown is null/undefined → still active
-  const status = ad.lastShown == null ? "ACTIVE" : "INACTIVE";
+  // ⚠ Same family as the Meta isActive bug. The Apify Google actor
+  // sets `lastShown = today's scan day` for ads that are STILL
+  // running (it polls and reports the most recent observation).
+  // Trusting that field as a hard end_date marks every fresh ad
+  // as "ended today" with status=INACTIVE, which then makes
+  // computeAdDurationDays clamp duration to 1 day for ads scanned
+  // for the first time (firstShown == lastShown).
+  //
+  // Heuristic: if `lastShown` equals the current scan day, treat it
+  // as a polling artifact ("we last saw the ad today, but it may
+  // still be running tomorrow"). status stays ACTIVE and end_date
+  // is left null. Real ends — i.e. lastShown < today — are kept
+  // as-is.
+  const todayYmd = new Date().toISOString().slice(0, 10);
+  const lastShownIsToday = ad.lastShown === todayYmd;
+  const isLikelyActive = ad.lastShown == null || lastShownIsToday;
+  const status = isLikelyActive ? "ACTIVE" : "INACTIVE";
 
   // Map adFormat to platforms hint
   const format = (ad.adFormat ?? "").toLowerCase();
@@ -113,9 +128,9 @@ function normalize(ad: RawGoogleAd): NormalizedAd {
     start_date: ad.firstShown
       ? new Date(ad.firstShown).toISOString()
       : null,
-    end_date: ad.lastShown
-      ? new Date(ad.lastShown).toISOString()
-      : null,
+    end_date: isLikelyActive
+      ? null
+      : new Date(ad.lastShown!).toISOString(),
     status,
     raw_data: ad as unknown as Record<string, unknown>,
     // Google ads are not scraped per-country — scan_countries stays null

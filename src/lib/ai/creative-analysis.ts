@@ -312,16 +312,27 @@ export async function analyzeVisuals(
     return null;
   }
 
-  // Collect image URLs: max 2 per brand, max 6 total (reduced to avoid Gemini timeout)
+  // Collect image URLs: max 2 per brand, max 6 total (reduced to avoid Gemini timeout).
+  // Filter out URL patterns the vision model cannot consume — Google Ads
+  // creatives in particular ship a JS preview wrapper instead of a real
+  // image, and Gemini hangs on those without ever returning. Confirmed
+  // 2026-04-28 on Fiorella Rubino + Marina Rinaldi (Google channel)
+  // where the visual analysis stuck for >5 min until manually killed.
   const imageEntries: { brandName: string; url: string }[] = [];
   for (const brand of brands) {
     const brandImages = brand.ads
-      .filter(
-        (ad) =>
-          ad.image_url &&
-          !ad.image_url.includes("/render_ad/") &&
-          ad.image_url.startsWith("http")
-      )
+      .filter((ad) => {
+        const url = ad.image_url;
+        if (!url || !url.startsWith("http")) return false;
+        // Meta render-ad endpoints — already known to be unfetchable.
+        if (url.includes("/render_ad/")) return false;
+        // Google Ads JS preview wrapper (returns JavaScript, not an
+        // image). Hits both the `.../ads/preview/content.js?...` and
+        // any `*.js?...` shape — neither can be consumed by Gemini.
+        if (/\.js(\?|$)/.test(url)) return false;
+        if (url.includes("/ads/preview/")) return false;
+        return true;
+      })
       .slice(0, 2);
     for (const ad of brandImages) {
       if (imageEntries.length >= 6) break;
