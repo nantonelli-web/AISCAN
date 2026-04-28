@@ -251,7 +251,7 @@ export function AdCard({
           </div>
         )}
         {(ad.cta || (ad.platforms && ad.platforms.length > 0)) && (
-          <div className="space-y-2 pt-3 border-t border-border">
+          <div className="pt-3 border-t border-border">
             {ad.cta && (
               <div className="flex items-center gap-3">
                 <span className="text-[10px] uppercase tracking-wider text-foreground font-bold shrink-0 w-14">
@@ -261,6 +261,13 @@ export function AdCard({
                   {ad.cta}
                 </span>
               </div>
+            )}
+            {/* Inner divider only when BOTH rows are present, so the
+                CTA and ON sections read as two distinct sub-blocks
+                inside the metadata zone. my-3 gives 12px top+bottom
+                breathing room so the line never feels cramped. */}
+            {ad.cta && ad.platforms && ad.platforms.length > 0 && (
+              <div className="my-3 border-t border-border/40" />
             )}
             {ad.platforms && ad.platforms.length > 0 && (
               <div className="flex items-start gap-3">
