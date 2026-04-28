@@ -91,10 +91,19 @@ const translations = {
     metricsReport: { it: "report in 1 click", en: "reports in 1 click" },
     metricsFormats: { it: "formati export", en: "export formats" },
     // Pricing
-    pricingTitle: { it: "Piani e prezzi", en: "Plans and pricing" },
+    pricingTitle: { it: "Pack di crediti", en: "Credit packs" },
     pricingSubtitle: {
-      it: "Inizia gratis, scala quando vuoi. Piu crediti acquisti, meno li paghi.",
-      en: "Start free, scale when you want. The more credits you buy, the less you pay.",
+      it: "Paga solo quando ti serve. Una tantum, nessun abbonamento, i crediti non scadono.",
+      en: "Pay as you go. One-time, no subscription, credits never expire.",
+    },
+    pricingOneTime: { it: "una tantum", en: "one-time" },
+    pricingCreditsLabel: { it: "crediti", en: "credits" },
+    pricingPerk1: { it: "I crediti non scadono", en: "Credits never expire" },
+    pricingPerk2: { it: "Tutti i canali inclusi", en: "All channels included" },
+    pricingPerk3: { it: "Suite AI completa", en: "Full AI suite" },
+    pricingFreeNote: {
+      it: "Ogni nuovo workspace riceve 10 crediti gratuiti al mese — non serve la carta per provare.",
+      en: "Every new workspace gets 10 free credits per month — no card required to try.",
     },
     pricingMonthly: { it: "Mensile", en: "Monthly" },
     pricingYearly: { it: "Annuale", en: "Yearly" },
@@ -1346,20 +1355,23 @@ const translations = {
   credits: {
     title: { it: "Crediti", en: "Credits" },
     subtitle: {
-      it: "Gestisci i tuoi crediti e il tuo piano di abbonamento.",
-      en: "Manage your credits and subscription plan.",
+      it: "Gestisci il saldo, ricarica con un pack quando serve.",
+      en: "Manage your balance, top up with a pack when you need to.",
     },
     currentBalance: { it: "Saldo attuale", en: "Current balance" },
     currentPlan: { it: "Piano attuale", en: "Current plan" },
-    monthlyAllowance: { it: "Crediti mensili", en: "Monthly allowance" },
-    renewal: { it: "Prossimo rinnovo", en: "Next renewal" },
-    notSet: { it: "Non impostato", en: "Not set" },
+    monthlyAllowance: { it: "Crediti gratuiti / mese", en: "Free credits / month" },
+    totalSpent: { it: "Crediti spesi", en: "Credits spent" },
+    renewal: { it: "Prossimo rinnovo gratis", en: "Next free top-up" },
+    notSet: { it: "—", en: "—" },
     history: { it: "Cronologia transazioni", en: "Transaction history" },
     noHistory: { it: "Nessuna transazione registrata.", en: "No transactions recorded." },
     amount: { it: "Importo", en: "Amount" },
     reason: { it: "Motivo", en: "Reason" },
     date: { it: "Data", en: "Date" },
     upgradePlan: { it: "Aggiorna piano", en: "Upgrade plan" },
+    expandHint: { it: "Mostra dettaglio", en: "Show details" },
+    collapseHint: { it: "Nascondi dettaglio", en: "Hide details" },
     insufficientCredits: {
       it: "Crediti insufficienti. Il tuo saldo attuale e",
       en: "Insufficient credits. Your current balance is",
@@ -1367,6 +1379,28 @@ const translations = {
     creditsRequired: {
       it: "crediti necessari",
       en: "credits required",
+    },
+    // Recharge module
+    rechargeTitle: { it: "Ricarica crediti", en: "Top up credits" },
+    rechargeSubtitle: {
+      it: "Acquista un pack una tantum. Nessun abbonamento, i crediti non scadono.",
+      en: "Buy a pack once. No subscription, credits never expire.",
+    },
+    creditsUnit: { it: "crediti", en: "credits" },
+    popularBadge: { it: "Più scelto", en: "Most popular" },
+    buyButton: { it: "Acquista", en: "Buy" },
+    redirecting: { it: "Apertura Stripe…", en: "Opening Stripe…" },
+    rechargeSuccess: {
+      it: "Pagamento ricevuto. I crediti saranno disponibili tra pochi secondi.",
+      en: "Payment received. Credits will land within a few seconds.",
+    },
+    rechargeCancelled: {
+      it: "Ricarica annullata.",
+      en: "Recharge cancelled.",
+    },
+    rechargeError: {
+      it: "Errore durante la creazione della sessione di pagamento.",
+      en: "Error while creating the payment session.",
     },
   },
 

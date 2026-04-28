@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getCreditPack } from "@/config/pricing";
 
 /**
  * Stripe webhook handler.
- * Handles subscription lifecycle and credit management.
- * Currently disabled — will activate when STRIPE_SECRET_KEY and
- * STRIPE_WEBHOOK_SECRET are configured.
+ * Handles credit-pack purchases (mode: "payment", current model) AND
+ * legacy subscription lifecycle events (mode: "subscription") so any
+ * accounts still on a recurring plan keep working until they migrate.
+ * Activates when STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET are set.
  */
 export async function POST(req: Request) {
   if (!stripe || !process.env.STRIPE_WEBHOOK_SECRET) {
@@ -120,7 +122,9 @@ export async function POST(req: Request) {
       if (!userId) break;
 
       if (session.mode === "subscription") {
-        // Subscription just started — add initial credits
+        // Legacy path: subscription just started — add initial
+        // credits. Kept so accounts that were on a recurring plan
+        // before the pack migration still get topped up correctly.
         const { data: plan } = await admin
           .from("mait_users")
           .select("monthly_credits")
@@ -133,6 +137,37 @@ export async function POST(req: Request) {
             p_amount: plan.monthly_credits,
             p_reason: "Subscription activated",
           });
+        }
+      } else if (session.mode === "payment") {
+        // Credit-pack purchase. The checkout-pack route stamps
+        // packId + ownerId in metadata; we re-resolve the pack
+        // server-side instead of trusting `metadata.credits`
+        // because the metadata is signed by Stripe but the
+        // amount-of-truth lives in src/config/pricing.ts (env
+        // vars hold the price id mapping). This way a forged
+        // metadata payload can not over-credit the user.
+        const packId = session.metadata?.packId;
+        const ownerId = session.metadata?.ownerId ?? userId;
+        if (!packId) {
+          console.error(
+            "[stripe webhook] payment session missing packId metadata",
+            session.id,
+          );
+          break;
+        }
+
+        try {
+          const pack = getCreditPack(packId);
+          await admin.rpc("mait_add_credits", {
+            p_user_id: ownerId,
+            p_amount: pack.credits,
+            p_reason: `Pack ${pack.name} (+${pack.credits} credits)`,
+          });
+        } catch (e) {
+          console.error(
+            `[stripe webhook] unknown packId "${packId}" — credits NOT added:`,
+            e,
+          );
         }
       }
       break;

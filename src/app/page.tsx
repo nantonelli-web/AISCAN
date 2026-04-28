@@ -36,12 +36,7 @@ function GoogleLogo({ className }: { className?: string }) {
 
 /* ─── Data ───────────────────────────────────────────────── */
 
-const plans: { tier: string; credits: number; priceMonthly: number; priceYearly: number; featKey: string; popular?: boolean }[] = [
-  { tier: "scout", credits: 10, priceMonthly: 0, priceYearly: 0, featKey: "pricingFeatScout" },
-  { tier: "analyst", credits: 80, priceMonthly: 29, priceYearly: 299, featKey: "pricingFeatAnalyst", popular: true },
-  { tier: "strategist", credits: 250, priceMonthly: 89, priceYearly: 899, featKey: "pricingFeatStrategist" },
-  { tier: "agency", credits: 650, priceMonthly: 239, priceYearly: 2399, featKey: "pricingFeatAgency" },
-];
+import { creditPacks } from "@/config/pricing";
 
 /* ─── Page ───────────────────────────────────────────────── */
 
@@ -271,57 +266,54 @@ export default async function LandingPage() {
           </div>
 
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {plans.map((plan) => {
-              const features = t("landing", plan.featKey).split("|");
-              const isFree = plan.priceMonthly === 0;
+            {creditPacks.map((pack) => {
+              const perCredit = (pack.priceUsd / pack.credits).toFixed(3);
               return (
                 <div
-                  key={plan.tier}
+                  key={pack.id}
                   className={`rounded-xl border p-6 flex flex-col transition-all duration-300 hover:shadow-[0_10px_40px_rgba(212,168,67,0.05)] ${
-                    plan.popular
+                    pack.popular
                       ? "border-gold bg-gold/5 ring-1 ring-gold/30"
                       : "border-border bg-card hover:border-gold/30"
                   }`}
                 >
-                  {plan.popular && (
+                  {pack.popular && (
                     <span className="text-[10px] uppercase tracking-wider text-gold font-semibold mb-3">
                       {t("landing", "pricingPopular")}
                     </span>
                   )}
-                  <h3 className="text-lg font-semibold capitalize">{plan.tier}</h3>
+                  <h3 className="text-lg font-semibold">{pack.name}</h3>
                   <div className="mt-3 mb-1">
-                    <span className="text-4xl font-serif">
-                      {isFree ? "$0" : `$${plan.priceMonthly}`}
-                    </span>
-                    {!isFree && (
-                      <span className="text-sm text-muted-foreground">
-                        {t("landing", "pricingMonth")}
-                      </span>
-                    )}
+                    <span className="text-4xl font-serif">${pack.priceUsd}</span>
+                    <span className="text-sm text-muted-foreground"> {t("landing", "pricingOneTime")}</span>
                   </div>
-                  {!isFree && (
-                    <p className="text-xs text-muted-foreground mb-4">
-                      ${plan.priceYearly}{t("landing", "pricingYear")} — {t("landing", "pricingYearlySave")}
-                    </p>
-                  )}
-                  {isFree && <div className="mb-4" />}
-                  <ul className="space-y-2 mb-6 flex-1">
-                    {features.map((feat) => (
-                      <li key={feat} className="flex items-start gap-2 text-sm">
-                        <Check className="size-4 text-gold shrink-0 mt-0.5" />
-                        <span className="text-muted-foreground">{feat}</span>
-                      </li>
-                    ))}
+                  <p className="text-xs text-muted-foreground mb-4">
+                    {pack.credits} {t("landing", "pricingCreditsLabel")} · ${perCredit}/credit
+                  </p>
+                  <ul className="space-y-2 mb-6 flex-1 text-sm text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <Check className="size-4 text-gold shrink-0 mt-0.5" />
+                      <span>{t("landing", "pricingPerk1")}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="size-4 text-gold shrink-0 mt-0.5" />
+                      <span>{t("landing", "pricingPerk2")}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="size-4 text-gold shrink-0 mt-0.5" />
+                      <span>{t("landing", "pricingPerk3")}</span>
+                    </li>
                   </ul>
-                  <Button asChild variant={plan.popular ? "default" : "outline"} className="w-full">
-                    <Link href="/register">
-                      {isFree ? t("landing", "pricingCta") : t("landing", "pricingCtaPaid")}
-                    </Link>
+                  <Button asChild variant={pack.popular ? "default" : "outline"} className="w-full">
+                    <Link href="/register">{t("landing", "pricingCtaPaid")}</Link>
                   </Button>
                 </div>
               );
             })}
           </div>
+          <p className="text-center text-xs text-muted-foreground mt-8 max-w-xl mx-auto">
+            {t("landing", "pricingFreeNote")}
+          </p>
         </div>
       </section>
 
