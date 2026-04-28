@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { extractAdInsights } from "@/lib/meta/ad-insights";
+import { computeAdDurationDays } from "@/lib/analytics/ad-shared";
 import { AI_TAGS_ENABLED } from "@/config/features";
 import type { MaitAdExternal } from "@/types";
 
@@ -78,13 +79,14 @@ export default async function AdDetailPage({
     country?: string;
   }>;
 
-  // Calculate campaign duration
-  let durationDays: number | null = null;
-  if (ad.start_date) {
-    const start = new Date(ad.start_date).getTime();
-    const end = ad.end_date ? new Date(ad.end_date).getTime() : Date.now();
-    durationDays = Math.max(1, Math.round((end - start) / 86_400_000));
-  }
+  // Campaign duration via the shared helper — it treats ACTIVE ads
+  // as "still running today" regardless of any spurious end_date.
+  // Apify's endDate is a snapshot date, not the actual campaign end;
+  // ads ingested before the normalize() fix landed still hold that
+  // value in end_date, so the helper's status-aware logic is what
+  // protects the duration number here.
+  const durationDays = computeAdDurationDays(ad);
+  const isActive = ad.status === "ACTIVE";
 
   const aiTagLabels: Record<string, string> = {
     sector: t("adDetail", "aiTagSector"),
@@ -254,10 +256,18 @@ export default async function AdDetailPage({
                 label={t("adDetail", "startDate")}
                 value={formatDate(ad.start_date)}
               />
+              {/* For ACTIVE ads we always show "still active" — the
+                  end_date column may carry a stale snapshot date
+                  from a pre-fix scan, which would otherwise render
+                  as a misleading 1-day-after-start value. */}
               <DetailRow
                 icon={<Calendar className="size-4" />}
                 label={t("adDetail", "endDate")}
-                value={ad.end_date ? formatDate(ad.end_date) : t("adDetail", "stillActive")}
+                value={
+                  isActive || !ad.end_date
+                    ? t("adDetail", "stillActive")
+                    : formatDate(ad.end_date)
+                }
               />
               {durationDays && (
                 <DetailRow

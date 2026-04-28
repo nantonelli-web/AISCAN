@@ -531,8 +531,15 @@ function normalize(ad: RawAd): NormalizedAd {
     languages: [],
     start_date:
       toIso(ad.startDateFormatted ?? ad.startDate),
-    end_date:
-      toIso(ad.endDateFormatted ?? ad.endDate),
+    // Apify reports an `endDate` even for ads that are still running
+    // (it appears to be the snapshot/last-seen date, not the actual
+    // campaign end). For active ads we drop it so downstream code
+    // (Brand-detail duration, End-date display, exports) can rely on
+    // `end_date == null` meaning "no end yet" instead of carrying a
+    // bogus 1-day-after-start value.
+    end_date: ad.isActive
+      ? null
+      : toIso(ad.endDateFormatted ?? ad.endDate),
     status: ad.isActive ? "ACTIVE" : ad.adStatus ?? "INACTIVE",
     raw_data: ad as unknown as Record<string, unknown>,
     // Caller (scrapeMetaAdsSingleCountry) overrides this with the actual
