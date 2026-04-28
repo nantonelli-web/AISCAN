@@ -34,8 +34,12 @@ export const maxDuration = 300;
  *         fallbacks instead of the empty "Ad" placeholder
  *   - v4: Advantage+ aggregate metric removed; BenchmarkData and
  *         BrandData totals no longer carry advantagePlusPercent
+ *   - v5: country filter no longer dropped Google ads (which have
+ *         NULL scan_countries by design); cached rows from v4 with a
+ *         country filter set show 0 ads for Google brands and must
+ *         regenerate
  */
-const CURRENT_DATA_VERSION = 4;
+const CURRENT_DATA_VERSION = 5;
 
 /* ── Schemas ─────────────────────────────────────────────── */
 
@@ -159,7 +163,20 @@ async function computeTechnicalStats(
           // Ads with scan_countries=NULL never overlap and are dropped
           // when the user has narrowed the filter — same semantics as
           // the Benchmarks ad-level filter.
-          if (countriesFilter && countriesFilter.length > 0) {
+          //
+          // ⚠ Google Ads have scan_countries = NULL by design (the
+          // Google Ads Transparency API is not country-scoped, see
+          // google-ads-service.ts normalize). Applying the overlap
+          // would drop 100% of them, which is what caused the empty
+          // Compare technical view on Google channel. Skip the
+          // predicate when source==="google" so the country chip
+          // becomes a no-op for that channel — Meta still honours
+          // the filter as before.
+          if (
+            countriesFilter &&
+            countriesFilter.length > 0 &&
+            source !== "google"
+          ) {
             q = q.overlaps("scan_countries", countriesFilter);
           }
           const { data, error } = await q;

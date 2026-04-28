@@ -73,7 +73,15 @@ export async function BrandChannelsSection({
   if (statusFilter === "active") adsQuery = adsQuery.eq("status", "ACTIVE");
   else if (statusFilter === "inactive") adsQuery = adsQuery.neq("status", "ACTIVE");
 
-  if (countriesFilter.length > 0) {
+  // Country filter — only applied when the active tab is Meta or
+  // "all". Google ads have scan_countries = NULL by design (the
+  // Apify Google actor is not country-scoped), so applying the
+  // overlap on the google tab dropped 100% of them. On the all tab
+  // we still apply it because the Meta subset benefits and Google
+  // rows are simply not affected (NULL never overlaps, but the user
+  // sees them via the dedicated google count query below which
+  // already skips this predicate).
+  if (countriesFilter.length > 0 && tab !== "google") {
     adsQuery = adsQuery.overlaps("scan_countries", countriesFilter);
   }
 
@@ -99,12 +107,10 @@ export async function BrandChannelsSection({
     .eq("source", "google");
   if (statusFilter === "active") googleCountQuery = googleCountQuery.eq("status", "ACTIVE");
   else if (statusFilter === "inactive") googleCountQuery = googleCountQuery.neq("status", "ACTIVE");
-  // Country filter on Google is a no-op in practice (Google ads
-  // carry NULL scan_countries) but we still issue the predicate so
-  // the count matches what the user sees on the all-tab grid.
-  if (countriesFilter.length > 0) {
-    googleCountQuery = googleCountQuery.overlaps("scan_countries", countriesFilter);
-  }
+  // ⚠ Do NOT apply a country overlap on Google — Google ads carry
+  // scan_countries = NULL (the Apify Google actor is not
+  // country-scoped) and the predicate would silently drop 100% of
+  // them. Country filter is intentionally a no-op on this channel.
 
   const [
     { data: ads },

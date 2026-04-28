@@ -344,7 +344,15 @@ export async function computeBenchmarks(
       // Country filter at ad level — Postgres array overlap via PostgREST
       // operator `ov`. Rows whose scan_countries is NULL are excluded
       // automatically (NULL never overlaps).
-      if (normalisedCountries) {
+      //
+      // ⚠ Google ads have scan_countries = NULL by design (the Google
+      // Ads Transparency API is not country-scoped, see
+      // google-ads-service.ts normalize). Applying the overlap would
+      // drop 100% of them and the Benchmarks Volume / KPIs would
+      // collapse to 0 for any brand whose mix is mostly Google. Skip
+      // the predicate when source==="google" so the country chip
+      // becomes a no-op for that channel — Meta still honours it.
+      if (normalisedCountries && source !== "google") {
         q = q.overlaps("scan_countries", normalisedCountries);
       }
       // Status filter — applied at the database so the filter is honoured
@@ -413,8 +421,9 @@ export async function computeBenchmarks(
       if (competitorIds && competitorIds.length > 0) q = q.in("competitor_id", competitorIds);
       // Same ad-level country filter as the heavy query. Ads without a
       // known scan_countries (NULL) never overlap, so legacy data is
-      // excluded until the brand is re-scanned.
-      if (normalisedCountries) {
+      // excluded until the brand is re-scanned. Google ads always have
+      // NULL scan_countries — see the comment on fetchAllHeavyRows.
+      if (normalisedCountries && source !== "google") {
         q = q.overlaps("scan_countries", normalisedCountries);
       }
       if (statusFilter === "active") q = q.eq("status", "ACTIVE");
@@ -1420,7 +1429,7 @@ export async function computeOrganicBenchmarks(
     { reelCount: number; originalAudio: number; trendingAudio: number }
   >();
   const trendingAudioCounts = new Map<string, number>();
-  let allReelDurations: number[] = [];
+  const allReelDurations: number[] = [];
 
   for (const p of posts) {
     const isReel = (p.post_type ?? "").toLowerCase() === "reel";

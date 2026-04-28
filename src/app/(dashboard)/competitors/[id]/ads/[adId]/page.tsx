@@ -47,10 +47,25 @@ export default async function AdDetailPage({
     ctaText?: string;
   }>;
   const aiTags = raw?.ai_tags as Record<string, string> | null;
-  const pageName = (raw?.pageName as string) ?? (snapshot?.pageName as string) ?? null;
-  const adLibraryUrl =
-    (raw?.adLibraryURL as string) ??
-    `https://www.facebook.com/ads/library/?id=${ad.ad_archive_id}`;
+  const isGoogle = ad.source === "google";
+  const pageName = isGoogle
+    ? (raw?.advertiserName as string) ?? null
+    : (raw?.pageName as string) ?? (snapshot?.pageName as string) ?? null;
+
+  // External ad-library link — Meta vs Google. Mirrors the logic in
+  // ad-card.tsx so the detail page and the grid card always agree on
+  // which transparency surface to point to. Only the Meta path has a
+  // safe `id`-based fallback URL; for Google we either have an
+  // advertiserId on raw_data or we omit the link.
+  const adLibraryUrl: string | null = isGoogle
+    ? raw?.advertiserId
+      ? `https://adstransparency.google.com/advertiser/${raw.advertiserId}`
+      : null
+    : (raw?.adLibraryURL as string) ??
+      `https://www.facebook.com/ads/library/?id=${ad.ad_archive_id}`;
+  const adLibraryLabel = isGoogle
+    ? "Google Ads Transparency"
+    : "Meta Ad Library";
 
   // New metadata from raw_data
   const displayFormat = (snapshot?.displayFormat as string) ?? null;
@@ -99,8 +114,12 @@ export default async function AdDetailPage({
 
   return (
     <div className="space-y-6 max-w-5xl">
+      {/* Back arrow — return to the brand-detail tab matching this
+          ad's source, so navigating Google ads doesn't bounce the
+          user to the Meta tab on return. Brand detail's tab state
+          is URL-driven (?tab=...). */}
       <Link
-        href={`/competitors/${competitorId}`}
+        href={`/competitors/${competitorId}?tab=${isGoogle ? "google" : "meta"}`}
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="size-4" /> {t("adDetail", "backToCompetitor")}
@@ -122,14 +141,16 @@ export default async function AdDetailPage({
         </div>
         <div className="flex gap-2">
           {ad.status === "ACTIVE" && <Badge variant="gold">ACTIVE</Badge>}
-          <a
-            href={adLibraryUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 h-9 text-sm hover:border-gold/40 hover:text-gold transition-colors"
-          >
-            Meta Ad Library <ExternalLink className="size-3.5" />
-          </a>
+          {adLibraryUrl && (
+            <a
+              href={adLibraryUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 h-9 text-sm hover:border-gold/40 hover:text-gold transition-colors"
+            >
+              {adLibraryLabel} <ExternalLink className="size-3.5" />
+            </a>
+          )}
         </div>
       </div>
 
@@ -151,7 +172,11 @@ export default async function AdDetailPage({
             </Card>
           ) : ad.image_url && !ad.image_url.includes("/render_ad/") ? (
             <Card>
-              <CardContent className="p-0">
+              {/* Google creatives are flat designs with embedded
+                  text — render on a white backdrop so the text in
+                  the image stays readable instead of riding on the
+                  card surface. Meta creatives keep the default. */}
+              <CardContent className={isGoogle ? "p-0 bg-white rounded-xl" : "p-0"}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={ad.image_url}
@@ -212,36 +237,42 @@ export default async function AdDetailPage({
             </Card>
           )}
 
-          {/* Full ad text */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">{t("adDetail", "fullText")}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {ad.headline && (
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">{t("adDetail", "headline")}</p>
-                  <p className="font-medium">{ad.headline}</p>
-                </div>
-              )}
-              {ad.ad_text && (
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">{t("adDetail", "copy")}</p>
-                  <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                    {ad.ad_text}
-                  </p>
-                </div>
-              )}
-              {ad.description && (
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">
-                    {t("adDetail", "descriptionLabel")}
-                  </p>
-                  <p className="text-sm">{ad.description}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {/* Full ad text — hidden entirely when none of the three
+              text fields are populated. Google Ads have all three
+              null because the Apify Google actor does not extract
+              copy (text is rendered inside the creative image), so
+              showing an empty card just looks broken. */}
+          {(ad.headline || ad.ad_text || ad.description) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">{t("adDetail", "fullText")}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {ad.headline && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">{t("adDetail", "headline")}</p>
+                    <p className="font-medium">{ad.headline}</p>
+                  </div>
+                )}
+                {ad.ad_text && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">{t("adDetail", "copy")}</p>
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                      {ad.ad_text}
+                    </p>
+                  </div>
+                )}
+                {ad.description && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">
+                      {t("adDetail", "descriptionLabel")}
+                    </p>
+                    <p className="text-sm">{ad.description}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Sidebar details */}
@@ -305,7 +336,17 @@ export default async function AdDetailPage({
           {ad.platforms && ad.platforms.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">{t("adDetail", "platforms")}</CardTitle>
+                <CardTitle className="text-sm">
+                  {/* Google ads expose campaign types ("display",
+                      "google_search", "youtube") in this column —
+                      labelling them "Piattaforme" is misleading.
+                      Meta really does carry FB / IG / Audience
+                      Network / Messenger here, so the original
+                      label stays for non-Google sources. */}
+                  {isGoogle
+                    ? t("adDetail", "campaignType")
+                    : t("adDetail", "platforms")}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-1.5">
