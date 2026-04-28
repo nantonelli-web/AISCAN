@@ -217,12 +217,14 @@ export function AdCard({
       </MaybeLink>
 
       {/* Details */}
-      <div className="p-4 flex-1 flex flex-col gap-2">
-        {/* Status + headline row */}
+      <div className="p-4 flex-1 flex flex-col gap-3">
+        {/* Headline + status pill */}
         <div className="flex items-start gap-2">
           <div className="flex-1 min-w-0">
             {ad.headline && (
-              <p className="font-medium line-clamp-2 text-sm">{cleanAdText(ad.headline)}</p>
+              <p className="font-semibold leading-snug line-clamp-2 text-sm text-foreground">
+                {cleanAdText(ad.headline)}
+              </p>
             )}
           </div>
           {ad.status === "ACTIVE" && (
@@ -231,18 +233,12 @@ export function AdCard({
             </span>
           )}
         </div>
+
+        {/* Body copy */}
         {ad.ad_text && (
-          <p className="text-xs text-muted-foreground line-clamp-3">
+          <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
             {cleanAdText(ad.ad_text)}
           </p>
-        )}
-        {ad.cta && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-muted-foreground">CTA:</span>
-            <span className="text-[10px] font-medium text-gold bg-gold/10 rounded px-1.5 py-0.5">
-              {ad.cta}
-            </span>
-          </div>
         )}
         {AI_TAGS_ENABLED && aiTags && (
           <div className="flex items-center gap-1 flex-wrap">
@@ -254,15 +250,41 @@ export function AdCard({
             )}
           </div>
         )}
-        {ad.platforms && ad.platforms.length > 0 && (
-          <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-            <span>{t("adCard", "onPlatforms")}</span>
-            <span>{ad.platforms.join(" \u00B7 ")}</span>
+        {(ad.cta || (ad.platforms && ad.platforms.length > 0)) && (
+          <div className="space-y-2 pt-3 border-t border-border">
+            {ad.cta && (
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] uppercase tracking-wider text-foreground font-bold shrink-0 w-14">
+                  CTA
+                </span>
+                <span className="text-xs font-medium text-gold bg-gold/15 border border-gold/30 rounded px-2 py-0.5">
+                  {ad.cta}
+                </span>
+              </div>
+            )}
+            {ad.platforms && ad.platforms.length > 0 && (
+              <div className="flex items-start gap-3">
+                <span className="text-[10px] uppercase tracking-wider text-foreground font-bold shrink-0 w-14 mt-0.5">
+                  {t("adCard", "onPlatforms")}
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {ad.platforms.map((p) => (
+                    <span
+                      key={p}
+                      className="text-[10px] text-foreground bg-muted rounded px-1.5 py-0.5 capitalize"
+                    >
+                      {p.replace(/_/g, " ")}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
-        <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border mt-auto">
+        {/* Footer: start_date + outbound links */}
+        <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-3 border-t border-border mt-auto">
           <span>{formatDate(ad.start_date)}</span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {ad.landing_url && (
               <a
                 href={ad.landing_url}

@@ -1153,7 +1153,7 @@ const translations = {
       it: "Vedi su Google Ads Transparency",
       en: "View on Google Ads Transparency",
     },
-    onPlatforms: { it: "Su:", en: "On:" },
+    onPlatforms: { it: "Su", en: "On" },
     saveToCollection: { it: "Salva in collezione", en: "Save to collection" },
     notAnalyzed: { it: "Non analizzata dall'AI", en: "Not analyzed by AI" },
     formatImage: { it: "IMAGE", en: "IMAGE" },
