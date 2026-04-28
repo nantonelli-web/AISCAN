@@ -70,6 +70,7 @@ export async function GET(req: Request) {
         workspace_id: c.workspace_id,
         competitor_id: c.id,
         status: "running",
+        source: "meta",
       })
       .select("id")
       .single();

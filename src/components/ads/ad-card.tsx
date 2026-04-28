@@ -102,8 +102,20 @@ export function AdCard({
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col hover:border-gold/40 transition-colors">
-      {/* Preview area */}
-      <MaybeLink href={detailHref} className="aspect-[4/3] bg-muted relative overflow-hidden block cursor-pointer">
+      {/* Preview area — for Google ads we use object-contain on a
+          white backdrop because the creatives are flat designs with
+          embedded text ("Lino da indossare", brand logos, etc.).
+          object-cover on a 4:3 box was zooming/cropping the image so
+          the text became unreadable. Meta creatives are photo-style
+          so cover still looks right there. */}
+      <MaybeLink
+        href={detailHref}
+        className={
+          isGoogle
+            ? "aspect-[4/3] bg-white relative overflow-hidden block cursor-pointer"
+            : "aspect-[4/3] bg-muted relative overflow-hidden block cursor-pointer"
+        }
+      >
         {ad.video_url ? (
           <VideoPreview
             src={ad.video_url}
@@ -114,7 +126,11 @@ export function AdCard({
           <img
             src={snapshotUrl}
             alt={ad.headline ?? "ad creative"}
-            className="absolute inset-0 w-full h-full object-cover"
+            className={
+              isGoogle
+                ? "absolute inset-0 w-full h-full object-contain"
+                : "absolute inset-0 w-full h-full object-cover"
+            }
             loading="lazy"
             onError={() => setImgFailed(true)}
           />

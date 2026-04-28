@@ -58,7 +58,13 @@ export async function GET(
   if (source === "meta" || source === "google") q = q.eq("source", source);
   if (status === "active") q = q.eq("status", "ACTIVE");
   else if (status === "inactive") q = q.neq("status", "ACTIVE");
-  if (countries.length > 0) q = q.overlaps("scan_countries", countries);
+  // Country filter is a no-op on Google because scan_countries is
+  // always NULL on Google rows (the Apify Google actor is not
+  // country-scoped). Applying the predicate would silently drop
+  // every Google ad off the "Load more" pagination.
+  if (countries.length > 0 && source !== "google") {
+    q = q.overlaps("scan_countries", countries);
+  }
 
   const { data, error } = await q;
   if (error) {

@@ -127,6 +127,7 @@ export async function POST(req: Request) {
       workspace_id: competitor.workspace_id,
       competitor_id: competitor.id,
       status: "running",
+      source: "meta",
       date_from: parsed.data.date_from ?? null,
       date_to: parsed.data.date_to ?? null,
     })

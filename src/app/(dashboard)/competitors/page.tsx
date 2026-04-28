@@ -38,7 +38,7 @@ export default async function CompetitorsPage() {
     // running one query per row.
     admin
       .from("mait_scrape_jobs")
-      .select("competitor_id, date_from, date_to, started_at")
+      .select("competitor_id, date_from, date_to, started_at, source")
       .eq("workspace_id", profile.workspace_id!)
       .eq("status", "succeeded")
       .order("started_at", { ascending: false }),
@@ -50,17 +50,20 @@ export default async function CompetitorsPage() {
   // Build a per-competitor map of the latest scan window. Cron jobs
   // and full-archive manual scans store NULL for both bounds — those
   // rows are kept in the map but the UI just renders the run date
-  // without a period suffix.
-  const lastScanRangeByCompetitor = new Map<
+  // without a period suffix. `source` (added in migration 0027) lets
+  // the card show WHICH channel was scanned last; legacy rows have
+  // it null and the badge falls back to "—".
+  const lastScanByCompetitor = new Map<
     string,
-    { from: string | null; to: string | null }
+    { from: string | null; to: string | null; source: string | null }
   >();
   for (const j of recentJobs ?? []) {
     const cid = (j as { competitor_id: string | null }).competitor_id;
-    if (!cid || lastScanRangeByCompetitor.has(cid)) continue;
-    lastScanRangeByCompetitor.set(cid, {
+    if (!cid || lastScanByCompetitor.has(cid)) continue;
+    lastScanByCompetitor.set(cid, {
       from: (j as { date_from: string | null }).date_from ?? null,
       to: (j as { date_to: string | null }).date_to ?? null,
+      source: (j as { source: string | null }).source ?? null,
     });
   }
 
@@ -139,7 +142,7 @@ export default async function CompetitorsPage() {
                       <BrandCard
                         key={c.id}
                         brand={c}
-                        lastScanRange={lastScanRangeByCompetitor.get(c.id) ?? null}
+                        lastScan={lastScanByCompetitor.get(c.id) ?? null}
                         t={t}
                       />
                     ))}
@@ -156,7 +159,7 @@ export default async function CompetitorsPage() {
             <BrandCard
               key={c.id}
               brand={c}
-              lastScanRange={lastScanRangeByCompetitor.get(c.id) ?? null}
+              lastScan={lastScanByCompetitor.get(c.id) ?? null}
               t={t}
             />
           ))}
@@ -172,20 +175,39 @@ export default async function CompetitorsPage() {
   );
 }
 
+// Channel display label — keeps "Meta Ads" / "Google Ads" full names
+// the user already sees in the ScanDropdown, and Title-cases the
+// social channels for visual symmetry. Falls back to "—" for legacy
+// jobs scanned before migration 0027 added the source column.
+function channelLabel(source: string | null): string {
+  switch (source) {
+    case "meta": return "Meta Ads";
+    case "google": return "Google Ads";
+    case "instagram": return "Instagram";
+    case "tiktok": return "TikTok";
+    case "snapchat": return "Snapchat";
+    case "youtube": return "YouTube";
+    default: return "—";
+  }
+}
+
 function BrandCard({
   brand: c,
-  lastScanRange,
+  lastScan,
   t,
 }: {
   brand: MaitCompetitor;
-  /** Date window the latest succeeded scan covered. NULL bounds mean
-   *  full-archive scan (cron, or manual scan without a window) — in
-   *  that case we render only the run date, not a period. */
-  lastScanRange: { from: string | null; to: string | null } | null;
+  /** Latest succeeded scan record for the brand. `from`/`to` describe
+   *  the date window the user requested (NULL means full-archive),
+   *  `source` is the channel that ran (NULL for legacy pre-0027 jobs). */
+  lastScan: {
+    from: string | null;
+    to: string | null;
+    source: string | null;
+  } | null;
   t: (section: string, key: string) => string;
 }) {
-  const hasPeriod =
-    lastScanRange && lastScanRange.from && lastScanRange.to;
+  const hasPeriod = lastScan && lastScan.from && lastScan.to;
   return (
     <Card className="hover:border-gold/50 transition-colors h-full relative">
       <Link href={`/competitors/${c.id}`} className="absolute inset-0 z-0" />
@@ -207,11 +229,19 @@ function BrandCard({
           <div className="min-w-0">
             <p className="text-xs text-muted-foreground">
               {t("competitors", "lastScan")} {formatDate(c.last_scraped_at)}
+              {lastScan?.source && (
+                <>
+                  {" — "}
+                  <span className="text-foreground/80 font-medium">
+                    {channelLabel(lastScan.source)}
+                  </span>
+                </>
+              )}
             </p>
             {hasPeriod && (
               <p className="text-[11px] text-muted-foreground/80 mt-0.5">
                 {t("competitors", "scanPeriod")}{" "}
-                {formatDate(lastScanRange.from)} → {formatDate(lastScanRange.to)}
+                {formatDate(lastScan.from)} → {formatDate(lastScan.to)}
               </p>
             )}
           </div>

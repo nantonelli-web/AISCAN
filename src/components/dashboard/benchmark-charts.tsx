@@ -110,6 +110,12 @@ function PieSlicePercent(props: PieLabelRenderProps) {
   );
 }
 
+// Muted tone for the inactive series — sits behind the gold bar in the
+// stacked rendering so the user immediately reads "this brand has X
+// ads total, of which Y are still running". Hex matches the rest of
+// the dashboard palette (cool grey).
+const INACTIVE_FILL = "#5b6675";
+
 export function VolumeChart({
   data,
 }: {
@@ -117,8 +123,12 @@ export function VolumeChart({
 }) {
   // Vertical bars read well up to ~8 brands; past that, x-axis labels crowd
   // each other and chart compresses. Switch to a horizontal layout whose
-  // height grows with the brand count. We only render the `active` series
-  // because inactive ads are no longer scanned product-side.
+  // height grows with the brand count. We render BOTH active + inactive
+  // stacked so brands with 0 currently-active ads still produce a
+  // visible bar (their historical volume) — without this, channels
+  // where every ad is INACTIVE (Google Ads when the actor reports
+  // lastShown for every row, brands paused for the season, etc.)
+  // collapse to an empty chart and the user thinks the data is missing.
   if (data.length > 8) {
     const height = Math.max(240, data.length * 36);
     return (
@@ -133,7 +143,8 @@ export function VolumeChart({
             width={140}
           />
           <Tooltip {...tooltipStyle} />
-          <Bar dataKey="active" fill={GOLD} name="Active ads" radius={[0, 4, 4, 0]} />
+          <Bar dataKey="active" stackId="vol" fill={GOLD} name="Active" />
+          <Bar dataKey="inactive" stackId="vol" fill={INACTIVE_FILL} name="Inactive" radius={[0, 4, 4, 0]} />
         </BarChart>
       </ResponsiveContainer>
     );
@@ -151,7 +162,8 @@ export function VolumeChart({
         />
         <YAxis tick={{ fill: AXIS_TICK, fontSize: 11 }} />
         <Tooltip {...tooltipStyle} />
-        <Bar dataKey="active" fill={GOLD} name="Active ads" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="active" stackId="vol" fill={GOLD} name="Active" />
+        <Bar dataKey="inactive" stackId="vol" fill={INACTIVE_FILL} name="Inactive" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );

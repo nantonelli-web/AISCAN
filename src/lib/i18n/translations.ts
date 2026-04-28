@@ -514,6 +514,7 @@ const translations = {
     daysUnit: { it: "giorni", en: "days" },
     landingPage: { it: "Landing page", en: "Landing page" },
     platforms: { it: "Piattaforme", en: "Platforms" },
+    campaignType: { it: "Tipo di campagna", en: "Campaign type" },
     aiTagSector: { it: "Settore", en: "Sector" },
     aiTagFormat: { it: "Formato", en: "Format" },
     aiTagTone: { it: "Tono", en: "Tone" },

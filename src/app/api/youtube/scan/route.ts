@@ -128,6 +128,7 @@ export async function POST(req: Request) {
       workspace_id: competitor.workspace_id,
       competitor_id: competitor.id,
       status: "running",
+      source: "youtube",
     })
     .select("id")
     .single();
