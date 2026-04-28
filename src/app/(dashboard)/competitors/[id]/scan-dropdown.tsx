@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { RefreshCw, CalendarRange, Square } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
+import { TikTokIcon } from "@/components/ui/tiktok-icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useT } from "@/lib/i18n/context";
@@ -47,16 +48,18 @@ interface Props {
   competitorId: string;
   hasGoogleConfig: boolean;
   hasInstagramConfig: boolean;
+  hasTiktokConfig: boolean;
   /** DB-confirmed running job; shows Stop even after a page reload. */
   hasRunningJob?: boolean;
 }
 
-type ScanTarget = "meta" | "google" | "instagram";
+type ScanTarget = "meta" | "google" | "instagram" | "tiktok";
 
 export function ScanDropdown({
   competitorId,
   hasGoogleConfig,
   hasInstagramConfig,
+  hasTiktokConfig,
   hasRunningJob = false,
 }: Props) {
   const router = useRouter();
@@ -65,7 +68,7 @@ export function ScanDropdown({
   // page lands on the just-imported channel instead of leaving the
   // user on the previous tab. router.replace + router.refresh keeps
   // the back-stack clean and re-runs the server component.
-  function focusChannel(tab: "meta" | "google" | "instagram") {
+  function focusChannel(tab: "meta" | "google" | "instagram" | "tiktok") {
     router.replace(`${pathname}?tab=${tab}`);
     router.refresh();
   }
@@ -241,6 +244,46 @@ export function ScanDropdown({
     }
   }
 
+  // The TikTok actor pulls "most recent N videos" — there is no date
+  // filter to forward, so we ignore dateFrom/dateTo (and the range
+  // validation) for this channel.
+  async function scanTikTok() {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setLoading("tiktok");
+    const toastId = toast.loading(t("organic", "scanning"));
+    try {
+      const res = await fetch("/api/tiktok/scan", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          competitor_id: competitorId,
+          max_posts: 50,
+        }),
+        signal: controller.signal,
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error ?? "TikTok scrape failed", { id: toastId });
+      } else {
+        toast.success(
+          `${json.records} ${t("organic", "postsSynced")}`,
+          { id: toastId }
+        );
+        focusChannel("tiktok");
+      }
+    } catch (e) {
+      if ((e as Error).name === "AbortError") {
+        toast.dismiss(toastId);
+      } else {
+        toast.error(e instanceof Error ? e.message : "Network error", { id: toastId });
+      }
+    } finally {
+      abortRef.current = null;
+      setLoading(null);
+    }
+  }
+
   // ─── Render ───
 
   const bigCta = "h-12 px-5 text-base gap-2.5 cursor-pointer";
@@ -367,12 +410,27 @@ export function ScanDropdown({
               )}
               {loading === "instagram" ? t("organic", "scanning") : "Instagram"}
             </Button>
+
+            <Button
+              onClick={hasTiktokConfig ? scanTikTok : undefined}
+              disabled={!hasTiktokConfig || isLoading}
+              variant="outline"
+              size="lg"
+              className={hasTiktokConfig ? bigCta : bigCtaDisabled}
+            >
+              {loading === "tiktok" ? (
+                <RefreshCw className="size-6 animate-spin" />
+              ) : (
+                <TikTokIcon className="size-6" />
+              )}
+              {loading === "tiktok" ? t("organic", "scanning") : "TikTok"}
+            </Button>
           </div>
         </div>
       </div>
 
       {/* ─── 3. Missing config details (amber box) ─── */}
-      {(!hasGoogleConfig || !hasInstagramConfig) && (
+      {(!hasGoogleConfig || !hasInstagramConfig || !hasTiktokConfig) && (
         <div className="rounded-md border border-gold/30 bg-gold/5 p-3 space-y-1.5">
           <p className="text-xs font-medium text-gold">{t("scan", "configRequiredBrand")}</p>
           {!hasGoogleConfig && (
@@ -388,6 +446,16 @@ export function ScanDropdown({
           {!hasInstagramConfig && (
             <div className="flex items-center gap-2 text-xs">
               <span className="text-muted-foreground">Instagram: {t("scan", "instagramNotConfigured")}</span>
+              <a href={`/competitors/${competitorId}/edit?from=brand`} className="ml-auto shrink-0">
+                <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer">
+                  {t("compare", "goToEdit")}
+                </Button>
+              </a>
+            </div>
+          )}
+          {!hasTiktokConfig && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-muted-foreground">TikTok: {t("scan", "tiktokNotConfigured")}</span>
               <a href={`/competitors/${competitorId}/edit?from=brand`} className="ml-auto shrink-0">
                 <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer">
                   {t("compare", "goToEdit")}

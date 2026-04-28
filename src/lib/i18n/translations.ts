@@ -405,6 +405,10 @@ const translations = {
       it: "Username Instagram non configurato",
       en: "Instagram username not configured",
     },
+    tiktokNotConfigured: {
+      it: "Username TikTok non configurato",
+      en: "TikTok username not configured",
+    },
   },
 
   // ─── Frequency Selector ────────────────────────────────────

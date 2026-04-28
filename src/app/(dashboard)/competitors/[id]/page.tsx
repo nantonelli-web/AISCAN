@@ -79,7 +79,7 @@ export default async function CompetitorDetailPage({
     supabase
       .from("mait_competitors")
       .select(
-        "id, workspace_id, page_name, page_url, country, category, monitor_config, profile_picture_url, instagram_username, google_advertiser_id, google_domain"
+        "id, workspace_id, page_name, page_url, country, category, monitor_config, profile_picture_url, instagram_username, tiktok_username, google_advertiser_id, google_domain"
       )
       .eq("id", id)
       .single(),
@@ -345,6 +345,7 @@ export default async function CompetitorDetailPage({
             competitorId={c.id}
             hasGoogleConfig={!!(c.google_advertiser_id || c.google_domain)}
             hasInstagramConfig={!!c.instagram_username}
+            hasTiktokConfig={!!c.tiktok_username}
             hasRunningJob={hasRunningJob}
           />
         </CardContent>
