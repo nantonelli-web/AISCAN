@@ -12,6 +12,7 @@ import {
   FormatPieChart,
   HorizontalBarChart,
   PlatformChart,
+  AudioStrategyChart,
 } from "@/components/dashboard/benchmark-charts";
 import { CollapsibleAlert } from "./collapsible-alert";
 import { getLocale, serverT } from "@/lib/i18n/server";
@@ -552,6 +553,84 @@ async function OrganicContent({
           </CardContent>
         </Card>
       </div>
+
+      {/* ─── Reel-specific insights ─────────────────────────────
+          Three cards driven by raw_data fields the IG actor
+          populates on every Reel: videoDuration (seconds) and
+          musicInfo.uses_original_audio. Sezane sample on
+          2026-04-28 confirmed 100% coverage on 13 Reels. */}
+      {data.reelStats.totalReels > 0 && (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between gap-3 flex-wrap">
+                <span>{t("organic", "reelDurationDistribution")}</span>
+                <span className="text-xs font-normal text-muted-foreground">
+                  {data.reelStats.totalReels} {t("organic", "reelsLabel")} · {t("organic", "avgReelDuration")} {data.reelStats.avgDuration}{t("organic", "seconds")}
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground mb-3">
+                {t("organic", "reelDurationDescription")}
+              </p>
+              <HorizontalBarChart
+                data={data.reelStats.durationDistribution.map((b) => ({
+                  name: b.bucket,
+                  count: b.count,
+                }))}
+                dataKey="count"
+                label={t("organic", "reelsLabel")}
+                color="#5b7ea3"
+              />
+            </CardContent>
+          </Card>
+
+          {data.reelStats.audioStrategyByCompetitor.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("organic", "audioStrategy")}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground mb-3">
+                  {t("organic", "audioStrategyDescription")}
+                </p>
+                <AudioStrategyChart
+                  data={data.reelStats.audioStrategyByCompetitor.map((b) => ({
+                    name: b.competitor,
+                    originalAudio: b.originalAudio,
+                    trendingAudio: b.trendingAudio,
+                  }))}
+                  originalLabel={t("organic", "originalAudio")}
+                  trendingLabel={t("organic", "trendingAudio")}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {data.reelStats.topTrendingAudio.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("organic", "topTrendingAudio")}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground mb-3">
+                  {t("organic", "topTrendingAudioDescription")}
+                </p>
+                <HorizontalBarChart
+                  data={data.reelStats.topTrendingAudio.map((a) => ({
+                    name: a.song,
+                    count: a.count,
+                  }))}
+                  dataKey="count"
+                  label={t("organic", "reelsLabel")}
+                  color="#d97757"
+                />
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
     </div>
   );
 }

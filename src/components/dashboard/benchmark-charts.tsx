@@ -334,3 +334,51 @@ export function PlatformChart({
     </ResponsiveContainer>
   );
 }
+
+/**
+ * Stacked horizontal bar of "original vs trending" Reel audio per
+ * brand. Original audio = brand-made, trending = pulled from Meta's
+ * licensed catalog. Two-stack design preserves both ratio (visual)
+ * and absolute count (tooltip + bar length), so a brand with 50
+ * Reels does not look the same as one with 1 Reel even if both are
+ * 100% original.
+ */
+export function AudioStrategyChart({
+  data,
+  originalLabel,
+  trendingLabel,
+}: {
+  data: { name: string; originalAudio: number; trendingAudio: number }[];
+  originalLabel: string;
+  trendingLabel: string;
+}) {
+  const height = Math.max(160, data.length * 36);
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={data} layout="vertical" margin={{ left: 10, right: 24 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+        <XAxis type="number" tick={{ fill: AXIS_TICK, fontSize: 11 }} />
+        <YAxis
+          type="category"
+          dataKey="name"
+          tick={{ fill: AXIS_TICK, fontSize: 11 }}
+          width={140}
+        />
+        <Tooltip {...tooltipStyle} />
+        <Legend wrapperStyle={{ fontSize: 12, color: LEGEND_TEXT }} />
+        <Bar
+          dataKey="originalAudio"
+          stackId="a"
+          fill="#0e3590"
+          name={originalLabel}
+        />
+        <Bar
+          dataKey="trendingAudio"
+          stackId="a"
+          fill="#d97757"
+          name={trendingLabel}
+        />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}

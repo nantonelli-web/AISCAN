@@ -1284,6 +1284,27 @@ const translations = {
     postsPerBrand: { it: "Post per brand", en: "Posts per brand" },
     topHashtags: { it: "Hashtag più usati", en: "Top hashtags" },
     postsPerWeek: { it: "Post / settimana", en: "Posts / week" },
+    reelDurationDistribution: { it: "Distribuzione durata Reel", en: "Reel duration distribution" },
+    reelDurationDescription: {
+      it: "Quanti Reel cadono in ciascun intervallo di durata. La fascia 15-30s è la sweet zone dell'algoritmo Instagram per i Reel organici.",
+      en: "How many Reels fall in each duration bucket. 15-30s is Instagram's documented algorithm sweet zone for organic Reels.",
+    },
+    audioStrategy: { it: "Strategia audio Reel", en: "Reel audio strategy" },
+    audioStrategyDescription: {
+      it: "Quanti Reel di ogni brand usano audio originale (creato dal brand) vs audio trending (in catalogo Meta).",
+      en: "Per brand: how many Reels use original audio (brand-made) vs trending audio (Meta catalog).",
+    },
+    topTrendingAudio: { it: "Top audio trending utilizzati", en: "Top trending audio used" },
+    topTrendingAudioDescription: {
+      it: "I brani più riutilizzati tra i Reel non-originali del workspace. Esclude gli audio originali dei brand.",
+      en: "Most reused tracks across non-original Reels in the workspace. Excludes brand-made original audio.",
+    },
+    totalReels: { it: "Reel totali", en: "Total Reels" },
+    avgReelDuration: { it: "Durata media Reel", en: "Avg Reel duration" },
+    seconds: { it: "sec", en: "sec" },
+    reelsLabel: { it: "Reel", en: "Reels" },
+    originalAudio: { it: "Audio originale", en: "Original audio" },
+    trendingAudio: { it: "Audio trending", en: "Trending audio" },
   },
 
   // ─── Creative Analysis ─────────────────────────────────────
