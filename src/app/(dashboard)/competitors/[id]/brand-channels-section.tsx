@@ -1,6 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { ChannelTabs } from "./channel-tabs";
-import type { MaitAdExternal, MaitOrganicPost, MaitTikTokPost } from "@/types";
+import type {
+  MaitAdExternal,
+  MaitOrganicPost,
+  MaitTikTokPost,
+  MaitSnapchatProfile,
+} from "@/types";
 
 /**
  * The heavy half of the brand detail page — 30 ads + 30 organic
@@ -31,7 +36,7 @@ export async function BrandChannelsSection({
    *  parent page). The lazy ad/post lists are capped at 30 for
    *  performance, so the filter chips would otherwise display the
    *  loaded length (always 30) instead of the brand actual totals. */
-  channelTotals: { meta: number; google: number; instagram: number; tiktok: number };
+  channelTotals: { meta: number; google: number; instagram: number; tiktok: number; snapchat: number };
   /** DB-wide active-only counts per source — drive the Status pill
    *  badge (Active / Inactive) so the row reflects the brand reality
    *  rather than the loaded sample. */
@@ -44,7 +49,7 @@ export async function BrandChannelsSection({
    *  cap operates AFTER filtering, not before. Without this the
    *  Country pill on a big brand showed "1 of 415" because the 30
    *  most-recent ads happened to have only one matching country. */
-  tab: "all" | "meta" | "google" | "instagram" | "tiktok";
+  tab: "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat";
   statusFilter: "active" | "inactive" | null;
   countriesFilter: string[];
 }) {
@@ -68,7 +73,7 @@ export async function BrandChannelsSection({
   // to a no-result set to skip the wire transfer.
   if (tab === "meta") adsQuery = adsQuery.eq("source", "meta");
   else if (tab === "google") adsQuery = adsQuery.eq("source", "google");
-  else if (tab === "instagram" || tab === "tiktok")
+  else if (tab === "instagram" || tab === "tiktok" || tab === "snapchat")
     adsQuery = adsQuery.eq("source", "__none__");
 
   if (statusFilter === "active") adsQuery = adsQuery.eq("status", "ACTIVE");
@@ -111,6 +116,7 @@ export async function BrandChannelsSection({
     { data: ads },
     { data: organicPosts },
     { data: tiktokPosts },
+    { data: snapchatProfiles },
     { count: metaFiltered },
     { count: googleFiltered },
   ] = await Promise.all([
@@ -131,6 +137,17 @@ export async function BrandChannelsSection({
       .eq("competitor_id", competitorId)
       .order("posted_at", { ascending: false, nullsFirst: false })
       .limit(30),
+    // Snapshot history: ordered most-recent-first so the brand-detail
+    // tab can show the latest snapshot at the top and the trend below.
+    // 30-row cap is generous — even daily scans for a year is ~365.
+    supabase
+      .from("mait_snapchat_profiles")
+      .select(
+        "id, workspace_id, competitor_id, username, display_name, profile_url, profile_type, business_profile_id, bio, website_url, category, subcategory, is_verified, address, profile_picture_url, snapcode_image_url, hero_image_url, subscriber_count, lens_count, highlight_count, spotlight_count, has_story, has_curated_highlights, has_spotlight_highlights, related_accounts, account_created_at, profile_updated_at, scraped_at, raw_data"
+      )
+      .eq("competitor_id", competitorId)
+      .order("scraped_at", { ascending: false })
+      .limit(30),
     metaCountQuery,
     googleCountQuery,
   ]);
@@ -138,6 +155,7 @@ export async function BrandChannelsSection({
   const adsList = (ads ?? []) as MaitAdExternal[];
   const organicList = (organicPosts ?? []) as MaitOrganicPost[];
   const tiktokList = (tiktokPosts ?? []) as MaitTikTokPost[];
+  const snapchatList = (snapchatProfiles ?? []) as MaitSnapchatProfile[];
 
   // Organic engagement: Instagram returns -1 on accounts with hidden
   // likes — treat negatives as unknown so a brand with hidden likes
@@ -191,6 +209,7 @@ export async function BrandChannelsSection({
       ads={adsList}
       organicPosts={organicList}
       tiktokPosts={tiktokList}
+      snapchatProfiles={snapchatList}
       channelTotals={channelTotals}
       activeTotals={activeTotals}
       filteredTotals={{

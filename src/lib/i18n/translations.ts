@@ -319,6 +319,8 @@ const translations = {
     instagramPlaceholder: { it: "es. nike (senza @)", en: "e.g. nike (without @)" },
     tiktokLabel: { it: "Username TikTok", en: "TikTok username" },
     tiktokPlaceholder: { it: "es. nike (senza @)", en: "e.g. nike (without @)" },
+    snapchatLabel: { it: "Username Snapchat", en: "Snapchat username" },
+    snapchatPlaceholder: { it: "es. nike (senza @)", en: "e.g. nike (without @)" },
     googleAdsSection: { it: "Google Ads", en: "Google Ads" },
     googleDomainLabel: { it: "Dominio del sito web dell'inserzionista", en: "Advertiser website domain" },
     googleDomainPlaceholder: { it: "es. nike.com", en: "e.g. nike.com" },
@@ -366,6 +368,7 @@ const translations = {
       en: "Scraping in progress\u2026 (may take 30-90s)",
     },
     adsSynced: { it: "ads sincronizzate.", en: "ads synced." },
+    snapshotSynced: { it: "Snapshot Snapchat aggiornato.", en: "Snapchat snapshot updated." },
     scanOptions: { it: "Opzioni scan", en: "Scan options" },
     dateFrom: { it: "Da", en: "From" },
     dateTo: { it: "A", en: "To" },
@@ -408,6 +411,10 @@ const translations = {
     tiktokNotConfigured: {
       it: "Username TikTok non configurato",
       en: "TikTok username not configured",
+    },
+    snapchatNotConfigured: {
+      it: "Username Snapchat non configurato",
+      en: "Snapchat username not configured",
     },
   },
 
@@ -1258,6 +1265,29 @@ const translations = {
   },
 
   // ─── Organic Posts ─────────────────────────────────────────
+  snapchat: {
+    title: { it: "Snapchat", en: "Snapchat" },
+    latestSnapshot: { it: "Snapshot più recente", en: "Latest snapshot" },
+    snapshotHistory: { it: "Storico snapshot", en: "Snapshot history" },
+    noSnapshotYet: {
+      it: "Nessuno snapshot Snapchat ancora. Lancia uno scan per iniziare a tracciare il brand.",
+      en: "No Snapchat snapshot yet. Run a scan to start tracking this brand.",
+    },
+    hasStory: { it: "Storia attiva", en: "Live story" },
+    hasHighlights: { it: "Highlights", en: "Highlights" },
+    hasSpotlights: { it: "Spotlight", en: "Spotlights" },
+    spotlightCount: { it: "Spotlight", en: "Spotlights" },
+    highlightCount: { it: "Highlight", en: "Highlights" },
+    lensCount: { it: "Lenti", en: "Lenses" },
+    subscriberCount: { it: "Subscribers", en: "Subscribers" },
+    scrapedAt: { it: "Aggiornato il", en: "Updated on" },
+    trendTitle: { it: "Trend", en: "Trend" },
+    trendNoteSingle: {
+      it: "Esegui un secondo scan per vedere come crescono spotlight, highlight e lenti nel tempo.",
+      en: "Run a second scan to see how spotlights, highlights and lenses evolve over time.",
+    },
+  },
+
   organic: {
     title: { it: "Contenuti organici Instagram", en: "Instagram Organic Content" },
     subtitle: {
@@ -1285,6 +1315,7 @@ const translations = {
     totalPosts: { it: "Post organici", en: "Organic posts" },
     viewOnInstagram: { it: "Instagram", en: "Instagram" },
     viewOnTiktok: { it: "TikTok", en: "TikTok" },
+    viewOnSnapchat: { it: "Snapchat", en: "Snapchat" },
     posts: { it: "post", en: "posts" },
     postsLabel: { it: "Post", en: "Posts" },
     avgViews: { it: "Views medie", en: "Avg. views" },

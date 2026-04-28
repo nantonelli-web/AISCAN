@@ -8,18 +8,25 @@ import { Button } from "@/components/ui/button";
 import { AdCard } from "@/components/ads/ad-card";
 import { OrganicPostCard } from "@/components/organic/organic-post-card";
 import { TikTokPostCard } from "@/components/organic/tiktok-post-card";
+import { SnapchatProfileCard } from "@/components/organic/snapchat-profile-card";
 import { TagButton } from "@/components/ads/tag-button";
 import { AI_TAGS_ENABLED } from "@/config/features";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
 import { TikTokIcon } from "@/components/ui/tiktok-icon";
+import { SnapchatIcon } from "@/components/ui/snapchat-icon";
 import { Download, Loader2 } from "lucide-react";
 import { formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { CountryFilterDropdown } from "./country-filter-dropdown";
-import type { MaitAdExternal, MaitOrganicPost, MaitTikTokPost } from "@/types";
+import type {
+  MaitAdExternal,
+  MaitOrganicPost,
+  MaitTikTokPost,
+  MaitSnapchatProfile,
+} from "@/types";
 
-type Channel = "all" | "meta" | "google" | "instagram" | "tiktok";
+type Channel = "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat";
 type Status = "all" | "active" | "inactive";
 
 /* ─── Platform icons (small, inline) ─── */
@@ -42,10 +49,14 @@ interface Props {
   ads: MaitAdExternal[];
   organicPosts: MaitOrganicPost[];
   tiktokPosts: MaitTikTokPost[];
+  /** Snapshot history for this competitor, ordered most-recent-first.
+   *  [0] is the latest profile snapshot rendered as the SnapchatProfileCard;
+   *  the rest feed the trend list. */
+  snapchatProfiles: MaitSnapchatProfile[];
   /** DB-wide totals per channel — drive the filter chip badges so the
    *  user sees the real count for the brand, not the lazy-loaded
    *  array length (which is capped at 30 for performance). */
-  channelTotals: { meta: number; google: number; instagram: number; tiktok: number };
+  channelTotals: { meta: number; google: number; instagram: number; tiktok: number; snapchat: number };
   /** DB-wide active-only counts per source — fed to the Status pill
    *  so the Active badge matches the brand reality, not the loaded
    *  sample. Inactive = total − active. */
@@ -57,7 +68,7 @@ interface Props {
   /** URL-driven filter state. Pills navigate the URL; the server
    *  re-runs the ads query with these applied so the 30-row cap
    *  operates AFTER filtering. */
-  tab: "all" | "meta" | "google" | "instagram" | "tiktok";
+  tab: "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat";
   statusFilter: "active" | "inactive" | null;
   countriesFilter: string[];
   /** Brand-wide country list (from page shell, not the loaded
@@ -86,6 +97,7 @@ export function ChannelTabs({
   ads,
   organicPosts,
   tiktokPosts,
+  snapchatProfiles,
   channelTotals,
   activeTotals,
   filteredTotals,
@@ -222,25 +234,25 @@ export function ChannelTabs({
         : Math.max(0, channelTotals.google - activeTotals.google);
   const instagramCount = channelTotals.instagram;
   const tiktokCount = channelTotals.tiktok;
+  const snapchatCount = channelTotals.snapchat;
 
   const tabs: { key: Channel; label: string; count: number; icon?: React.ReactNode }[] = [
     {
       key: "all",
       label: t("competitors", "channelAll"),
-      count: metaCount + googleCount + instagramCount + tiktokCount,
+      count: metaCount + googleCount + instagramCount + tiktokCount + snapchatCount,
     },
     { key: "meta", label: "Meta Ads", count: metaCount, icon: <MetaIcon className="size-3.5" /> },
     { key: "google", label: "Google Ads", count: googleCount, icon: <GoogleIcon className="size-3.5" /> },
     { key: "instagram", label: "Instagram", count: instagramCount, icon: <InstagramIcon className="size-3.5" /> },
     { key: "tiktok", label: "TikTok", count: tiktokCount, icon: <TikTokIcon className="size-3.5" /> },
+    { key: "snapchat", label: "Snapchat", count: snapchatCount, icon: <SnapchatIcon className="size-3.5" /> },
   ];
 
-  // Status pills — paid channels only (Instagram & TikTok organic
-  // posts have no ACTIVE/INACTIVE concept). Counts come from the
-  // head+exact queries done in the parent page; we drop them from
-  // the pill UI itself to mirror Benchmarks but keep the structure
-  // here in case we want them back as e.g. tooltips or sidebar copy.
-  const showStatusFilter = channel !== "instagram" && channel !== "tiktok";
+  // Status pills — paid channels only. Instagram, TikTok, Snapchat
+  // are organic-style channels with no ACTIVE/INACTIVE concept.
+  const showStatusFilter =
+    channel !== "instagram" && channel !== "tiktok" && channel !== "snapchat";
   const statusPills: { key: Status; label: string }[] = [
     { key: "all", label: t("competitors", "channelAll") },
     { key: "active", label: t("competitors", "statusActive") },
@@ -254,10 +266,13 @@ export function ChannelTabs({
   const showGoogle = channel === "all" || channel === "google";
   const showInstagram = channel === "all" || channel === "instagram";
   const showTiktok = channel === "all" || channel === "tiktok";
+  const showSnapchat = channel === "all" || channel === "snapchat";
 
   const visibleAds = channel === "meta" ? metaAds : channel === "google" ? googleAds : channel === "all" ? ads : [];
   const visibleOrganic = showInstagram ? organicPosts : [];
   const visibleTiktok = showTiktok ? tiktokPosts : [];
+  const visibleSnapchat = showSnapchat ? snapchatProfiles : [];
+  const latestSnapchat = visibleSnapchat[0] ?? null;
 
   // Identical chip class to Benchmarks: flat pill, gold/15 selected,
   // neutral border otherwise. No count badge — counts are already
@@ -688,14 +703,107 @@ export function ChannelTabs({
         </div>
       )}
 
-      {/* Empty state for "all" when nothing exists */}
-      {channel === "all" && ads.length === 0 && organicPosts.length === 0 && tiktokPosts.length === 0 && (
-        <Card>
-          <CardContent className="py-16 text-center text-muted-foreground">
-            {t("competitors", "noAdsCollected")}
-          </CardContent>
-        </Card>
+      {/* ─── Snapchat section ─── */}
+      {showSnapchat && (
+        <div className="space-y-4">
+          {latestSnapchat ? (
+            <>
+              {channel === "all" && (
+                <div className="flex items-center gap-2 pt-4 border-t border-border">
+                  <SnapchatIcon className="size-4 text-gold" />
+                  <p className="text-sm font-medium">Snapchat</p>
+                  <span className="text-xs text-muted-foreground">
+                    ({t("snapchat", "latestSnapshot")})
+                  </span>
+                </div>
+              )}
+              {channel === "snapchat" && (
+                <p className="text-sm text-muted-foreground">
+                  {t("snapchat", "latestSnapshot")}
+                </p>
+              )}
+              <SnapchatProfileCard profile={latestSnapchat} />
+
+              {/* Trend list — snapshots #2..N. Compact rows, just the
+                  date + spotlight/highlight/lens deltas, so the user
+                  can see how the brand grew across scans. Hidden in
+                  the all-tab to keep the surface small. */}
+              {channel === "snapchat" && visibleSnapchat.length > 1 && (
+                <div className="space-y-2">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground font-bold">
+                    {t("snapchat", "snapshotHistory")}
+                  </p>
+                  <div className="rounded-lg border border-border bg-muted/20 divide-y divide-border">
+                    {visibleSnapchat.slice(1).map((s, i) => {
+                      const next = visibleSnapchat[i]; // newer one
+                      const dSpot = s.spotlight_count - next.spotlight_count;
+                      const dHl = s.highlight_count - next.highlight_count;
+                      const dLens = s.lens_count - next.lens_count;
+                      const fmt = (n: number) =>
+                        n === 0 ? "·" : n > 0 ? `+${formatNumber(n)}` : formatNumber(n);
+                      return (
+                        <div
+                          key={s.id}
+                          className="flex items-center justify-between gap-4 px-4 py-2 text-xs"
+                        >
+                          <span className="text-muted-foreground tabular-nums">
+                            {new Date(s.scraped_at).toLocaleDateString("en-GB", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </span>
+                          <div className="flex items-center gap-4 tabular-nums">
+                            <span>
+                              {t("snapchat", "spotlightCount")}: <b>{formatNumber(s.spotlight_count)}</b>{" "}
+                              <span className="text-muted-foreground">({fmt(-dSpot)})</span>
+                            </span>
+                            <span>
+                              {t("snapchat", "highlightCount")}: <b>{formatNumber(s.highlight_count)}</b>{" "}
+                              <span className="text-muted-foreground">({fmt(-dHl)})</span>
+                            </span>
+                            <span>
+                              {t("snapchat", "lensCount")}: <b>{formatNumber(s.lens_count)}</b>{" "}
+                              <span className="text-muted-foreground">({fmt(-dLens)})</span>
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {channel === "snapchat" && visibleSnapchat.length === 1 && (
+                <p className="text-xs text-muted-foreground italic">
+                  {t("snapchat", "trendNoteSingle")}
+                </p>
+              )}
+            </>
+          ) : (
+            channel === "snapchat" && (
+              <Card>
+                <CardContent className="py-12 text-center text-muted-foreground text-sm">
+                  {t("snapchat", "noSnapshotYet")}
+                </CardContent>
+              </Card>
+            )
+          )}
+        </div>
       )}
+
+      {/* Empty state for "all" when nothing exists */}
+      {channel === "all" &&
+        ads.length === 0 &&
+        organicPosts.length === 0 &&
+        tiktokPosts.length === 0 &&
+        snapchatProfiles.length === 0 && (
+          <Card>
+            <CardContent className="py-16 text-center text-muted-foreground">
+              {t("competitors", "noAdsCollected")}
+            </CardContent>
+          </Card>
+        )}
     </div>
   );
 }

@@ -18,11 +18,18 @@ import type { MaitCompetitor, MaitScrapeJob } from "@/types";
 
 export const dynamic = "force-dynamic";
 
-type TabFilter = "all" | "meta" | "google" | "instagram" | "tiktok";
+type TabFilter = "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat";
 type StatusFilter = "active" | "inactive" | null;
 
 function parseTab(raw: string | string[] | undefined): TabFilter {
-  if (raw === "meta" || raw === "google" || raw === "instagram" || raw === "tiktok") return raw;
+  if (
+    raw === "meta" ||
+    raw === "google" ||
+    raw === "instagram" ||
+    raw === "tiktok" ||
+    raw === "snapchat"
+  )
+    return raw;
   return "all";
 }
 function parseStatus(raw: string | string[] | undefined): StatusFilter {
@@ -72,6 +79,7 @@ export default async function CompetitorDetailPage({
     { count: googleActiveCount },
     { count: postCount },
     { count: tiktokPostCount },
+    { count: snapchatSnapshotCount },
     { count: jobCount },
     { count: comparisonCount },
     { data: latestAd },
@@ -80,7 +88,7 @@ export default async function CompetitorDetailPage({
     supabase
       .from("mait_competitors")
       .select(
-        "id, workspace_id, page_name, page_url, country, category, monitor_config, profile_picture_url, instagram_username, tiktok_username, google_advertiser_id, google_domain"
+        "id, workspace_id, page_name, page_url, country, category, monitor_config, profile_picture_url, instagram_username, tiktok_username, snapchat_handle, snapchat_profile, google_advertiser_id, google_domain"
       )
       .eq("id", id)
       .single(),
@@ -129,6 +137,10 @@ export default async function CompetitorDetailPage({
       .select("id", { count: "exact", head: true })
       .eq("competitor_id", id),
     supabase
+      .from("mait_snapchat_profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("competitor_id", id),
+    supabase
       .from("mait_scrape_jobs")
       .select("id", { count: "exact", head: true })
       .eq("competitor_id", id),
@@ -174,16 +186,18 @@ export default async function CompetitorDetailPage({
   const organicTotal = postCount ?? 0;
   const deleteCounts = {
     ads: metaTotal + googleTotal,
-    posts: organicTotal + (tiktokPostCount ?? 0),
+    posts: organicTotal + (tiktokPostCount ?? 0) + (snapchatSnapshotCount ?? 0),
     jobs: jobCount ?? 0,
     comparisons: comparisonCount ?? 0,
   };
   const tiktokTotal = tiktokPostCount ?? 0;
+  const snapchatTotal = snapchatSnapshotCount ?? 0;
   const channelTotals = {
     meta: metaTotal,
     google: googleTotal,
     instagram: organicTotal,
     tiktok: tiktokTotal,
+    snapchat: snapchatTotal,
   };
   const activeTotals = {
     meta: metaActiveCount ?? 0,
@@ -353,6 +367,7 @@ export default async function CompetitorDetailPage({
             hasGoogleConfig={!!(c.google_advertiser_id || c.google_domain)}
             hasInstagramConfig={!!c.instagram_username}
             hasTiktokConfig={!!c.tiktok_username}
+            hasSnapchatConfig={!!c.snapchat_handle}
             hasRunningJob={hasRunningJob}
           />
         </CardContent>

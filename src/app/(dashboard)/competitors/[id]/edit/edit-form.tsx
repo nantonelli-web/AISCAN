@@ -68,6 +68,7 @@ export function EditCompetitorForm({
   const [category, setCategory] = useState(competitor.category ?? "");
   const [instagramUsername, setInstagramUsername] = useState(competitor.instagram_username ?? "");
   const [tiktokUsername, setTiktokUsername] = useState(competitor.tiktok_username ?? "");
+  const [snapchatHandle, setSnapchatHandle] = useState(competitor.snapchat_handle ?? "");
   const [googleAdvertiserId, setGoogleAdvertiserId] = useState(competitor.google_advertiser_id ?? "");
   const [googleDomain, setGoogleDomain] = useState(competitor.google_domain ?? "");
   const [clientId, setClientId] = useState(competitor.client_id ?? "");
@@ -117,6 +118,7 @@ export function EditCompetitorForm({
         client_id: clientId || null,
         instagram_username: instagramUsername.replace(/^@/, "").trim() || null,
         tiktok_username: tiktokUsername.replace(/^@/, "").trim() || null,
+        snapchat_handle: snapchatHandle.replace(/^@/, "").trim() || null,
         google_advertiser_id: googleAdvertiserId.trim() || null,
         google_domain: googleDomain.trim() || null,
       }),
@@ -187,6 +189,15 @@ export function EditCompetitorForm({
                 value={tiktokUsername}
                 onChange={(e) => setTiktokUsername(e.target.value)}
                 placeholder={t("newCompetitor", "tiktokPlaceholder")}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="snapchat">{t("newCompetitor", "snapchatLabel")}</Label>
+              <Input
+                id="snapchat"
+                value={snapchatHandle}
+                onChange={(e) => setSnapchatHandle(e.target.value)}
+                placeholder={t("newCompetitor", "snapchatPlaceholder")}
               />
             </div>
 

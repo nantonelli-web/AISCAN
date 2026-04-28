@@ -41,6 +41,8 @@ export interface MaitCompetitor {
   instagram_username: string | null;
   tiktok_username: string | null;
   tiktok_profile: Record<string, unknown> | null;
+  snapchat_handle: string | null;
+  snapchat_profile: Record<string, unknown> | null;
   google_advertiser_id: string | null;
   google_domain: string | null;
   profile_picture_url: string | null;
@@ -110,6 +112,38 @@ export interface MaitOrganicPost {
   posted_at: string | null;
   raw_data: Record<string, unknown> | null;
   created_at: string;
+}
+
+export interface MaitSnapchatProfile {
+  id: string;
+  workspace_id: string;
+  competitor_id: string | null;
+  username: string;
+  display_name: string | null;
+  profile_url: string | null;
+  profile_type: string | null;
+  business_profile_id: string | null;
+  bio: string | null;
+  website_url: string | null;
+  category: string | null;
+  subcategory: string | null;
+  is_verified: boolean;
+  address: string | null;
+  profile_picture_url: string | null;
+  snapcode_image_url: string | null;
+  hero_image_url: string | null;
+  subscriber_count: number;
+  lens_count: number;
+  highlight_count: number;
+  spotlight_count: number;
+  has_story: boolean;
+  has_curated_highlights: boolean;
+  has_spotlight_highlights: boolean;
+  related_accounts: unknown[];
+  account_created_at: string | null;
+  profile_updated_at: string | null;
+  scraped_at: string;
+  raw_data: Record<string, unknown> | null;
 }
 
 export interface MaitTikTokPost {

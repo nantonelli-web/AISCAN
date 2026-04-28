@@ -7,6 +7,7 @@ import { RefreshCw, CalendarRange, Square } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
 import { TikTokIcon } from "@/components/ui/tiktok-icon";
+import { SnapchatIcon } from "@/components/ui/snapchat-icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useT } from "@/lib/i18n/context";
@@ -49,17 +50,19 @@ interface Props {
   hasGoogleConfig: boolean;
   hasInstagramConfig: boolean;
   hasTiktokConfig: boolean;
+  hasSnapchatConfig: boolean;
   /** DB-confirmed running job; shows Stop even after a page reload. */
   hasRunningJob?: boolean;
 }
 
-type ScanTarget = "meta" | "google" | "instagram" | "tiktok";
+type ScanTarget = "meta" | "google" | "instagram" | "tiktok" | "snapchat";
 
 export function ScanDropdown({
   competitorId,
   hasGoogleConfig,
   hasInstagramConfig,
   hasTiktokConfig,
+  hasSnapchatConfig,
   hasRunningJob = false,
 }: Props) {
   const router = useRouter();
@@ -68,7 +71,7 @@ export function ScanDropdown({
   // page lands on the just-imported channel instead of leaving the
   // user on the previous tab. router.replace + router.refresh keeps
   // the back-stack clean and re-runs the server component.
-  function focusChannel(tab: "meta" | "google" | "instagram" | "tiktok") {
+  function focusChannel(tab: "meta" | "google" | "instagram" | "tiktok" | "snapchat") {
     router.replace(`${pathname}?tab=${tab}`);
     router.refresh();
   }
@@ -231,6 +234,42 @@ export function ScanDropdown({
           { id: toastId }
         );
         focusChannel("instagram");
+      }
+    } catch (e) {
+      if ((e as Error).name === "AbortError") {
+        toast.dismiss(toastId);
+      } else {
+        toast.error(e instanceof Error ? e.message : "Network error", { id: toastId });
+      }
+    } finally {
+      abortRef.current = null;
+      setLoading(null);
+    }
+  }
+
+  // The Snapchat actor returns one profile snapshot per scan (no per-
+  // post entity to filter, no date range). Always-on, regardless of
+  // the date inputs above.
+  async function scanSnapchat() {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setLoading("snapchat");
+    const toastId = toast.loading(t("organic", "scanning"));
+    try {
+      const res = await fetch("/api/snapchat/scan", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          competitor_id: competitorId,
+        }),
+        signal: controller.signal,
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error ?? "Snapchat scrape failed", { id: toastId });
+      } else {
+        toast.success(t("scan", "snapshotSynced"), { id: toastId });
+        focusChannel("snapchat");
       }
     } catch (e) {
       if ((e as Error).name === "AbortError") {
@@ -425,12 +464,27 @@ export function ScanDropdown({
               )}
               {loading === "tiktok" ? t("organic", "scanning") : "TikTok"}
             </Button>
+
+            <Button
+              onClick={hasSnapchatConfig ? scanSnapchat : undefined}
+              disabled={!hasSnapchatConfig || isLoading}
+              variant="outline"
+              size="lg"
+              className={hasSnapchatConfig ? bigCta : bigCtaDisabled}
+            >
+              {loading === "snapchat" ? (
+                <RefreshCw className="size-6 animate-spin" />
+              ) : (
+                <SnapchatIcon className="size-6" />
+              )}
+              {loading === "snapchat" ? t("organic", "scanning") : "Snapchat"}
+            </Button>
           </div>
         </div>
       </div>
 
       {/* ─── 3. Missing config details (amber box) ─── */}
-      {(!hasGoogleConfig || !hasInstagramConfig || !hasTiktokConfig) && (
+      {(!hasGoogleConfig || !hasInstagramConfig || !hasTiktokConfig || !hasSnapchatConfig) && (
         <div className="rounded-md border border-gold/30 bg-gold/5 p-3 space-y-1.5">
           <p className="text-xs font-medium text-gold">{t("scan", "configRequiredBrand")}</p>
           {!hasGoogleConfig && (
@@ -456,6 +510,16 @@ export function ScanDropdown({
           {!hasTiktokConfig && (
             <div className="flex items-center gap-2 text-xs">
               <span className="text-muted-foreground">TikTok: {t("scan", "tiktokNotConfigured")}</span>
+              <a href={`/competitors/${competitorId}/edit?from=brand`} className="ml-auto shrink-0">
+                <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer">
+                  {t("compare", "goToEdit")}
+                </Button>
+              </a>
+            </div>
+          )}
+          {!hasSnapchatConfig && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-muted-foreground">Snapchat: {t("scan", "snapchatNotConfigured")}</span>
               <a href={`/competitors/${competitorId}/edit?from=brand`} className="ml-auto shrink-0">
                 <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer">
                   {t("compare", "goToEdit")}
