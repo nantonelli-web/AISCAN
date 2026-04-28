@@ -11,6 +11,7 @@ export type CreditAction =
   | 'scan_tiktok'
   | 'scan_snapchat'
   | 'scan_youtube'
+  | 'scan_serp'
   | 'ai_tagging'
   | 'ai_analysis'
   | 'report_single'
@@ -130,6 +131,12 @@ export const creditCosts: Record<CreditAction, number> = {
   // counters in the same scan), and reflects the per-scan cost
   // honestly.
   scan_youtube: 1,
+  // Google SERP actor (apify/google-search-scraper) costs $1.80 per
+  // 1000 result pages. We scan one page per query (10 results max,
+  // Google's own cap), so each scan costs ~$0.0018 — the cheapest
+  // of the lot. 1 credit aligned with the other "snapshot-style"
+  // scans (Snapchat/YouTube).
+  scan_serp: 1,
   ai_tagging: 1,
   ai_analysis: 3,
   report_single: 2,
