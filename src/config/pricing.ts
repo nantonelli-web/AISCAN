@@ -10,6 +10,7 @@ export type CreditAction =
   | 'scan_instagram'
   | 'scan_tiktok'
   | 'scan_snapchat'
+  | 'scan_youtube'
   | 'ai_tagging'
   | 'ai_analysis'
   | 'report_single'
@@ -122,6 +123,13 @@ export const creditCosts: Record<CreditAction, number> = {
   // honestly. If we ever ingest spotlights/highlights as separate
   // entities we'll need to revisit.
   scan_snapchat: 1,
+  // YouTube actor (streamers/youtube-channel-scraper) costs $0.50
+  // per 1000 videos. A 30-video scan = $0.015 — about 3x cheaper
+  // than TikTok at the same volume. 1 credit keeps the pricing
+  // tier in line with Snapchat (which also returns lifetime channel
+  // counters in the same scan), and reflects the per-scan cost
+  // honestly.
+  scan_youtube: 1,
   ai_tagging: 1,
   ai_analysis: 3,
   report_single: 2,
