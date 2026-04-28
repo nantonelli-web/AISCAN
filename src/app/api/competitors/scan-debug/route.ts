@@ -488,12 +488,107 @@ export async function GET(req: Request) {
       },
     };
 
+    // ── Organic health: probe Instagram organic posts ───────────
+    // Same diagnostic pattern as mediaHealth but for organic. Lets
+    // us verify which Apify-side fields are actually populated
+    // before designing UI features around them (lesson from the
+    // DSA fields debacle on the Meta scraper). The probe surfaces
+    // both extracted columns (mentions, tagged_users — already in
+    // DB) and raw_data fields the current normalizer ignores
+    // (videoDuration, musicInfo, coauthorProducers, productType).
+    const ORGANIC_SAMPLE_CAP = 2000;
+    const { data: organicRows } = await admin
+      .from("mait_organic_posts")
+      .select(
+        "id, post_id, post_type, caption, display_url, video_url, mentions, tagged_users, raw_data",
+      )
+      .eq("workspace_id", wsId)
+      .eq("competitor_id", competitorId)
+      .order("posted_at", { ascending: false, nullsFirst: false })
+      .limit(ORGANIC_SAMPLE_CAP);
+
+    type OrganicRow = {
+      id: string;
+      post_id: string | null;
+      post_type: string | null;
+      caption: string | null;
+      display_url: string | null;
+      video_url: string | null;
+      mentions: string[] | null;
+      tagged_users: string[] | null;
+      raw_data: Record<string, unknown> | null;
+    };
+    const orows = (organicRows ?? []) as OrganicRow[];
+
+    let withVideoDuration = 0;
+    let withMusicInfo = 0;
+    let withMentions = 0;
+    let withTaggedUsers = 0;
+    let withCoauthors = 0;
+    const postTypeBreakdown: Record<string, number> = {};
+    for (const r of orows) {
+      const raw = (r.raw_data ?? {}) as Record<string, unknown>;
+      const dur = raw.videoDuration;
+      if (typeof dur === "number" && dur > 0) withVideoDuration++;
+      if (raw.musicInfo && typeof raw.musicInfo === "object") withMusicInfo++;
+      if (Array.isArray(r.mentions) && r.mentions.length > 0) withMentions++;
+      if (Array.isArray(r.tagged_users) && r.tagged_users.length > 0)
+        withTaggedUsers++;
+      const coauth = raw.coauthorProducers;
+      if (Array.isArray(coauth) && coauth.length > 0) withCoauthors++;
+      const ptype = r.post_type ?? "(null)";
+      postTypeBreakdown[ptype] = (postTypeBreakdown[ptype] ?? 0) + 1;
+    }
+
+    // Pick samples: prefer one of each post_type for diversity.
+    // Reel-typed first (where videoDuration + musicInfo would live),
+    // then Sidecar/carousel, then Image. Cap at 5.
+    const sampleByType = new Map<string, OrganicRow>();
+    for (const r of orows) {
+      const t = r.post_type ?? "(null)";
+      if (!sampleByType.has(t)) sampleByType.set(t, r);
+      if (sampleByType.size >= 5) break;
+    }
+    const organicSamples = [...sampleByType.values()].map((r) => {
+      const raw = (r.raw_data ?? {}) as Record<string, unknown>;
+      return {
+        id: r.id,
+        post_id: r.post_id,
+        post_type: r.post_type,
+        caption: r.caption?.slice(0, 120) ?? null,
+        display_url: r.display_url,
+        productType: (raw.productType as string | null) ?? null,
+        videoDuration: (raw.videoDuration as number | null) ?? null,
+        // Dump the full musicInfo blob (or null) so we can see the
+        // shape Apify uses — songId vs song_id, artistName vs author, etc.
+        musicInfo: (raw.musicInfo as unknown) ?? null,
+        coauthorProducers: (raw.coauthorProducers as unknown) ?? null,
+        mentions: r.mentions,
+        tagged_users: r.tagged_users,
+      };
+    });
+
+    const organicHealth = {
+      sampledPosts: orows.length,
+      sampledTruncated: orows.length >= ORGANIC_SAMPLE_CAP,
+      fieldCoverage: {
+        withVideoDuration,
+        withMusicInfo,
+        withMentions,
+        withTaggedUsers,
+        withCoauthors,
+      },
+      postTypeBreakdown,
+      samples: organicSamples,
+    };
+
     return NextResponse.json({
       ok: true,
       competitor,
       summary,
       dbStats,
       mediaHealth,
+      organicHealth,
       jobs: annotatedJobs,
     });
   } catch (e) {

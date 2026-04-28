@@ -100,6 +100,39 @@ export function OrganicPostCard({ post }: { post: MaitOrganicPost }) {
           </div>
         )}
 
+        {/* Mentions + tagged users — deduplicated union. mentions
+            are @accounts cited in the caption; tagged_users are
+            accounts tagged on the post itself. The two channels are
+            semantically distinct but visually identical (both are
+            @username chips), so we dedupe and show them together to
+            keep the card tight. The detail page can break them out
+            if a user needs the source distinction. */}
+        {(() => {
+          const accounts = [
+            ...new Set([
+              ...(post.mentions ?? []).filter(Boolean),
+              ...(post.tagged_users ?? []).filter(Boolean),
+            ]),
+          ];
+          if (accounts.length === 0) return null;
+          const visible = accounts.slice(0, 4);
+          const overflow = accounts.length - visible.length;
+          return (
+            <div className="flex items-center gap-1 flex-wrap">
+              {visible.map((u) => (
+                <Badge key={u} variant="outline" className="text-[10px]">
+                  @{u}
+                </Badge>
+              ))}
+              {overflow > 0 && (
+                <span className="text-[10px] text-muted-foreground">
+                  +{overflow}
+                </span>
+              )}
+            </div>
+          );
+        })()}
+
         {/* AI Tags (gated by AI_TAGS_ENABLED feature flag) */}
         {AI_TAGS_ENABLED && aiTags && (
           <div className="flex items-center gap-1 flex-wrap">
