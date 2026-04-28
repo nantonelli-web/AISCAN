@@ -18,7 +18,7 @@ import type { MaitCompetitor, MaitScrapeJob } from "@/types";
 
 export const dynamic = "force-dynamic";
 
-type TabFilter = "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat";
+type TabFilter = "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube";
 type StatusFilter = "active" | "inactive" | null;
 
 function parseTab(raw: string | string[] | undefined): TabFilter {
@@ -27,7 +27,8 @@ function parseTab(raw: string | string[] | undefined): TabFilter {
     raw === "google" ||
     raw === "instagram" ||
     raw === "tiktok" ||
-    raw === "snapchat"
+    raw === "snapchat" ||
+    raw === "youtube"
   )
     return raw;
   return "all";
@@ -80,6 +81,8 @@ export default async function CompetitorDetailPage({
     { count: postCount },
     { count: tiktokPostCount },
     { count: snapchatSnapshotCount },
+    { count: youtubeVideoCount },
+    { count: youtubeChannelSnapCount },
     { count: jobCount },
     { count: comparisonCount },
     { data: latestAd },
@@ -88,7 +91,7 @@ export default async function CompetitorDetailPage({
     supabase
       .from("mait_competitors")
       .select(
-        "id, workspace_id, page_name, page_url, country, category, monitor_config, profile_picture_url, instagram_username, tiktok_username, snapchat_handle, snapchat_profile, google_advertiser_id, google_domain"
+        "id, workspace_id, page_name, page_url, country, category, monitor_config, profile_picture_url, instagram_username, tiktok_username, snapchat_handle, snapchat_profile, youtube_channel_url, youtube_profile, google_advertiser_id, google_domain"
       )
       .eq("id", id)
       .single(),
@@ -141,6 +144,14 @@ export default async function CompetitorDetailPage({
       .select("id", { count: "exact", head: true })
       .eq("competitor_id", id),
     supabase
+      .from("mait_youtube_videos")
+      .select("id", { count: "exact", head: true })
+      .eq("competitor_id", id),
+    supabase
+      .from("mait_youtube_channels")
+      .select("id", { count: "exact", head: true })
+      .eq("competitor_id", id),
+    supabase
       .from("mait_scrape_jobs")
       .select("id", { count: "exact", head: true })
       .eq("competitor_id", id),
@@ -186,18 +197,27 @@ export default async function CompetitorDetailPage({
   const organicTotal = postCount ?? 0;
   const deleteCounts = {
     ads: metaTotal + googleTotal,
-    posts: organicTotal + (tiktokPostCount ?? 0) + (snapchatSnapshotCount ?? 0),
+    posts:
+      organicTotal +
+      (tiktokPostCount ?? 0) +
+      (snapchatSnapshotCount ?? 0) +
+      (youtubeVideoCount ?? 0) +
+      (youtubeChannelSnapCount ?? 0),
     jobs: jobCount ?? 0,
     comparisons: comparisonCount ?? 0,
   };
   const tiktokTotal = tiktokPostCount ?? 0;
   const snapchatTotal = snapchatSnapshotCount ?? 0;
+  const youtubeVideosTotal = youtubeVideoCount ?? 0;
+  const youtubeChannelTotal = youtubeChannelSnapCount ?? 0;
   const channelTotals = {
     meta: metaTotal,
     google: googleTotal,
     instagram: organicTotal,
     tiktok: tiktokTotal,
     snapchat: snapchatTotal,
+    youtube: youtubeVideosTotal,
+    youtubeChannelSnaps: youtubeChannelTotal,
   };
   const activeTotals = {
     meta: metaActiveCount ?? 0,
@@ -368,6 +388,7 @@ export default async function CompetitorDetailPage({
             hasInstagramConfig={!!c.instagram_username}
             hasTiktokConfig={!!c.tiktok_username}
             hasSnapchatConfig={!!c.snapchat_handle}
+            hasYoutubeConfig={!!c.youtube_channel_url}
             hasRunningJob={hasRunningJob}
           />
         </CardContent>

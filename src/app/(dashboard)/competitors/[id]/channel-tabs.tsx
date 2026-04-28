@@ -9,12 +9,15 @@ import { AdCard } from "@/components/ads/ad-card";
 import { OrganicPostCard } from "@/components/organic/organic-post-card";
 import { TikTokPostCard } from "@/components/organic/tiktok-post-card";
 import { SnapchatProfileCard } from "@/components/organic/snapchat-profile-card";
+import { YoutubeChannelCard } from "@/components/organic/youtube-channel-card";
+import { YoutubeVideoCard } from "@/components/organic/youtube-video-card";
 import { TagButton } from "@/components/ads/tag-button";
 import { AI_TAGS_ENABLED } from "@/config/features";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
 import { TikTokIcon } from "@/components/ui/tiktok-icon";
 import { SnapchatIcon } from "@/components/ui/snapchat-icon";
+import { YouTubeIcon } from "@/components/ui/youtube-icon";
 import { Download, Loader2 } from "lucide-react";
 import { formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
@@ -24,9 +27,11 @@ import type {
   MaitOrganicPost,
   MaitTikTokPost,
   MaitSnapchatProfile,
+  MaitYoutubeChannel,
+  MaitYoutubeVideo,
 } from "@/types";
 
-type Channel = "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat";
+type Channel = "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube";
 type Status = "all" | "active" | "inactive";
 
 /* ─── Platform icons (small, inline) ─── */
@@ -53,10 +58,24 @@ interface Props {
    *  [0] is the latest profile snapshot rendered as the SnapchatProfileCard;
    *  the rest feed the trend list. */
   snapchatProfiles: MaitSnapchatProfile[];
+  /** YouTube channel snapshots, most-recent-first. [0] is the latest
+   *  rendered as the YoutubeChannelCard; older rows feed a small
+   *  trend block (subscriber/video/view delta between scans). */
+  youtubeChannels: MaitYoutubeChannel[];
+  /** YouTube videos, most-recent-first. */
+  youtubeVideos: MaitYoutubeVideo[];
   /** DB-wide totals per channel — drive the filter chip badges so the
    *  user sees the real count for the brand, not the lazy-loaded
    *  array length (which is capped at 30 for performance). */
-  channelTotals: { meta: number; google: number; instagram: number; tiktok: number; snapchat: number };
+  channelTotals: {
+    meta: number;
+    google: number;
+    instagram: number;
+    tiktok: number;
+    snapchat: number;
+    youtube: number;
+    youtubeChannelSnaps: number;
+  };
   /** DB-wide active-only counts per source — fed to the Status pill
    *  so the Active badge matches the brand reality, not the loaded
    *  sample. Inactive = total − active. */
@@ -68,7 +87,7 @@ interface Props {
   /** URL-driven filter state. Pills navigate the URL; the server
    *  re-runs the ads query with these applied so the 30-row cap
    *  operates AFTER filtering. */
-  tab: "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat";
+  tab: "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube";
   statusFilter: "active" | "inactive" | null;
   countriesFilter: string[];
   /** Brand-wide country list (from page shell, not the loaded
@@ -90,6 +109,12 @@ interface Props {
     avgComments: number | null;
     totalViews: number;
   };
+  youtubeStats: {
+    count: number;
+    avgLikes: number | null;
+    avgComments: number | null;
+    totalViews: number;
+  };
 }
 
 export function ChannelTabs({
@@ -98,6 +123,8 @@ export function ChannelTabs({
   organicPosts,
   tiktokPosts,
   snapchatProfiles,
+  youtubeChannels,
+  youtubeVideos,
   channelTotals,
   activeTotals,
   filteredTotals,
@@ -107,6 +134,7 @@ export function ChannelTabs({
   countriesFilter,
   organicStats,
   tiktokStats,
+  youtubeStats,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -235,24 +263,35 @@ export function ChannelTabs({
   const instagramCount = channelTotals.instagram;
   const tiktokCount = channelTotals.tiktok;
   const snapchatCount = channelTotals.snapchat;
+  const youtubeCount = channelTotals.youtube;
 
   const tabs: { key: Channel; label: string; count: number; icon?: React.ReactNode }[] = [
     {
       key: "all",
       label: t("competitors", "channelAll"),
-      count: metaCount + googleCount + instagramCount + tiktokCount + snapchatCount,
+      count:
+        metaCount +
+        googleCount +
+        instagramCount +
+        tiktokCount +
+        snapchatCount +
+        youtubeCount,
     },
     { key: "meta", label: "Meta Ads", count: metaCount, icon: <MetaIcon className="size-3.5" /> },
     { key: "google", label: "Google Ads", count: googleCount, icon: <GoogleIcon className="size-3.5" /> },
     { key: "instagram", label: "Instagram", count: instagramCount, icon: <InstagramIcon className="size-3.5" /> },
     { key: "tiktok", label: "TikTok", count: tiktokCount, icon: <TikTokIcon className="size-3.5" /> },
     { key: "snapchat", label: "Snapchat", count: snapchatCount, icon: <SnapchatIcon className="size-3.5" /> },
+    { key: "youtube", label: "YouTube", count: youtubeCount, icon: <YouTubeIcon className="size-3.5" /> },
   ];
 
-  // Status pills — paid channels only. Instagram, TikTok, Snapchat
-  // are organic-style channels with no ACTIVE/INACTIVE concept.
+  // Status pills — paid channels only. Instagram, TikTok, Snapchat,
+  // YouTube are organic-style channels with no ACTIVE/INACTIVE concept.
   const showStatusFilter =
-    channel !== "instagram" && channel !== "tiktok" && channel !== "snapchat";
+    channel !== "instagram" &&
+    channel !== "tiktok" &&
+    channel !== "snapchat" &&
+    channel !== "youtube";
   const statusPills: { key: Status; label: string }[] = [
     { key: "all", label: t("competitors", "channelAll") },
     { key: "active", label: t("competitors", "statusActive") },
@@ -267,12 +306,15 @@ export function ChannelTabs({
   const showInstagram = channel === "all" || channel === "instagram";
   const showTiktok = channel === "all" || channel === "tiktok";
   const showSnapchat = channel === "all" || channel === "snapchat";
+  const showYoutube = channel === "all" || channel === "youtube";
 
   const visibleAds = channel === "meta" ? metaAds : channel === "google" ? googleAds : channel === "all" ? ads : [];
   const visibleOrganic = showInstagram ? organicPosts : [];
   const visibleTiktok = showTiktok ? tiktokPosts : [];
   const visibleSnapchat = showSnapchat ? snapchatProfiles : [];
   const latestSnapchat = visibleSnapchat[0] ?? null;
+  const visibleYoutubeVideos = showYoutube ? youtubeVideos : [];
+  const latestYoutubeChannel = showYoutube ? youtubeChannels[0] ?? null : null;
 
   // Identical chip class to Benchmarks: flat pill, gold/15 selected,
   // neutral border otherwise. No count badge — counts are already
@@ -792,12 +834,97 @@ export function ChannelTabs({
         </div>
       )}
 
+      {/* ─── YouTube section ─── */}
+      {showYoutube && (
+        <div className="space-y-4">
+          {latestYoutubeChannel ? (
+            <>
+              {channel === "all" && (
+                <div className="flex items-center gap-2 pt-4 border-t border-border">
+                  <YouTubeIcon className="size-4 text-gold" />
+                  <p className="text-sm font-medium">YouTube</p>
+                  <span className="text-xs text-muted-foreground">
+                    ({t("youtube", "latestSnapshot")})
+                  </span>
+                </div>
+              )}
+
+              <YoutubeChannelCard channel={latestYoutubeChannel} />
+
+              {channel === "youtube" && youtubeStats.count > 0 && (
+                <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+                  <Card>
+                    <CardContent className="py-4 text-center">
+                      <p className="text-2xl font-semibold">
+                        {channelTotals.youtube}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{t("organic", "totalPosts")}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="py-4 text-center">
+                      <p className="text-2xl font-semibold">
+                        {youtubeStats.avgLikes != null ? formatNumber(youtubeStats.avgLikes) : "—"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{t("organic", "avgLikes")}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="py-4 text-center">
+                      <p className="text-2xl font-semibold">
+                        {youtubeStats.avgComments != null ? formatNumber(youtubeStats.avgComments) : "—"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{t("organic", "avgComments")}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="py-4 text-center">
+                      <p className="text-2xl font-semibold">{formatNumber(youtubeStats.totalViews)}</p>
+                      <p className="text-xs text-muted-foreground">{t("organic", "totalViews")}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {visibleYoutubeVideos.length > 0 && (
+                <>
+                  {channel === "youtube" && (
+                    <p className="text-sm text-muted-foreground">
+                      {visibleYoutubeVideos.length}
+                      {channelTotals.youtube > visibleYoutubeVideos.length
+                        ? ` ${t("competitors", "ofTotal")} ${channelTotals.youtube}`
+                        : ""}
+                      {" "}{t("organic", "postsCount")}
+                    </p>
+                  )}
+                  <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {visibleYoutubeVideos.map((v) => (
+                      <YoutubeVideoCard key={v.id} video={v} />
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          ) : (
+            channel === "youtube" && (
+              <Card>
+                <CardContent className="py-12 text-center text-muted-foreground text-sm">
+                  {t("youtube", "noVideosYet")}
+                </CardContent>
+              </Card>
+            )
+          )}
+        </div>
+      )}
+
       {/* Empty state for "all" when nothing exists */}
       {channel === "all" &&
         ads.length === 0 &&
         organicPosts.length === 0 &&
         tiktokPosts.length === 0 &&
-        snapchatProfiles.length === 0 && (
+        snapchatProfiles.length === 0 &&
+        youtubeChannels.length === 0 &&
+        youtubeVideos.length === 0 && (
           <Card>
             <CardContent className="py-16 text-center text-muted-foreground">
               {t("competitors", "noAdsCollected")}

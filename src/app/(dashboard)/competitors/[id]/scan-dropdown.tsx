@@ -8,6 +8,7 @@ import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
 import { TikTokIcon } from "@/components/ui/tiktok-icon";
 import { SnapchatIcon } from "@/components/ui/snapchat-icon";
+import { YouTubeIcon } from "@/components/ui/youtube-icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useT } from "@/lib/i18n/context";
@@ -51,11 +52,12 @@ interface Props {
   hasInstagramConfig: boolean;
   hasTiktokConfig: boolean;
   hasSnapchatConfig: boolean;
+  hasYoutubeConfig: boolean;
   /** DB-confirmed running job; shows Stop even after a page reload. */
   hasRunningJob?: boolean;
 }
 
-type ScanTarget = "meta" | "google" | "instagram" | "tiktok" | "snapchat";
+type ScanTarget = "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube";
 
 export function ScanDropdown({
   competitorId,
@@ -63,6 +65,7 @@ export function ScanDropdown({
   hasInstagramConfig,
   hasTiktokConfig,
   hasSnapchatConfig,
+  hasYoutubeConfig,
   hasRunningJob = false,
 }: Props) {
   const router = useRouter();
@@ -71,7 +74,9 @@ export function ScanDropdown({
   // page lands on the just-imported channel instead of leaving the
   // user on the previous tab. router.replace + router.refresh keeps
   // the back-stack clean and re-runs the server component.
-  function focusChannel(tab: "meta" | "google" | "instagram" | "tiktok" | "snapchat") {
+  function focusChannel(
+    tab: "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube",
+  ) {
     router.replace(`${pathname}?tab=${tab}`);
     router.refresh();
   }
@@ -234,6 +239,46 @@ export function ScanDropdown({
           { id: toastId }
         );
         focusChannel("instagram");
+      }
+    } catch (e) {
+      if ((e as Error).name === "AbortError") {
+        toast.dismiss(toastId);
+      } else {
+        toast.error(e instanceof Error ? e.message : "Network error", { id: toastId });
+      }
+    } finally {
+      abortRef.current = null;
+      setLoading(null);
+    }
+  }
+
+  // The YouTube actor returns the most recent N videos plus a channel
+  // snapshot — no date filter to forward, so we ignore the date
+  // range inputs above (same as TikTok).
+  async function scanYoutube() {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setLoading("youtube");
+    const toastId = toast.loading(t("organic", "scanning"));
+    try {
+      const res = await fetch("/api/youtube/scan", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          competitor_id: competitorId,
+          max_videos: 30,
+        }),
+        signal: controller.signal,
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error ?? "YouTube scrape failed", { id: toastId });
+      } else {
+        toast.success(
+          `${json.records} ${t("organic", "postsSynced")}`,
+          { id: toastId },
+        );
+        focusChannel("youtube");
       }
     } catch (e) {
       if ((e as Error).name === "AbortError") {
@@ -479,12 +524,31 @@ export function ScanDropdown({
               )}
               {loading === "snapchat" ? t("organic", "scanning") : "Snapchat"}
             </Button>
+
+            <Button
+              onClick={hasYoutubeConfig ? scanYoutube : undefined}
+              disabled={!hasYoutubeConfig || isLoading}
+              variant="outline"
+              size="lg"
+              className={hasYoutubeConfig ? bigCta : bigCtaDisabled}
+            >
+              {loading === "youtube" ? (
+                <RefreshCw className="size-6 animate-spin" />
+              ) : (
+                <YouTubeIcon className="size-6" />
+              )}
+              {loading === "youtube" ? t("organic", "scanning") : "YouTube"}
+            </Button>
           </div>
         </div>
       </div>
 
       {/* ─── 3. Missing config details (amber box) ─── */}
-      {(!hasGoogleConfig || !hasInstagramConfig || !hasTiktokConfig || !hasSnapchatConfig) && (
+      {(!hasGoogleConfig ||
+        !hasInstagramConfig ||
+        !hasTiktokConfig ||
+        !hasSnapchatConfig ||
+        !hasYoutubeConfig) && (
         <div className="rounded-md border border-gold/30 bg-gold/5 p-3 space-y-1.5">
           <p className="text-xs font-medium text-gold">{t("scan", "configRequiredBrand")}</p>
           {!hasGoogleConfig && (
@@ -520,6 +584,16 @@ export function ScanDropdown({
           {!hasSnapchatConfig && (
             <div className="flex items-center gap-2 text-xs">
               <span className="text-muted-foreground">Snapchat: {t("scan", "snapchatNotConfigured")}</span>
+              <a href={`/competitors/${competitorId}/edit?from=brand`} className="ml-auto shrink-0">
+                <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer">
+                  {t("compare", "goToEdit")}
+                </Button>
+              </a>
+            </div>
+          )}
+          {!hasYoutubeConfig && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-muted-foreground">YouTube: {t("scan", "youtubeNotConfigured")}</span>
               <a href={`/competitors/${competitorId}/edit?from=brand`} className="ml-auto shrink-0">
                 <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer">
                   {t("compare", "goToEdit")}

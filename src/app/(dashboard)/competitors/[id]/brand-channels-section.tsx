@@ -5,6 +5,8 @@ import type {
   MaitOrganicPost,
   MaitTikTokPost,
   MaitSnapchatProfile,
+  MaitYoutubeChannel,
+  MaitYoutubeVideo,
 } from "@/types";
 
 /**
@@ -36,7 +38,15 @@ export async function BrandChannelsSection({
    *  parent page). The lazy ad/post lists are capped at 30 for
    *  performance, so the filter chips would otherwise display the
    *  loaded length (always 30) instead of the brand actual totals. */
-  channelTotals: { meta: number; google: number; instagram: number; tiktok: number; snapchat: number };
+  channelTotals: {
+    meta: number;
+    google: number;
+    instagram: number;
+    tiktok: number;
+    snapchat: number;
+    youtube: number;
+    youtubeChannelSnaps: number;
+  };
   /** DB-wide active-only counts per source — drive the Status pill
    *  badge (Active / Inactive) so the row reflects the brand reality
    *  rather than the loaded sample. */
@@ -49,7 +59,7 @@ export async function BrandChannelsSection({
    *  cap operates AFTER filtering, not before. Without this the
    *  Country pill on a big brand showed "1 of 415" because the 30
    *  most-recent ads happened to have only one matching country. */
-  tab: "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat";
+  tab: "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube";
   statusFilter: "active" | "inactive" | null;
   countriesFilter: string[];
 }) {
@@ -73,7 +83,12 @@ export async function BrandChannelsSection({
   // to a no-result set to skip the wire transfer.
   if (tab === "meta") adsQuery = adsQuery.eq("source", "meta");
   else if (tab === "google") adsQuery = adsQuery.eq("source", "google");
-  else if (tab === "instagram" || tab === "tiktok" || tab === "snapchat")
+  else if (
+    tab === "instagram" ||
+    tab === "tiktok" ||
+    tab === "snapchat" ||
+    tab === "youtube"
+  )
     adsQuery = adsQuery.eq("source", "__none__");
 
   if (statusFilter === "active") adsQuery = adsQuery.eq("status", "ACTIVE");
@@ -117,6 +132,8 @@ export async function BrandChannelsSection({
     { data: organicPosts },
     { data: tiktokPosts },
     { data: snapchatProfiles },
+    { data: youtubeChannelSnaps },
+    { data: youtubeVideos },
     { count: metaFiltered },
     { count: googleFiltered },
   ] = await Promise.all([
@@ -148,6 +165,25 @@ export async function BrandChannelsSection({
       .eq("competitor_id", competitorId)
       .order("scraped_at", { ascending: false })
       .limit(30),
+    // YouTube channel snapshots: same trend pattern as Snapchat.
+    supabase
+      .from("mait_youtube_channels")
+      .select(
+        "id, workspace_id, competitor_id, channel_id, channel_username, channel_url, input_channel_url, channel_name, channel_description, channel_location, avatar_url, banner_url, is_verified, is_age_restricted, subscriber_count, total_videos, total_views, description_links, channel_joined_at, scraped_at, raw_data"
+      )
+      .eq("competitor_id", competitorId)
+      .order("scraped_at", { ascending: false })
+      .limit(30),
+    // YouTube videos: same per-post pattern as TikTok. Capped at 30
+    // for the initial paint; expand later if we add a Load more.
+    supabase
+      .from("mait_youtube_videos")
+      .select(
+        "id, workspace_id, competitor_id, video_id, video_url, channel_id, title, description, thumbnail_url, type, duration_seconds, view_count, like_count, comment_count, posted_at, posted_relative, created_at, raw_data"
+      )
+      .eq("competitor_id", competitorId)
+      .order("posted_at", { ascending: false, nullsFirst: false })
+      .limit(30),
     metaCountQuery,
     googleCountQuery,
   ]);
@@ -156,6 +192,8 @@ export async function BrandChannelsSection({
   const organicList = (organicPosts ?? []) as MaitOrganicPost[];
   const tiktokList = (tiktokPosts ?? []) as MaitTikTokPost[];
   const snapchatList = (snapchatProfiles ?? []) as MaitSnapchatProfile[];
+  const youtubeChannelList = (youtubeChannelSnaps ?? []) as MaitYoutubeChannel[];
+  const youtubeVideoList = (youtubeVideos ?? []) as MaitYoutubeVideo[];
 
   // Organic engagement: Instagram returns -1 on accounts with hidden
   // likes — treat negatives as unknown so a brand with hidden likes
@@ -203,6 +241,30 @@ export async function BrandChannelsSection({
       : null;
   const ttTotalViews = ttValidPlays.reduce((s, n) => s + n, 0);
 
+  // YouTube engagement averages — same defensive treatment as TikTok
+  // (negative counters are treated as missing). like_count and
+  // comment_count are nullable on the actor (only populated with
+  // video_details=true), so we filter to numeric values before
+  // averaging.
+  const ytValidLikes = youtubeVideoList
+    .map((v) => (typeof v.like_count === "number" ? v.like_count : -1))
+    .filter((n) => n >= 0);
+  const ytValidComments = youtubeVideoList
+    .map((v) => (typeof v.comment_count === "number" ? v.comment_count : -1))
+    .filter((n) => n >= 0);
+  const ytAvgLikes =
+    ytValidLikes.length > 0
+      ? Math.round(ytValidLikes.reduce((s, n) => s + n, 0) / ytValidLikes.length)
+      : null;
+  const ytAvgComments =
+    ytValidComments.length > 0
+      ? Math.round(ytValidComments.reduce((s, n) => s + n, 0) / ytValidComments.length)
+      : null;
+  const ytTotalViews = youtubeVideoList.reduce(
+    (s, v) => s + (typeof v.view_count === "number" ? v.view_count : 0),
+    0,
+  );
+
   return (
     <ChannelTabs
       competitorId={competitorId}
@@ -210,6 +272,8 @@ export async function BrandChannelsSection({
       organicPosts={organicList}
       tiktokPosts={tiktokList}
       snapchatProfiles={snapchatList}
+      youtubeChannels={youtubeChannelList}
+      youtubeVideos={youtubeVideoList}
       channelTotals={channelTotals}
       activeTotals={activeTotals}
       filteredTotals={{
@@ -231,6 +295,12 @@ export async function BrandChannelsSection({
         avgLikes: ttAvgLikes,
         avgComments: ttAvgComments,
         totalViews: ttTotalViews,
+      }}
+      youtubeStats={{
+        count: youtubeVideoList.length,
+        avgLikes: ytAvgLikes,
+        avgComments: ytAvgComments,
+        totalViews: ytTotalViews,
       }}
     />
   );

@@ -321,6 +321,11 @@ const translations = {
     tiktokPlaceholder: { it: "es. nike (senza @)", en: "e.g. nike (without @)" },
     snapchatLabel: { it: "Username Snapchat", en: "Snapchat username" },
     snapchatPlaceholder: { it: "es. nike (senza @)", en: "e.g. nike (without @)" },
+    youtubeLabel: { it: "Canale YouTube", en: "YouTube channel" },
+    youtubePlaceholder: {
+      it: "URL canale o handle (es. @nike)",
+      en: "Channel URL or handle (e.g. @nike)",
+    },
     googleAdsSection: { it: "Google Ads", en: "Google Ads" },
     googleDomainLabel: { it: "Dominio del sito web dell'inserzionista", en: "Advertiser website domain" },
     googleDomainPlaceholder: { it: "es. nike.com", en: "e.g. nike.com" },
@@ -415,6 +420,10 @@ const translations = {
     snapchatNotConfigured: {
       it: "Username Snapchat non configurato",
       en: "Snapchat username not configured",
+    },
+    youtubeNotConfigured: {
+      it: "Canale YouTube non configurato",
+      en: "YouTube channel not configured",
     },
   },
 
@@ -1265,6 +1274,20 @@ const translations = {
   },
 
   // ─── Organic Posts ─────────────────────────────────────────
+  youtube: {
+    title: { it: "YouTube", en: "YouTube" },
+    latestSnapshot: { it: "Ultimo snapshot canale", en: "Latest channel snapshot" },
+    noVideosYet: {
+      it: "Nessun video YouTube ancora. Lancia uno scan per iniziare a tracciare il canale.",
+      en: "No YouTube videos yet. Run a scan to start tracking this channel.",
+    },
+    subscriberCount: { it: "Iscritti", en: "Subscribers" },
+    totalVideos: { it: "Video totali", en: "Total videos" },
+    totalViews: { it: "Visualizzazioni", en: "Total views" },
+    joinedAt: { it: "Iscritto a YouTube il", en: "Joined YouTube on" },
+    scrapedAt: { it: "Aggiornato il", en: "Updated on" },
+  },
+
   snapchat: {
     title: { it: "Snapchat", en: "Snapchat" },
     latestSnapshot: { it: "Snapshot più recente", en: "Latest snapshot" },
@@ -1316,6 +1339,7 @@ const translations = {
     viewOnInstagram: { it: "Instagram", en: "Instagram" },
     viewOnTiktok: { it: "TikTok", en: "TikTok" },
     viewOnSnapchat: { it: "Snapchat", en: "Snapchat" },
+    viewOnYoutube: { it: "YouTube", en: "YouTube" },
     posts: { it: "post", en: "posts" },
     postsLabel: { it: "Post", en: "Posts" },
     avgViews: { it: "Views medie", en: "Avg. views" },

@@ -43,6 +43,8 @@ export interface MaitCompetitor {
   tiktok_profile: Record<string, unknown> | null;
   snapchat_handle: string | null;
   snapchat_profile: Record<string, unknown> | null;
+  youtube_channel_url: string | null;
+  youtube_profile: Record<string, unknown> | null;
   google_advertiser_id: string | null;
   google_domain: string | null;
   profile_picture_url: string | null;
@@ -143,6 +145,51 @@ export interface MaitSnapchatProfile {
   account_created_at: string | null;
   profile_updated_at: string | null;
   scraped_at: string;
+  raw_data: Record<string, unknown> | null;
+}
+
+export interface MaitYoutubeChannel {
+  id: string;
+  workspace_id: string;
+  competitor_id: string | null;
+  channel_id: string | null;
+  channel_username: string | null;
+  channel_url: string | null;
+  input_channel_url: string | null;
+  channel_name: string | null;
+  channel_description: string | null;
+  channel_location: string | null;
+  avatar_url: string | null;
+  banner_url: string | null;
+  is_verified: boolean;
+  is_age_restricted: boolean;
+  subscriber_count: number;
+  total_videos: number;
+  total_views: number;
+  description_links: { text: string | null; url: string | null }[];
+  channel_joined_at: string | null;
+  scraped_at: string;
+  raw_data: Record<string, unknown> | null;
+}
+
+export interface MaitYoutubeVideo {
+  id: string;
+  workspace_id: string;
+  competitor_id: string | null;
+  video_id: string;
+  video_url: string | null;
+  channel_id: string | null;
+  title: string | null;
+  description: string | null;
+  thumbnail_url: string | null;
+  type: string | null;
+  duration_seconds: number | null;
+  view_count: number;
+  like_count: number | null;
+  comment_count: number | null;
+  posted_at: string | null;
+  posted_relative: string | null;
+  created_at: string;
   raw_data: Record<string, unknown> | null;
 }
 
