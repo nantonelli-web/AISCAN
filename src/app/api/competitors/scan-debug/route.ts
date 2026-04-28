@@ -362,6 +362,54 @@ export async function GET(req: Request) {
       const firstCard = (cards[0] ?? {}) as Record<string, unknown>;
       const firstImage = (images[0] ?? {}) as Record<string, unknown>;
       const firstVideo = (videos[0] ?? {}) as Record<string, unknown>;
+      // Country-related field probe — exposes every path where Apify
+      // could conceivably encode the "this ad is also served in
+      // these other countries" signal. We dump them raw (no merge,
+      // no fallback) so the user can see exactly what is populated
+      // and what is null/missing on a real fresh sample. From this
+      // we decide whether the "served also in" UI feature is
+      // implementable with 100% confidence.
+      const regulationData =
+        (raw.regionalRegulationData as Record<string, unknown> | null) ?? null;
+      const countrySignals = {
+        // Top-level on the ad object — historically null per past
+        // codebase observations but worth re-checking on every audit.
+        targetedOrReachedCountries:
+          (raw.targetedOrReachedCountries as unknown) ?? null,
+        // Same field but inside snapshot — different actors put it here.
+        snapshot_targetedOrReachedCountries:
+          (snapshot.targetedOrReachedCountries as unknown) ?? null,
+        // Country code on the ad header (usually the "this ad is from
+        // a Page based in <country>" badge).
+        snapshot_country: (snapshot.country as unknown) ?? null,
+        // EU DSA regulation block — when populated, holds an array
+        // of countries the ad was served in for legal transparency.
+        regulationData_country:
+          (regulationData?.country as unknown) ?? null,
+        regulationData_finalLocation:
+          (regulationData?.finalLocation as unknown) ?? null,
+        // Some actor versions ship a flat `reachByCountry` list.
+        reachByCountry: (raw.reachByCountry as unknown) ?? null,
+        snapshot_reachByCountry:
+          (snapshot.reachByCountry as unknown) ?? null,
+        // The DSA-style age/country/gender breakdown contains country
+        // codes too — extract just the unique country list as a quick
+        // proxy for "where the ad was actually delivered".
+        deliveryCountriesFromBreakdown: (() => {
+          const arr = (raw.ageCountryGenderReachBreakdown ??
+            raw.age_country_gender_reach_breakdown) as
+            | Array<Record<string, unknown>>
+            | null
+            | undefined;
+          if (!Array.isArray(arr)) return null;
+          const codes = new Set<string>();
+          for (const row of arr) {
+            const c = (row?.country ?? row?.countryCode) as string | undefined;
+            if (typeof c === "string" && c) codes.add(c);
+          }
+          return [...codes];
+        })(),
+      };
       return {
         id: row.id,
         ad_archive_id: row.ad_archive_id,
@@ -371,6 +419,7 @@ export async function GET(req: Request) {
         video_url: row.video_url,
         displayFormat: snapshot.displayFormat ?? null,
         adSnapshotUrl: raw.adSnapshotUrl ?? null,
+        countrySignals,
         snapshot: {
           cardCount: cards.length,
           imageCount: images.length,
