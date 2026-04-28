@@ -1336,6 +1336,22 @@ const translations = {
     moreReviewsHint: { it: "altre review non mostrate", en: "more reviews not shown" },
   },
 
+  brandSerp: {
+    tabLabel: { it: "SERP", en: "SERP" },
+    organic: { it: "Organico", en: "Organic" },
+    paid: { it: "Ads", en: "Ads" },
+    lastScraped: { it: "Aggiornato", en: "Updated" },
+    neverScraped: { it: "Mai scansionata.", en: "Never scanned." },
+    openSerp: { it: "Apri detail SERP", en: "Open SERP detail" },
+    querySingular: { it: "query collegata", en: "linked query" },
+    queryPlural: { it: "query collegate", en: "linked queries" },
+    matchingDomain: { it: "match su", en: "matching" },
+    noLinkedYet: {
+      it: "Nessuna query SERP collegata a questo brand. Vai su /serp e associa una query.",
+      en: "No SERP queries linked to this brand. Go to /serp and link a query.",
+    },
+  },
+
   serp: {
     title: { it: "Google SERP", en: "Google SERP" },
     subtitle: {

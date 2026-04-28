@@ -11,6 +11,7 @@ import { TikTokPostCard } from "@/components/organic/tiktok-post-card";
 import { SnapchatProfileCard } from "@/components/organic/snapchat-profile-card";
 import { YoutubeChannelCard } from "@/components/organic/youtube-channel-card";
 import { YoutubeVideoCard } from "@/components/organic/youtube-video-card";
+import { BrandSerpRankCard } from "@/components/serp/brand-serp-rank-card";
 import { TagButton } from "@/components/ads/tag-button";
 import { AI_TAGS_ENABLED } from "@/config/features";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
@@ -18,10 +19,11 @@ import { MetaIcon } from "@/components/ui/meta-icon";
 import { TikTokIcon } from "@/components/ui/tiktok-icon";
 import { SnapchatIcon } from "@/components/ui/snapchat-icon";
 import { YouTubeIcon } from "@/components/ui/youtube-icon";
-import { Download, Loader2 } from "lucide-react";
+import { Download, Loader2, Search as SearchIcon } from "lucide-react";
 import { formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { CountryFilterDropdown } from "./country-filter-dropdown";
+import type { BrandSerpQueryRank } from "./brand-channels-section";
 import type {
   MaitAdExternal,
   MaitOrganicPost,
@@ -31,7 +33,7 @@ import type {
   MaitYoutubeVideo,
 } from "@/types";
 
-type Channel = "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube";
+type Channel = "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube" | "serp";
 type Status = "all" | "active" | "inactive";
 
 /* ─── Platform icons (small, inline) ─── */
@@ -51,6 +53,10 @@ function GoogleIcon({ className }: { className?: string }) {
 
 interface Props {
   competitorId: string;
+  /** Brand's google_domain (eTLD+1 already), pulled from the brand
+   *  row. Drives the SERP-tab visibility gate together with the
+   *  channelTotals.serpQueries count. */
+  googleDomain: string | null;
   ads: MaitAdExternal[];
   organicPosts: MaitOrganicPost[];
   tiktokPosts: MaitTikTokPost[];
@@ -64,6 +70,11 @@ interface Props {
   youtubeChannels: MaitYoutubeChannel[];
   /** YouTube videos, most-recent-first. */
   youtubeVideos: MaitYoutubeVideo[];
+  /** SERP queries linked to this brand via the M:N junction, with
+   *  the brand's rank in the latest run already folded in. Empty
+   *  when the brand has no linked queries — the tab is hidden in
+   *  that case. */
+  serpQueries: BrandSerpQueryRank[];
   /** DB-wide totals per channel — drive the filter chip badges so the
    *  user sees the real count for the brand, not the lazy-loaded
    *  array length (which is capped at 30 for performance). */
@@ -75,6 +86,7 @@ interface Props {
     snapchat: number;
     youtube: number;
     youtubeChannelSnaps: number;
+    serpQueries: number;
   };
   /** DB-wide active-only counts per source — fed to the Status pill
    *  so the Active badge matches the brand reality, not the loaded
@@ -87,7 +99,7 @@ interface Props {
   /** URL-driven filter state. Pills navigate the URL; the server
    *  re-runs the ads query with these applied so the 30-row cap
    *  operates AFTER filtering. */
-  tab: "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube";
+  tab: "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube" | "serp";
   statusFilter: "active" | "inactive" | null;
   countriesFilter: string[];
   /** Brand-wide country list (from page shell, not the loaded
@@ -119,12 +131,14 @@ interface Props {
 
 export function ChannelTabs({
   competitorId,
+  googleDomain,
   ads,
   organicPosts,
   tiktokPosts,
   snapchatProfiles,
   youtubeChannels,
   youtubeVideos,
+  serpQueries,
   channelTotals,
   activeTotals,
   filteredTotals,
@@ -264,6 +278,14 @@ export function ChannelTabs({
   const tiktokCount = channelTotals.tiktok;
   const snapchatCount = channelTotals.snapchat;
   const youtubeCount = channelTotals.youtube;
+  const serpCount = channelTotals.serpQueries;
+
+  // SERP tab visibility gate (project memory): show only when the
+  // brand has a google_domain configured AND at least one query is
+  // linked via the M:N junction. Without google_domain there is
+  // nothing to match SERP results against; without linked queries
+  // there is nothing to render.
+  const serpTabVisible = !!googleDomain && serpCount > 0;
 
   const tabs: { key: Channel; label: string; count: number; icon?: React.ReactNode }[] = [
     {
@@ -283,15 +305,27 @@ export function ChannelTabs({
     { key: "tiktok", label: "TikTok", count: tiktokCount, icon: <TikTokIcon className="size-3.5" /> },
     { key: "snapchat", label: "Snapchat", count: snapchatCount, icon: <SnapchatIcon className="size-3.5" /> },
     { key: "youtube", label: "YouTube", count: youtubeCount, icon: <YouTubeIcon className="size-3.5" /> },
+    ...(serpTabVisible
+      ? [
+          {
+            key: "serp" as Channel,
+            label: t("brandSerp", "tabLabel"),
+            count: serpCount,
+            icon: <SearchIcon className="size-3.5" />,
+          },
+        ]
+      : []),
   ];
 
   // Status pills — paid channels only. Instagram, TikTok, Snapchat,
-  // YouTube are organic-style channels with no ACTIVE/INACTIVE concept.
+  // YouTube and SERP are organic-style/standalone channels with no
+  // ACTIVE/INACTIVE concept.
   const showStatusFilter =
     channel !== "instagram" &&
     channel !== "tiktok" &&
     channel !== "snapchat" &&
-    channel !== "youtube";
+    channel !== "youtube" &&
+    channel !== "serp";
   const statusPills: { key: Status; label: string }[] = [
     { key: "all", label: t("competitors", "channelAll") },
     { key: "active", label: t("competitors", "statusActive") },
@@ -307,6 +341,10 @@ export function ChannelTabs({
   const showTiktok = channel === "all" || channel === "tiktok";
   const showSnapchat = channel === "all" || channel === "snapchat";
   const showYoutube = channel === "all" || channel === "youtube";
+  // SERP only renders on the dedicated tab — never on "all". The
+  // brand-detail "all" view is for media/posts, not for ranking
+  // tables, so we keep the surfaces separate.
+  const showSerp = channel === "serp" && serpTabVisible;
 
   const visibleAds = channel === "meta" ? metaAds : channel === "google" ? googleAds : channel === "all" ? ads : [];
   const visibleOrganic = showInstagram ? organicPosts : [];
@@ -315,6 +353,7 @@ export function ChannelTabs({
   const latestSnapchat = visibleSnapchat[0] ?? null;
   const visibleYoutubeVideos = showYoutube ? youtubeVideos : [];
   const latestYoutubeChannel = showYoutube ? youtubeChannels[0] ?? null : null;
+  const visibleSerpQueries = showSerp ? serpQueries : [];
 
   // Identical chip class to Benchmarks: flat pill, gold/15 selected,
   // neutral border otherwise. No count badge — counts are already
@@ -913,6 +952,41 @@ export function ChannelTabs({
                 </CardContent>
               </Card>
             )
+          )}
+        </div>
+      )}
+
+      {/* ─── SERP brand-rank section ──────────────────────── */}
+      {showSerp && (
+        <div className="space-y-4">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              {visibleSerpQueries.length}{" "}
+              {visibleSerpQueries.length === 1
+                ? t("brandSerp", "querySingular")
+                : t("brandSerp", "queryPlural")}
+              {googleDomain && (
+                <>
+                  {" — "}
+                  <span className="text-foreground/80">
+                    {t("brandSerp", "matchingDomain")} {googleDomain}
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
+          {visibleSerpQueries.length > 0 ? (
+            <div className="space-y-3">
+              {visibleSerpQueries.map((q) => (
+                <BrandSerpRankCard key={q.query_id} rank={q} />
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground text-sm">
+                {t("brandSerp", "noLinkedYet")}
+              </CardContent>
+            </Card>
           )}
         </div>
       )}

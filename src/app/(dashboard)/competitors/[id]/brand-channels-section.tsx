@@ -9,6 +9,52 @@ import type {
   MaitYoutubeVideo,
 } from "@/types";
 
+// ─── SERP brand-tab shapes (declared here, consumed by ChannelTabs) ──
+interface BrandSerpQueryMeta {
+  id: string;
+  query: string;
+  country: string;
+  language: string;
+  device: string;
+  label: string | null;
+  last_scraped_at: string | null;
+}
+
+interface BrandSerpRunSummary {
+  id: string;
+  query_id: string;
+  scraped_at: string;
+  organic_count: number;
+  paid_count: number;
+  paid_products_count: number;
+  has_ai_overview: boolean;
+}
+
+interface BrandSerpMatch {
+  run_id: string;
+  query_id: string;
+  result_type: string;
+  position: number | null;
+  url: string | null;
+  title: string | null;
+}
+
+export interface BrandSerpQueryRank {
+  query_id: string;
+  query: string;
+  country: string;
+  language: string;
+  device: string;
+  label: string | null;
+  last_scraped_at: string | null;
+  run: BrandSerpRunSummary | null;
+  best_organic_position: number | null;
+  best_paid_position: number | null;
+  organic_match_count: number;
+  paid_match_count: number;
+  top_match: BrandSerpMatch | null;
+}
+
 /**
  * The heavy half of the brand detail page — 30 ads + 30 organic
  * posts, each carrying full raw_data (50–200 KB on Meta). Lifted out
@@ -26,6 +72,7 @@ import type {
  */
 export async function BrandChannelsSection({
   competitorId,
+  googleDomain,
   channelTotals,
   activeTotals,
   availableCountries,
@@ -34,6 +81,10 @@ export async function BrandChannelsSection({
   countriesFilter,
 }: {
   competitorId: string;
+  /** Brand's normalized google_domain (eTLD+1) — drives the SERP rank
+   *  match. null when the brand has no Google domain configured; the
+   *  SERP tab is hidden in that case. */
+  googleDomain: string | null;
   /** Real DB-wide counts per channel (head+exact queries done in the
    *  parent page). The lazy ad/post lists are capped at 30 for
    *  performance, so the filter chips would otherwise display the
@@ -46,6 +97,7 @@ export async function BrandChannelsSection({
     snapchat: number;
     youtube: number;
     youtubeChannelSnaps: number;
+    serpQueries: number;
   };
   /** DB-wide active-only counts per source — drive the Status pill
    *  badge (Active / Inactive) so the row reflects the brand reality
@@ -59,7 +111,7 @@ export async function BrandChannelsSection({
    *  cap operates AFTER filtering, not before. Without this the
    *  Country pill on a big brand showed "1 of 415" because the 30
    *  most-recent ads happened to have only one matching country. */
-  tab: "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube";
+  tab: "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube" | "serp";
   statusFilter: "active" | "inactive" | null;
   countriesFilter: string[];
 }) {
@@ -87,7 +139,8 @@ export async function BrandChannelsSection({
     tab === "instagram" ||
     tab === "tiktok" ||
     tab === "snapchat" ||
-    tab === "youtube"
+    tab === "youtube" ||
+    tab === "serp"
   )
     adsQuery = adsQuery.eq("source", "__none__");
 
@@ -195,6 +248,122 @@ export async function BrandChannelsSection({
   const youtubeChannelList = (youtubeChannelSnaps ?? []) as MaitYoutubeChannel[];
   const youtubeVideoList = (youtubeVideos ?? []) as MaitYoutubeVideo[];
 
+  // ─── SERP rank fetch ─────────────────────────────────────────
+  // Three-step fetch (linked queries → latest run per query →
+  // brand-matching results) so the SERP tab can render rankings
+  // without N+1 round trips. Skipped entirely when the brand has
+  // no google_domain (the tab itself is hidden in that case).
+  const serpQueries: BrandSerpQueryRank[] = [];
+  if (googleDomain && channelTotals.serpQueries > 0) {
+    const { data: linkRows } = await supabase
+      .from("mait_serp_query_brands")
+      .select(
+        "query_id, mait_serp_queries(id, query, country, language, device, label, last_scraped_at)",
+      )
+      .eq("competitor_id", competitorId);
+
+    const queries = (linkRows ?? [])
+      .map((r) => {
+        const q = (r as { mait_serp_queries: unknown }).mait_serp_queries as
+          | BrandSerpQueryMeta
+          | BrandSerpQueryMeta[]
+          | null;
+        if (!q) return null;
+        return Array.isArray(q) ? q[0] ?? null : q;
+      })
+      .filter((q): q is BrandSerpQueryMeta => !!q);
+
+    if (queries.length > 0) {
+      const queryIds = queries.map((q) => q.id);
+      // Latest run per query — pull every run for these queries,
+      // ordered most-recent-first, then take the first one we see
+      // for each query_id.
+      const { data: runRows } = await supabase
+        .from("mait_serp_runs")
+        .select(
+          "id, query_id, scraped_at, organic_count, paid_count, paid_products_count, has_ai_overview",
+        )
+        .in("query_id", queryIds)
+        .order("scraped_at", { ascending: false });
+
+      const latestRunByQuery = new Map<string, BrandSerpRunSummary>();
+      for (const r of (runRows ?? []) as BrandSerpRunSummary[]) {
+        if (!latestRunByQuery.has(r.query_id)) {
+          latestRunByQuery.set(r.query_id, r);
+        }
+      }
+
+      // Brand-matching results across those latest runs — single
+      // round trip with `in` on run_id + equality on the normalized
+      // domain. Index `idx_mait_serp_results_domain` keeps it fast.
+      const runIds = [...latestRunByQuery.values()].map((r) => r.id);
+      const matchesByRun = new Map<string, BrandSerpMatch[]>();
+      if (runIds.length > 0) {
+        const { data: matchRows } = await supabase
+          .from("mait_serp_results")
+          .select("run_id, query_id, result_type, position, url, title")
+          .in("run_id", runIds)
+          .eq("normalized_domain", googleDomain);
+        for (const m of (matchRows ?? []) as BrandSerpMatch[]) {
+          const list = matchesByRun.get(m.run_id) ?? [];
+          list.push(m);
+          matchesByRun.set(m.run_id, list);
+        }
+      }
+
+      // Fold queries + runs + matches into the shape the tab needs.
+      for (const q of queries) {
+        const run = latestRunByQuery.get(q.id) ?? null;
+        const matches = run ? matchesByRun.get(run.id) ?? [] : [];
+        const organicMatches = matches.filter(
+          (m) => m.result_type === "organic",
+        );
+        const paidMatches = matches.filter(
+          (m) =>
+            m.result_type === "paid" || m.result_type === "paid_product",
+        );
+        const bestPos = (list: BrandSerpMatch[]) => {
+          const positions = list
+            .map((m) => m.position)
+            .filter((n): n is number => typeof n === "number" && n > 0);
+          return positions.length > 0 ? Math.min(...positions) : null;
+        };
+        serpQueries.push({
+          query_id: q.id,
+          query: q.query,
+          country: q.country,
+          language: q.language,
+          device: q.device,
+          label: q.label,
+          last_scraped_at: q.last_scraped_at ?? run?.scraped_at ?? null,
+          run,
+          best_organic_position: bestPos(organicMatches),
+          best_paid_position: bestPos(paidMatches),
+          organic_match_count: organicMatches.length,
+          paid_match_count: paidMatches.length,
+          // Store the top match for inline rendering — title + URL
+          // is enough to remind the user "you rank for X with this
+          // page".
+          top_match:
+            organicMatches[0] ?? paidMatches[0] ?? null,
+        });
+      }
+
+      // Sort: queries with a known organic rank first (best rank
+      // ascending), then queries with only paid rank, then queries
+      // with no match. Within each group, alphabetical.
+      serpQueries.sort((a, b) => {
+        const ao = a.best_organic_position ?? Infinity;
+        const bo = b.best_organic_position ?? Infinity;
+        if (ao !== bo) return ao - bo;
+        const ap = a.best_paid_position ?? Infinity;
+        const bp = b.best_paid_position ?? Infinity;
+        if (ap !== bp) return ap - bp;
+        return a.query.localeCompare(b.query);
+      });
+    }
+  }
+
   // Organic engagement: Instagram returns -1 on accounts with hidden
   // likes — treat negatives as unknown so a brand with hidden likes
   // does not produce "-1" or 0-skewed averages.
@@ -268,12 +437,14 @@ export async function BrandChannelsSection({
   return (
     <ChannelTabs
       competitorId={competitorId}
+      googleDomain={googleDomain}
       ads={adsList}
       organicPosts={organicList}
       tiktokPosts={tiktokList}
       snapchatProfiles={snapchatList}
       youtubeChannels={youtubeChannelList}
       youtubeVideos={youtubeVideoList}
+      serpQueries={serpQueries}
       channelTotals={channelTotals}
       activeTotals={activeTotals}
       filteredTotals={{

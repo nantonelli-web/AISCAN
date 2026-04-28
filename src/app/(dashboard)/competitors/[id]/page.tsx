@@ -18,7 +18,7 @@ import type { MaitCompetitor, MaitScrapeJob } from "@/types";
 
 export const dynamic = "force-dynamic";
 
-type TabFilter = "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube";
+type TabFilter = "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube" | "serp";
 type StatusFilter = "active" | "inactive" | null;
 
 function parseTab(raw: string | string[] | undefined): TabFilter {
@@ -28,7 +28,8 @@ function parseTab(raw: string | string[] | undefined): TabFilter {
     raw === "instagram" ||
     raw === "tiktok" ||
     raw === "snapchat" ||
-    raw === "youtube"
+    raw === "youtube" ||
+    raw === "serp"
   )
     return raw;
   return "all";
@@ -83,6 +84,7 @@ export default async function CompetitorDetailPage({
     { count: snapchatSnapshotCount },
     { count: youtubeVideoCount },
     { count: youtubeChannelSnapCount },
+    { count: serpQueryLinkCount },
     { count: jobCount },
     { count: comparisonCount },
     { data: latestAd },
@@ -151,6 +153,12 @@ export default async function CompetitorDetailPage({
       .from("mait_youtube_channels")
       .select("id", { count: "exact", head: true })
       .eq("competitor_id", id),
+    // SERP M:N association count — drives whether the SERP tab is
+    // visible in the brand-detail channel filter.
+    supabase
+      .from("mait_serp_query_brands")
+      .select("query_id", { count: "exact", head: true })
+      .eq("competitor_id", id),
     supabase
       .from("mait_scrape_jobs")
       .select("id", { count: "exact", head: true })
@@ -210,6 +218,7 @@ export default async function CompetitorDetailPage({
   const snapchatTotal = snapchatSnapshotCount ?? 0;
   const youtubeVideosTotal = youtubeVideoCount ?? 0;
   const youtubeChannelTotal = youtubeChannelSnapCount ?? 0;
+  const serpQueriesTotal = serpQueryLinkCount ?? 0;
   const channelTotals = {
     meta: metaTotal,
     google: googleTotal,
@@ -218,6 +227,7 @@ export default async function CompetitorDetailPage({
     snapchat: snapchatTotal,
     youtube: youtubeVideosTotal,
     youtubeChannelSnaps: youtubeChannelTotal,
+    serpQueries: serpQueriesTotal,
   };
   const activeTotals = {
     meta: metaActiveCount ?? 0,
@@ -405,6 +415,7 @@ export default async function CompetitorDetailPage({
       >
         <BrandChannelsSection
           competitorId={c.id}
+          googleDomain={c.google_domain}
           channelTotals={channelTotals}
           activeTotals={activeTotals}
           availableCountries={availableCountries}
