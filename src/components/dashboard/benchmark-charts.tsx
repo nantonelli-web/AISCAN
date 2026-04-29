@@ -118,9 +118,16 @@ const INACTIVE_FILL = "#5b6675";
 
 export function VolumeChart({
   data,
+  labels,
 }: {
   data: { name: string; active: number; inactive: number }[];
+  /** Localized series labels. The chart is shared by Compare + Benchmarks
+   *  which both run i18n; keep the labels injectable rather than
+   *  importing the i18n context inside this generic chart component. */
+  labels?: { active: string; inactive: string };
 }) {
+  const activeLabel = labels?.active ?? "Active";
+  const inactiveLabel = labels?.inactive ?? "Inactive";
   // Vertical bars read well up to ~8 brands; past that, x-axis labels crowd
   // each other and chart compresses. Switch to a horizontal layout whose
   // height grows with the brand count. We render BOTH active + inactive
@@ -143,8 +150,9 @@ export function VolumeChart({
             width={140}
           />
           <Tooltip {...tooltipStyle} />
-          <Bar dataKey="active" stackId="vol" fill={GOLD} name="Active" />
-          <Bar dataKey="inactive" stackId="vol" fill={INACTIVE_FILL} name="Inactive" radius={[0, 4, 4, 0]} />
+          <Legend wrapperStyle={{ fontSize: 12, color: LEGEND_TEXT }} />
+          <Bar dataKey="active" stackId="vol" fill={GOLD} name={activeLabel} />
+          <Bar dataKey="inactive" stackId="vol" fill={INACTIVE_FILL} name={inactiveLabel} radius={[0, 4, 4, 0]} />
         </BarChart>
       </ResponsiveContainer>
     );
@@ -162,8 +170,9 @@ export function VolumeChart({
         />
         <YAxis tick={{ fill: AXIS_TICK, fontSize: 11 }} />
         <Tooltip {...tooltipStyle} />
-        <Bar dataKey="active" stackId="vol" fill={GOLD} name="Active" />
-        <Bar dataKey="inactive" stackId="vol" fill={INACTIVE_FILL} name="Inactive" radius={[4, 4, 0, 0]} />
+        <Legend wrapperStyle={{ fontSize: 12, color: LEGEND_TEXT }} />
+        <Bar dataKey="active" stackId="vol" fill={GOLD} name={activeLabel} />
+        <Bar dataKey="inactive" stackId="vol" fill={INACTIVE_FILL} name={inactiveLabel} radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );

@@ -178,7 +178,13 @@ export async function BenchmarkContent({
         </CardHeader>
         <CardContent>
           <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descVolume")}</p>
-          <VolumeChart data={data.volumeByCompetitor} />
+          <VolumeChart
+            data={data.volumeByCompetitor}
+            labels={{
+              active: t("benchmarks", "statusActive"),
+              inactive: t("benchmarks", "statusInactive"),
+            }}
+          />
         </CardContent>
       </Card>
 
