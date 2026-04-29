@@ -581,6 +581,14 @@ const translations = {
       it: "N/A su Google Ads",
       en: "N/A on Google Ads",
     },
+    metaPlacementsLabel: {
+      it: "Placements Meta",
+      en: "Meta placements",
+    },
+    googleSurfacesLabel: {
+      it: "Superfici Google",
+      en: "Google surfaces",
+    },
     backToSelection: { it: "Torna alla selezione", en: "Back to selection" },
     tabTechnical: { it: "Analisi tecnica", en: "Technical analysis" },
     tabCopy: { it: "AI - Analisi copy", en: "AI - Copy analysis" },

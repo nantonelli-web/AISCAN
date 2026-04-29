@@ -52,8 +52,15 @@ export const maxDuration = 300;
  *         a dedicated `text` bucket separate from "Other"/unknown.
  *         The visual prompt is channel-aware (YouTube/Display/Search
  *         on Google, social-feed on Meta).
+ *   - v8: Phase 3 channel discrimination — technical_data rows now
+ *         carry a `channel` discriminator and Google rows omit the
+ *         Meta-only fields (topCtas, avgCopyLength, objectiveInference).
+ *         The compare-view union narrows on `channel`, so an old
+ *         cached row tagged "ads" without a channel field would still
+ *         normalise to "meta" but its Google data (if any) would
+ *         carry impossible fields. Bump invalidates v7 rows.
  */
-const CURRENT_DATA_VERSION = 7;
+const CURRENT_DATA_VERSION = 8;
 
 /* ── Schemas ─────────────────────────────────────────────── */
 
@@ -347,10 +354,37 @@ async function computeTechnicalStats(
         adsList.map((a) => a.raw_data)
       );
 
+      // Discriminator for the client-side discriminated union. When
+      // source is undefined (channel="all" mix) we tag the row as
+      // "meta" because the Meta-only fields (objectiveInference,
+      // topCtas, avgCopyLength) are still computed and meaningful.
+      // The client never reads "channel: meta" fields on the Google
+      // path because computeTechnicalStats only returns those when
+      // source allows them.
+      const channel: "meta" | "google" =
+        source === "google" ? "google" : "meta";
+
+      if (channel === "google") {
+        return {
+          id,
+          name: comp?.page_name ?? "—",
+          kind: "ads" as const,
+          channel,
+          totalAds: adsList.length,
+          activeAds: active.length,
+          imageCount,
+          videoCount,
+          platforms,
+          avgDuration,
+          adsPerWeek,
+          latestAds,
+        };
+      }
       return {
         id,
         name: comp?.page_name ?? "—",
         kind: "ads" as const,
+        channel,
         totalAds: adsList.length,
         activeAds: active.length,
         imageCount,
