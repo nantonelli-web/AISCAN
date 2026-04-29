@@ -59,8 +59,13 @@ export const maxDuration = 300;
  *         cached row tagged "ads" without a channel field would still
  *         normalise to "meta" but its Google data (if any) would
  *         carry impossible fields. Bump invalidates v7 rows.
+ *   - v9: latestAds entries now carry a `format` field (raw_data
+ *         adFormat lower-cased) so the Compare tile can render a
+ *         "Video — preview unavailable" placeholder instead of a
+ *         bare "No preview" when the actor returns null imageUrl
+ *         for video creatives.
  */
-const CURRENT_DATA_VERSION = 8;
+const CURRENT_DATA_VERSION = 9;
 
 /* ── Schemas ─────────────────────────────────────────────── */
 
@@ -339,6 +344,11 @@ async function computeTechnicalStats(
                 ? `https://www.facebook.com/ads/library/?id=${a.ad_archive_id}`
                 : null);
           }
+          // Surface the raw adFormat (Google) / inferred bucket so the
+          // Compare tile can show "Video — preview unavailable"
+          // instead of a bare "No preview" when the actor returns
+          // null imageUrl for video creatives.
+          const googleFormat = (raw?.adFormat as string | undefined)?.toLowerCase() ?? null;
           return {
             headline: a.headline,
             image_url: a.image_url,
@@ -346,6 +356,7 @@ async function computeTechnicalStats(
             ad_text: a.ad_text,
             ad_archive_id: a.ad_archive_id,
             library_url: libraryUrl,
+            format: googleFormat,
           };
         });
 

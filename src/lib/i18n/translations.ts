@@ -565,6 +565,14 @@ const translations = {
       it: "Superfici Google",
       en: "Google surfaces",
     },
+    videoPreviewUnavailable: {
+      it: "Video — anteprima non disponibile",
+      en: "Video — preview unavailable",
+    },
+    textPreviewUnavailable: {
+      it: "Annuncio testo — anteprima non disponibile",
+      en: "Text ad — preview unavailable",
+    },
     backToSelection: { it: "Torna alla selezione", en: "Back to selection" },
     tabTechnical: { it: "Analisi tecnica", en: "Technical analysis" },
     tabCopy: { it: "AI - Analisi copy", en: "AI - Copy analysis" },
