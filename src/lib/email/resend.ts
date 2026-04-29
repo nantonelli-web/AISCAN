@@ -255,6 +255,24 @@ export interface CreditRechargeEmailData {
   /** Direct link to the admin requests panel so the admin can
    *  fulfil with one click. */
   adminPanelUrl: string;
+  /** Fiscal data so the admin can issue an invoice without a
+   *  back-and-forth with the customer. The credit-request route
+   *  blocks the call if these are missing. */
+  company: {
+    legal_name: string | null;
+    country: string | null;
+    vat_number: string | null;
+    tax_code: string | null;
+    address_line1: string | null;
+    address_line2: string | null;
+    city: string | null;
+    province: string | null;
+    postal_code: string | null;
+    sdi_code: string | null;
+    pec_email: string | null;
+    billing_email: string | null;
+    phone: string | null;
+  };
 }
 
 /**
@@ -279,6 +297,31 @@ export async function sendCreditRechargeRequest(
   }
 
   const to = process.env.CREDITS_REQUEST_EMAIL ?? "aiscan@nimadigital.ae";
+
+  const c = data.company;
+  const addressParts = [
+    c.address_line1,
+    c.address_line2,
+    [c.postal_code, c.city, c.province].filter(Boolean).join(" "),
+    c.country,
+  ]
+    .filter((s) => s && s.trim() !== "")
+    .map(esc)
+    .join("<br/>");
+  const companyRow = (
+    label: string,
+    value: string | null | undefined,
+    fallbackHref?: string,
+  ) => {
+    if (!value) return "";
+    const cell = fallbackHref
+      ? `<a href="${esc(fallbackHref)}" style="color:${BRAND};text-decoration:none;">${esc(value)}</a>`
+      : esc(value);
+    return `<tr>
+        <td style="padding:6px 0;color:${TEXT_MUTED};width:160px;vertical-align:top;">${label}</td>
+        <td style="padding:6px 0;color:${TEXT_PRIMARY};">${cell}</td>
+      </tr>`;
+  };
 
   const html = `
 <!DOCTYPE html>
@@ -324,6 +367,26 @@ export async function sendCreditRechargeRequest(
         <td style="padding:8px 0;color:${TEXT_MUTED};">Data</td>
         <td style="padding:8px 0;color:${TEXT_PRIMARY};">${new Date().toLocaleString("it-IT", { dateStyle: "long", timeStyle: "short" })}</td>
       </tr>
+    </table>
+
+    <h2 style="font-size:13px;color:${BRAND};text-transform:uppercase;letter-spacing:0.1em;margin:24px 0 12px;">
+      Dati per fattura
+    </h2>
+    <table style="width:100%;border-collapse:collapse;background:${CARD_BG};border:1px solid ${CARD_BORDER};border-radius:12px;padding:16px;margin-bottom:24px;">
+      <tbody>
+        ${companyRow("Ragione sociale", c.legal_name)}
+        ${companyRow("P.IVA / VAT", c.vat_number ? `${c.country ?? ""}${c.country ? " " : ""}${c.vat_number}` : null)}
+        ${companyRow("Codice fiscale", c.tax_code)}
+        ${
+          addressParts
+            ? `<tr><td style="padding:6px 0;color:${TEXT_MUTED};width:160px;vertical-align:top;">Indirizzo</td><td style="padding:6px 0;color:${TEXT_PRIMARY};">${addressParts}</td></tr>`
+            : ""
+        }
+        ${companyRow("Codice SDI", c.sdi_code)}
+        ${companyRow("PEC", c.pec_email, c.pec_email ? `mailto:${c.pec_email}` : undefined)}
+        ${companyRow("Email fatturazione", c.billing_email, c.billing_email ? `mailto:${c.billing_email}` : undefined)}
+        ${companyRow("Telefono", c.phone, c.phone ? `tel:${c.phone}` : undefined)}
+      </tbody>
     </table>
 
     <p style="margin:0 0 16px;color:${TEXT_MUTED};font-size:13px;line-height:1.5;">

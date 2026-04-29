@@ -39,6 +39,13 @@ export function RechargeSection() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (json.code === "MISSING_COMPANY") {
+          // Hard-redirect to the company form so the user doesn't
+          // have to hunt through Settings to find it.
+          toast.error(t("company", "missingForCredits"));
+          router.push("/settings#company");
+          return;
+        }
         toast.error(json.error ?? t("credits", "rechargeError"));
         return;
       }

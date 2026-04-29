@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCreditPack } from "@/config/pricing";
 import { sendCreditRechargeRequest } from "@/lib/email/resend";
+import { isCompanyComplete, type UserCompany } from "@/config/company";
 
 /**
  * AICREA-style credit recharge request.
@@ -68,6 +69,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No workspace" }, { status: 400 });
   }
 
+  // Block the request if the user hasn't filled in their fiscal data
+  // — without it the admin can't issue an invoice when payment lands.
+  // Frontend handles `code: "MISSING_COMPANY"` by redirecting to
+  // /settings with a hint toast.
+  const { data: company } = await admin
+    .from("mait_user_company")
+    .select(
+      "legal_name, country, vat_number, tax_code, address_line1, address_line2, city, province, postal_code, sdi_code, pec_email, billing_email, phone",
+    )
+    .eq("user_id", profile.id)
+    .maybeSingle();
+
+  if (!isCompanyComplete(company as UserCompany | null)) {
+    return NextResponse.json(
+      {
+        error:
+          "Per richiedere una ricarica devi prima compilare i dati aziendali in Settings → Azienda.",
+        code: "MISSING_COMPANY",
+      },
+      { status: 400 },
+    );
+  }
+
   const { data: workspace } = await admin
     .from("mait_workspaces")
     .select("name")
@@ -117,6 +141,7 @@ export async function POST(req: Request) {
     credits: pack.credits,
     priceEur: pack.priceEur,
     adminPanelUrl: `${baseUrl}/admin/credits`,
+    company: company as UserCompany,
   });
 
   return NextResponse.json({

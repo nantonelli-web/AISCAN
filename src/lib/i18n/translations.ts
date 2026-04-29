@@ -1078,7 +1078,10 @@ const translations = {
   // ─── Settings ──────────────────────────────────────────────
   settings: {
     title: { it: "Settings", en: "Settings" },
-    subtitle: { it: "Workspace, membri e inviti.", en: "Workspace, members and invitations." },
+    subtitle: {
+      it: "Workspace, azienda, membri e inviti.",
+      en: "Workspace, company, members and invitations.",
+    },
     workspaceTitle: { it: "Workspace", en: "Workspace" },
     workspaceDescription: {
       it: "Informazioni del workspace corrente.",
@@ -1090,6 +1093,114 @@ const translations = {
     membersDescription: {
       it: "Utenti con accesso a questo workspace.",
       en: "Users with access to this workspace.",
+    },
+  },
+
+  // ─── Company / Azienda ────────────────────────────────────
+  company: {
+    title: { it: "Azienda", en: "Company" },
+    description: {
+      it: "Dati fiscali e di fatturazione. Necessari per emettere fattura sulle ricariche crediti.",
+      en: "Fiscal and billing details. Required to issue invoices for credit recharges.",
+    },
+    sectionLegal: { it: "Anagrafica", en: "Legal entity" },
+    sectionAddress: { it: "Indirizzo", en: "Address" },
+    sectionEInvoice: {
+      it: "Fatturazione elettronica (Italia)",
+      en: "Electronic invoicing (Italy)",
+    },
+    sectionContact: { it: "Contatti", en: "Contact" },
+
+    legalNameLabel: { it: "Ragione sociale", en: "Legal name" },
+    legalNamePlaceholder: { it: "Es. ACME S.r.l.", en: "E.g. ACME Ltd." },
+
+    countryLabel: { it: "Paese", en: "Country" },
+    countryPlaceholder: { it: "Seleziona paese", en: "Select country" },
+
+    vatLabel: { it: "Partita IVA / VAT", en: "VAT / Tax ID" },
+    vatPlaceholder: { it: "Solo numeri (senza prefisso)", en: "Numbers only (no prefix)" },
+    vatHint: {
+      it: "Inserisci solo il numero, senza il prefisso paese.",
+      en: "Enter only the number, without the country prefix.",
+    },
+    vatInvalid: {
+      it: "Formato non valido per il paese selezionato.",
+      en: "Invalid format for the selected country.",
+    },
+
+    taxCodeLabel: { it: "Codice fiscale", en: "Tax code" },
+    taxCodeHint: {
+      it: "Solo Italia. Lascialo vuoto se coincide con la P.IVA.",
+      en: "Italy only. Leave empty if it matches the VAT.",
+    },
+    taxCodeInvalid: {
+      it: "Codice fiscale non valido (11 cifre o 16 caratteri).",
+      en: "Invalid tax code (11 digits or 16 characters).",
+    },
+
+    addressLine1Label: { it: "Indirizzo", en: "Address" },
+    addressLine1Placeholder: {
+      it: "Via, civico",
+      en: "Street, number",
+    },
+    addressLine2Label: { it: "Indirizzo (riga 2)", en: "Address line 2" },
+    addressLine2Placeholder: {
+      it: "Interno, scala, ecc. (opzionale)",
+      en: "Apt, floor, etc. (optional)",
+    },
+    cityLabel: { it: "Città", en: "City" },
+    provinceLabel: { it: "Provincia / Stato", en: "Province / State" },
+    postalCodeLabel: { it: "CAP / ZIP", en: "Postal code" },
+
+    sdiLabel: { it: "Codice destinatario (SDI)", en: "Recipient code (SDI)" },
+    sdiPlaceholder: { it: "7 caratteri alfanumerici", en: "7 alphanumeric chars" },
+    sdiInvalid: {
+      it: "Il codice SDI deve essere di 7 caratteri.",
+      en: "SDI code must be 7 characters.",
+    },
+    pecLabel: { it: "PEC", en: "PEC" },
+    pecPlaceholder: {
+      it: "azienda@pec.it",
+      en: "company@pec.it",
+    },
+    pecInvalid: { it: "Email PEC non valida.", en: "Invalid PEC email." },
+    eInvoiceHint: {
+      it: "Compila almeno SDI o PEC: è obbligatorio per la fatturazione elettronica italiana.",
+      en: "Fill in at least SDI or PEC — required for Italian e-invoicing.",
+    },
+
+    billingEmailLabel: { it: "Email di fatturazione", en: "Billing email" },
+    billingEmailPlaceholder: {
+      it: "fatture@azienda.com",
+      en: "billing@company.com",
+    },
+    billingEmailInvalid: {
+      it: "Email non valida.",
+      en: "Invalid email.",
+    },
+    phoneLabel: { it: "Telefono", en: "Phone" },
+    phonePlaceholder: { it: "+39 ...", en: "+1 ..." },
+
+    saveBtn: { it: "Salva dati azienda", en: "Save company data" },
+    savingBtn: { it: "Salvataggio...", en: "Saving..." },
+    saved: { it: "Dati azienda salvati.", en: "Company data saved." },
+    saveError: {
+      it: "Errore nel salvare i dati azienda.",
+      en: "Error saving company data.",
+    },
+
+    incompleteNotice: {
+      it: "Compila tutti i campi obbligatori per poter richiedere ricariche di crediti.",
+      en: "Fill in all required fields to be able to request credit top-ups.",
+    },
+    completeNotice: {
+      it: "Dati azienda completi.",
+      en: "Company data complete.",
+    },
+
+    missingForCredits: {
+      it: "Per richiedere una ricarica devi prima compilare i dati aziendali.",
+      en: "To request a top-up, please fill in your company details first.",
     },
   },
 
