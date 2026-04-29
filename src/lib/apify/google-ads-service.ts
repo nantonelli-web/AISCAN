@@ -97,14 +97,21 @@ function normalize(ad: RawGoogleAd): NormalizedAd {
   // computeAdDurationDays clamp duration to 1 day for ads scanned
   // for the first time (firstShown == lastShown).
   //
-  // Heuristic: if `lastShown` equals the current scan day, treat it
-  // as a polling artifact ("we last saw the ad today, but it may
-  // still be running tomorrow"). status stays ACTIVE and end_date
-  // is left null. Real ends — i.e. lastShown < today — are kept
-  // as-is.
-  const todayYmd = new Date().toISOString().slice(0, 10);
-  const lastShownIsToday = ad.lastShown === todayYmd;
-  const isLikelyActive = ad.lastShown == null || lastShownIsToday;
+  // Heuristic: treat anything with `lastShown >= today - 1 day` as
+  // still running. Strict equality (`lastShown == today`) was too
+  // tight and produced bursts of false-INACTIVE rows whenever
+  // Google's transparency-library refresh lagged a day behind our
+  // scrape — verified on a Marina Rinaldi sample where ~40% of the
+  // "INACTIVE" rows had `lastShown = scrape_day - 1` (a polling
+  // artifact, not a real end). Real ends keep their lastShown date.
+  const todayMs = Date.now();
+  const lastShownMs = ad.lastShown
+    ? new Date(ad.lastShown).getTime()
+    : Number.NaN;
+  const ageDays = Number.isFinite(lastShownMs)
+    ? (todayMs - lastShownMs) / 86_400_000
+    : Number.POSITIVE_INFINITY;
+  const isLikelyActive = ad.lastShown == null || ageDays <= 1;
   const status = isLikelyActive ? "ACTIVE" : "INACTIVE";
 
   // Map adFormat to platforms hint
