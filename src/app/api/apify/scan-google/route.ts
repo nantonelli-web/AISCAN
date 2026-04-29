@@ -136,6 +136,13 @@ export async function POST(req: Request) {
       dateFrom: parsed.data.date_from,
       dateTo: parsed.data.date_to,
       maxResults: parsed.data.max_items ?? 500,
+      // Pass through the workspace's per-brand country list so the
+      // memo23 actor can scope its Transparency-Center crawl to the
+      // regions we actually care about (instead of region=anywhere
+      // which triggered an 870-page global sweep on Karen Millen).
+      // Legacy automation-lab actor ignores this — its API returns
+      // ALL regions regardless.
+      country: competitor.country ?? undefined,
     });
 
     // Abort checkpoint #1: user clicked Stop while Apify was still

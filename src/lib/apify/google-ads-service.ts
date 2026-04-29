@@ -130,6 +130,15 @@ export interface GoogleScrapeOptions {
   dateFrom?: string;
   dateTo?: string;
   maxResults?: number;
+  /** Comma-separated ISO-2 country codes (e.g. "GB,IT,FR,DE,ES").
+   *  Same format the Meta scraper accepts on `competitor.country`.
+   *  Honoured ONLY by the memo23 actor — its Transparency-Center URL
+   *  takes one `region=XX` per call so we expand to N startUrls.
+   *  The legacy automation-lab actor has no region knob and ignores
+   *  this; its API returns ALL regions regardless. Empty / undefined
+   *  falls back to the global "anywhere" sweep on memo23 (legacy
+   *  behaviour, expensive — pass real countries to keep cost sane). */
+  country?: string;
 }
 
 /**
@@ -305,32 +314,52 @@ export async function scrapeGoogleAds(
     : { maxAds };
 
   if (isMemoActor) {
-    // memo23 takes a Google Transparency Center URL as input.
-    // Region "anywhere" matches the public default in Google's UI.
+    // memo23 takes Google Transparency Center URLs as input. Each
+    // URL is scoped to ONE region — passing region=anywhere triggers
+    // a global page-by-page crawl (~870 pages on Karen Millen,
+    // 5+ minutes wall time, $1+ usage). When the caller supplies a
+    // country list (the workspace's GB/IT/FR/DE/ES set), we expand
+    // to one URL per region, which the actor crawls in parallel and
+    // bounds total work to the brand's actual targeting.
     const baseUrl = "https://adstransparency.google.com";
-    let startUrl: string;
-    if (opts.advertiserId) {
-      startUrl = `${baseUrl}/advertiser/${encodeURIComponent(opts.advertiserId)}?region=anywhere`;
-    } else if (opts.advertiserDomain) {
-      const cleaned = cleanAdvertiserDomain(opts.advertiserDomain);
-      if (!cleaned) {
-        throw new Error(
-          `Dominio Google Ads non valido: "${opts.advertiserDomain}". Usa solo il dominio (es. axelarigato.com).`,
-        );
+    const regions = (opts.country ?? "")
+      .split(",")
+      .map((c) => c.trim().toUpperCase())
+      .filter(Boolean);
+    // Default to a single anywhere-URL when no countries are given,
+    // so the integration is still functional out of the box.
+    const regionList: string[] = regions.length > 0 ? regions : ["anywhere"];
+
+    function urlForRegion(region: string): string {
+      if (opts.advertiserId) {
+        return `${baseUrl}/advertiser/${encodeURIComponent(opts.advertiserId)}?region=${encodeURIComponent(region)}`;
       }
-      startUrl = `${baseUrl}/?region=anywhere&domain=${encodeURIComponent(cleaned)}`;
-    } else if (opts.advertiserName) {
-      // The Transparency search uses ?advertiser= for the advertiser
-      // name lookup; if memo23 doesn't honour that, the run will
-      // surface zero results and we should switch to advertiserId
-      // / advertiserDomain. Logged below so we catch this in dev.
-      startUrl = `${baseUrl}/?region=anywhere&advertiser=${encodeURIComponent(opts.advertiserName)}`;
-    } else {
+      if (opts.advertiserDomain) {
+        const cleaned = cleanAdvertiserDomain(opts.advertiserDomain);
+        if (!cleaned) {
+          throw new Error(
+            `Dominio Google Ads non valido: "${opts.advertiserDomain}". Usa solo il dominio (es. axelarigato.com).`,
+          );
+        }
+        return `${baseUrl}/?region=${encodeURIComponent(region)}&domain=${encodeURIComponent(cleaned)}`;
+      }
+      if (opts.advertiserName) {
+        // The Transparency search uses ?advertiser= for the
+        // advertiser name lookup; if memo23 doesn't honour that, the
+        // run will surface zero results and we should switch to
+        // advertiserId / advertiserDomain.
+        return `${baseUrl}/?region=${encodeURIComponent(region)}&advertiser=${encodeURIComponent(opts.advertiserName)}`;
+      }
       throw new Error(
         "Google Ads scrape requires advertiserId, advertiserDomain, or advertiserName",
       );
     }
-    input.startUrls = [startUrl];
+
+    input.startUrls = regionList.map(urlForRegion);
+    console.log(
+      `[Google Ads] memo23 startUrls (${regionList.length} regions):`,
+      input.startUrls,
+    );
   } else if (opts.advertiserId) {
     input.advertiserIds = [opts.advertiserId];
   } else if (opts.advertiserDomain) {
