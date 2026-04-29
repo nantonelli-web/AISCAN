@@ -10,7 +10,13 @@
  * from these.
  */
 
-export type AdFormatBucket = "image" | "video" | "carousel" | "dpa" | "unknown";
+export type AdFormatBucket =
+  | "image"
+  | "video"
+  | "carousel"
+  | "dpa"
+  | "text"
+  | "unknown";
 
 /** Minimum input shape needed to classify an ad's format. */
 export interface AdLike {
@@ -75,9 +81,12 @@ export function classifyAdFormat(ad: AdLike): AdFormatBucket {
     (ad.raw_data?.adFormat as string | undefined)?.toUpperCase() ?? null;
   if (googleFormat === "VIDEO") return "video";
   if (googleFormat === "IMAGE") return "image";
-  // Text-only Google ads (Search) carry no media — bucket as "unknown"
-  // so they show up in the "Other" slice rather than inflating image.
-  if (googleFormat === "TEXT") return "unknown";
+  // Text-only Google ads (Search / responsive search) get a dedicated
+  // bucket — collapsing them into "unknown" shows up as a generic
+  // "Other" slice that the user reads as "we don't know what this is",
+  // which is misleading for fashion brands whose Search investment is
+  // intentional and significant.
+  if (googleFormat === "TEXT") return "text";
 
   switch (rawFormat) {
     case "DPA":
