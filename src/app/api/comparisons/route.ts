@@ -342,10 +342,12 @@ async function computeTechnicalStats(
         if (a.headline || a.ad_text) return true;
         // Surface video-format Google rows (no media URL but the tile
         // shows a "Video — preview unavailable" placeholder which is
-        // more informative than a generic blank).
-        const fmt = (
-          a.raw_data as Record<string, unknown> | null
-        )?.adFormat as string | undefined;
+        // more informative than a generic blank). Field name differs
+        // per actor (`adFormat` automation-lab, `format` memo23).
+        const rawData = a.raw_data as Record<string, unknown> | null;
+        const fmt =
+          (rawData?.adFormat as string | undefined) ??
+          (rawData?.format as string | undefined);
         if (fmt && fmt.toLowerCase() === "video") return true;
         return false;
       }
@@ -373,11 +375,16 @@ async function computeTechnicalStats(
                 ? `https://www.facebook.com/ads/library/?id=${a.ad_archive_id}`
                 : null);
           }
-          // Surface the raw adFormat (Google) / inferred bucket so the
-          // Compare tile can show "Video — preview unavailable"
-          // instead of a bare "No preview" when the actor returns
-          // null imageUrl for video creatives.
-          const googleFormat = (raw?.adFormat as string | undefined)?.toLowerCase() ?? null;
+          // Surface the raw ad format (Google) so the Compare tile
+          // can show "Video — preview unavailable" instead of a
+          // bare "No preview" when the actor returns null imageUrl
+          // for video creatives. Field name differs per actor —
+          // automation-lab uses `adFormat`, memo23 uses `format`.
+          const googleFormat =
+            (
+              (raw?.adFormat as string | undefined) ??
+              (raw?.format as string | undefined)
+            )?.toLowerCase() ?? null;
           return {
             headline: a.headline,
             image_url: a.image_url,

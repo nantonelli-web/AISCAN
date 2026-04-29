@@ -71,14 +71,18 @@ export function classifyAdFormat(ad: AdLike): AdFormatBucket {
   const cards = Array.isArray(snapshot?.cards) ? (snapshot?.cards as unknown[]) : null;
   const videos = Array.isArray(snapshot?.videos) ? (snapshot?.videos as unknown[]) : null;
 
-  // Google Ads Transparency: the actor reports `adFormat` as a flat
-  // "Text"/"Image"/"Video" on the row root (not under snapshot, which is
-  // a Meta-only concept). Read it BEFORE the Meta switch so the chart
-  // shows the real Image/Video split — without this every Google ad
-  // fell through to the image_url heuristic and got bucketed as "image",
-  // erasing video on YouTube/Display from the format mix.
+  // Google Ads Transparency: actors report ad format as a flat
+  // "Text"/"Image"/"Video" on the row root (not under snapshot, which
+  // is a Meta-only concept). Field name varies by actor:
+  //   - automation-lab/google-ads-scraper → `adFormat`
+  //   - memo23/google-ad-transparency-scraper-cheerio → `format`
+  // Read both so the chart still shows the real Image/Video split
+  // when we switch actors and old rows + new rows coexist in the DB.
   const googleFormat =
-    (ad.raw_data?.adFormat as string | undefined)?.toUpperCase() ?? null;
+    (
+      (ad.raw_data?.adFormat as string | undefined) ??
+      (ad.raw_data?.format as string | undefined)
+    )?.toUpperCase() ?? null;
   if (googleFormat === "VIDEO") return "video";
   if (googleFormat === "IMAGE") return "image";
   // Text-only Google ads (Search / responsive search) get a dedicated
