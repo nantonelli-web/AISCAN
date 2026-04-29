@@ -21,6 +21,8 @@ import {
   CalendarRange,
   Check,
   RotateCcw,
+  Film,
+  FileText,
 } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
@@ -86,6 +88,13 @@ interface AdsCompStatsBase {
      *  underlying row doesn't carry the identifier needed (e.g. Google
      *  ad without `raw_data.advertiserId`). */
     library_url: string | null;
+    /** Lowercased ad format from the source row — `text` / `image` /
+     *  `video` for Google rows (`raw_data.adFormat`). Lets the tile
+     *  show "Video ad — preview unavailable" instead of a bare "No
+     *  preview" when the actor returns `imageUrl: null` for video
+     *  creatives. May be null on Meta or when the source did not
+     *  populate the field. */
+    format?: string | null;
   }[];
 }
 
@@ -2196,9 +2205,9 @@ function LatestAdTile({
           preload="metadata"
         />
       ) : (
-        // No media at all — text-only creative. Show a styled
-        // preview with the headline / first line of copy so the
-        // tile is not just empty.
+        // No usable media. Show a format-aware placeholder so the
+        // user knows whether the missing preview is a video, a
+        // text-only ad, or a generic gap.
         <div className="aspect-square bg-muted px-3 py-2 flex flex-col justify-between gap-1 text-[11px] leading-tight">
           {ad.headline && (
             <p className="font-semibold line-clamp-2">{ad.headline}</p>
@@ -2207,9 +2216,27 @@ function LatestAdTile({
             <p className="text-muted-foreground line-clamp-3">{ad.ad_text}</p>
           )}
           {!ad.headline && !ad.ad_text && (
-            <span className="m-auto text-muted-foreground">
-              {t("compare", "noPreview")}
-            </span>
+            <div className="m-auto text-center space-y-1">
+              {ad.format === "video" ? (
+                <>
+                  <Film className="size-6 text-muted-foreground mx-auto" />
+                  <p className="text-muted-foreground text-[10px] leading-tight">
+                    {t("compare", "videoPreviewUnavailable")}
+                  </p>
+                </>
+              ) : ad.format === "text" ? (
+                <>
+                  <FileText className="size-6 text-muted-foreground mx-auto" />
+                  <p className="text-muted-foreground text-[10px] leading-tight">
+                    {t("compare", "textPreviewUnavailable")}
+                  </p>
+                </>
+              ) : (
+                <span className="text-muted-foreground">
+                  {t("compare", "noPreview")}
+                </span>
+              )}
+            </div>
           )}
         </div>
       )}
