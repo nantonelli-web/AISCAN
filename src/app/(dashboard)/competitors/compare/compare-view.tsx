@@ -1812,18 +1812,23 @@ function AdsTechnicalView({
             : "—"
         }
       />
-      <CompareTable
-        label={t("compare", "avgCopyLength")}
-        stats={stats}
-        render={(s) =>
-          // avgCopyLength only exists on the Meta variant.
-          s.channel === "meta"
-            ? s.avgCopyLength > 0
-              ? `${s.avgCopyLength} ${t("compare", "avgCopyChars")}`
+      {/* Avg copy length is dropped entirely on Google — the metric is
+          structurally meaningless there (text ads are length-capped by
+          Google) and the actor does not return ad_text anyway. Showing
+          a "N/A" row was just visual noise. */}
+      {!isGoogle && (
+        <CompareTable
+          label={t("compare", "avgCopyLength")}
+          stats={stats}
+          render={(s) =>
+            s.channel === "meta"
+              ? s.avgCopyLength > 0
+                ? `${s.avgCopyLength} ${t("compare", "avgCopyChars")}`
+                : "—"
               : "—"
-            : t("compare", "naGoogle")
-        }
-      />
+          }
+        />
+      )}
       <CompareTable
         label={`${t("compare", "refreshRate")} (${refreshRateWindowDays}${t("compare", "refreshRateWindowSuffix")})`}
         stats={stats}
@@ -1848,82 +1853,9 @@ function AdsTechnicalView({
             {stats.map((s) => (
               <div key={s.id} className="space-y-3">
                 <p className="text-xs font-medium text-gold">{s.name}</p>
-                {s.latestAds.slice(0, 3).map((ad) => {
-                  // Resolve preview media in priority order so video
-                  // creatives (which previously fell through to the
-                  // "Ad" placeholder when image_url was null) actually
-                  // render. /render_ad/ is Meta's HTML iframe URL and
-                  // /ads/preview/content.js is Google's JS-based
-                  // preview — neither renders inside an <img>, treat
-                  // both as missing.
-                  const isHtmlPreview =
-                    ad.image_url?.includes("/render_ad/") ||
-                    ad.image_url?.includes("/ads/preview/content.js");
-                  const hasImage = ad.image_url && !isHtmlPreview;
-                  const hasVideo = !!ad.video_url;
-                  // Render as a span when no library URL is available
-                  // (Google ad without advertiserId) so the tile still
-                  // shows the creative without a broken click target.
-                  const Wrapper = ad.library_url ? "a" : "span";
-                  return (
-                    <Wrapper
-                      key={ad.ad_archive_id}
-                      {...(ad.library_url
-                        ? {
-                            href: ad.library_url,
-                            target: "_blank",
-                            rel: "noreferrer",
-                          }
-                        : {})}
-                      className="block rounded-lg border border-border overflow-hidden hover:border-gold/40 transition-colors"
-                    >
-                      {hasImage ? (
-                        // object-contain (not cover) so portrait Google
-                        // creatives or wide banners aren't aggressively
-                        // cropped — the previous cover-fit cut off the
-                        // text on Fiorella Rubino-style search ads and
-                        // hid most of Marina Rinaldi's visuals. The
-                        // dark muted background fills the letterbox.
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={ad.image_url!}
-                          alt=""
-                          className="w-full aspect-video object-contain bg-muted"
-                        />
-                      ) : hasVideo ? (
-                        <video
-                          src={ad.video_url!}
-                          className="w-full aspect-video object-contain bg-black"
-                          muted
-                          playsInline
-                          preload="metadata"
-                        />
-                      ) : (
-                        // No media at all — text-only creative. Show a
-                        // styled preview with the headline / first line
-                        // of copy so the tile is not just "Ad".
-                        <div className="aspect-video bg-muted px-3 py-2 flex flex-col justify-between gap-1 text-[11px] leading-tight">
-                          {ad.headline && (
-                            <p className="font-semibold line-clamp-2">{ad.headline}</p>
-                          )}
-                          {ad.ad_text && (
-                            <p className="text-muted-foreground line-clamp-3">
-                              {ad.ad_text}
-                            </p>
-                          )}
-                          {!ad.headline && !ad.ad_text && (
-                            <span className="m-auto text-muted-foreground">
-                              {t("compare", "noPreview")}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      {ad.headline && (
-                        <p className="p-2 text-xs line-clamp-1">{ad.headline}</p>
-                      )}
-                    </Wrapper>
-                  );
-                })}
+                {s.latestAds.slice(0, 3).map((ad) => (
+                  <LatestAdTile key={ad.ad_archive_id} ad={ad} t={t} />
+                ))}
               </div>
             ))}
           </div>
@@ -2184,6 +2116,105 @@ function OrganicTechnicalView({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/**
+ * One creative tile in the "Latest ads" grid. Tracks an `imgError`
+ * state so we can fall back to the text preview when the image URL
+ * fails to load (404, CORS) OR when it loads but is just a tiny
+ * generic icon (Google's "Why this ad?" info icon, served whenever
+ * the actor can't fetch the real creative — surfaces in the UI as a
+ * giant blue "i" filling the tile, which is visually useless).
+ *
+ * The naturalWidth check on load catches the icon case: real ad
+ * creatives are ≥ 200px wide; Google's info icon is ~120px.
+ */
+function LatestAdTile({
+  ad,
+  t,
+}: {
+  ad: AdsCompStatsBase["latestAds"][number];
+  t: (s: string, k: string) => string;
+}) {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  const isHtmlPreview =
+    ad.image_url?.includes("/render_ad/") ||
+    ad.image_url?.includes("/ads/preview/content.js");
+  // Known Google info-icon URL fragments — these are placeholders the
+  // Transparency Library serves when the real creative isn't fetchable.
+  // Filtering them up-front avoids a wasted image-load round trip.
+  const isInfoIcon =
+    ad.image_url?.includes("/transparencyreport") ||
+    ad.image_url?.includes("info_outline") ||
+    ad.image_url?.includes("googleadservices.com/pagead/conversion");
+  const hasImage = !!ad.image_url && !isHtmlPreview && !isInfoIcon && !imgFailed;
+  const hasVideo = !!ad.video_url;
+  const Wrapper = ad.library_url ? "a" : "span";
+
+  return (
+    <Wrapper
+      {...(ad.library_url
+        ? {
+            href: ad.library_url,
+            target: "_blank",
+            rel: "noreferrer",
+          }
+        : {})}
+      className="block rounded-lg border border-border overflow-hidden hover:border-gold/40 transition-colors"
+    >
+      {hasImage ? (
+        // object-contain (not cover) so portrait Google creatives or
+        // wide banners aren't aggressively cropped. The dark muted
+        // background fills the letterbox.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={ad.image_url!}
+          alt=""
+          className="w-full aspect-video object-contain bg-muted"
+          onError={() => setImgFailed(true)}
+          onLoad={(e) => {
+            const img = e.currentTarget;
+            // Treat tiny images as broken — Google's info icon comes
+            // back as ~120px square, much smaller than any real ad
+            // creative. Real images are always ≥ 200px on the
+            // longer side.
+            if (img.naturalWidth > 0 && img.naturalWidth < 200) {
+              setImgFailed(true);
+            }
+          }}
+        />
+      ) : hasVideo ? (
+        <video
+          src={ad.video_url!}
+          className="w-full aspect-video object-contain bg-black"
+          muted
+          playsInline
+          preload="metadata"
+        />
+      ) : (
+        // No media at all — text-only creative. Show a styled
+        // preview with the headline / first line of copy so the
+        // tile is not just empty.
+        <div className="aspect-video bg-muted px-3 py-2 flex flex-col justify-between gap-1 text-[11px] leading-tight">
+          {ad.headline && (
+            <p className="font-semibold line-clamp-2">{ad.headline}</p>
+          )}
+          {ad.ad_text && (
+            <p className="text-muted-foreground line-clamp-3">{ad.ad_text}</p>
+          )}
+          {!ad.headline && !ad.ad_text && (
+            <span className="m-auto text-muted-foreground">
+              {t("compare", "noPreview")}
+            </span>
+          )}
+        </div>
+      )}
+      {ad.headline && (
+        <p className="p-2 text-xs line-clamp-1">{ad.headline}</p>
+      )}
+    </Wrapper>
   );
 }
 
