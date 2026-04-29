@@ -168,7 +168,16 @@ export function cleanAdvertiserDomain(raw: string | null | undefined): string | 
  * Object.keys(items[0]) and Object.keys(items[0].variations[0])
  * (when present) so we can tighten this once we have a real sample.
  */
-function normalizeMemo(ad: MemoRawGoogleAd): NormalizedAd {
+function normalizeMemo(
+  ad: MemoRawGoogleAd,
+  /** Fallback regions to seed `scan_countries` when memo23 doesn't
+   *  return `creativeRegions`. Caller passes the regions it asked
+   *  the actor to crawl (e.g. ["GB","IT","FR"]) so each row carries
+   *  the country it was discovered in — same semantics as Meta's
+   *  scan_countries field, which the Benchmarks country filter
+   *  joins against. */
+  fallbackRegions: string[] = [],
+): NormalizedAd {
   const adId = ad.creativeId ?? "";
   const variant = ad.variations?.[0] ?? {};
 
@@ -230,8 +239,49 @@ function normalizeMemo(ad: MemoRawGoogleAd): NormalizedAd {
     // Persist the original row so classifyAdFormat / future
     // back-fills can still inspect every field memo23 returns.
     raw_data: ad as unknown as Record<string, unknown>,
-    scan_countries: null,
+    // Mirror Meta semantics: each row knows which country the actor
+    // observed it in. memo23 returns `creativeRegions[]` when the
+    // ad served in multiple regions; otherwise we use the regions
+    // that drove the scrape (one startUrl per region → fallbackRegions).
+    scan_countries: (ad.creativeRegions && ad.creativeRegions.length > 0
+      ? ad.creativeRegions.map((r) => r.toUpperCase())
+      : fallbackRegions.length > 0
+        ? fallbackRegions.map((r) => r.toUpperCase())
+        : null),
   };
+}
+
+/**
+ * Dedupe memo23 records by creativeId. Multi-region scans return
+ * one row per (creative × region), which would (a) blow up the DB
+ * row count, and (b) collapse to the LAST occurrence on upsert
+ * because the unique key is (workspace_id, ad_archive_id, source).
+ * We merge `scan_countries` across all duplicates so each surviving
+ * row knows every region it was observed in — matches the Meta
+ * scrape semantics in service.ts.
+ */
+function dedupeMemoNormalized(records: NormalizedAd[]): NormalizedAd[] {
+  const byId = new Map<string, NormalizedAd>();
+  for (const r of records) {
+    if (!r.ad_archive_id) continue;
+    const existing = byId.get(r.ad_archive_id);
+    if (!existing) {
+      byId.set(r.ad_archive_id, r);
+      continue;
+    }
+    const merged = new Set<string>(existing.scan_countries ?? []);
+    for (const c of r.scan_countries ?? []) merged.add(c);
+    existing.scan_countries = merged.size > 0 ? [...merged] : null;
+    // Prefer the variant that actually carries media — the first row
+    // we hit might be from a region where the creative didn't render
+    // (no imageUrl), but a later region might have it.
+    if (!existing.image_url && r.image_url) existing.image_url = r.image_url;
+    if (!existing.video_url && r.video_url) existing.video_url = r.video_url;
+    if (!existing.headline && r.headline) existing.headline = r.headline;
+    if (!existing.ad_text && r.ad_text) existing.ad_text = r.ad_text;
+    if (!existing.cta && r.cta) existing.cta = r.cta;
+  }
+  return [...byId.values()];
 }
 
 // ─── Normalize: automation-lab (legacy) ───
@@ -304,13 +354,36 @@ export async function scrapeGoogleAds(
   const maxAds = opts.maxResults ?? 200;
   const t0 = Date.now();
 
+  // Compute memo region list FIRST so we can size maxItems per
+  // region. The list also seeds scan_countries during normalisation
+  // when memo23 doesn't return creativeRegions on a row.
+  const memoRegionList: string[] = (() => {
+    if (!isMemoActor) return [];
+    const regions = (opts.country ?? "")
+      .split(",")
+      .map((c) => c.trim().toUpperCase())
+      .filter(Boolean);
+    return regions.length > 0 ? regions : ["anywhere"];
+  })();
+
   // Build actor input. The two actors expect very different shapes:
   //  - automation-lab: { advertiserIds | domains | searchTerms, maxAds }
-  //  - memo23:         { startUrls: [<Transparency Center URL>], maxItems }
-  // We dispatch on isMemoActor so the rest of the pipeline (poll, fetch,
-  // normalize, return) is shared.
+  //  - memo23:         { startUrls: [<Transparency URL>], maxItems }
+  // We dispatch on isMemoActor so the rest of the pipeline (poll,
+  // fetch, normalize, return) is shared.
+  //
+  // memo23's `maxItems` is enforced PER-CRAWL (per startUrl), not
+  // globally — confirmed by the actor's docs. To respect the
+  // caller's `maxResults` total budget, divide it by the region
+  // count and floor at 50 per region so a 5-country scan gets
+  // 50-100 items each (≈ 250-500 total) instead of 500 each
+  // (≈ 2500 total = runaway cost).
+  const memoMaxPerRegion = Math.max(
+    50,
+    Math.floor(maxAds / Math.max(1, memoRegionList.length)),
+  );
   const input: Record<string, unknown> = isMemoActor
-    ? { maxItems: maxAds }
+    ? { maxItems: memoMaxPerRegion }
     : { maxAds };
 
   if (isMemoActor) {
@@ -322,13 +395,7 @@ export async function scrapeGoogleAds(
     // to one URL per region, which the actor crawls in parallel and
     // bounds total work to the brand's actual targeting.
     const baseUrl = "https://adstransparency.google.com";
-    const regions = (opts.country ?? "")
-      .split(",")
-      .map((c) => c.trim().toUpperCase())
-      .filter(Boolean);
-    // Default to a single anywhere-URL when no countries are given,
-    // so the integration is still functional out of the box.
-    const regionList: string[] = regions.length > 0 ? regions : ["anywhere"];
+    const regionList = memoRegionList;
 
     function urlForRegion(region: string): string {
       if (opts.advertiserId) {
@@ -418,16 +485,46 @@ export async function scrapeGoogleAds(
   if (status !== "SUCCEEDED") {
     const elapsed = Math.round((Date.now() - t0) / 1000);
     console.error(`[Google Ads] FAILED: status=${status} after ${pollCount} polls, ${elapsed}s`);
+    // Cost containment: when our wait expires, abort the Apify run
+    // so usage stops accumulating. Without this, a 5-min Vercel
+    // timeout left the actor crawling for hours -- exactly what
+    // the user hit on the first memo23 test ($1.17 and climbing
+    // before manual abort). Best-effort: if the abort itself
+    // fails we still throw the original timeout error.
+    if (status === "RUNNING" || status === "READY") {
+      try {
+        await apifyFetch(`/actor-runs/${runId}/abort`, { method: "POST" });
+        console.warn(`[Google Ads] Aborted run ${runId} on our side after ${elapsed}s`);
+      } catch (abortErr) {
+        console.error(
+          `[Google Ads] Failed to abort run ${runId}:`,
+          abortErr instanceof Error ? abortErr.message : abortErr,
+        );
+      }
+    }
     throw new Error(`Apify run ended with status: ${status}`);
   }
 
-  // Fetch dataset
-  const dataset = await apifyFetch(
-    `/datasets/${datasetId}/items?format=json&limit=1000`
-  );
-  const items: Array<RawGoogleAd | MemoRawGoogleAd> = Array.isArray(dataset)
-    ? dataset
-    : dataset.items ?? [];
+  // Fetch dataset with pagination. The previous limit=1000 silently
+  // dropped any record beyond the first 1k -- a real risk on
+  // memo23 multi-region scans where a brand × 5 countries can
+  // easily push past that. Loop until we've drained the dataset
+  // or hit a hard 50k safety cap (any brand needing more than 50k
+  // ad rows is signalling a bug, not a real volume).
+  const items: Array<RawGoogleAd | MemoRawGoogleAd> = [];
+  const pageSize = 1000;
+  const safetyCap = 50_000;
+  for (let offset = 0; offset < safetyCap; offset += pageSize) {
+    const page = await apifyFetch(
+      `/datasets/${datasetId}/items?format=json&limit=${pageSize}&offset=${offset}`,
+    );
+    const pageItems: Array<RawGoogleAd | MemoRawGoogleAd> = Array.isArray(page)
+      ? page
+      : page.items ?? [];
+    if (pageItems.length === 0) break;
+    items.push(...pageItems);
+    if (pageItems.length < pageSize) break;
+  }
 
   if (items.length === 0) {
     console.warn(`[Google Ads] Dataset empty after SUCCEEDED run`);
@@ -455,10 +552,24 @@ export async function scrapeGoogleAds(
   let records = items
     .map((it) =>
       isMemoActor
-        ? normalizeMemo(it as MemoRawGoogleAd)
+        ? normalizeMemo(it as MemoRawGoogleAd, memoRegionList)
         : normalize(it as RawGoogleAd),
     )
     .filter((a): a is NormalizedAd => !!a.ad_archive_id);
+
+  // memo23 emits one row per (creative × region) on multi-region
+  // scans. Without dedup the upsert collapses on the unique key
+  // `(workspace_id, ad_archive_id, source)` and we keep only the
+  // LAST observation, losing scan_countries from the others.
+  if (isMemoActor) {
+    const before = records.length;
+    records = dedupeMemoNormalized(records);
+    if (before !== records.length) {
+      console.log(
+        `[Google Ads] memo23 dedup: ${before} → ${records.length} (merged scan_countries on ${before - records.length} duplicates)`,
+      );
+    }
+  }
 
   const beforeFilter = records.length;
 

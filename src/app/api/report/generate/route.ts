@@ -112,7 +112,13 @@ async function fetchBrandData(
   let carouselCount = 0;
   for (const a of adsList) {
     if (isGoogle) {
-      const fmt = ((a.raw_data?.adFormat as string) ?? "").toLowerCase();
+      // Field name differs per actor: automation-lab uses `adFormat`,
+      // memo23 uses `format`. Read both so old + new rows coexist.
+      const fmt = (
+        (a.raw_data?.adFormat as string | undefined) ??
+        (a.raw_data?.format as string | undefined) ??
+        ""
+      ).toLowerCase();
       if (fmt.includes("video")) videoCount++;
       else imageCount++;
     } else {
