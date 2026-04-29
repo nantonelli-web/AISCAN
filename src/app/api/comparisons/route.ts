@@ -290,6 +290,11 @@ async function computeTechnicalStats(
       // the empty "Ad" placeholder for every video. Carry both, plus
       // ad_text as a copy-only fallback for text-heavy creatives that
       // ship without any media.
+      //
+      // `library_url` routes the click to the right library — Meta Ad
+      // Library for source=meta, Google Ads Transparency for
+      // source=google. Pre-computing here keeps the client free of
+      // per-source URL logic.
       const latestAds = adsList
         .sort(
           (a, b) =>
@@ -297,13 +302,31 @@ async function computeTechnicalStats(
             new Date(a.created_at).getTime()
         )
         .slice(0, 5)
-        .map((a) => ({
-          headline: a.headline,
-          image_url: a.image_url,
-          video_url: a.video_url,
-          ad_text: a.ad_text,
-          ad_archive_id: a.ad_archive_id,
-        }));
+        .map((a) => {
+          const raw = a.raw_data as Record<string, unknown> | null;
+          const advertiserId = raw?.advertiserId as string | undefined;
+          let libraryUrl: string | null = null;
+          if (source === "google") {
+            libraryUrl = advertiserId
+              ? `https://adstransparency.google.com/advertiser/${advertiserId}`
+              : null;
+          } else {
+            const adLibraryFromRaw = raw?.adLibraryURL as string | undefined;
+            libraryUrl =
+              adLibraryFromRaw ??
+              (a.ad_archive_id
+                ? `https://www.facebook.com/ads/library/?id=${a.ad_archive_id}`
+                : null);
+          }
+          return {
+            headline: a.headline,
+            image_url: a.image_url,
+            video_url: a.video_url,
+            ad_text: a.ad_text,
+            ad_archive_id: a.ad_archive_id,
+            library_url: libraryUrl,
+          };
+        });
 
       // Infer campaign objective
       const objectiveInference = inferObjective(

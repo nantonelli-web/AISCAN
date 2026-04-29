@@ -71,6 +71,11 @@ interface AdsCompStats {
     video_url: string | null;
     ad_text: string | null;
     ad_archive_id: string;
+    /** Pre-resolved library URL — Meta Ad Library for source=meta,
+     *  Google Ads Transparency for source=google. May be null when the
+     *  underlying row doesn't carry the identifier needed (e.g. Google
+     *  ad without `raw_data.advertiserId`). */
+    library_url: string | null;
   }[];
 }
 
@@ -1761,12 +1766,20 @@ function AdsTechnicalView({
                   const hasImage =
                     ad.image_url && !ad.image_url.includes("/render_ad/");
                   const hasVideo = !!ad.video_url;
+                  // Render as a span when no library URL is available
+                  // (Google ad without advertiserId) so the tile still
+                  // shows the creative without a broken click target.
+                  const Wrapper = ad.library_url ? "a" : "span";
                   return (
-                    <a
+                    <Wrapper
                       key={ad.ad_archive_id}
-                      href={`https://www.facebook.com/ads/library/?id=${ad.ad_archive_id}`}
-                      target="_blank"
-                      rel="noreferrer"
+                      {...(ad.library_url
+                        ? {
+                            href: ad.library_url,
+                            target: "_blank",
+                            rel: "noreferrer",
+                          }
+                        : {})}
                       className="block rounded-lg border border-border overflow-hidden hover:border-gold/40 transition-colors"
                     >
                       {hasImage ? (
@@ -1807,7 +1820,7 @@ function AdsTechnicalView({
                       {ad.headline && (
                         <p className="p-2 text-xs line-clamp-1">{ad.headline}</p>
                       )}
-                    </a>
+                    </Wrapper>
                   );
                 })}
               </div>
@@ -2412,7 +2425,13 @@ function BenchmarkCharts({
         <CardHeader><CardTitle>{t("benchmarks", "volumePerCompetitor")}</CardTitle></CardHeader>
         <CardContent>
           <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descVolume")}</p>
-          <VolumeChart data={data.volumeByCompetitor} />
+          <VolumeChart
+            data={data.volumeByCompetitor}
+            labels={{
+              active: t("benchmarks", "statusActive"),
+              inactive: t("benchmarks", "statusInactive"),
+            }}
+          />
         </CardContent>
       </Card>
 

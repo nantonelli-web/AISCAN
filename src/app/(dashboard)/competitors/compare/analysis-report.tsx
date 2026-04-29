@@ -128,7 +128,7 @@ function Field({
       <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">{label}</p>
       <p className={cn(
         "text-xs leading-relaxed",
-        highlight === "positive" && "text-emerald-400",
+        highlight === "positive" && "text-emerald-600",
         highlight === "negative" && "text-gold",
         !highlight && "text-foreground"
       )}>{text}</p>
