@@ -2174,16 +2174,19 @@ function LatestAdTile({
       className="block rounded-lg border border-border overflow-hidden hover:border-gold/40 transition-colors"
     >
       {hasImage ? (
-        // Aspect-square fits Google Transparency previews (most are
-        // 1:1 image creatives or HTML search-ad screenshots which look
-        // wrong letterboxed in a 16:9 box). object-contain still
-        // letterboxes any non-square source so portrait or
-        // ultra-wide banners stay intact.
+        // object-scale-down (≡ min(none, contain)) shows the image at
+        // its NATURAL size when smaller than the tile, and downscales
+        // when larger. The previous object-contain upscaled small
+        // Google preview screenshots (~200x200) to fill the tile,
+        // which made the headline text read as zoomed/blurry. Tiles
+        // stay aligned because aspect-square fixes the box; the
+        // letterbox just shows the muted background instead of an
+        // upscale.
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={ad.image_url!}
           alt=""
-          className="w-full aspect-square object-contain bg-muted"
+          className="w-full aspect-square object-scale-down bg-muted"
           onError={() => setImgFailed(true)}
           onLoad={(e) => {
             const img = e.currentTarget;
@@ -2199,7 +2202,7 @@ function LatestAdTile({
       ) : hasVideo ? (
         <video
           src={ad.video_url!}
-          className="w-full aspect-square object-contain bg-black"
+          className="w-full aspect-square object-scale-down bg-black"
           muted
           playsInline
           preload="metadata"

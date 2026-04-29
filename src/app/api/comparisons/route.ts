@@ -321,7 +321,36 @@ async function computeTechnicalStats(
       // Library for source=meta, Google Ads Transparency for
       // source=google. Pre-computing here keeps the client free of
       // per-source URL logic.
+      //
+      // Pre-filter: ads with NO usable preview surface (image is null
+      // or matches a known unrenderable URL pattern, AND no video, AND
+      // no headline/copy, AND not a video-format placeholder) are
+      // skipped here so the tile cycles to the next-most-recent ad
+      // instead of showing a generic "No preview" — closes the
+      // "anteprima vuota, non si può prendere quella dopo?" gap.
+      function hasUsablePreview(a: AdRow): boolean {
+        const url = a.image_url ?? "";
+        const realImage =
+          !!url &&
+          !url.includes("/render_ad/") &&
+          !url.includes("/ads/preview/content.js") &&
+          !url.includes("/transparencyreport") &&
+          !url.includes("info_outline") &&
+          !url.includes("googleadservices.com/pagead/conversion");
+        if (realImage) return true;
+        if (a.video_url) return true;
+        if (a.headline || a.ad_text) return true;
+        // Surface video-format Google rows (no media URL but the tile
+        // shows a "Video — preview unavailable" placeholder which is
+        // more informative than a generic blank).
+        const fmt = (
+          a.raw_data as Record<string, unknown> | null
+        )?.adFormat as string | undefined;
+        if (fmt && fmt.toLowerCase() === "video") return true;
+        return false;
+      }
       const latestAds = adsList
+        .filter(hasUsablePreview)
         .sort(
           (a, b) =>
             new Date(b.created_at).getTime() -
