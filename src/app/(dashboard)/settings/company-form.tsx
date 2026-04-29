@@ -215,15 +215,13 @@ export function CompanyForm({ initial }: { initial: UserCompany | null }) {
                 )}
               </div>
 
-              {isIT && (
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="co-tax_code">{t("company", "taxCodeLabel")}</Label>
-                  <Input id="co-tax_code" {...bind("tax_code")} />
-                  {errors.tax_code && (
-                    <p className="text-[11px] text-red-400">{errors.tax_code}</p>
-                  )}
-                </div>
-              )}
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="co-tax_code">{t("company", "taxCodeLabel")}</Label>
+                <Input id="co-tax_code" {...bind("tax_code")} />
+                {errors.tax_code && (
+                  <p className="text-[11px] text-red-400">{errors.tax_code}</p>
+                )}
+              </div>
             </div>
           </section>
 
