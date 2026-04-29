@@ -65,6 +65,20 @@ export function classifyAdFormat(ad: AdLike): AdFormatBucket {
   const cards = Array.isArray(snapshot?.cards) ? (snapshot?.cards as unknown[]) : null;
   const videos = Array.isArray(snapshot?.videos) ? (snapshot?.videos as unknown[]) : null;
 
+  // Google Ads Transparency: the actor reports `adFormat` as a flat
+  // "Text"/"Image"/"Video" on the row root (not under snapshot, which is
+  // a Meta-only concept). Read it BEFORE the Meta switch so the chart
+  // shows the real Image/Video split — without this every Google ad
+  // fell through to the image_url heuristic and got bucketed as "image",
+  // erasing video on YouTube/Display from the format mix.
+  const googleFormat =
+    (ad.raw_data?.adFormat as string | undefined)?.toUpperCase() ?? null;
+  if (googleFormat === "VIDEO") return "video";
+  if (googleFormat === "IMAGE") return "image";
+  // Text-only Google ads (Search) carry no media — bucket as "unknown"
+  // so they show up in the "Other" slice rather than inflating image.
+  if (googleFormat === "TEXT") return "unknown";
+
   switch (rawFormat) {
     case "DPA":
       return "dpa";
