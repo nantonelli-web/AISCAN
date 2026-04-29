@@ -163,12 +163,17 @@ export async function BenchmarkContent({
         />
       )}
 
-      {/* KPI cards */}
+      {/* KPI cards. Copy length / Top-CTA come from ad_text and cta on
+          the row, which the Google Transparency actor does not return —
+          render N/A on Google so the box does not lie with a misleading 0. */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label={t("benchmarks", "totalAds")} value={formatNumber(data.totals.totalAds)} />
         <Stat label={t("benchmarks", "activeAds")} value={formatNumber(data.totals.activeAds)} />
         <Stat label={t("benchmarks", "avgCampaignDuration")} value={`${data.totals.avgDuration}gg`} />
-        <Stat label={t("benchmarks", "avgCopyLength")} value={`${data.totals.avgCopyLength} chr`} />
+        <Stat
+          label={t("benchmarks", "avgCopyLength")}
+          value={channel === "google" ? t("compare", "naGoogle") : `${data.totals.avgCopyLength} chr`}
+        />
       </div>
 
       {/* Volume per competitor */}
@@ -293,27 +298,31 @@ export async function BenchmarkContent({
         </Card>
       )}
 
-      {/* CTA per brand */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("benchmarks", "topCtaPerBrand")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descTopCtaPerBrand")}</p>
-          {data.ctaMixByCompetitor.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-4">{t("benchmarks", "noData")}</p>
-          ) : (
-            <div className={`grid gap-6 ${data.ctaMixByCompetitor.length <= 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
-              {data.ctaMixByCompetitor.map((entry) => (
-                <div key={entry.competitor} className="space-y-2">
-                  <p className="text-xs font-medium text-gold text-center">{entry.competitor}</p>
-                  <HorizontalBarChart data={entry.data} dataKey="count" label={t("benchmarks", "adsLabel")} />
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* CTA per brand. Skipped on Google: the actor does not return
+          CTA text, so we'd render an empty bar grid that the user
+          would read as "no CTAs", not "channel doesn't expose this". */}
+      {channel !== "google" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("benchmarks", "topCtaPerBrand")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descTopCtaPerBrand")}</p>
+            {data.ctaMixByCompetitor.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-4">{t("benchmarks", "noData")}</p>
+            ) : (
+              <div className={`grid gap-6 ${data.ctaMixByCompetitor.length <= 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
+                {data.ctaMixByCompetitor.map((entry) => (
+                  <div key={entry.competitor} className="space-y-2">
+                    <p className="text-xs font-medium text-gold text-center">{entry.competitor}</p>
+                    <HorizontalBarChart data={entry.data} dataKey="count" label={t("benchmarks", "adsLabel")} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Platform distribution per brand */}
       <Card>
@@ -349,8 +358,14 @@ export async function BenchmarkContent({
             <CardTitle>{t("benchmarks", "avgCopyLengthChart")}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descCopyLength")}</p>
-            <HorizontalBarChart data={data.avgCopyLengthByCompetitor} dataKey="chars" label={t("benchmarks", "charsAxisLabel")} color="#6b8e6b" />
+            {channel === "google" ? (
+              <p className="text-sm text-muted-foreground py-6">{t("compare", "naGoogle")}</p>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descCopyLength")}</p>
+                <HorizontalBarChart data={data.avgCopyLengthByCompetitor} dataKey="chars" label={t("benchmarks", "charsAxisLabel")} color="#6b8e6b" />
+              </>
+            )}
           </CardContent>
         </Card>
         <Card>

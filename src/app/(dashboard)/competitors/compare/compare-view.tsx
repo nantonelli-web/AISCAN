@@ -1532,6 +1532,7 @@ export function CompareView({
                   stats={stats as AdsCompStats[]}
                   t={t}
                   refreshRateWindowDays={refreshRateWindowDays}
+                  isGoogle={channel === "google"}
                 />
               )
             ) : null)}
@@ -1577,7 +1578,7 @@ export function CompareView({
               )
             ) : benchmarkData?.kind === "ads" ? (
               benchmarkData.totals.totalAds > 0 ? (
-                <BenchmarkCharts data={benchmarkData} t={t} />
+                <BenchmarkCharts data={benchmarkData} t={t} isGoogle={channel === "google"} />
               ) : (
                 <div className="py-16 text-center text-muted-foreground text-sm">
                   {t("benchmarks", "noData")}
@@ -1674,10 +1675,15 @@ function AdsTechnicalView({
   stats,
   t,
   refreshRateWindowDays,
+  isGoogle,
 }: {
   stats: AdsCompStats[];
   t: (s: string, k: string) => string;
   refreshRateWindowDays: number;
+  /** When true, KPIs the Google Ads Transparency actor does not expose
+   *  (ad_text → avgCopyLength, cta → topCta) render as a single "N/A
+   *  on this channel" cell so we don't lie with a misleading 0. */
+  isGoogle: boolean;
 }) {
   return (
     <div className="space-y-4">
@@ -1707,7 +1713,9 @@ function AdsTechnicalView({
         label={t("compare", "topCta")}
         stats={stats}
         render={(s) =>
-          s.topCtas.slice(0, 3).map((c) => c.name).join(", ") || "—"
+          isGoogle
+            ? t("compare", "naGoogle")
+            : s.topCtas.slice(0, 3).map((c) => c.name).join(", ") || "—"
         }
       />
       <CompareTable
@@ -1728,9 +1736,11 @@ function AdsTechnicalView({
         label={t("compare", "avgCopyLength")}
         stats={stats}
         render={(s) =>
-          s.avgCopyLength > 0
-            ? `${s.avgCopyLength} ${t("compare", "avgCopyChars")}`
-            : "—"
+          isGoogle
+            ? t("compare", "naGoogle")
+            : s.avgCopyLength > 0
+              ? `${s.avgCopyLength} ${t("compare", "avgCopyChars")}`
+              : "—"
         }
       />
       <CompareTable
@@ -2406,10 +2416,15 @@ function BenchmarkStat({ label, value }: { label: string; value: string }) {
 function BenchmarkCharts({
   data,
   t,
+  isGoogle,
 }: {
   data: BenchmarkData;
   t: (section: string, key: string) => string;
+  /** Hide / N/A KPIs the Google actor does not return (avgCopyLength,
+   *  Top CTA). See AdsTechnicalView for the same gate. */
+  isGoogle?: boolean;
 }) {
+  const naGoogle = t("compare", "naGoogle");
   return (
     <div className="space-y-6">
       {/* KPI cards — match the Benchmarks page set. */}
@@ -2417,7 +2432,10 @@ function BenchmarkCharts({
         <BenchmarkStat label={t("benchmarks", "totalAds")} value={formatNumber(data.totals.totalAds)} />
         <BenchmarkStat label={t("benchmarks", "activeAds")} value={formatNumber(data.totals.activeAds)} />
         <BenchmarkStat label={t("benchmarks", "avgCampaignDuration")} value={`${data.totals.avgDuration}gg`} />
-        <BenchmarkStat label={t("benchmarks", "avgCopyLength")} value={`${data.totals.avgCopyLength} chr`} />
+        <BenchmarkStat
+          label={t("benchmarks", "avgCopyLength")}
+          value={isGoogle ? naGoogle : `${data.totals.avgCopyLength} chr`}
+        />
       </div>
 
       {/* Volume */}
@@ -2460,12 +2478,20 @@ function BenchmarkCharts({
         </CardContent>
       </Card>
 
-      {/* CTA */}
+      {/* CTA — the Google Transparency actor does not return CTA text,
+          so the chart is replaced by an explanatory note instead of
+          rendering an empty bar. */}
       <Card>
         <CardHeader><CardTitle>{t("benchmarks", "topCta")}</CardTitle></CardHeader>
         <CardContent>
-          <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descTopCta")}</p>
-          <HorizontalBarChart data={data.topCtas} dataKey="count" label={t("benchmarks", "adsLabel")} />
+          {isGoogle ? (
+            <p className="text-sm text-muted-foreground py-6">{naGoogle}</p>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descTopCta")}</p>
+              <HorizontalBarChart data={data.topCtas} dataKey="count" label={t("benchmarks", "adsLabel")} />
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -2497,8 +2523,14 @@ function BenchmarkCharts({
         <Card>
           <CardHeader><CardTitle>{t("benchmarks", "avgCopyLengthChart")}</CardTitle></CardHeader>
           <CardContent>
-            <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descCopyLength")}</p>
-            <HorizontalBarChart data={data.avgCopyLengthByCompetitor} dataKey="chars" label={t("benchmarks", "charsAxisLabel")} color="#6b8e6b" />
+            {isGoogle ? (
+              <p className="text-sm text-muted-foreground py-6">{naGoogle}</p>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descCopyLength")}</p>
+                <HorizontalBarChart data={data.avgCopyLengthByCompetitor} dataKey="chars" label={t("benchmarks", "charsAxisLabel")} color="#6b8e6b" />
+              </>
+            )}
           </CardContent>
         </Card>
         <Card>

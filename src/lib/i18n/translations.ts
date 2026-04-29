@@ -577,6 +577,10 @@ const translations = {
       en: "Select at least 2 brands to see the comparison.",
     },
     newComparison: { it: "Nuovo confronto", en: "New comparison" },
+    naGoogle: {
+      it: "N/A su Google Ads",
+      en: "N/A on Google Ads",
+    },
     backToSelection: { it: "Torna alla selezione", en: "Back to selection" },
     tabTechnical: { it: "Analisi tecnica", en: "Technical analysis" },
     tabCopy: { it: "AI - Analisi copy", en: "AI - Copy analysis" },
