@@ -2165,22 +2165,24 @@ function LatestAdTile({
       className="block rounded-lg border border-border overflow-hidden hover:border-gold/40 transition-colors"
     >
       {hasImage ? (
-        // object-contain (not cover) so portrait Google creatives or
-        // wide banners aren't aggressively cropped. The dark muted
-        // background fills the letterbox.
+        // Aspect-square fits Google Transparency previews (most are
+        // 1:1 image creatives or HTML search-ad screenshots which look
+        // wrong letterboxed in a 16:9 box). object-contain still
+        // letterboxes any non-square source so portrait or
+        // ultra-wide banners stay intact.
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={ad.image_url!}
           alt=""
-          className="w-full aspect-video object-contain bg-muted"
+          className="w-full aspect-square object-contain bg-muted"
           onError={() => setImgFailed(true)}
           onLoad={(e) => {
             const img = e.currentTarget;
-            // Treat tiny images as broken — Google's info icon comes
-            // back as ~120px square, much smaller than any real ad
-            // creative. Real images are always ≥ 200px on the
-            // longer side.
-            if (img.naturalWidth > 0 && img.naturalWidth < 200) {
+            // Catch only true icon-sized payloads (Google "Why this
+            // ad?" info icon is ~64px; legitimate Marina Rinaldi
+            // previews are sometimes ~150-180px which the previous
+            // 200px gate was rejecting as false positives).
+            if (img.naturalWidth > 0 && img.naturalWidth < 80) {
               setImgFailed(true);
             }
           }}
@@ -2188,7 +2190,7 @@ function LatestAdTile({
       ) : hasVideo ? (
         <video
           src={ad.video_url!}
-          className="w-full aspect-video object-contain bg-black"
+          className="w-full aspect-square object-contain bg-black"
           muted
           playsInline
           preload="metadata"
@@ -2197,7 +2199,7 @@ function LatestAdTile({
         // No media at all — text-only creative. Show a styled
         // preview with the headline / first line of copy so the
         // tile is not just empty.
-        <div className="aspect-video bg-muted px-3 py-2 flex flex-col justify-between gap-1 text-[11px] leading-tight">
+        <div className="aspect-square bg-muted px-3 py-2 flex flex-col justify-between gap-1 text-[11px] leading-tight">
           {ad.headline && (
             <p className="font-semibold line-clamp-2">{ad.headline}</p>
           )}
