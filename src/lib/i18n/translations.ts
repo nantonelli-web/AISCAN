@@ -1129,10 +1129,6 @@ const translations = {
     },
 
     taxCodeLabel: { it: "Codice fiscale", en: "Tax code" },
-    taxCodeHint: {
-      it: "Solo Italia. Lascialo vuoto se coincide con la P.IVA.",
-      en: "Italy only. Leave empty if it matches the VAT.",
-    },
     taxCodeInvalid: {
       it: "Codice fiscale non valido (11 cifre o 16 caratteri).",
       en: "Invalid tax code (11 digits or 16 characters).",
