@@ -3,7 +3,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { InviteSection } from "./invite-form";
+import { CompanyForm } from "./company-form";
 import { getLocale, serverT } from "@/lib/i18n/server";
+import type { UserCompany } from "@/config/company";
 
 export const dynamic = "force-dynamic";
 
@@ -29,23 +31,34 @@ export default async function SettingsPage() {
   const locale = await getLocale();
   const t = serverT(locale);
 
-  const [{ data: ws }, { data: members }, { data: invitations }] =
-    await Promise.all([
-      admin
-        .from("mait_workspaces")
-        .select("name, slug, created_at")
-        .eq("id", profile.workspace_id!)
-        .single(),
-      admin
-        .from("mait_users")
-        .select("id, email, name, role")
-        .eq("workspace_id", profile.workspace_id!),
-      admin
-        .from("mait_invitations")
-        .select("id, email, role, accepted_at, expires_at, created_at")
-        .eq("workspace_id", profile.workspace_id!)
-        .order("created_at", { ascending: false }),
-    ]);
+  const [
+    { data: ws },
+    { data: members },
+    { data: invitations },
+    { data: company },
+  ] = await Promise.all([
+    admin
+      .from("mait_workspaces")
+      .select("name, slug, created_at")
+      .eq("id", profile.workspace_id!)
+      .single(),
+    admin
+      .from("mait_users")
+      .select("id, email, name, role")
+      .eq("workspace_id", profile.workspace_id!),
+    admin
+      .from("mait_invitations")
+      .select("id, email, role, accepted_at, expires_at, created_at")
+      .eq("workspace_id", profile.workspace_id!)
+      .order("created_at", { ascending: false }),
+    admin
+      .from("mait_user_company")
+      .select(
+        "legal_name, country, vat_number, tax_code, address_line1, address_line2, city, province, postal_code, sdi_code, pec_email, billing_email, phone",
+      )
+      .eq("user_id", profile.id)
+      .maybeSingle(),
+  ]);
 
   const isAdmin = ["super_admin", "admin"].includes(profile.role);
 
@@ -72,6 +85,10 @@ export default async function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <div id="company" className="scroll-mt-20">
+        <CompanyForm initial={(company ?? null) as UserCompany | null} />
+      </div>
 
       <Card>
         <CardHeader>
