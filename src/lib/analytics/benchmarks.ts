@@ -60,6 +60,7 @@ export interface BenchmarkData {
     video: number;
     carousel: number;
     dpa: number;
+    text: number;
     unknown: number;
   }[];
   /** Top CTAs across all ads */
@@ -571,23 +572,41 @@ export async function computeBenchmarks(
 
   // ---- Format mix (uses displayFormat from raw_data) ----
   // Buckets: image / video / carousel (manual) / dpa (catalog carousel) /
-  // unknown. We separate DPA from CAROUSEL so fashion / ecom workspaces can
-  // see how much of their "carousel" share is really dynamic catalog ads.
+  // text (Google Search / responsive text ads) / unknown.
+  // We separate DPA from CAROUSEL so fashion / ecom workspaces can see how
+  // much of their "carousel" share is really dynamic catalog ads. We
+  // separate "text" from "unknown" so Google Search investment is
+  // identifiable instead of pooled into a generic "Other".
   let imageCount = 0;
   let videoCount = 0;
   let carouselCount = 0;
   let dpaCount = 0;
+  let textCount = 0;
   let unknownCount = 0;
   const formatByComp = new Map<
     string,
-    { image: number; video: number; carousel: number; dpa: number; unknown: number }
+    {
+      image: number;
+      video: number;
+      carousel: number;
+      dpa: number;
+      text: number;
+      unknown: number;
+    }
   >();
   // Raw displayFormat tally per brand — audit trail exposed in the UI so we
   // can see exactly what the scraper returns instead of just our bucketing.
   const rawFormatByComp = new Map<string, Map<string, number>>();
   for (const ad of ads) {
     const key = ad.competitor_id ?? "unknown";
-    const entry = formatByComp.get(key) ?? { image: 0, video: 0, carousel: 0, dpa: 0, unknown: 0 };
+    const entry = formatByComp.get(key) ?? {
+      image: 0,
+      video: 0,
+      carousel: 0,
+      dpa: 0,
+      text: 0,
+      unknown: 0,
+    };
     // Track raw displayFormat distribution (audit trail surfaced in
     // the UI under each per-brand pie). Bucketing logic itself lives
     // in classifyAdFormat — single source of truth for every surface.
@@ -603,22 +622,25 @@ export async function computeBenchmarks(
     else if (bucket === "dpa") { dpaCount++; entry.dpa++; }
     else if (bucket === "video") { videoCount++; entry.video++; }
     else if (bucket === "image") { imageCount++; entry.image++; }
+    else if (bucket === "text") { textCount++; entry.text++; }
     else { unknownCount++; entry.unknown++; }
     formatByComp.set(key, entry);
   }
-  // Canonical order: Image, Video, Carousel, DPA, Other. Order matters so
+  // Canonical order: Image, Video, Carousel, DPA, Text, Other. Order matters so
   // the UI always lays slices out the same way.
   const formatMix = [
     { name: "Image", value: imageCount },
     { name: "Video", value: videoCount },
     { name: "Carousel", value: carouselCount },
     { name: "DPA", value: dpaCount },
+    { name: "Text", value: textCount },
     ...(unknownCount > 0 ? [{ name: "Other", value: unknownCount }] : []),
   ].filter((f) => f.value > 0);
   const formatByCompetitor = [...formatByComp.entries()]
     .map(([id, v]) => ({ name: compMap.get(id) ?? "N/A", ...v }))
     .sort((a, b) =>
-      (b.image + b.video + b.carousel + b.dpa) - (a.image + a.video + a.carousel + a.dpa)
+      (b.image + b.video + b.carousel + b.dpa + b.text) -
+      (a.image + a.video + a.carousel + a.dpa + a.text)
     );
 
   // Format mix per competitor (individual pie charts)
@@ -633,6 +655,7 @@ export async function computeBenchmarks(
         { name: "Video", value: v.video },
         { name: "Carousel", value: v.carousel },
         { name: "DPA", value: v.dpa },
+        { name: "Text", value: v.text },
         ...(v.unknown > 0 ? [{ name: "Other", value: v.unknown }] : []),
       ].filter((f) => f.value > 0),
     }))

@@ -40,6 +40,7 @@ const FORMAT_COLOR: Record<string, string> = {
   Video: "#2d8a87",      // teal
   Carousel: "#d97757",   // warm orange (manual carousel)
   DPA: "#8a6bb0",        // violet (dynamic product ads / catalog)
+  Text: "#6b8e6b",       // olive — Google Search / responsive text ads
   Reel: "#5b7ea3",       // steel blue (Instagram)
   Other: MUTED,          // muted grey
 };
@@ -224,9 +225,32 @@ export function FormatStackedChart({
     video: number;
     carousel: number;
     dpa: number;
+    text: number;
     unknown: number;
   }[];
 }) {
+  // Only render bars (and therefore legend entries) for buckets that
+  // have at least one row > 0. Avoids dragging Carousel + DPA into the
+  // legend on a Google-only Compare where they're structurally
+  // impossible — same UX gate the per-brand pie already applied.
+  const hasImage = data.some((d) => d.image > 0);
+  const hasVideo = data.some((d) => d.video > 0);
+  const hasCarousel = data.some((d) => d.carousel > 0);
+  const hasDpa = data.some((d) => d.dpa > 0);
+  const hasText = data.some((d) => d.text > 0);
+  const hasUnknown = data.some((d) => d.unknown > 0);
+
+  const bars = (
+    <>
+      {hasImage && <Bar dataKey="image" stackId="a" fill={FORMAT_COLOR.Image} name="Image" />}
+      {hasVideo && <Bar dataKey="video" stackId="a" fill={FORMAT_COLOR.Video} name="Video" />}
+      {hasCarousel && <Bar dataKey="carousel" stackId="a" fill={FORMAT_COLOR.Carousel} name="Carousel" />}
+      {hasDpa && <Bar dataKey="dpa" stackId="a" fill={FORMAT_COLOR.DPA} name="DPA" />}
+      {hasText && <Bar dataKey="text" stackId="a" fill={FORMAT_COLOR.Text} name="Text" />}
+      {hasUnknown && <Bar dataKey="unknown" stackId="a" fill={MUTED} name="Other" />}
+    </>
+  );
+
   if (data.length > 8) {
     const height = Math.max(240, data.length * 36);
     return (
@@ -242,11 +266,7 @@ export function FormatStackedChart({
           />
           <Tooltip {...tooltipStyle} />
           <Legend wrapperStyle={{ fontSize: 12, color: LEGEND_TEXT }} />
-          <Bar dataKey="image" stackId="a" fill={FORMAT_COLOR.Image} name="Image" />
-          <Bar dataKey="video" stackId="a" fill={FORMAT_COLOR.Video} name="Video" />
-          <Bar dataKey="carousel" stackId="a" fill={FORMAT_COLOR.Carousel} name="Carousel" />
-          <Bar dataKey="dpa" stackId="a" fill={FORMAT_COLOR.DPA} name="DPA" />
-          <Bar dataKey="unknown" stackId="a" fill={MUTED} name="Other" />
+          {bars}
         </BarChart>
       </ResponsiveContainer>
     );
@@ -265,11 +285,7 @@ export function FormatStackedChart({
         <YAxis tick={{ fill: AXIS_TICK, fontSize: 11 }} />
         <Tooltip {...tooltipStyle} />
         <Legend wrapperStyle={{ fontSize: 12, color: LEGEND_TEXT }} />
-        <Bar dataKey="image" stackId="a" fill={FORMAT_COLOR.Image} name="Image" />
-        <Bar dataKey="video" stackId="a" fill={FORMAT_COLOR.Video} name="Video" />
-        <Bar dataKey="carousel" stackId="a" fill={FORMAT_COLOR.Carousel} name="Carousel" />
-        <Bar dataKey="dpa" stackId="a" fill={FORMAT_COLOR.DPA} name="DPA" />
-        <Bar dataKey="unknown" stackId="a" fill={MUTED} name="Other" />
+        {bars}
       </BarChart>
     </ResponsiveContainer>
   );

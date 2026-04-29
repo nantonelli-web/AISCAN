@@ -45,8 +45,15 @@ export const maxDuration = 300;
  *         Active count for Google is correct after the 0030
  *         backfill (1-day polling tolerance). Cached v5 rows would
  *         still show stale numbers — must regenerate.
+ *   - v7: AI sections (copy + visual) now filter the underlying
+ *         BrandAdData query by source so a Google-only Compare can
+ *         no longer leak Meta ad copy into the LLM (the "AI talks
+ *         about emoji on Google" bug). Format-mix arrays now carry
+ *         a dedicated `text` bucket separate from "Other"/unknown.
+ *         The visual prompt is channel-aware (YouTube/Display/Search
+ *         on Google, social-feed on Meta).
  */
-const CURRENT_DATA_VERSION = 6;
+const CURRENT_DATA_VERSION = 7;
 
 /* ── Schemas ─────────────────────────────────────────────── */
 
@@ -360,27 +367,39 @@ async function computeTechnicalStats(
   );
 }
 
-/** Fetch brand ad data for AI analysis (latest 15 ads per brand) */
+/** Fetch brand ad data for AI analysis (latest 15 ads per brand).
+ *
+ * `source` MUST be passed when the comparison is scoped to a single
+ * channel — without it the LLM sees a mix of Meta + Google rows for
+ * the same brand and writes nonsense like "uses emoji frequently"
+ * about a Google-only Compare (Google Ads Transparency does not
+ * carry ad copy at all, so any emoji observation is structurally
+ * impossible). When source is undefined we keep the legacy
+ * cross-source behaviour for the channel="all" case. */
 async function fetchBrandAdData(
   ids: string[],
-  admin: ReturnType<typeof createAdminClient>
+  admin: ReturnType<typeof createAdminClient>,
+  source?: "meta" | "google",
 ): Promise<BrandAdData[]> {
   const tenDaysAgo = new Date(Date.now() - 10 * 86_400_000).toISOString();
   return Promise.all(
     ids.map(async (id) => {
+      const adsQuery = admin
+        .from("mait_ads_external")
+        .select("headline, ad_text, description, cta, image_url, platforms")
+        .eq("competitor_id", id)
+        .gte("created_at", tenDaysAgo)
+        .order("created_at", { ascending: false })
+        .limit(12);
+      if (source) adsQuery.eq("source", source);
+
       const [{ data: comp }, { data: ads }] = await Promise.all([
         admin
           .from("mait_competitors")
           .select("id, page_name")
           .eq("id", id)
           .single(),
-        admin
-          .from("mait_ads_external")
-          .select("headline, ad_text, description, cta, image_url")
-          .eq("competitor_id", id)
-          .gte("created_at", tenDaysAgo)
-          .order("created_at", { ascending: false })
-          .limit(12),
+        adsQuery,
       ]);
 
       return {
@@ -392,6 +411,7 @@ async function fetchBrandAdData(
           description: string | null;
           cta: string | null;
           image_url: string | null;
+          platforms: string[] | null;
         }[],
       };
     })
@@ -821,16 +841,26 @@ export async function POST(req: Request) {
         { status: 503 }
       );
     }
+    // Source filter for the AI fetch: same as for technical stats,
+    // so the LLM never sees Meta rows on a Google-only Compare. When
+    // channel="all" we deliberately leave it undefined so the
+    // analysis covers everything the brand runs.
+    const aiSource =
+      parsed.data.channel === "all"
+        ? undefined
+        : parsed.data.channel === "meta" || parsed.data.channel === "google"
+          ? (parsed.data.channel as "meta" | "google")
+          : undefined;
     const brands = isOrganic
       ? await fetchBrandOrganicData(ids, admin)
-      : await fetchBrandAdData(ids, admin);
+      : await fetchBrandAdData(ids, admin, aiSource);
     const aiLocale = locale as "it" | "en";
 
     const aiTasks: Promise<void>[] = [];
 
     if (sections.includes("copy")) {
       aiTasks.push(
-        analyzeCopy(brands, aiLocale).then((result) => {
+        analyzeCopy(brands, aiLocale, aiSource).then((result) => {
           payload.copy_analysis = result;
         })
       );
@@ -838,7 +868,7 @@ export async function POST(req: Request) {
 
     if (sections.includes("visual")) {
       aiTasks.push(
-        analyzeVisuals(brands, aiLocale).then((result) => {
+        analyzeVisuals(brands, aiLocale, aiSource).then((result) => {
           payload.visual_analysis = result;
         })
       );

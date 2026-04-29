@@ -25,6 +25,12 @@ export interface BrandAdData {
     description: string | null;
     cta: string | null;
     image_url: string | null;
+    /** Surfaces the ad served on. For Meta this is facebook/instagram/etc.;
+     *  for Google it's google_search/display/youtube. Surfaced into the
+     *  visual-analysis prompt so the LLM can label each image with the
+     *  Google ad type (YouTube vs Display vs Search) instead of writing
+     *  generic visual notes. */
+    platforms?: string[] | null;
   }[];
 }
 
@@ -187,12 +193,40 @@ function normalizeCreativeDirectorReport(
  */
 export async function analyzeCopy(
   brands: BrandAdData[],
-  locale: "it" | "en" = "en"
+  locale: "it" | "en" = "en",
+  source?: "meta" | "google",
 ): Promise<CreativeAnalysisResult["copywriterReport"]> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     console.error("OPENROUTER_API_KEY not set, skipping copy analysis");
     return null;
+  }
+
+  // The current Google Ads Transparency actor does not return ad copy
+  // (headline / ad_text / cta are all null on every Google row). Running
+  // the LLM with empty inputs makes it hallucinate generic
+  // observations. Return a structured "not applicable" placeholder so
+  // the UI can render a clear message instead of nonsense like
+  // "the brand uses emojis" — which it cannot, since there's no copy
+  // to analyse.
+  if (source === "google") {
+    const message =
+      locale === "it"
+        ? "L'analisi copy non è disponibile sul canale Google: la Transparency Library non espone testo, headline o CTA strutturati."
+        : "Copy analysis is not available on the Google channel: the Transparency Library does not expose structured ad text, headline or CTA.";
+    return {
+      brandAnalyses: brands.map((b) => ({
+        brandName: b.brandName,
+        toneOfVoice: message,
+        copyStyle: "",
+        emotionalTriggers: [],
+        ctaPatterns: "",
+        strengths: "",
+        weaknesses: "",
+      })),
+      comparison: message,
+      recommendations: message,
+    };
   }
 
   // Build grouped text for each brand
@@ -219,7 +253,12 @@ export async function analyzeCopy(
     ? "IMPORTANT: Write ALL text values in Italian. The entire output must be in Italian."
     : "Write all text values in English.";
 
-  const prompt = `You are a senior copywriter with 15+ years of experience in digital advertising, fluent in Italian and English. You specialize in Meta (Facebook/Instagram) ad copy analysis for fashion, luxury, lifestyle, and DTC brands.
+  const channelLine =
+    source === "meta"
+      ? "You specialize in Meta (Facebook/Instagram) ad copy analysis for fashion, luxury, lifestyle, and DTC brands."
+      : "You specialize in paid-advertising copy analysis (Meta, Google) for fashion, luxury, lifestyle, and DTC brands. Adapt tone and style observations to the channel where each ad runs.";
+
+  const prompt = `You are a senior copywriter with 15+ years of experience in digital advertising, fluent in Italian and English. ${channelLine}
 
 ${langInstruction}
 
@@ -304,7 +343,8 @@ Important:
  */
 export async function analyzeVisuals(
   brands: BrandAdData[],
-  locale: "it" | "en" = "en"
+  locale: "it" | "en" = "en",
+  source?: "meta" | "google",
 ): Promise<CreativeAnalysisResult["creativeDirectorReport"]> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
@@ -318,7 +358,15 @@ export async function analyzeVisuals(
   // image, and Gemini hangs on those without ever returning. Confirmed
   // 2026-04-28 on Fiorella Rubino + Marina Rinaldi (Google channel)
   // where the visual analysis stuck for >5 min until manually killed.
-  const imageEntries: { brandName: string; url: string }[] = [];
+  // We also carry over the source `platforms` per ad so the prompt can
+  // tell the LLM which Google surface (YouTube / Display / Search /
+  // PMAX) each image likely targets — without it the analysis comes
+  // out as generic "visual notes" with no actionable channel context.
+  const imageEntries: {
+    brandName: string;
+    url: string;
+    platforms: string[];
+  }[] = [];
   for (const brand of brands) {
     const brandImages = brand.ads
       .filter((ad) => {
@@ -336,7 +384,11 @@ export async function analyzeVisuals(
       .slice(0, 2);
     for (const ad of brandImages) {
       if (imageEntries.length >= 6) break;
-      imageEntries.push({ brandName: brand.brandName, url: ad.image_url! });
+      imageEntries.push({
+        brandName: brand.brandName,
+        url: ad.image_url!,
+        platforms: (ad.platforms ?? []).filter(Boolean),
+      });
     }
   }
 
@@ -345,13 +397,40 @@ export async function analyzeVisuals(
     return null;
   }
 
-  // Build message content with text + image_url parts
+  // Build message content with text + image_url parts. Each per-brand
+  // line now carries the surfaces the images target so the LLM can name
+  // the campaign type (e.g. "YouTube video ad", "Display banner", "Search
+  // ad") in its analysis instead of returning untyped visual notes.
   const brandImageLabels = brands
     .map((b) => {
-      const count = imageEntries.filter((e) => e.brandName === b.brandName).length;
-      return `- ${b.brandName}: ${count} images`;
+      const entries = imageEntries.filter((e) => e.brandName === b.brandName);
+      const count = entries.length;
+      const surfaces = Array.from(
+        new Set(entries.flatMap((e) => e.platforms)),
+      );
+      const surfaceHint =
+        surfaces.length > 0 ? ` (surfaces: ${surfaces.join(", ")})` : "";
+      return `- ${b.brandName}: ${count} images${surfaceHint}`;
     })
     .join("\n");
+
+  // Per-image surface table — referenced inside the prompt so the LLM
+  // can correlate each image with its likely Google surface. Empty for
+  // Meta because that channel doesn't carry per-ad placement on
+  // Transparency-style scrapes.
+  const perImageSurfaces = imageEntries
+    .map((entry, i) => {
+      const surf = entry.platforms.length > 0 ? entry.platforms.join(", ") : "—";
+      return `${i + 1}. ${entry.brandName}: ${surf}`;
+    })
+    .join("\n");
+
+  const channelContext =
+    source === "google"
+      ? `These ads come from the Google Ads Transparency Center. They may target different Google surfaces — YouTube (video creatives), Display Network / Discovery (image banners), Performance Max (mixed), or Search (text). Whenever you can infer the surface from the visual (aspect ratio, layout, product treatment, presence of text overlay), call it out explicitly: "this is likely a YouTube pre-roll", "this is a Display banner", etc. Do NOT assume the brand runs Meta-style social creatives.`
+      : source === "meta"
+        ? `These ads come from the Meta Ad Library — Facebook and Instagram placements (feed, stories, reels). Frame your analysis around social-feed aesthetic and platform conventions.`
+        : `These ads span multiple channels. Surface the platform context in your analysis where it adds clarity.`;
 
   const textPart = {
     type: "text" as const,
@@ -359,8 +438,14 @@ export async function analyzeVisuals(
 
 ${locale === "it" ? "IMPORTANT: Write ALL text values in Italian. The entire output must be in Italian." : "Write all text values in English."}
 
+CHANNEL CONTEXT
+${channelContext}
+
 Analyze the following ad images from ${brands.length} competing brands. The images are organized as follows:
 ${brandImageLabels}
+
+Per-image surfaces (in the order images are attached below):
+${perImageSurfaces}
 
 The images are provided in order: first all images from the first brand, then the second, etc.
 
