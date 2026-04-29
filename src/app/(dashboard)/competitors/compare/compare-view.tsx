@@ -1406,7 +1406,7 @@ export function CompareView({
                       >
                         <p className="text-sm font-medium truncate">{brandNames}</p>
                         <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
-                          <span className="text-gold/70">{channelLabel(sc.channel, t)}</span>
+                          <span className="text-gold/70 font-semibold">{channelLabel(sc.channel, t)}</span>
                           {sc.countries && sc.countries.length > 0 && (
                             <>
                               <span>·</span>
