@@ -328,8 +328,12 @@ export function CompareView({
         // to regenerate.
         const expectedKind: "organic" | "ads" =
           channel === "instagram" ? "organic" : "ads";
+        // Channel is part of the cache key on the server (since the
+        // unique constraint was widened in migration 0031), so we must
+        // ask for the row that matches the user's currently-selected
+        // channel — not just any row for the brand-set.
         const getRes = await fetch(
-          `/api/comparisons?ids=${ids.sort().join(",")}&locale=${locale}`
+          `/api/comparisons?ids=${ids.sort().join(",")}&locale=${locale}&channel=${channel}`,
         );
 
         if (getRes.ok) {
@@ -374,13 +378,24 @@ export function CompareView({
               ? data.current_data_version
               : 0;
           const versionFresh = cachedDataVersion >= currentDataVersion;
+          // Channel mismatch is a hard cache miss: a row computed for
+          // Meta carries Meta-shaped data (platforms = facebook/IG,
+          // CTAs, Advantage+ signals) — serving it for a Google
+          // request leaks Meta numbers under a Google-labelled UI
+          // (Top CTA shows "N/A on Google Ads" but Active Ads /
+          // Format mix / Platforms are still Meta). Until the cache
+          // table has channel as part of its unique key, this client
+          // gate is the safety net.
+          const cachedChannel = (data.channel as string | null) ?? null;
+          const channelMatches = cachedChannel === channel;
           if (
             normalized &&
             cachedKind === expectedKind &&
             !needsOrganicRefresh &&
             windowMatches &&
             countriesMatch &&
-            versionFresh
+            versionFresh &&
+            channelMatches
           ) {
             setCache({
               technical_data: normalized,

@@ -664,6 +664,13 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const idsParam = url.searchParams.get("ids");
   const locale = url.searchParams.get("locale") ?? "it";
+  // Channel query-string is part of the cache key — without it the
+  // GET would return a Meta-shaped row for a Google-channel request
+  // (and vice versa), which is exactly the leak that surfaced as
+  // "platforms shows facebook on a Google Compare". Optional for
+  // backward compatibility with legacy callers; missing channel falls
+  // back to the previous behaviour (any row for the brand-set).
+  const channel = url.searchParams.get("channel");
 
   if (!idsParam) {
     return NextResponse.json(
@@ -689,13 +696,14 @@ export async function GET(req: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const { data, error } = await admin
+  const query = admin
     .from("mait_comparisons")
     .select("*")
     .eq("workspace_id", workspaceId)
     .eq("competitor_ids", `{${ids.join(",")}}`)
-    .eq("locale", locale)
-    .single();
+    .eq("locale", locale);
+  if (channel) query.eq("channel", channel);
+  const { data, error } = await query.maybeSingle();
 
   if (error || !data) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -739,14 +747,20 @@ export async function POST(req: Request) {
   const locale = parsed.data.locale ?? "it";
   const sections = parsed.data.sections;
 
-  // Check if we already have a cached record to merge with
+  // Check if we already have a cached record to merge with. Match by
+  // channel too — a Meta cache and a Google cache for the same
+  // brand-set are now distinct rows under the new unique key
+  // (idx_mait_comparisons_key includes channel from migration 0031),
+  // and overwriting the wrong-channel row would be the same leak we
+  // just fixed in the GET handler.
   const { data: existing } = await admin
     .from("mait_comparisons")
     .select("*")
     .eq("workspace_id", workspaceId)
     .eq("competitor_ids", `{${ids.join(",")}}`)
     .eq("locale", locale)
-    .single();
+    .eq("channel", parsed.data.channel)
+    .maybeSingle();
 
   // Build update payload — only include countries if the client supplied
   // them, so follow-up POSTs for AI sections don't overwrite with [].
