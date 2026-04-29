@@ -47,7 +47,25 @@ import { getCountries } from "@/config/countries";
 type Tab = "technical" | "copy" | "visual" | "benchmark";
 type Channel = "all" | "meta" | "google" | "instagram";
 
-interface AdsCompStats {
+/**
+ * AdsCompStats is a discriminated union by `channel`. Meta and Google
+ * surfaces have structurally different domain concepts — pretending
+ * they share a shape is what caused the cache leak we hunted on
+ * 2026-04-29 (Meta numbers rendered under Google labels). Common
+ * fields live on `AdsCompStatsBase`; channel-specific fields are
+ * declared only on the variant where they make sense.
+ *
+ * - `topCtas` exists only on Meta (Google Transparency does not expose
+ *   CTA text).
+ * - `avgCopyLength` exists only on Meta (no `ad_text` on Google rows).
+ * - `objectiveInference` exists only on Meta (the inference reads
+ *   Advantage+ / DCO / DPA signals, all Meta-specific).
+ * - `platforms` is on both, but the *meaning* differs: facebook /
+ *   instagram / threads on Meta; youtube / display / google_search
+ *   on Google. The `MetaPlacements` and `GoogleSurfaces` aliases
+ *   document this at the type level.
+ */
+interface AdsCompStatsBase {
   id: string;
   name: string;
   kind: "ads";
@@ -55,16 +73,8 @@ interface AdsCompStats {
   activeAds: number;
   imageCount: number;
   videoCount: number;
-  topCtas: { name: string; count: number }[];
-  platforms: { name: string; count: number }[];
   avgDuration: number;
-  avgCopyLength: number;
   adsPerWeek: number;
-  objectiveInference: {
-    objective: string;
-    confidence: number;
-    signals: string[];
-  };
   latestAds: {
     headline: string | null;
     image_url: string | null;
@@ -78,6 +88,31 @@ interface AdsCompStats {
     library_url: string | null;
   }[];
 }
+
+type MetaPlacements = { name: string; count: number }[];
+type GoogleSurfaces = { name: string; count: number }[];
+
+interface MetaAdsCompStats extends AdsCompStatsBase {
+  channel: "meta";
+  topCtas: { name: string; count: number }[];
+  platforms: MetaPlacements;
+  avgCopyLength: number;
+  objectiveInference: {
+    objective: string;
+    confidence: number;
+    signals: string[];
+  };
+}
+
+interface GoogleAdsCompStats extends AdsCompStatsBase {
+  channel: "google";
+  /** Surfaces the ad served on (youtube / display / google_search).
+   *  Same JSON shape as Meta `platforms` but the values come from
+   *  Google adFormat, not the Meta `publisherPlatform` array. */
+  platforms: GoogleSurfaces;
+}
+
+type AdsCompStats = MetaAdsCompStats | GoogleAdsCompStats;
 
 interface OrganicCompStats {
   id: string;
@@ -116,13 +151,20 @@ interface OrganicCompStats {
 
 type CompStats = AdsCompStats | OrganicCompStats;
 
-/** Old cached rows (pre-organic) have no `kind` — default to "ads". */
+/** Old cached rows (pre-organic) have no `kind` — default to "ads". Old
+ *  rows from before Phase 3 also have no `channel` discriminator on ad
+ *  stats; default to "meta" because every row written before this rework
+ *  came from the Meta-first code path. */
 function normalizeStats(raw: unknown): CompStats[] | null {
   if (!Array.isArray(raw)) return null;
   return raw.map((s) => {
     const rec = s as Record<string, unknown>;
     if (rec.kind === "organic") return rec as unknown as OrganicCompStats;
-    return { ...(rec as object), kind: "ads" } as AdsCompStats;
+    const withKind = { ...(rec as object), kind: "ads" } as Record<string, unknown>;
+    if (typeof withKind.channel !== "string") {
+      withKind.channel = "meta";
+    }
+    return withKind as unknown as AdsCompStats;
   });
 }
 
@@ -1713,7 +1755,20 @@ function AdsTechnicalView({
         render={(s) => String(s.activeAds)}
         highlight
       />
-      <ObjectiveCard stats={stats} t={t} />
+      {/* Estimated campaign objective is inferred from Meta-only signals
+          (Advantage+ Creative, DCO, DPA, CTA buckets) — none of which the
+          Google Transparency Library exposes. Hide the card on Google to
+          avoid the previous bug where it rendered "Vendite/Conversioni"
+          with empty signals on every Google brand. The narrow lets
+          ObjectiveCard accept MetaAdsCompStats[] strictly. */}
+      {!isGoogle && (
+        <ObjectiveCard
+          stats={stats.filter(
+            (s): s is MetaAdsCompStats => s.channel === "meta",
+          )}
+          t={t}
+        />
+      )}
       <CompareTable
         label={t("compare", "formatMix")}
         stats={stats}
@@ -1728,13 +1783,23 @@ function AdsTechnicalView({
         label={t("compare", "topCta")}
         stats={stats}
         render={(s) =>
-          isGoogle
-            ? t("compare", "naGoogle")
-            : s.topCtas.slice(0, 3).map((c) => c.name).join(", ") || "—"
+          // Narrow on the discriminator: topCtas only exists on the
+          // Meta variant of AdsCompStats (Phase 3 type split).
+          s.channel === "meta"
+            ? s.topCtas.slice(0, 3).map((c) => c.name).join(", ") || "—"
+            : t("compare", "naGoogle")
         }
       />
+      {/* "Platforms" carries different semantics per channel — Meta
+          placements (Facebook / Instagram / Threads / etc) on Meta,
+          Google surfaces (YouTube / Display / Search) on Google.
+          Switch the row label so the user reads the right concept. */}
       <CompareTable
-        label={t("compare", "platformsLabel")}
+        label={
+          isGoogle
+            ? t("compare", "googleSurfacesLabel")
+            : t("compare", "metaPlacementsLabel")
+        }
         stats={stats}
         render={(s) => s.platforms.map((p) => p.name).join(", ") || "—"}
       />
@@ -1751,11 +1816,12 @@ function AdsTechnicalView({
         label={t("compare", "avgCopyLength")}
         stats={stats}
         render={(s) =>
-          isGoogle
-            ? t("compare", "naGoogle")
-            : s.avgCopyLength > 0
+          // avgCopyLength only exists on the Meta variant.
+          s.channel === "meta"
+            ? s.avgCopyLength > 0
               ? `${s.avgCopyLength} ${t("compare", "avgCopyChars")}`
               : "—"
+            : t("compare", "naGoogle")
         }
       />
       <CompareTable
@@ -2125,7 +2191,11 @@ function ObjectiveCard({
   stats,
   t,
 }: {
-  stats: AdsCompStats[];
+  /** Meta-only — the inference reads Advantage+ / DCO / DPA signals,
+   *  none of which exist on Google Transparency rows. The caller
+   *  (AdsTechnicalView) only renders this card when channel="meta", so
+   *  the type narrowing is enforced at the boundary. */
+  stats: MetaAdsCompStats[];
   t: (s: string, k: string) => string;
 }) {
   const OBJECTIVE_LABELS: Record<string, Record<string, string>> = {
