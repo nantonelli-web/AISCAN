@@ -1771,10 +1771,14 @@ function AdsTechnicalView({
                   // Resolve preview media in priority order so video
                   // creatives (which previously fell through to the
                   // "Ad" placeholder when image_url was null) actually
-                  // render. /render_ad/ is Meta's HTML iframe URL —
-                  // not a real image, treat as missing.
-                  const hasImage =
-                    ad.image_url && !ad.image_url.includes("/render_ad/");
+                  // render. /render_ad/ is Meta's HTML iframe URL and
+                  // /ads/preview/content.js is Google's JS-based
+                  // preview — neither renders inside an <img>, treat
+                  // both as missing.
+                  const isHtmlPreview =
+                    ad.image_url?.includes("/render_ad/") ||
+                    ad.image_url?.includes("/ads/preview/content.js");
+                  const hasImage = ad.image_url && !isHtmlPreview;
                   const hasVideo = !!ad.video_url;
                   // Render as a span when no library URL is available
                   // (Google ad without advertiserId) so the tile still
@@ -1793,16 +1797,22 @@ function AdsTechnicalView({
                       className="block rounded-lg border border-border overflow-hidden hover:border-gold/40 transition-colors"
                     >
                       {hasImage ? (
+                        // object-contain (not cover) so portrait Google
+                        // creatives or wide banners aren't aggressively
+                        // cropped — the previous cover-fit cut off the
+                        // text on Fiorella Rubino-style search ads and
+                        // hid most of Marina Rinaldi's visuals. The
+                        // dark muted background fills the letterbox.
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={ad.image_url!}
                           alt=""
-                          className="w-full aspect-video object-cover"
+                          className="w-full aspect-video object-contain bg-muted"
                         />
                       ) : hasVideo ? (
                         <video
                           src={ad.video_url!}
-                          className="w-full aspect-video object-cover bg-black"
+                          className="w-full aspect-video object-contain bg-black"
                           muted
                           playsInline
                           preload="metadata"

@@ -38,8 +38,15 @@ export const maxDuration = 300;
  *         NULL scan_countries by design); cached rows from v4 with a
  *         country filter set show 0 ads for Google brands and must
  *         regenerate
+ *   - v6: classifyAdFormat now reads raw_data.adFormat (Google
+ *         Transparency Text/Image/Video) so format mix isn't 100%
+ *         image. latestAds payload now includes library_url so the
+ *         Compare card routes to Meta or Google library by source.
+ *         Active count for Google is correct after the 0030
+ *         backfill (1-day polling tolerance). Cached v5 rows would
+ *         still show stale numbers — must regenerate.
  */
-const CURRENT_DATA_VERSION = 5;
+const CURRENT_DATA_VERSION = 6;
 
 /* ── Schemas ─────────────────────────────────────────────── */
 
