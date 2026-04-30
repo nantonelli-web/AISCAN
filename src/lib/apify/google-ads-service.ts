@@ -377,6 +377,31 @@ function normalizeSilva(
   // 2026-04-30). `description` kept as fallback for forward-compat.
   const bodyText = variant.body ?? variant.description ?? null;
 
+  // Root-level `previewUrl` is silva's "always-on" thumbnail —
+  // surfaced by Google Transparency without opening the detail
+  // page. We fall back to it when the per-variant URLs are missing
+  // (silva sometimes returns `variations: []` on perfectly real
+  // ads when the detail-page fetch times out or the ad is in a
+  // restricted category). For text ads the previewUrl is the
+  // simgad screenshot; for video ads it is the YouTube ytimg
+  // thumbnail; for image/shopping it is the product thumb. All
+  // three are renderable, so without this fallback those rows show
+  // an empty preview tile in the brand list and the ad-detail page.
+  const rootPreviewUrl =
+    typeof ad.previewUrl === "string" && ad.previewUrl ? ad.previewUrl : null;
+
+  // When variations is empty but previewUrl is a YouTube ytimg
+  // thumbnail (i.ytimg.com/vi/{ID}/hqdefault.jpg), reconstruct the
+  // YouTube watch URL so the rest of the app can show the play
+  // overlay and click-out — the ID is right there in the path.
+  let videoUrl = variant.videoUrl ?? null;
+  if (!videoUrl && rootPreviewUrl) {
+    const ytIdMatch = rootPreviewUrl.match(/i\.ytimg\.com\/vi\/([\w-]{11})\//);
+    if (ytIdMatch) {
+      videoUrl = `https://www.youtube.com/watch?v=${ytIdMatch[1]}`;
+    }
+  }
+
   return {
     ad_archive_id: adId,
     // mirror Meta semantics: map description → ad_text so
@@ -385,8 +410,8 @@ function normalizeSilva(
     headline: variant.headline ?? null,
     description: bodyText,
     cta: variant.cta ?? null,
-    image_url: variant.imageUrl ?? null,
-    video_url: variant.videoUrl ?? null,
+    image_url: variant.imageUrl ?? rootPreviewUrl,
+    video_url: videoUrl,
     landing_url: variant.clickUrl ?? null,
     platforms: platforms.length > 0 ? platforms : ["google"],
     languages: [],
