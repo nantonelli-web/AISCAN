@@ -563,6 +563,14 @@ const translations = {
     googleFirstShown: { it: "Prima volta", en: "First shown" },
     googleLastShown: { it: "Ultima volta", en: "Last shown" },
     youtubeOpenLabel: { it: "Apri video su YouTube", en: "Open video on YouTube" },
+    noPreviewAvailableTitle: {
+      it: "Anteprima non disponibile",
+      en: "Preview not available",
+    },
+    noPreviewAvailableHelp: {
+      it: "Lo scraper non ha estratto media per questa creatività — Google Transparency a volte non li espone. I metadati a destra restano comunque validi; per vedere il creativo originale apri direttamente Google Ads Transparency.",
+      en: "The scraper did not capture media for this creative — Google Transparency sometimes does not expose them. The metadata on the right is still valid; to see the original creative, open Google Ads Transparency directly.",
+    },
   },
 
   // ─── Compare ───────────────────────────────────────────────

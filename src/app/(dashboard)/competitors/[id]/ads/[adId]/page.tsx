@@ -255,7 +255,43 @@ export default async function AdDetailPage({
                 />
               </CardContent>
             </Card>
-          ) : null}
+          ) : (
+            // Final fallback — no playable video, no YouTube ID, no
+            // usable image. Common on silva Google rows whose
+            // variations[] came back empty (the actor saw the ad ID
+            // but did not capture media). Render a clear "no preview
+            // available" card with a click-out to the Transparency
+            // page so the user can still inspect the creative.
+            <Card>
+              <CardContent className="p-12 flex flex-col items-center text-center gap-3">
+                <div className="size-12 rounded-full bg-muted grid place-items-center">
+                  {isGoogle && (raw?.format as string)?.toUpperCase() === "VIDEO" ? (
+                    <Play className="size-6 text-muted-foreground" />
+                  ) : (
+                    <ExternalLink className="size-6 text-muted-foreground" />
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-medium">
+                    {t("adDetail", "noPreviewAvailableTitle")}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-md">
+                    {t("adDetail", "noPreviewAvailableHelp")}
+                  </p>
+                </div>
+                {adLibraryUrl && (
+                  <a
+                    href={adLibraryUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 h-9 text-sm hover:border-gold/40 hover:text-gold transition-colors mt-1"
+                  >
+                    {adLibraryLabel} <ExternalLink className="size-3.5" />
+                  </a>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* All carousel cards */}
           {cards.length > 0 && (
