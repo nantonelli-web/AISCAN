@@ -213,18 +213,46 @@ export async function analyzeCopy(
     return null;
   }
 
-  // The current Google Ads Transparency actor does not return ad copy
-  // (headline / ad_text / cta are all null on every Google row). Running
-  // the LLM with empty inputs makes it hallucinate generic
-  // observations. Return a structured "not applicable" placeholder so
-  // the UI can render a clear message instead of nonsense like
-  // "the brand uses emojis" — which it cannot, since there's no copy
-  // to analyse.
-  if (source === "google") {
+  // Build grouped text for each brand. Each ad is included only if it
+  // carries at least one of headline / body / description / cta —
+  // empty rows would just dilute the prompt. Google rows from silva
+  // hit this filter heavily because the Transparency Library publishes
+  // copy only on a fraction of creatives (mostly Shopping + some
+  // VIDEO Skippable); brands with zero usable rows fall through to
+  // the no-data placeholder below.
+  let totalAdsWithCopy = 0;
+  const brandSections = brands
+    .map((brand) => {
+      const adsText = brand.ads
+        .map((ad, i) => {
+          const parts: string[] = [];
+          if (ad.headline) parts.push(`Headline: ${ad.headline}`);
+          if (ad.ad_text) parts.push(`Copy: ${ad.ad_text}`);
+          if (ad.description) parts.push(`Description: ${ad.description}`);
+          if (ad.cta) parts.push(`CTA: ${ad.cta}`);
+          if (parts.length === 0) return null;
+          totalAdsWithCopy += 1;
+          return `  Ad ${i + 1}:\n    ${parts.join("\n    ")}`;
+        })
+        .filter(Boolean)
+        .join("\n");
+      return `Brand: ${brand.brandName}\n${adsText}`;
+    })
+    .join("\n\n---\n\n");
+
+  // Hard floor: if NO brand has any copy across all ads, running the
+  // LLM produces hallucinations ("the brand uses emojis" when there is
+  // literally no text to look at). Return a structured placeholder so
+  // the UI shows a clear "no copy data" state.
+  if (totalAdsWithCopy === 0) {
     const message =
       locale === "it"
-        ? "L'analisi copy non è disponibile sul canale Google: la Transparency Library non espone testo, headline o CTA strutturati."
-        : "Copy analysis is not available on the Google channel: the Transparency Library does not expose structured ad text, headline or CTA.";
+        ? source === "google"
+          ? "Nessuna copy disponibile per le ads scansionate. Google Transparency Library espone testo / headline solo per una frazione dei creativi (principalmente Shopping e alcuni VIDEO Skippable)."
+          : "Nessuna copy disponibile per le ads scansionate."
+        : source === "google"
+          ? "No ad copy available on the scanned ads. Google Transparency Library only exposes ad text / headline for a fraction of creatives (mostly Shopping and some Skippable VIDEO)."
+          : "No ad copy available on the scanned ads.";
     return {
       brandAnalyses: brands.map((b) => ({
         brandName: b.brandName,
@@ -240,26 +268,6 @@ export async function analyzeCopy(
     };
   }
 
-  // Build grouped text for each brand
-  const brandSections = brands
-    .map((brand) => {
-      const adsText = brand.ads
-        .map((ad, i) => {
-          const parts: string[] = [];
-          if (ad.headline) parts.push(`Headline: ${ad.headline}`);
-          if (ad.ad_text) parts.push(`Copy: ${ad.ad_text}`);
-          if (ad.description) parts.push(`Description: ${ad.description}`);
-          if (ad.cta) parts.push(`CTA: ${ad.cta}`);
-          return parts.length > 0
-            ? `  Ad ${i + 1}:\n    ${parts.join("\n    ")}`
-            : null;
-        })
-        .filter(Boolean)
-        .join("\n");
-      return `Brand: ${brand.brandName}\n${adsText}`;
-    })
-    .join("\n\n---\n\n");
-
   const langInstruction = locale === "it"
     ? "IMPORTANT: Write ALL text values in Italian. The entire output must be in Italian."
     : "Write all text values in English.";
@@ -269,10 +277,21 @@ export async function analyzeCopy(
       ? "You specialize in Meta (Facebook/Instagram) ad copy analysis for fashion, luxury, lifestyle, and DTC brands."
       : "You specialize in paid-advertising copy analysis (Meta, Google) for fashion, luxury, lifestyle, and DTC brands. Adapt tone and style observations to the channel where each ad runs.";
 
+  // When source=google, warn the LLM that the input is a sparse
+  // sample — Google Transparency only publishes copy for a fraction
+  // of creatives. Without this hint the model writes things like
+  // "this brand rarely uses CTAs" when in reality CTAs are simply
+  // not exposed by Google for most ads. Frame the analysis around
+  // what IS in the sample, not what is missing.
+  const dataNote =
+    source === "google"
+      ? `\nDATA NOTE: This sample comes from Google Ads Transparency, which only publishes structured copy / headline / CTA for a fraction of creatives (mostly Shopping and some Skippable VIDEO). Analyse only the copy that is present — DO NOT infer absences (e.g. "the brand rarely uses CTAs"). Limited copy reflects the platform's data exposure, not the brand's strategy.\n`
+      : "";
+
   const prompt = `You are a senior copywriter with 15+ years of experience in digital advertising, fluent in Italian and English. ${channelLine}
 
 ${langInstruction}
-
+${dataNote}
 Analyze the following ads from ${brands.length} competing brands. For each brand, evaluate their ad copy strategy, then provide a direct comparison and actionable recommendations.
 
 ${brandSections}
