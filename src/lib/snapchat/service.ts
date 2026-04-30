@@ -17,22 +17,25 @@
  * `project_new_actors_plan.md`.
  */
 
+import { getApifyCredentials } from "@/lib/billing/credentials";
+
 const APIFY_BASE = "https://api.apify.com/v2";
 const ACTOR_ID = "automation-lab/snapchat-scraper";
 
-function getToken(): string {
+function getToken(override?: string): string {
+  if (override) return override;
   const token = process.env.APIFY_API_TOKEN;
   if (!token) throw new Error("APIFY_API_TOKEN missing.");
   return token;
 }
 
-async function apifyFetch(path: string, init?: RequestInit) {
-  const token = getToken();
+async function apifyFetch(path: string, init?: RequestInit, token?: string) {
+  const resolved = getToken(token);
   const res = await fetch(`${APIFY_BASE}${path}`, {
     ...init,
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${token}`,
+      authorization: `Bearer ${resolved}`,
       ...init?.headers,
     },
   });

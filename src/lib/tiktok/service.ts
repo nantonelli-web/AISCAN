@@ -17,22 +17,25 @@
  *     scrape entrypoint.
  */
 
+import { getApifyCredentials } from "@/lib/billing/credentials";
+
 const APIFY_BASE = "https://api.apify.com/v2";
 const ACTOR_ID = "clockworks/tiktok-scraper";
 
-function getToken(): string {
+function getToken(override?: string): string {
+  if (override) return override;
   const token = process.env.APIFY_API_TOKEN;
   if (!token) throw new Error("APIFY_API_TOKEN missing.");
   return token;
 }
 
-async function apifyFetch(path: string, init?: RequestInit) {
-  const token = getToken();
+async function apifyFetch(path: string, init?: RequestInit, token?: string) {
+  const resolved = getToken(token);
   const res = await fetch(`${APIFY_BASE}${path}`, {
     ...init,
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${token}`,
+      authorization: `Bearer ${resolved}`,
       ...init?.headers,
     },
   });
@@ -91,6 +94,11 @@ export interface TikTokScrapeResult {
   records: NormalizedTikTokPost[];
   profile: TikTokProfile | null;
   costCu: number;
+  credentials?: {
+    source: "managed" | "byo";
+    keyRecordId: string | null;
+    billingMode: "credits" | "subscription";
+  };
 }
 
 export interface TikTokScrapeOptions {
@@ -101,6 +109,8 @@ export interface TikTokScrapeOptions {
   /** ISO alpha-2 country code (e.g. "IT", "FR") for residential proxy
    *  geo-targeting. Falls back to no country pin when omitted. */
   country?: string;
+  /** BYO dispatch hook (Phase 3). */
+  workspaceId?: string;
 }
 
 /* ── Username cleaning ──────────────────────────────────────── */
@@ -293,6 +303,9 @@ function profileFromVideos(items: RawTikTokVideo[]): TikTokProfile | null {
 export async function scrapeTikTokPosts(
   opts: TikTokScrapeOptions,
 ): Promise<TikTokScrapeResult> {
+  const creds = await getApifyCredentials(opts.workspaceId);
+  const token = creds.token;
+
   const maxPosts = opts.maxPosts ?? 30;
   const handle = cleanTikTokUsername(opts.username);
   if (!handle) {
@@ -327,7 +340,7 @@ export async function scrapeTikTokPosts(
   const run = await apifyFetch(actorPath, {
     method: "POST",
     body: JSON.stringify(input),
-  });
+  }, token);
 
   const runId: string = run.data?.id ?? run.id ?? "";
   const datasetId: string =
@@ -349,7 +362,7 @@ export async function scrapeTikTokPosts(
   ) {
     await new Promise((r) => setTimeout(r, 5000));
     pollCount++;
-    const runInfo = await apifyFetch(`/actor-runs/${runId}`);
+    const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
     status = runInfo.data?.status ?? runInfo.status ?? status;
     console.log(
       `[TikTok] Poll #${pollCount}: status=${status} elapsed=${Math.round((Date.now() - startTime) / 1000)}s`,
@@ -359,7 +372,7 @@ export async function scrapeTikTokPosts(
   if (status !== "SUCCEEDED") {
     let errorDetail = "";
     try {
-      const runInfo = await apifyFetch(`/actor-runs/${runId}`);
+      const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
       const stats = runInfo.data?.stats ?? runInfo.stats ?? {};
       errorDetail = ` | stats: ${JSON.stringify(stats)}`;
     } catch {
@@ -377,6 +390,8 @@ export async function scrapeTikTokPosts(
   console.log(`[TikTok] Run succeeded, fetching dataset...`);
   const dataset = await apifyFetch(
     `/datasets/${datasetId}/items?format=json&limit=1000`,
+    undefined,
+    token,
   );
   const items: RawTikTokVideo[] = Array.isArray(dataset)
     ? dataset
@@ -399,5 +414,6 @@ export async function scrapeTikTokPosts(
     records,
     profile,
     costCu,
+    credentials: creds,
   };
 }
