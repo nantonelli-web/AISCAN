@@ -580,12 +580,12 @@ const translations = {
     },
     googleRegionFootprintSuffix: { it: "paesi", en: "countries" },
     googleSurfaceMix: {
-      it: "Mix superfici (servito)",
-      en: "Surface mix (served)",
+      it: "Posizionamenti Google",
+      en: "Google placements",
     },
     googleSurfaceMixEmpty: {
-      it: "Google pubblica le superfici di erogazione solo per annunci con impressioni accumulate sufficienti. Annunci recenti o a basso volume non riportano questo dato.",
-      en: "Google only publishes serving surfaces for ads with enough accumulated impressions. Recent or low-volume ads don't carry this data.",
+      it: "Google rivela i posizionamenti solo per gli annunci che hanno accumulato abbastanza impressioni. Per gli annunci recenti o a basso volume il dettaglio non è ancora pubblico.",
+      en: "Google only publishes placement breakdown for ads that have accumulated enough impressions. Recent or low-volume ads don't carry this data yet.",
     },
     videoPreviewUnavailable: {
       it: "Video — anteprima non disponibile",
@@ -1005,28 +1005,28 @@ const translations = {
     daysAxisLabel: { it: "giorni", en: "days" },
     countriesAxisLabel: { it: "paesi", en: "countries" },
     surfaceMixPerBrand: {
-      it: "Mix superfici Google (servito)",
-      en: "Google surface mix (served)",
+      it: "Posizionamenti Google per brand",
+      en: "Google placements per brand",
     },
     descSurfaceMixPerBrand: {
-      it: "Dove ciascun brand fa apparire le ads (Search / YouTube / Shopping / Maps), in base ai dati che Google pubblica per gli annunci con impressioni accumulate sufficienti.",
-      en: "Where each brand's ads actually serve (Search / YouTube / Shopping / Maps), from the surface stats Google publishes for ads with enough accumulated impressions.",
+      it: "Dove ciascun brand investe il volume creativo: Search (risultati di ricerca), YouTube (video), Shopping (caroselli prodotto), Maps (Google Maps). Indica su quali prodotti Google il brand è più presente.",
+      en: "Where each brand spends its creative volume: Search (search results), YouTube (video ads), Shopping (product carousels), Maps (Google Maps). Tells which Google products each brand favours.",
     },
     avgServedDaysPerBrand: {
       it: "Giorni medi di erogazione (Google)",
       en: "Avg served days (Google)",
     },
     descAvgServedDaysPerBrand: {
-      it: "Numero medio di giorni di erogazione per brand, calcolato sui giorni autoritativi pubblicati da Google (numServedDays). Si confronta con la durata media calcolata su start/end date.",
-      en: "Per-brand average of Google's authoritative running-time count (numServedDays). Cross-checks the duration heuristic computed from start/end dates.",
+      it: "Per ogni brand, la durata media in giorni dei creativi così come la dichiara Google (numServedDays). È il dato ufficiale, più affidabile della stima calcolata su start/end date.",
+      en: "Per brand, the average creative running time in days as Google reports it (numServedDays). The authoritative figure, more reliable than the heuristic computed from start/end dates.",
     },
     regionFootprintPerBrand: {
-      it: "Numero paesi serviti per brand (Google)",
-      en: "Number of served countries per brand (Google)",
+      it: "Espansione geografica per brand (Google)",
+      en: "Geographic reach per brand (Google)",
     },
     descRegionFootprintPerBrand: {
-      it: "Quanti paesi distinti raggiunge ogni brand sommando tutti i creativi (NON è la classifica dei paesi top — quella è 'Top paesi target' più sopra). Un brand con valore 1 fa solo il proprio mercato; un brand con 24 ha una strategia pan-EU.",
-      en: "How many distinct countries each brand reaches across all creatives (NOT a ranking of which countries — that is 'Top targeted countries' above). A value of 1 means single-market focus; 24 means pan-EU strategy.",
+      it: "In quanti paesi diversi appaiono gli annunci di ciascun brand. Valori bassi (1-3) indicano focus su mercati domestici; valori alti (15+) una strategia internazionale o pan-EU. Diverso da 'Top paesi target' più sopra, che invece classifica i paesi per volume di ads.",
+      en: "How many distinct countries each brand's ads appear in. Low values (1-3) indicate domestic focus; high values (15+) an international or pan-EU strategy. Different from 'Top targeted countries' above, which ranks countries by ad volume.",
     },
     charsAxisLabel: { it: "caratteri", en: "chars" },
     adsPerWeekAxisLabel: { it: "ads/sett.", en: "ads/wk" },
