@@ -137,7 +137,7 @@ export function AdCard({
             src={ad.video_url}
             poster={snapshotUrl && !isSnapshotHtml ? snapshotUrl : undefined}
           />
-        ) : ytThumb ? (
+        ) : ytThumb && !imgFailed ? (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -145,6 +145,11 @@ export function AdCard({
               alt={ad.headline ?? "YouTube preview"}
               className="absolute inset-0 w-full h-full object-cover"
               loading="lazy"
+              // YouTube can 404 the thumbnail when the underlying
+              // video has been deleted or made private after the
+              // scan — fall through to the placeholder branch
+              // below instead of leaving a broken-image glyph.
+              onError={() => setImgFailed(true)}
             />
             {/* Centred play badge so the user reads it as a video, not
                 a static product photo. Pointer-events-none so the
