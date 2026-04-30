@@ -65,7 +65,7 @@ export const maxDuration = 300;
  *         bare "No preview" when the actor returns null imageUrl
  *         for video creatives.
  */
-const CURRENT_DATA_VERSION = 11;
+const CURRENT_DATA_VERSION = 12;
 
 /* ── Schemas ─────────────────────────────────────────────── */
 
