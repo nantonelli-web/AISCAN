@@ -591,7 +591,16 @@ export async function scrapeGoogleAds(
       );
     }
 
-    input.startUrls = regionList.map(urlForRegion);
+    // Both actors expect Apify Crawlee `startUrls`. memo23 takes
+    // the bare-string variant (verified working on Karen Millen);
+    // silva95gustavo rejects strings with
+    // `Items in input.startUrls ... do not contain valid URLs` and
+    // requires the standard `{ url: "..." }` object form. Branch on
+    // the actor flag so each gets the shape it accepts.
+    const urls = regionList.map(urlForRegion);
+    input.startUrls = isSilvaActor
+      ? urls.map((url) => ({ url }))
+      : urls;
     console.log(
       `[Google Ads] ${isSilvaActor ? "silva" : "memo23"} startUrls (${regionList.length} regions):`,
       input.startUrls,
