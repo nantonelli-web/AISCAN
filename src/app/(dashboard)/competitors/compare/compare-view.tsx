@@ -2234,6 +2234,23 @@ function OrganicTechnicalView({
  * The naturalWidth check on load catches the icon case: real ad
  * creatives are ≥ 200px wide; Google's info icon is ~120px.
  */
+/** Extract the YouTube video ID from any of the watch / share / embed
+ *  URL forms silva returns. Returns the 11-char ID or null. */
+function youtubeIdFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/i);
+  return m ? m[1] : null;
+}
+
+/** True only if the URL points at a media file the HTML <video> element
+ *  can actually play — i.e. NOT a YouTube/Vimeo watch URL, which need
+ *  an iframe embed and otherwise render as a black rectangle. */
+function isPlayableVideoUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  if (/youtube\.com|youtu\.be|vimeo\.com/i.test(url)) return false;
+  return true;
+}
+
 function LatestAdTile({
   ad,
   t,
@@ -2253,8 +2270,20 @@ function LatestAdTile({
     ad.image_url?.includes("/transparencyreport") ||
     ad.image_url?.includes("info_outline") ||
     ad.image_url?.includes("googleadservices.com/pagead/conversion");
-  const hasImage = !!ad.image_url && !isHtmlPreview && !isInfoIcon && !imgFailed;
-  const hasVideo = !!ad.video_url;
+  // When the row has no image_url but its video_url is a YouTube
+  // link (silva's case for every Google video creative), fall back
+  // to the YouTube thumbnail. Lets the tile show a real preview
+  // instead of a film-icon placeholder.
+  const youtubeId = youtubeIdFromUrl(ad.video_url);
+  const fallbackImageUrl =
+    !ad.image_url && youtubeId
+      ? `https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg`
+      : ad.image_url;
+  const hasImage =
+    !!fallbackImageUrl && !isHtmlPreview && !isInfoIcon && !imgFailed;
+  // Only treat as video-renderable if the URL is a playable media
+  // file. YouTube watch URLs handled by the thumbnail branch above.
+  const hasVideo = isPlayableVideoUrl(ad.video_url);
   const Wrapper = ad.library_url ? "a" : "span";
 
   return (
@@ -2279,7 +2308,7 @@ function LatestAdTile({
         // upscale.
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={ad.image_url!}
+          src={fallbackImageUrl!}
           alt=""
           className="w-full aspect-square object-scale-down bg-muted"
           onError={() => setImgFailed(true)}
