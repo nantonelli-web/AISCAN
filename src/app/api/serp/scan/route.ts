@@ -72,6 +72,7 @@ export async function POST(req: Request) {
       countryCode: queryRow.country,
       languageCode: queryRow.language,
       device: queryRow.device === "MOBILE" ? "MOBILE" : "DESKTOP",
+      workspaceId: queryRow.workspace_id,
     });
 
     // Insert the run row first so we have a stable id to reference
@@ -132,12 +133,18 @@ export async function POST(req: Request) {
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "SERP scrape failed";
+    const billingCode =
+      e && typeof e === "object" && "code" in (e as object)
+        ? ((e as { code: unknown }).code as string)
+        : null;
     console.error(`[SERP route] FAILED:`, e);
     await refundCredits(
       user.id,
       "scan_serp",
       `SERP scan: "${queryRow.query}"`,
     );
-    return NextResponse.json({ error: message }, { status: 500 });
+    const httpStatus =
+      billingCode === "MISSING_KEY" || billingCode === "INVALID_KEY" ? 400 : 500;
+    return NextResponse.json({ error: message, code: billingCode }, { status: httpStatus });
   }
 }

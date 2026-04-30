@@ -75,6 +75,7 @@ export async function POST(req: Request) {
       countryCode: searchRow.country_code,
       maxPlaces: searchRow.max_places,
       maxReviewsPerPlace: searchRow.max_reviews_per_place,
+      workspaceId: searchRow.workspace_id,
     });
 
     if (result.places.length === 0) {
@@ -230,12 +231,18 @@ export async function POST(req: Request) {
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Maps scrape failed";
+    const billingCode =
+      e && typeof e === "object" && "code" in (e as object)
+        ? ((e as { code: unknown }).code as string)
+        : null;
     console.error(`[Maps route] FAILED:`, e);
     await refundCredits(
       user.id,
       "scan_maps",
       `Maps scan: "${searchRow.search_term}"`,
     );
-    return NextResponse.json({ error: message }, { status: 500 });
+    const httpStatus =
+      billingCode === "MISSING_KEY" || billingCode === "INVALID_KEY" ? 400 : 500;
+    return NextResponse.json({ error: message, code: billingCode }, { status: httpStatus });
   }
 }

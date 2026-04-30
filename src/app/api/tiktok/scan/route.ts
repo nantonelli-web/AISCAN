@@ -155,6 +155,7 @@ export async function POST(req: Request) {
       username: ttUsername,
       maxPosts: parsed.data.max_posts ?? 30,
       country: competitor.country ?? undefined,
+      workspaceId: competitor.workspace_id,
     });
 
     // Abort checkpoint #1: user clicked Stop while Apify was still
@@ -287,6 +288,8 @@ export async function POST(req: Request) {
         records_count: result.records.length,
         cost_cu: result.costCu ?? 0,
         apify_run_id: result.runId ?? null,
+        key_used: result.credentials?.keyRecordId ?? null,
+        billing_mode_at_run: result.credentials?.billingMode ?? null,
       })
       .eq("id", job.id);
 
@@ -312,6 +315,10 @@ export async function POST(req: Request) {
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "TikTok scrape failed";
+    const billingCode =
+      e && typeof e === "object" && "code" in (e as object)
+        ? ((e as { code: unknown }).code as string)
+        : null;
     await admin
       .from("mait_scrape_jobs")
       .update({
@@ -325,6 +332,8 @@ export async function POST(req: Request) {
       "scan_tiktok",
       `TikTok scan: ${competitor.page_name}`,
     );
-    return NextResponse.json({ error: message }, { status: 500 });
+    const httpStatus =
+      billingCode === "MISSING_KEY" || billingCode === "INVALID_KEY" ? 400 : 500;
+    return NextResponse.json({ error: message, code: billingCode }, { status: httpStatus });
   }
 }

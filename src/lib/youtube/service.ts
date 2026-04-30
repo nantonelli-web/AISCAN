@@ -95,6 +95,11 @@ export interface YouTubeScrapeResult {
   channel: NormalizedYouTubeChannel | null;
   videos: NormalizedYouTubeVideo[];
   costCu: number;
+  credentials?: {
+    source: "managed" | "byo";
+    keyRecordId: string | null;
+    billingMode: "credits" | "subscription";
+  };
 }
 
 export interface YouTubeScrapeOptions {
@@ -102,6 +107,7 @@ export interface YouTubeScrapeOptions {
   channelUrl: string;
   /** Max videos per scan. Defaults to 30 to mirror the Instagram/TikTok defaults. */
   maxVideos?: number;
+  workspaceId?: string;
 }
 
 /* ── URL normalisation ──────────────────────────────────────── */
@@ -330,6 +336,9 @@ function channelFromItems(
 export async function scrapeYouTubeChannel(
   opts: YouTubeScrapeOptions,
 ): Promise<YouTubeScrapeResult> {
+  const creds = await getApifyCredentials(opts.workspaceId);
+  const token = creds.token;
+
   const maxVideos = opts.maxVideos ?? 30;
   const channelUrl = cleanYouTubeChannelUrl(opts.channelUrl);
   if (!channelUrl) {
@@ -358,7 +367,7 @@ export async function scrapeYouTubeChannel(
   const run = await apifyFetch(actorPath, {
     method: "POST",
     body: JSON.stringify(input),
-  });
+  }, token);
 
   const runId: string = run.data?.id ?? run.id ?? "";
   const datasetId: string =
@@ -380,7 +389,7 @@ export async function scrapeYouTubeChannel(
   ) {
     await new Promise((r) => setTimeout(r, 5000));
     pollCount++;
-    const runInfo = await apifyFetch(`/actor-runs/${runId}`);
+    const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
     status = runInfo.data?.status ?? runInfo.status ?? status;
     console.log(
       `[YouTube] Poll #${pollCount}: status=${status} elapsed=${Math.round((Date.now() - startTime) / 1000)}s`,
@@ -390,7 +399,7 @@ export async function scrapeYouTubeChannel(
   if (status !== "SUCCEEDED") {
     let errorDetail = "";
     try {
-      const runInfo = await apifyFetch(`/actor-runs/${runId}`);
+      const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
       const stats = runInfo.data?.stats ?? runInfo.stats ?? {};
       errorDetail = ` | stats: ${JSON.stringify(stats)}`;
     } catch {
@@ -408,6 +417,8 @@ export async function scrapeYouTubeChannel(
   console.log(`[YouTube] Run succeeded, fetching dataset...`);
   const dataset = await apifyFetch(
     `/datasets/${datasetId}/items?format=json&limit=1000`,
+    undefined,
+    token,
   );
   const items: RawYouTubeItem[] = Array.isArray(dataset)
     ? dataset
@@ -430,5 +441,6 @@ export async function scrapeYouTubeChannel(
     channel,
     videos,
     costCu,
+    credentials: creds,
   };
 }

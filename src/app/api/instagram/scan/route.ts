@@ -172,8 +172,9 @@ export async function POST(req: Request) {
         maxPosts: parsed.data.max_posts ?? 30,
         dateFrom: parsed.data.date_from,
         dateTo: parsed.data.date_to,
+        workspaceId: competitor.workspace_id,
       }),
-      scrapeInstagramProfile(igUsername),
+      scrapeInstagramProfile(igUsername, competitor.workspace_id),
     ]);
 
     // Abort checkpoint: user clicked Stop while Apify was still
@@ -305,6 +306,8 @@ export async function POST(req: Request) {
         records_count: result.records.length,
         cost_cu: result.costCu ?? 0,
         apify_run_id: result.runId ?? null,
+        key_used: result.credentials?.keyRecordId ?? null,
+        billing_mode_at_run: result.credentials?.billingMode ?? null,
       })
       .eq("id", job.id);
 
@@ -326,6 +329,10 @@ export async function POST(req: Request) {
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Instagram scrape failed";
+    const billingCode =
+      e && typeof e === "object" && "code" in (e as object)
+        ? ((e as { code: unknown }).code as string)
+        : null;
     await admin
       .from("mait_scrape_jobs")
       .update({
@@ -336,6 +343,8 @@ export async function POST(req: Request) {
       .eq("id", job.id);
     // Refund credits on failure
     await refundCredits(user.id, "scan_instagram", `Instagram scan: ${competitor.page_name}`);
-    return NextResponse.json({ error: message }, { status: 500 });
+    const httpStatus =
+      billingCode === "MISSING_KEY" || billingCode === "INVALID_KEY" ? 400 : 500;
+    return NextResponse.json({ error: message, code: billingCode }, { status: httpStatus });
   }
 }

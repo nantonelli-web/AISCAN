@@ -139,6 +139,11 @@ export interface MapsScrapeResult {
   runId: string;
   places: NormalizedMapsPlace[];
   costCu: number;
+  credentials?: {
+    source: "managed" | "byo";
+    keyRecordId: string | null;
+    billingMode: "credits" | "subscription";
+  };
 }
 
 export interface MapsScrapeOptions {
@@ -149,6 +154,7 @@ export interface MapsScrapeOptions {
   countryCode?: string;
   maxPlaces?: number;
   maxReviewsPerPlace?: number;
+  workspaceId?: string;
 }
 
 /* ── Cleaning ───────────────────────────────────────────────── */
@@ -382,6 +388,9 @@ function normalizePlace(p: RawMapsPlace): NormalizedMapsPlace | null {
 export async function scrapeMapsPlaces(
   opts: MapsScrapeOptions,
 ): Promise<MapsScrapeResult> {
+  const creds = await getApifyCredentials(opts.workspaceId);
+  const token = creds.token;
+
   const searchTerm = cleanMapsSearchTerm(opts.searchTerm);
   if (!searchTerm) {
     throw new Error(`Search term non valido: "${opts.searchTerm}"`);
@@ -420,7 +429,7 @@ export async function scrapeMapsPlaces(
   const run = await apifyFetch(actorPath, {
     method: "POST",
     body: JSON.stringify(input),
-  });
+  }, token);
 
   const runId: string = run.data?.id ?? run.id ?? "";
   const datasetId: string =
@@ -442,7 +451,7 @@ export async function scrapeMapsPlaces(
   ) {
     await new Promise((r) => setTimeout(r, 5000));
     pollCount++;
-    const runInfo = await apifyFetch(`/actor-runs/${runId}`);
+    const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
     status = runInfo.data?.status ?? runInfo.status ?? status;
     console.log(
       `[Maps] Poll #${pollCount}: status=${status} elapsed=${Math.round((Date.now() - startTime) / 1000)}s`,
@@ -462,6 +471,8 @@ export async function scrapeMapsPlaces(
   console.log(`[Maps] Run succeeded, fetching dataset...`);
   const dataset = await apifyFetch(
     `/datasets/${datasetId}/items?format=json&limit=200`,
+    undefined,
+    token,
   );
   const items: RawMapsPlace[] = Array.isArray(dataset)
     ? dataset
@@ -483,5 +494,6 @@ export async function scrapeMapsPlaces(
     runId,
     places,
     costCu,
+    credentials: creds,
   };
 }

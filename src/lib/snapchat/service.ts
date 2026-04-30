@@ -88,11 +88,17 @@ export interface SnapchatScrapeResult {
   runId: string;
   profile: NormalizedSnapchatProfile | null;
   costCu: number;
+  credentials?: {
+    source: "managed" | "byo";
+    keyRecordId: string | null;
+    billingMode: "credits" | "subscription";
+  };
 }
 
 export interface SnapchatScrapeOptions {
   /** Bare handle, @handle, or full snapchat.com/add/<handle> URL. */
   username: string;
+  workspaceId?: string;
 }
 
 /* ── Username cleaning ──────────────────────────────────────── */
@@ -204,6 +210,9 @@ function normalizeProfile(
 export async function scrapeSnapchatProfile(
   opts: SnapchatScrapeOptions,
 ): Promise<SnapchatScrapeResult> {
+  const creds = await getApifyCredentials(opts.workspaceId);
+  const token = creds.token;
+
   const handle = cleanSnapchatHandle(opts.username);
   if (!handle) {
     throw new Error(
@@ -225,7 +234,7 @@ export async function scrapeSnapchatProfile(
   const run = await apifyFetch(actorPath, {
     method: "POST",
     body: JSON.stringify(input),
-  });
+  }, token);
 
   const runId: string = run.data?.id ?? run.id ?? "";
   const datasetId: string =
@@ -249,7 +258,7 @@ export async function scrapeSnapchatProfile(
   ) {
     await new Promise((r) => setTimeout(r, 5000));
     pollCount++;
-    const runInfo = await apifyFetch(`/actor-runs/${runId}`);
+    const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
     status = runInfo.data?.status ?? runInfo.status ?? status;
     console.log(
       `[Snapchat] Poll #${pollCount}: status=${status} elapsed=${Math.round((Date.now() - startTime) / 1000)}s`,
@@ -269,6 +278,8 @@ export async function scrapeSnapchatProfile(
   console.log(`[Snapchat] Run succeeded, fetching dataset...`);
   const dataset = await apifyFetch(
     `/datasets/${datasetId}/items?format=json&limit=1`,
+    undefined,
+    token,
   );
   const items: RawSnapchatProfile[] = Array.isArray(dataset)
     ? dataset
@@ -289,5 +300,6 @@ export async function scrapeSnapchatProfile(
     runId,
     profile,
     costCu,
+    credentials: creds,
   };
 }

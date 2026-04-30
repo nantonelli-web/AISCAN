@@ -79,6 +79,11 @@ export interface SerpScrapeResult {
   peopleAlsoAsk: unknown[];
   rawResponse: Record<string, unknown>;
   costCu: number;
+  credentials?: {
+    source: "managed" | "byo";
+    keyRecordId: string | null;
+    billingMode: "credits" | "subscription";
+  };
 }
 
 export interface SerpScrapeOptions {
@@ -89,6 +94,7 @@ export interface SerpScrapeOptions {
   languageCode?: string;
   /** "DESKTOP" or "MOBILE" — drives the actor's `mobileResults` flag. */
   device?: "DESKTOP" | "MOBILE";
+  workspaceId?: string;
 }
 
 /* ── Domain normalisation ───────────────────────────────────── */
@@ -246,6 +252,9 @@ function normalizeItem(
 export async function scrapeSerpQuery(
   opts: SerpScrapeOptions,
 ): Promise<SerpScrapeResult> {
+  const creds = await getApifyCredentials(opts.workspaceId);
+  const token = creds.token;
+
   const query = cleanQuery(opts.query);
   if (!query) {
     throw new Error(`SERP query non valida: "${opts.query}"`);
@@ -275,7 +284,7 @@ export async function scrapeSerpQuery(
   const run = await apifyFetch(actorPath, {
     method: "POST",
     body: JSON.stringify(input),
-  });
+  }, token);
 
   const runId: string = run.data?.id ?? run.id ?? "";
   const datasetId: string =
@@ -297,7 +306,7 @@ export async function scrapeSerpQuery(
   ) {
     await new Promise((r) => setTimeout(r, 3000));
     pollCount++;
-    const runInfo = await apifyFetch(`/actor-runs/${runId}`);
+    const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
     status = runInfo.data?.status ?? runInfo.status ?? status;
     console.log(
       `[SERP] Poll #${pollCount}: status=${status} elapsed=${Math.round((Date.now() - startTime) / 1000)}s`,
@@ -315,6 +324,8 @@ export async function scrapeSerpQuery(
   console.log(`[SERP] Run succeeded, fetching dataset...`);
   const dataset = await apifyFetch(
     `/datasets/${datasetId}/items?format=json&limit=10`,
+    undefined,
+    token,
   );
   const items: RawSerpResponse[] = Array.isArray(dataset)
     ? dataset
@@ -384,5 +395,6 @@ export async function scrapeSerpQuery(
     peopleAlsoAsk,
     rawResponse: (items[0] ?? {}) as Record<string, unknown>,
     costCu,
+    credentials: creds,
   };
 }
