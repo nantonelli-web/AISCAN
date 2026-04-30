@@ -1068,17 +1068,32 @@ export async function POST(req: Request) {
 
     if (sections.includes("copy")) {
       aiTasks.push(
-        analyzeCopy(brands, aiLocale, aiSource, workspaceId).then((result) => {
-          payload.copy_analysis = result;
-        })
+        analyzeCopy(brands, aiLocale, aiSource, workspaceId)
+          .then((result) => {
+            payload.copy_analysis = result;
+          })
+          .catch((err) => {
+            // Never let an analyzer error 500 the whole route — the
+            // route also writes technical_data on the same payload,
+            // and a transient LLM/network failure must not wipe it.
+            // Surface a structured error inside the section so the UI
+            // can render a clean "analysis failed" state.
+            console.error("[api/comparisons] analyzeCopy threw:", err);
+            payload.copy_analysis = null;
+          }),
       );
     }
 
     if (sections.includes("visual")) {
       aiTasks.push(
-        analyzeVisuals(brands, aiLocale, aiSource, workspaceId).then((result) => {
-          payload.visual_analysis = result;
-        })
+        analyzeVisuals(brands, aiLocale, aiSource, workspaceId)
+          .then((result) => {
+            payload.visual_analysis = result;
+          })
+          .catch((err) => {
+            console.error("[api/comparisons] analyzeVisuals threw:", err);
+            payload.visual_analysis = null;
+          }),
       );
     }
 
