@@ -1,4 +1,5 @@
 import { buildAdLibraryUrl } from "@/lib/meta/url";
+import { getApifyCredentials } from "@/lib/billing/credentials";
 
 /**
  * Service layer for the apify/facebook-ads-scraper actor (official).
@@ -17,10 +18,15 @@ import { buildAdLibraryUrl } from "@/lib/meta/url";
 const APIFY_BASE = "https://api.apify.com/v2";
 const ACTOR_ID = process.env.APIFY_ACTOR_ID || "apify/facebook-ads-scraper";
 
-function getToken(): string {
-  const token = process.env.APIFY_API_TOKEN;
-  if (!token) throw new Error("APIFY_API_TOKEN missing.");
-  return token;
+function getToken(token?: string): string {
+  // When the caller supplied an explicit token (resolved via
+  // getApifyCredentials for a workspace) use that. Otherwise fall
+  // back to env. This keeps the legacy code paths working while
+  // letting subscription-mode callers thread their BYO key in.
+  if (token) return token;
+  const fromEnv = process.env.APIFY_API_TOKEN;
+  if (!fromEnv) throw new Error("APIFY_API_TOKEN missing.");
+  return fromEnv;
 }
 
 /**
@@ -41,8 +47,8 @@ const APIFY_RETRY_STATUSES = new Set([502, 503, 504]);
 const APIFY_MAX_ATTEMPTS = 3;
 const APIFY_BACKOFF_MS = [1000, 2000];
 
-async function apifyFetch(path: string, init?: RequestInit) {
-  const token = getToken();
+async function apifyFetch(path: string, init?: RequestInit, token?: string) {
+  const resolvedToken = getToken(token);
   let lastError: Error | null = null;
   for (let attempt = 1; attempt <= APIFY_MAX_ATTEMPTS; attempt++) {
     try {
@@ -50,7 +56,7 @@ async function apifyFetch(path: string, init?: RequestInit) {
         ...init,
         headers: {
           "content-type": "application/json",
-          authorization: `Bearer ${token}`,
+          authorization: `Bearer ${resolvedToken}`,
           ...init?.headers,
         },
       });
@@ -125,6 +131,15 @@ export interface ScrapeResult {
    *  Empty when the legacy country=ALL path ran (no per-country signal
    *  available, so callers must NOT use this for reconcile logic). */
   scannedCountries: string[];
+  /** Surfaces which Apify account paid for the run + its
+   *  mait_provider_keys.id when it was a workspace BYO key. The
+   *  scan-job route reads this to populate the audit columns
+   *  (key_used, billing_mode_at_run) on mait_scrape_jobs. */
+  credentials?: {
+    source: "managed" | "byo";
+    keyRecordId: string | null;
+    billingMode: "credits" | "subscription";
+  };
   debug?: Record<string, unknown>;
 }
 
@@ -137,6 +152,12 @@ export interface ScrapeOptions {
   active?: boolean;
   dateFrom?: string;
   dateTo?: string;
+  /** When supplied, the service resolves the Apify token via the
+   *  billing helper (getApifyCredentials) so subscription-mode
+   *  workspaces use their BYO key. Optional for backward compat —
+   *  callers without workspace context (legacy helpers) keep the
+   *  managed env behaviour. */
+  workspaceId?: string;
 }
 
 /**
@@ -160,6 +181,14 @@ export interface ScrapeOptions {
 export async function scrapeMetaAds(
   opts: ScrapeOptions
 ): Promise<ScrapeResult> {
+  // Resolve credentials ONCE per scrape so all the per-country
+  // fan-outs hit the same Apify account. Subscription-mode
+  // workspaces with no BYO key throw BillingError("MISSING_KEY")
+  // here, propagated to the route handler which translates to a
+  // user-facing "configure your Apify key in Settings" message.
+  const creds = await getApifyCredentials(opts.workspaceId);
+  const token = creds.token;
+
   const rawCountry = opts.country?.trim() ?? "";
   const countryList = rawCountry
     ? rawCountry
@@ -173,8 +202,9 @@ export async function scrapeMetaAds(
     const r = await scrapeMetaAdsSingleCountry(
       { ...opts, country: undefined },
       null,
+      token,
     );
-    return { ...r, scannedCountries: [] };
+    return { ...r, scannedCountries: [], credentials: creds };
   }
 
   // Single country — one scan, scan_countries = [country].
@@ -182,8 +212,9 @@ export async function scrapeMetaAds(
     const r = await scrapeMetaAdsSingleCountry(
       { ...opts, country: countryList[0] },
       [countryList[0]],
+      token,
     );
-    return { ...r, scannedCountries: countryList };
+    return { ...r, scannedCountries: countryList, credentials: creds };
   }
 
   // Multi-country — N scans run IN PARALLEL via Promise.allSettled
@@ -200,7 +231,7 @@ export async function scrapeMetaAds(
   // job to failed.
   const settled = await Promise.allSettled(
     countryList.map((country) =>
-      scrapeMetaAdsSingleCountry({ ...opts, country }, [country]).then(
+      scrapeMetaAdsSingleCountry({ ...opts, country }, [country], token).then(
         (result) => ({ country, result }),
       ),
     ),
@@ -264,6 +295,7 @@ export async function scrapeMetaAds(
     costCu: totalCostCu,
     startUrl: startUrls[0] ?? "",
     scannedCountries: successfulCountries,
+    credentials: creds,
     debug: {
       countriesScanned: successfulCountries,
       countriesFailed: failedCountries,
@@ -275,10 +307,13 @@ export async function scrapeMetaAds(
 
 /** Single-country scrape path. Every ad it returns has its
  *  `scan_countries` set to the supplied `scanCountries` argument (or
- *  null for the legacy ALL path). */
+ *  null for the legacy ALL path). The `token` is resolved once in
+ *  the entry function (scrapeMetaAds) and passed down so every
+ *  apifyFetch in the chain hits the right Apify account. */
 async function scrapeMetaAdsSingleCountry(
   opts: ScrapeOptions,
   scanCountries: string[] | null,
+  token?: string,
 ): Promise<ScrapeResult> {
   const startUrl =
     opts.pageUrl?.includes("ads/library")
@@ -310,7 +345,7 @@ async function scrapeMetaAdsSingleCountry(
   const run = await apifyFetch(actorPath, {
     method: "POST",
     body: JSON.stringify(input),
-  });
+  }, token);
 
   const runId: string = run.data?.id ?? run.id ?? "";
   const datasetId: string =
@@ -335,7 +370,7 @@ async function scrapeMetaAdsSingleCountry(
     Date.now() - startTime < maxWait
   ) {
     await new Promise((r) => setTimeout(r, 5000));
-    const runInfo = await apifyFetch(`/actor-runs/${runId}`);
+    const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
     status = runInfo.data?.status ?? runInfo.status ?? status;
   }
   if (status !== "SUCCEEDED") {
@@ -344,6 +379,8 @@ async function scrapeMetaAdsSingleCountry(
 
   const dataset = await apifyFetch(
     `/datasets/${datasetId}/items?format=json&limit=1000`,
+    undefined,
+    token,
   );
   const items: RawAd[] = Array.isArray(dataset) ? dataset : dataset.items ?? [];
 
@@ -354,7 +391,7 @@ async function scrapeMetaAdsSingleCountry(
 
   let costCu = 0;
   try {
-    const runInfo = await apifyFetch(`/actor-runs/${runId}`);
+    const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
     costCu = runInfo.data?.usageTotalUsd ?? 0;
   } catch {
     /* ignore */

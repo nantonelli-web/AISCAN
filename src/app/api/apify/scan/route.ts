@@ -151,6 +151,9 @@ export async function POST(req: Request) {
       active: true,
       dateFrom: parsed.data.date_from,
       dateTo: parsed.data.date_to,
+      // BYO dispatch: subscription-mode workspaces hit their own Apify
+      // account; credit-mode workspaces stay on the AISCAN env key.
+      workspaceId: competitor.workspace_id,
     });
 
     // Abort checkpoint #1: user clicked Stop while Apify was still
@@ -254,6 +257,11 @@ export async function POST(req: Request) {
         records_count: result.records.length,
         cost_cu: result.costCu,
         apify_run_id: result.runId,
+        // BYO audit: which key paid for this run + the workspace's
+        // billing mode at the moment of the scan, so support can
+        // answer "what was active when this run failed?" later.
+        key_used: result.credentials?.keyRecordId ?? null,
+        billing_mode_at_run: result.credentials?.billingMode ?? null,
       })
       .eq("id", job.id);
 
@@ -310,6 +318,14 @@ export async function POST(req: Request) {
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Scrape failed";
+    // BillingError surfaces with a `code` so the client UI can
+    // route to "configure your provider keys" instead of showing
+    // a generic 500. We don't import the class to keep this
+    // route's coupling low — duck-typing on the shape.
+    const billingCode =
+      e && typeof e === "object" && "code" in (e as object)
+        ? ((e as { code: unknown }).code as string)
+        : null;
     await admin
       .from("mait_scrape_jobs")
       .update({
@@ -318,8 +334,10 @@ export async function POST(req: Request) {
         error: message,
       })
       .eq("id", job.id);
-    // Refund credits on failure
+    // Refund credits on failure (no-op in subscription mode anyway).
     await refundCredits(user.id, "scan_meta", `Meta Ads scan: ${competitor.page_name}`);
-    return NextResponse.json({ error: message }, { status: 500 });
+    const httpStatus =
+      billingCode === "MISSING_KEY" || billingCode === "INVALID_KEY" ? 400 : 500;
+    return NextResponse.json({ error: message, code: billingCode }, { status: httpStatus });
   }
 }

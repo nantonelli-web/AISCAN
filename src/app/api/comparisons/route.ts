@@ -955,7 +955,7 @@ export async function POST(req: Request) {
 
     if (sections.includes("copy")) {
       aiTasks.push(
-        analyzeCopy(brands, aiLocale, aiSource).then((result) => {
+        analyzeCopy(brands, aiLocale, aiSource, workspaceId).then((result) => {
           payload.copy_analysis = result;
         })
       );
@@ -963,7 +963,7 @@ export async function POST(req: Request) {
 
     if (sections.includes("visual")) {
       aiTasks.push(
-        analyzeVisuals(brands, aiLocale, aiSource).then((result) => {
+        analyzeVisuals(brands, aiLocale, aiSource, workspaceId).then((result) => {
           payload.visual_analysis = result;
         })
       );
