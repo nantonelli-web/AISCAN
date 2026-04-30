@@ -23,6 +23,7 @@ import {
   RotateCcw,
   Film,
   FileText,
+  Play,
 } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
@@ -2306,23 +2307,41 @@ function LatestAdTile({
         // stay aligned because aspect-square fixes the box; the
         // letterbox just shows the muted background instead of an
         // upscale.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={fallbackImageUrl!}
-          alt=""
-          className="w-full aspect-square object-scale-down bg-muted"
-          onError={() => setImgFailed(true)}
-          onLoad={(e) => {
-            const img = e.currentTarget;
-            // Catch only true icon-sized payloads (Google "Why this
-            // ad?" info icon is ~64px; legitimate Marina Rinaldi
-            // previews are sometimes ~150-180px which the previous
-            // 200px gate was rejecting as false positives).
-            if (img.naturalWidth > 0 && img.naturalWidth < 80) {
-              setImgFailed(true);
-            }
-          }}
-        />
+        <div className="relative w-full aspect-square bg-muted">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={fallbackImageUrl!}
+            alt=""
+            className="w-full h-full object-scale-down"
+            onError={() => setImgFailed(true)}
+            onLoad={(e) => {
+              const img = e.currentTarget;
+              // Catch only true icon-sized payloads (Google "Why this
+              // ad?" info icon is ~64px; legitimate Marina Rinaldi
+              // previews are sometimes ~150-180px which the previous
+              // 200px gate was rejecting as false positives).
+              if (img.naturalWidth > 0 && img.naturalWidth < 80) {
+                setImgFailed(true);
+              }
+            }}
+          />
+          {/* Play overlay for YouTube-derived thumbnails so the user
+              recognises the tile as a video preview. Only renders when
+              we used the YouTube fallback (the original image_url was
+              null) — never on Image / Shopping screenshots which are
+              static creatives. */}
+          {!ad.image_url && youtubeId && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="bg-black/60 rounded-full p-3 backdrop-blur-sm">
+                <Play
+                  className="size-7 text-white"
+                  strokeWidth={2.5}
+                  fill="currentColor"
+                />
+              </div>
+            </div>
+          )}
+        </div>
       ) : hasVideo ? (
         <video
           src={ad.video_url!}
