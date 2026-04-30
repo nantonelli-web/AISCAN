@@ -396,6 +396,14 @@ const translations = {
     days: { it: "giorni", en: "days" },
     scanStopped: { it: "Scansione interrotta.", en: "Scan stopped." },
     stopping: { it: "Fermando…", en: "Stopping…" },
+    scanInProgressTitle: {
+      it: "Scansione in corso",
+      en: "Scan in progress",
+    },
+    scanInProgressHelp: {
+      it: "Aspetta che termini o usa Stop per annullarla. Non è possibile lanciare un'altra scansione finché questa è attiva.",
+      en: "Wait for it to finish or use Stop to cancel. You cannot start another scan while this one is running.",
+    },
     scanGoogle: { it: "Scan Google Ads", en: "Scan Google Ads" },
     scanningGoogle: { it: "Scanning Google\u2026", en: "Scanning Google\u2026" },
     scrapingGoogleInProgress: {
