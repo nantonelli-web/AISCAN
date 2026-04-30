@@ -1021,12 +1021,12 @@ const translations = {
       en: "Per-brand average of Google's authoritative running-time count (numServedDays). Cross-checks the duration heuristic computed from start/end dates.",
     },
     regionFootprintPerBrand: {
-      it: "Estensione geografica (Google)",
-      en: "Region footprint (Google)",
+      it: "Numero paesi serviti per brand (Google)",
+      en: "Number of served countries per brand (Google)",
     },
     descRegionFootprintPerBrand: {
-      it: "Numero di paesi distinti in cui Google ha servito le ads di ciascun brand (creativeRegions). Aiuta a distinguere brand pan-EU da brand mono-paese.",
-      en: "Distinct countries where Google has served each brand's ads (creativeRegions). Tells pan-EU brands apart from single-market ones.",
+      it: "Quanti paesi distinti raggiunge ogni brand sommando tutti i creativi (NON è la classifica dei paesi top — quella è 'Top paesi target' più sopra). Un brand con valore 1 fa solo il proprio mercato; un brand con 24 ha una strategia pan-EU.",
+      en: "How many distinct countries each brand reaches across all creatives (NOT a ranking of which countries — that is 'Top targeted countries' above). A value of 1 means single-market focus; 24 means pan-EU strategy.",
     },
     charsAxisLabel: { it: "caratteri", en: "chars" },
     adsPerWeekAxisLabel: { it: "ads/sett.", en: "ads/wk" },

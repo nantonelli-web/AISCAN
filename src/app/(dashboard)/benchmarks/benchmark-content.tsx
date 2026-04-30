@@ -163,17 +163,25 @@ export async function BenchmarkContent({
         />
       )}
 
-      {/* KPI cards. Copy length / Top-CTA come from ad_text and cta on
-          the row, which the Google Transparency actor does not return —
-          render N/A on Google so the box does not lie with a misleading 0. */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* KPI cards. avgCopyLength is dropped on Google — Transparency
+          Library does not return ad_text and the metric is structurally
+          meaningless there (text ads are length-capped by the platform). */}
+      <div
+        className={
+          channel === "google"
+            ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+            : "grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+        }
+      >
         <Stat label={t("benchmarks", "totalAds")} value={formatNumber(data.totals.totalAds)} />
         <Stat label={t("benchmarks", "activeAds")} value={formatNumber(data.totals.activeAds)} />
         <Stat label={t("benchmarks", "avgCampaignDuration")} value={`${data.totals.avgDuration}gg`} />
-        <Stat
-          label={t("benchmarks", "avgCopyLength")}
-          value={channel === "google" ? t("compare", "naGoogle") : `${data.totals.avgCopyLength} chr`}
-        />
+        {channel !== "google" && (
+          <Stat
+            label={t("benchmarks", "avgCopyLength")}
+            value={`${data.totals.avgCopyLength} chr`}
+          />
+        )}
       </div>
 
       {/* Volume per competitor */}
@@ -338,27 +346,29 @@ export async function BenchmarkContent({
             <CardTitle>{t("benchmarks", "surfaceMixPerBrand")}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-muted-foreground mb-3">
-              {t("benchmarks", "descSurfaceMixPerBrand")}
-            </p>
             {data.surfaceMixByCompetitor.length === 0 ? (
-              <p className="text-xs text-muted-foreground py-4">
+              <p className="text-xs text-muted-foreground py-2">
                 {t("compare", "googleSurfaceMixEmpty")}
               </p>
             ) : (
-              <div className={`grid gap-6 ${data.surfaceMixByCompetitor.length <= 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
-                {data.surfaceMixByCompetitor.map((entry) => (
-                  <div key={entry.competitor} className="space-y-2">
-                    <p className="text-xs font-medium text-gold text-center">{entry.competitor}</p>
-                    <HorizontalBarChart
-                      data={entry.data}
-                      dataKey="count"
-                      label={t("benchmarks", "adsLabel")}
-                      color="#5b7ea3"
-                    />
-                  </div>
-                ))}
-              </div>
+              <>
+                <p className="text-xs text-muted-foreground mb-3">
+                  {t("benchmarks", "descSurfaceMixPerBrand")}
+                </p>
+                <div className={`grid gap-6 ${data.surfaceMixByCompetitor.length <= 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
+                  {data.surfaceMixByCompetitor.map((entry) => (
+                    <div key={entry.competitor} className="space-y-2">
+                      <p className="text-xs font-medium text-gold text-center">{entry.competitor}</p>
+                      <HorizontalBarChart
+                        data={entry.data}
+                        dataKey="count"
+                        label={t("benchmarks", "adsLabel")}
+                        color="#5b7ea3"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
@@ -420,8 +430,9 @@ export async function BenchmarkContent({
         </CardContent>
       </Card>
 
-      {/* Duration + Copy length + Refresh rate */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      {/* Duration + Copy length + Refresh rate. Drop to 2 cols on
+          Google because the Copy length card is hidden. */}
+      <div className={channel === "google" ? "grid gap-6 lg:grid-cols-2" : "grid gap-6 lg:grid-cols-3"}>
         <Card>
           <CardHeader>
             <CardTitle>{t("benchmarks", "avgCampaignDurationChart")}</CardTitle>
@@ -431,21 +442,17 @@ export async function BenchmarkContent({
             <HorizontalBarChart data={data.avgDurationByCompetitor} dataKey="days" label={t("benchmarks", "daysAxisLabel")} color="#5b7ea3" />
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("benchmarks", "avgCopyLengthChart")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {channel === "google" ? (
-              <p className="text-sm text-muted-foreground py-6">{t("compare", "naGoogle")}</p>
-            ) : (
-              <>
-                <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descCopyLength")}</p>
-                <HorizontalBarChart data={data.avgCopyLengthByCompetitor} dataKey="chars" label={t("benchmarks", "charsAxisLabel")} color="#6b8e6b" />
-              </>
-            )}
-          </CardContent>
-        </Card>
+        {channel !== "google" && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("benchmarks", "avgCopyLengthChart")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descCopyLength")}</p>
+              <HorizontalBarChart data={data.avgCopyLengthByCompetitor} dataKey="chars" label={t("benchmarks", "charsAxisLabel")} color="#6b8e6b" />
+            </CardContent>
+          </Card>
+        )}
         <Card>
           <CardHeader>
             <CardTitle>
