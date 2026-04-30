@@ -1863,14 +1863,19 @@ function AdsTechnicalView({
         <CompareTable
           label={t("compare", "googleSurfaceMix")}
           stats={stats}
-          render={(s) =>
-            s.channel === "google" && s.surfaceMix.length > 0
-              ? s.surfaceMix
-                  .slice(0, 4)
-                  .map((sm) => sm.name)
-                  .join(", ")
-              : "—"
-          }
+          render={(s) => {
+            if (s.channel === "google" && s.surfaceMix.length > 0) {
+              return s.surfaceMix.slice(0, 4).map((sm) => sm.name).join(", ");
+            }
+            // Same UX pattern as Top CTA: explain WHY it's empty so the
+            // user reads it as a Google data limit, not an app bug.
+            // surfaceServingStats is published only when impressions
+            // pass Google's internal threshold — recent / low-volume
+            // ads (which is most of a 30-day window) come back without.
+            return s.channel === "google"
+              ? t("compare", "googleSurfaceMixEmpty")
+              : "—";
+          }}
         />
       )}
       <CompareTable
