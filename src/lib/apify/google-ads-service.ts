@@ -777,6 +777,35 @@ export async function scrapeGoogleAds(
         `[Google Ads] advertiser-id filter: ${beforeFilter} → ${records.length} (dropped ${beforeFilter - records.length} from other advertisers)`,
       );
     }
+  } else if ((isMemoActor || isSilvaActor) && opts.advertiserDomain) {
+    // No ground-truth advertiserId but we know the domain — Google
+    // Transparency drifts cross-advertiser when querying by domain
+    // (Luisa Viola sample 2026-04-30 came back with 3 unrelated
+    // brands: Dyson/Electrolux/esseshop). The dominant advertiserId
+    // in the result set is, in practice, the domain owner; the
+    // others are correlated/sponsored noise. Pick the mode and drop
+    // the rest. Tie-breaks by first-seen which is fine — real ties
+    // on a single-domain scrape are vanishingly rare.
+    const counts = new Map<string, number>();
+    for (const r of records) {
+      const adv = (r.raw_data as Record<string, unknown>)?.advertiserId;
+      if (typeof adv === "string" && adv) {
+        counts.set(adv, (counts.get(adv) ?? 0) + 1);
+      }
+    }
+    const dominant = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (dominant) {
+      const beforeFilter = records.length;
+      records = records.filter(
+        (r) =>
+          (r.raw_data as Record<string, unknown>)?.advertiserId === dominant,
+      );
+      if (beforeFilter !== records.length) {
+        console.log(
+          `[Google Ads] dominant-advertiser filter: ${beforeFilter} → ${records.length} (kept ${dominant}, dropped ${beforeFilter - records.length} cross-advertiser rows)`,
+        );
+      }
+    }
   }
 
   // memo23 / silva emit one row per (creative × region) on
