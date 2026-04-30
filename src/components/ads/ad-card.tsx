@@ -6,7 +6,7 @@ import { ExternalLink, Eye, Sparkles, Play, ImageIcon, LayoutGrid, Bot, Type, Sh
 import { Badge } from "@/components/ui/badge";
 import { SaveToCollection } from "@/components/ads/save-to-collection";
 import { VideoPreview } from "@/components/ads/video-preview";
-import { formatDate } from "@/lib/utils";
+import { formatDate, isPlayableVideoUrl, youtubeIdFromUrl } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { AI_TAGS_ENABLED } from "@/config/features";
 import type { MaitAdExternal } from "@/types";
@@ -72,9 +72,15 @@ export function AdCard({
       ? `/competitors/${competitorId ?? ad.competitor_id}/ads/${ad.id}`
       : null;
 
-  // Extract displayFormat — Meta uses snapshot.displayFormat, Google uses raw.adFormat
+  // Extract displayFormat — Meta uses snapshot.displayFormat. On
+  // Google we now read in priority order silva `raw.format` →
+  // memo23/legacy `raw.adFormat`. silva-scraped rows would otherwise
+  // fall through to the "IMAGE" default and every Google video ad
+  // would be mislabelled — confirmed bug on Elena Mirò 2026-04-30.
   const displayFormat = isGoogle
-    ? (raw?.adFormat as string) ?? null
+    ? ((raw?.format as string) ??
+        (raw?.adFormat as string) ??
+        null)
     : (snapshot?.displayFormat as string) ?? null;
   const isAiGenerated = (raw?.containsDigitalCreatedMedia as boolean) ?? false;
   const pageProfilePicture = (snapshot?.pageProfilePictureUrl as string) ?? null;
@@ -99,6 +105,16 @@ export function AdCard({
               : "IMAGE";
   const isCarousel = formatLabel === "CAROUSEL";
   const isVideo = formatLabel === "VIDEO";
+  // YouTube watch URLs cannot be rendered by the HTML <video> element
+  // — the previous behaviour was an empty black tile on every silva
+  // YouTube ad. When we detect one, we substitute the official YouTube
+  // hqdefault thumbnail and let the click-through go to the detail
+  // page (or YouTube directly if there is no detail link).
+  const ytId = ad.video_url ? youtubeIdFromUrl(ad.video_url) : null;
+  const ytThumb = ytId
+    ? `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg`
+    : null;
+  const hasPlayableVideo = isPlayableVideoUrl(ad.video_url);
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col hover:border-gold/40 transition-colors">
@@ -116,11 +132,33 @@ export function AdCard({
             : "aspect-[4/3] bg-muted relative overflow-hidden block cursor-pointer"
         }
       >
-        {ad.video_url ? (
+        {hasPlayableVideo && ad.video_url ? (
           <VideoPreview
             src={ad.video_url}
             poster={snapshotUrl && !isSnapshotHtml ? snapshotUrl : undefined}
           />
+        ) : ytThumb ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={ytThumb}
+              alt={ad.headline ?? "YouTube preview"}
+              className="absolute inset-0 w-full h-full object-cover"
+              loading="lazy"
+            />
+            {/* Centred play badge so the user reads it as a video, not
+                a static product photo. Pointer-events-none so the
+                surrounding MaybeLink keeps capturing the click. */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="bg-black/60 rounded-full p-2.5 backdrop-blur-sm">
+                <Play
+                  className="size-5 text-white"
+                  strokeWidth={2.5}
+                  fill="currentColor"
+                />
+              </div>
+            </div>
+          </>
         ) : snapshotUrl && !isSnapshotHtml && !imgFailed ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
