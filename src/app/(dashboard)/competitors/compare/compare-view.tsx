@@ -2307,7 +2307,18 @@ function LatestAdTile({
         // stay aligned because aspect-square fixes the box; the
         // letterbox just shows the muted background instead of an
         // upscale.
-        <div className="relative w-full aspect-square bg-muted">
+        //
+        // Format override: Google Search/Text ads come back as
+        // landscape screenshots (~2:1) — forcing them into a square
+        // tile leaves a big grey letterbox and feels visually
+        // "zoomed". For text format we drop the tile to a matching
+        // 2:1 aspect so the screenshot fills it naturally.
+        <div
+          className={cn(
+            "relative w-full bg-muted",
+            ad.format === "text" ? "aspect-[2/1]" : "aspect-square",
+          )}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={fallbackImageUrl!}
