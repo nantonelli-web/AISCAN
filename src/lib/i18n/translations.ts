@@ -607,6 +607,10 @@ const translations = {
       it: "Mix superfici (servito)",
       en: "Surface mix (served)",
     },
+    googleSurfaceMixEmpty: {
+      it: "Google pubblica le superfici di erogazione solo per annunci con impressioni accumulate sufficienti. Annunci recenti o a basso volume non riportano questo dato.",
+      en: "Google only publishes serving surfaces for ads with enough accumulated impressions. Recent or low-volume ads don't carry this data.",
+    },
     videoPreviewUnavailable: {
       it: "Video — anteprima non disponibile",
       en: "Video — preview unavailable",
