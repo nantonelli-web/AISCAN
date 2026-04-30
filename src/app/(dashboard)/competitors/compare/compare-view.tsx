@@ -35,7 +35,6 @@ import { AnalysisReport } from "./analysis-report";
 import {
   VolumeChart,
   FormatPieChart,
-  FormatStackedChart,
   HorizontalBarChart,
   PlatformChart,
 } from "@/components/dashboard/benchmark-charts";
@@ -638,7 +637,10 @@ export function CompareView({
       : channel === "google" ? "google"
       : channel === "instagram" ? "instagram"
       : undefined;
-    const url = `/api/benchmarks?ids=${selectedIds.join(",")}${source ? `&source=${source}` : ""}`;
+    // Pass the user-selected date range so the refresh rate (and any
+    // other windowed KPI on BenchmarkData) reflects what they chose
+    // instead of the legacy 90d default.
+    const url = `/api/benchmarks?ids=${selectedIds.join(",")}${source ? `&source=${source}` : ""}&date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}`;
     fetch(url)
       .then(async (res) => {
         if (res.ok) {
@@ -2745,15 +2747,25 @@ function BenchmarkCharts({
   const naGoogle = t("compare", "naGoogle");
   return (
     <div className="space-y-6">
-      {/* KPI cards — match the Benchmarks page set. */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* KPI cards — match the Benchmarks page set. avgCopyLength is
+          dropped entirely on Google (the Transparency Library does not
+          return ad_text and the metric is structurally meaningless
+          there — Google text ads are length-capped by the platform). */}
+      <div
+        className={cn(
+          "grid gap-4 sm:grid-cols-2",
+          isGoogle ? "lg:grid-cols-3" : "lg:grid-cols-4",
+        )}
+      >
         <BenchmarkStat label={t("benchmarks", "totalAds")} value={formatNumber(data.totals.totalAds)} />
         <BenchmarkStat label={t("benchmarks", "activeAds")} value={formatNumber(data.totals.activeAds)} />
         <BenchmarkStat label={t("benchmarks", "avgCampaignDuration")} value={`${data.totals.avgDuration}gg`} />
-        <BenchmarkStat
-          label={t("benchmarks", "avgCopyLength")}
-          value={isGoogle ? naGoogle : `${data.totals.avgCopyLength} chr`}
-        />
+        {!isGoogle && (
+          <BenchmarkStat
+            label={t("benchmarks", "avgCopyLength")}
+            value={`${data.totals.avgCopyLength} chr`}
+          />
+        )}
       </div>
 
       {/* Volume */}
@@ -2784,15 +2796,6 @@ function BenchmarkCharts({
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Format per competitor (stacked) */}
-      <Card>
-        <CardHeader><CardTitle>{t("benchmarks", "formatPerCompetitor")}</CardTitle></CardHeader>
-        <CardContent>
-          <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descFormatStacked")}</p>
-          <FormatStackedChart data={data.formatByCompetitor} />
         </CardContent>
       </Card>
 
@@ -2831,8 +2834,9 @@ function BenchmarkCharts({
         </CardContent>
       </Card>
 
-      {/* Duration + Copy length + Refresh rate */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      {/* Duration + Copy length + Refresh rate. Drop to 2-cols on
+          Google because the Copy length card is hidden. */}
+      <div className={cn("grid gap-6", isGoogle ? "lg:grid-cols-2" : "lg:grid-cols-3")}>
         <Card>
           <CardHeader><CardTitle>{t("benchmarks", "avgCampaignDurationChart")}</CardTitle></CardHeader>
           <CardContent>
@@ -2840,19 +2844,15 @@ function BenchmarkCharts({
             <HorizontalBarChart data={data.avgDurationByCompetitor} dataKey="days" label={t("benchmarks", "daysAxisLabel")} color="#5b7ea3" />
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader><CardTitle>{t("benchmarks", "avgCopyLengthChart")}</CardTitle></CardHeader>
-          <CardContent>
-            {isGoogle ? (
-              <p className="text-sm text-muted-foreground py-6">{naGoogle}</p>
-            ) : (
-              <>
-                <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descCopyLength")}</p>
-                <HorizontalBarChart data={data.avgCopyLengthByCompetitor} dataKey="chars" label={t("benchmarks", "charsAxisLabel")} color="#6b8e6b" />
-              </>
-            )}
-          </CardContent>
-        </Card>
+        {!isGoogle && (
+          <Card>
+            <CardHeader><CardTitle>{t("benchmarks", "avgCopyLengthChart")}</CardTitle></CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descCopyLength")}</p>
+              <HorizontalBarChart data={data.avgCopyLengthByCompetitor} dataKey="chars" label={t("benchmarks", "charsAxisLabel")} color="#6b8e6b" />
+            </CardContent>
+          </Card>
+        )}
         <Card>
           <CardHeader>
             <CardTitle>
@@ -2898,27 +2898,32 @@ function BenchmarkCharts({
             <CardTitle>{t("benchmarks", "surfaceMixPerBrand")}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-muted-foreground mb-3">
-              {t("benchmarks", "descSurfaceMixPerBrand")}
-            </p>
             {data.surfaceMixByCompetitor.length === 0 ? (
-              <p className="text-xs text-muted-foreground py-4">
+              // When empty, only the Google-data-limit explanation —
+              // showing both the description AND the empty-state read
+              // as redundant repetition.
+              <p className="text-xs text-muted-foreground py-2">
                 {t("compare", "googleSurfaceMixEmpty")}
               </p>
             ) : (
-              <div className={`grid gap-6 ${data.surfaceMixByCompetitor.length <= 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
-                {data.surfaceMixByCompetitor.map((entry) => (
-                  <div key={entry.competitor} className="space-y-2">
-                    <p className="text-xs font-medium text-gold text-center">{entry.competitor}</p>
-                    <HorizontalBarChart
-                      data={entry.data}
-                      dataKey="count"
-                      label={t("benchmarks", "adsLabel")}
-                      color="#5b7ea3"
-                    />
-                  </div>
-                ))}
-              </div>
+              <>
+                <p className="text-xs text-muted-foreground mb-3">
+                  {t("benchmarks", "descSurfaceMixPerBrand")}
+                </p>
+                <div className={`grid gap-6 ${data.surfaceMixByCompetitor.length <= 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
+                  {data.surfaceMixByCompetitor.map((entry) => (
+                    <div key={entry.competitor} className="space-y-2">
+                      <p className="text-xs font-medium text-gold text-center">{entry.competitor}</p>
+                      <HorizontalBarChart
+                        data={entry.data}
+                        dataKey="count"
+                        label={t("benchmarks", "adsLabel")}
+                        color="#5b7ea3"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
@@ -2961,6 +2966,22 @@ function BenchmarkCharts({
           </CardContent>
         </Card>
       )}
+
+      {/* Print CTA at the bottom — same window.print() as the top
+          header, hidden in print output via @media print elsewhere
+          if needed. Lets the user trigger PDF export without
+          scrolling back up. */}
+      <div className="flex justify-center pt-2 print:hidden">
+        <Button
+          size="sm"
+          variant="outline"
+          className="text-xs"
+          onClick={() => window.print()}
+        >
+          <Printer className="size-3.5 mr-1.5" />
+          {t("compare", "print")}
+        </Button>
+      </div>
     </div>
   );
 }
