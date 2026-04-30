@@ -534,6 +534,27 @@ const translations = {
       en: "EU DSA data not available for this ad (non-EU scan or actor did not capture it).",
     },
     ageDistribution: { it: "Distribuzione età", en: "Age distribution" },
+    // ─── Google-only sections (silva) ───
+    googleServingHeader: {
+      it: "Erogazione Google",
+      en: "Google serving",
+    },
+    googleServingHeaderHelp: {
+      it: "Dati pubblicati da Google Transparency Center: dove e per quanto tempo l'annuncio è stato servito, quante impressioni ha accumulato per paese e su quali superfici Google.",
+      en: "Data published by Google Transparency Center: where and for how long the ad was served, how many impressions accumulated per country, and on which Google surfaces.",
+    },
+    googleNumServedDays: { it: "Giorni totali di erogazione", en: "Total served days" },
+    googleCountriesServed: { it: "Paesi raggiunti", en: "Countries reached" },
+    googlePerCountry: { it: "Erogazione per paese", en: "Per-country serving" },
+    googlePerCountryEmpty: {
+      it: "Google non ha pubblicato il dettaglio per paese di questo annuncio. Tipicamente succede su annunci recenti o a basso volume.",
+      en: "Google has not published per-country details for this ad. This typically happens on recent or low-volume ads.",
+    },
+    googleImpressions: { it: "Impressioni", en: "Impressions" },
+    googleSurfaces: { it: "Posizionamenti", en: "Placements" },
+    googleFirstShown: { it: "Prima volta", en: "First shown" },
+    googleLastShown: { it: "Ultima volta", en: "Last shown" },
+    youtubeOpenLabel: { it: "Apri video su YouTube", en: "Open video on YouTube" },
   },
 
   // ─── Compare ───────────────────────────────────────────────

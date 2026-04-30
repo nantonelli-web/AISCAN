@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, Calendar, Clock, Globe, Tag, Bot, Zap, LayoutGrid, MapPin, Users, UsersRound } from "lucide-react";
+import { ArrowLeft, ExternalLink, Calendar, Clock, Globe, Tag, Bot, Zap, LayoutGrid, MapPin, Users, UsersRound, Play } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatDate, formatNumber } from "@/lib/utils";
+import { formatDate, formatNumber, isPlayableVideoUrl, youtubeIdFromUrl } from "@/lib/utils";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { extractAdInsights } from "@/lib/meta/ad-insights";
 import { computeAdDurationDays } from "@/lib/analytics/ad-shared";
@@ -67,8 +67,16 @@ export default async function AdDetailPage({
     ? "Google Ads Transparency"
     : "Meta Ad Library";
 
-  // New metadata from raw_data
-  const displayFormat = (snapshot?.displayFormat as string) ?? null;
+  // New metadata from raw_data. displayFormat is read in priority
+  // order: Meta `snapshot.displayFormat` first, then silva/memo23
+  // `raw.format`, then legacy automation-lab `raw.adFormat`. So a
+  // Google ad gets a real "TEXT/IMAGE/VIDEO/SHOPPING" badge in the
+  // metadata card instead of an empty row.
+  const displayFormat =
+    (snapshot?.displayFormat as string) ??
+    (raw?.format as string) ??
+    (raw?.adFormat as string) ??
+    null;
   const ctaType = (snapshot?.ctaType as string) ?? (cards[0]?.ctaText as string) ?? null;
   const isAiGenerated = (raw?.containsDigitalCreatedMedia as boolean) ?? false;
   const isAaaEligible = (raw?.isAaaEligible as boolean) ?? false;
@@ -79,6 +87,36 @@ export default async function AdDetailPage({
   // populates it; scan_countries is the set of ISO codes we passed
   // Apify, so it is the only signal we have.
   const targetedCountries = ad.scan_countries ?? [];
+
+  // ─── Silva-only Google enrichment ───
+  // Read once and reuse so the JSX stays clean. All three are
+  // null/empty when the row is Meta or pre-silva legacy Google.
+  const numServedDays =
+    typeof raw?.numServedDays === "number" ? raw.numServedDays : null;
+  const creativeRegions = Array.isArray(raw?.creativeRegions)
+    ? (raw.creativeRegions as string[]).filter(
+        (s) => typeof s === "string" && s,
+      )
+    : [];
+  type SilvaRegionStat = {
+    regionCode?: string;
+    regionName?: string;
+    firstShown?: string;
+    lastShown?: string;
+    impressions?: { lowerBound?: number; upperBound?: number | null };
+    surfaceServingStats?: Array<{
+      surfaceCode?: string;
+      surfaceName?: string;
+    }>;
+  };
+  const regionStats = (Array.isArray(raw?.regionStats)
+    ? (raw.regionStats as SilvaRegionStat[])
+    : []) as SilvaRegionStat[];
+  // YouTube watch URLs cannot be played by the HTML <video> element —
+  // we render an enriched "click to open on YouTube" tile instead of
+  // a black rectangle. Same trap fixed in Compare.
+  const youtubeId = isGoogle ? youtubeIdFromUrl(ad.video_url) : null;
+  const hasPlayableVideo = isPlayableVideoUrl(ad.video_url);
   const insights = extractAdInsights(raw);
   const genderLabelKey: Record<NonNullable<typeof insights.genderLabel>, string> = {
     all: "genderAll",
@@ -157,8 +195,12 @@ export default async function AdDetailPage({
       <div className="grid gap-6 lg:grid-cols-5">
         {/* Main creative */}
         <div className="lg:col-span-3 space-y-4">
-          {/* Primary creative */}
-          {ad.video_url ? (
+          {/* Primary creative. YouTube watch URLs cannot be embedded
+              in the <video> element (same trap as in Compare) — render
+              the YouTube thumbnail with a play overlay, click-out to
+              YouTube. Only when the URL is a real media file do we
+              fall back to the native player. */}
+          {hasPlayableVideo && ad.video_url ? (
             <Card>
               <CardContent className="p-0">
                 <video
@@ -168,6 +210,34 @@ export default async function AdDetailPage({
                   playsInline
                   className="w-full rounded-xl"
                 />
+              </CardContent>
+            </Card>
+          ) : youtubeId ? (
+            <Card>
+              <CardContent className="p-0">
+                <a
+                  href={`https://www.youtube.com/watch?v=${youtubeId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="relative block group"
+                  aria-label={t("adDetail", "youtubeOpenLabel")}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg`}
+                    alt={ad.headline ?? "YouTube preview"}
+                    className="w-full rounded-xl bg-muted"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="bg-black/60 rounded-full p-4 backdrop-blur-sm group-hover:bg-black/75 transition-colors">
+                      <Play
+                        className="size-8 text-white"
+                        strokeWidth={2.5}
+                        fill="currentColor"
+                      />
+                    </div>
+                  </div>
+                </a>
               </CardContent>
             </Card>
           ) : ad.image_url && !ad.image_url.includes("/render_ad/") ? (
@@ -491,8 +561,150 @@ export default async function AdDetailPage({
             </Card>
           )}
 
-          {/* Targeted countries */}
-          {targetedCountries.length > 0 && (
+          {/* Google serving — silva-only enrichment. Replaces the
+              "Targeted countries" card (which is empty on Google
+              because scan_countries is NULL by design) with a richer
+              breakdown: total served days, country list, and where
+              available the per-country firstShown / lastShown /
+              impressions / surface mix. */}
+          {isGoogle &&
+            (numServedDays != null || creativeRegions.length > 0 || regionStats.length > 0) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Globe className="size-4" /> {t("adDetail", "googleServingHeader")}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    {t("adDetail", "googleServingHeaderHelp")}
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {numServedDays != null && (
+                      <div className="rounded-md border border-border bg-muted/30 p-3">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          {t("adDetail", "googleNumServedDays")}
+                        </p>
+                        <p className="text-lg font-semibold mt-1">
+                          {numServedDays} <span className="text-xs font-normal text-muted-foreground">{t("adDetail", "daysUnit")}</span>
+                        </p>
+                      </div>
+                    )}
+                    {creativeRegions.length > 0 && (
+                      <div className="rounded-md border border-border bg-muted/30 p-3">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          {t("adDetail", "googleCountriesServed")}
+                        </p>
+                        <p className="text-lg font-semibold mt-1">
+                          {creativeRegions.length}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  {creativeRegions.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {creativeRegions.map((c) => (
+                        <Badge key={c} variant="muted">{c}</Badge>
+                      ))}
+                    </div>
+                  )}
+                  {/* Per-country detail. Many records have regionStats
+                      with no surfaceServingStats / impressions because
+                      Google does not publish those below an internal
+                      impression threshold — render only the rows that
+                      carry actual data so we don't show a wall of
+                      empty country cards. */}
+                  {(() => {
+                    const richRows = regionStats.filter((r) => {
+                      const hasImpr =
+                        r.impressions &&
+                        (typeof r.impressions.lowerBound === "number" ||
+                          typeof r.impressions.upperBound === "number");
+                      const hasSurface =
+                        Array.isArray(r.surfaceServingStats) &&
+                        r.surfaceServingStats.length > 0;
+                      return hasImpr || hasSurface;
+                    });
+                    if (richRows.length === 0) {
+                      return (
+                        <p className="text-[11px] text-muted-foreground italic">
+                          {t("adDetail", "googlePerCountryEmpty")}
+                        </p>
+                      );
+                    }
+                    const sorted = [...richRows].sort((a, b) => {
+                      const ai = a.impressions?.lowerBound ?? 0;
+                      const bi = b.impressions?.lowerBound ?? 0;
+                      return bi - ai;
+                    });
+                    return (
+                      <div className="space-y-2 pt-2 border-t border-border">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          {t("adDetail", "googlePerCountry")}
+                        </p>
+                        {sorted.slice(0, 8).map((r) => {
+                          const lower = r.impressions?.lowerBound;
+                          const upper = r.impressions?.upperBound;
+                          const imprStr =
+                            typeof lower === "number" && typeof upper === "number"
+                              ? `${formatNumber(lower)}–${formatNumber(upper)}`
+                              : typeof lower === "number"
+                                ? `${formatNumber(lower)}+`
+                                : null;
+                          const surfaces =
+                            r.surfaceServingStats?.map((s) => s.surfaceCode).filter(Boolean) ?? [];
+                          return (
+                            <div
+                              key={r.regionCode ?? r.regionName ?? Math.random()}
+                              className="rounded-md border border-border p-2.5 space-y-1"
+                            >
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="font-medium">
+                                  {r.regionName ?? r.regionCode ?? "—"}
+                                </span>
+                                {imprStr && (
+                                  <span className="text-xs text-muted-foreground">
+                                    {imprStr}
+                                  </span>
+                                )}
+                              </div>
+                              {(r.firstShown || r.lastShown) && (
+                                <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                                  {r.firstShown && (
+                                    <span>
+                                      {t("adDetail", "googleFirstShown")}: {formatDate(r.firstShown)}
+                                    </span>
+                                  )}
+                                  {r.lastShown && (
+                                    <span>
+                                      {t("adDetail", "googleLastShown")}: {formatDate(r.lastShown)}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                              {surfaces.length > 0 && (
+                                <div className="flex flex-wrap gap-1 pt-0.5">
+                                  {surfaces.map((s, i) => (
+                                    <Badge key={`${s}-${i}`} variant="muted" className="text-[10px]">
+                                      {s}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+            )}
+
+          {/* Targeted countries — Meta only. Hidden on Google because
+              scan_countries is NULL by design there (the richer card
+              above replaces it). */}
+          {!isGoogle && targetedCountries.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm flex items-center gap-2">
