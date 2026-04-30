@@ -56,9 +56,22 @@ function CreditBadge() {
   );
 }
 
-export function Sidebar({ userName, userEmail }: { userName: string; userEmail: string }) {
+export function Sidebar({
+  userName,
+  userEmail,
+  billingMode = "credits",
+}: {
+  userName: string;
+  userEmail: string;
+  billingMode?: "credits" | "subscription";
+}) {
   const pathname = usePathname();
   const { t } = useT();
+  // Hide /credits + balance badge entirely for workspaces that pay
+  // platform-fee separately and bring their own provider keys.
+  const visibleItems = itemDefs.filter(
+    (it) => it.key !== "credits" || billingMode !== "subscription",
+  );
 
   return (
     <aside className="hidden md:flex md:w-60 md:flex-col border-r border-border bg-card sticky top-0 h-screen">
@@ -69,7 +82,7 @@ export function Sidebar({ userName, userEmail }: { userName: string; userEmail: 
         </Link>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {itemDefs.map(({ href, key, icon: Icon, aliases }) => {
+        {visibleItems.map(({ href, key, icon: Icon, aliases }) => {
           // Longest-prefix wins — so /competitors/compare activates
           // Compare, not Brands, even though /competitors also matches.
           const prefixes = [href, ...aliases];
@@ -118,7 +131,7 @@ export function Sidebar({ userName, userEmail }: { userName: string; userEmail: 
             </button>
           </form>
         </div>
-        <CreditBadge />
+        {billingMode !== "subscription" && <CreditBadge />}
         <div className="px-4 pb-3 text-[10px] uppercase tracking-widest text-muted-foreground">
           {t("sidebar", "footer")}
         </div>
