@@ -552,7 +552,10 @@ async function fetchBrandAdData(
     ids.map(async (id) => {
       const adsQuery = admin
         .from("mait_ads_external")
-        .select("headline, ad_text, description, cta, image_url, platforms")
+        // raw_data so we can derive `format` per ad — needed downstream
+        // to skip TEXT-format rows in the visual analysis (their
+        // image_url is a screenshot of formatted text, not a creative).
+        .select("headline, ad_text, description, cta, image_url, platforms, raw_data")
         .eq("competitor_id", id)
         .gte("created_at", tenDaysAgo)
         .order("created_at", { ascending: false })
@@ -568,17 +571,42 @@ async function fetchBrandAdData(
         adsQuery,
       ]);
 
+      type RawAdRow = {
+        headline: string | null;
+        ad_text: string | null;
+        description: string | null;
+        cta: string | null;
+        image_url: string | null;
+        platforms: string[] | null;
+        raw_data: Record<string, unknown> | null;
+      };
+
       return {
         brandName: comp?.page_name ?? "Unknown",
         competitorId: id,
-        ads: (ads ?? []) as {
-          headline: string | null;
-          ad_text: string | null;
-          description: string | null;
-          cta: string | null;
-          image_url: string | null;
-          platforms: string[] | null;
-        }[],
+        ads: ((ads ?? []) as RawAdRow[]).map((a) => {
+          // Field name varies per actor — silva and memo23 use `format`,
+          // automation-lab uses `adFormat`, Meta uses
+          // `snapshot.displayFormat`. Try them in order. Lowercase so
+          // downstream comparisons (e.g. format === "text") stay simple.
+          const raw = a.raw_data;
+          const snapshot =
+            (raw?.snapshot as Record<string, unknown> | undefined) ?? null;
+          const fmt =
+            (raw?.format as string | undefined) ??
+            (raw?.adFormat as string | undefined) ??
+            (snapshot?.displayFormat as string | undefined) ??
+            null;
+          return {
+            headline: a.headline,
+            ad_text: a.ad_text,
+            description: a.description,
+            cta: a.cta,
+            image_url: a.image_url,
+            platforms: a.platforms,
+            format: fmt ? fmt.toLowerCase() : null,
+          };
+        }),
       };
     })
   );

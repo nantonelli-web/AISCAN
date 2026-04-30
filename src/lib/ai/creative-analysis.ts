@@ -33,6 +33,13 @@ export interface BrandAdData {
      *  Google ad type (YouTube vs Display vs Search) instead of writing
      *  generic visual notes. */
     platforms?: string[] | null;
+    /** Lowercased ad format ("text" / "image" / "video" / "shopping"
+     *  on Google; "image" / "video" / "carousel" / "dpa" / "text" on
+     *  Meta). Lets the visual analysis skip TEXT-format rows because
+     *  their `image_url` is a screenshot of formatted text — analysing
+     *  it as a creative produces nonsense like "the brand uses a clean
+     *  white background and minimal photography". */
+    format?: string | null;
   }[];
 }
 
@@ -397,6 +404,15 @@ export async function analyzeVisuals(
   // tell the LLM which Google surface (YouTube / Display / Search /
   // PMAX) each image likely targets — without it the analysis comes
   // out as generic "visual notes" with no actionable channel context.
+  //
+  // FORMAT FILTER: TEXT-format ads on Google are screenshots of a
+  // rendered text creative (avatar + brand + URL + headline + body
+  // on white background) — they look like images but contain ZERO
+  // visual creative content. Letting them through made Gemini write
+  // pages of nonsense like "minimalist palette, clean photography,
+  // strong typography hierarchy" about what is structurally just
+  // text. Drop format=text up front; if that empties the pool we
+  // return a structured placeholder explaining why.
   const imageEntries: {
     brandName: string;
     url: string;
@@ -405,6 +421,7 @@ export async function analyzeVisuals(
   for (const brand of brands) {
     const brandImages = brand.ads
       .filter((ad) => {
+        if ((ad.format ?? "").toLowerCase() === "text") return false;
         const url = ad.image_url;
         if (!url || !url.startsWith("http")) return false;
         // Meta render-ad endpoints — already known to be unfetchable.
@@ -427,9 +444,45 @@ export async function analyzeVisuals(
     }
   }
 
+  // No analysable visual creatives — return a structured placeholder
+  // so the UI can render a clear message instead of falling back to
+  // "an error occurred". Differentiate the Google text-only case
+  // because that's the most common scenario worth explaining.
   if (imageEntries.length === 0) {
-    console.error("No valid image URLs found for visual analysis");
-    return null;
+    const totalAds = brands.reduce((s, b) => s + b.ads.length, 0);
+    const textOnlyAds = brands.reduce(
+      (s, b) =>
+        s +
+        b.ads.filter((a) => (a.format ?? "").toLowerCase() === "text").length,
+      0,
+    );
+    const dominantText =
+      totalAds > 0 && textOnlyAds / totalAds >= 0.5;
+    const message =
+      locale === "it"
+        ? dominantText
+          ? "Analisi creativa non disponibile: la selezione contiene solo annunci Google Search (testuali). Non hanno foto, video o grafica originale — solo testo formattato in stile risultato di ricerca, quindi non c'è niente di visivo da analizzare. Il confronto creativo torna utile su brand con creativi Image, Video o Shopping."
+          : "Nessun creativo visivo disponibile da analizzare. Gli annunci scansionati non includono immagini, video o caroselli prodotto utilizzabili per il confronto."
+        : dominantText
+          ? "Visual analysis is not available: the selection only contains Google Search ads (text). They have no photo, video or original graphics — just formatted text in search-result style, so there is nothing visual to analyse. Creative comparison is meaningful on brands with Image, Video or Shopping creatives."
+          : "No visual creatives available to analyse. The scanned ads do not include usable images, videos or shopping carousels for comparison.";
+    console.warn(
+      `[analyzeVisuals] no analysable images — totalAds=${totalAds} textOnly=${textOnlyAds} dominantText=${dominantText}`,
+    );
+    return {
+      brandAnalyses: brands.map((b) => ({
+        brandName: b.brandName,
+        visualStyle: message,
+        colorPalette: "",
+        photographyStyle: "",
+        brandConsistency: "",
+        formatPreferences: "",
+        strengths: "",
+        weaknesses: "",
+      })),
+      comparison: message,
+      recommendations: message,
+    };
   }
 
   // Build message content with text + image_url parts. Each per-brand
