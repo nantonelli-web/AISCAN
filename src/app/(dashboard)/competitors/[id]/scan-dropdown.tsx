@@ -418,22 +418,40 @@ export function ScanDropdown({
         )}
       </div>
 
-      {/* ─── 2. Stop button — visible whenever a scan is in flight on
-              the client OR already running in the DB (survives a reload). */}
+      {/* ─── 2. Stop button + scanning banner — visible whenever a
+              scan is in flight on the client OR already running in
+              the DB (survives a reload). The channel buttons below
+              are hidden in this state so the user cannot accidentally
+              fire a second scan while one is running. */}
       {showStop && (
-        <Button
-          onClick={stopScan}
-          disabled={stopping}
-          variant="outline"
-          size="lg"
-          className={cn(bigCta, "border-red-400/40 text-red-400 hover:bg-red-400/15 hover:border-red-400")}
-        >
-          <Square className="size-5 fill-current" />
-          {stopping ? t("scan", "stopping") : "Stop"}
-        </Button>
+        <div className="rounded-md border border-red-400/30 bg-red-400/5 p-4 flex flex-wrap items-center gap-4">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground">
+              {t("scan", "scanInProgressTitle")}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {t("scan", "scanInProgressHelp")}
+            </p>
+          </div>
+          <Button
+            onClick={stopScan}
+            disabled={stopping}
+            variant="outline"
+            size="lg"
+            className={cn(bigCta, "border-red-400/40 text-red-400 hover:bg-red-400/15 hover:border-red-400 shrink-0")}
+          >
+            <Square className="size-5 fill-current" />
+            {stopping ? t("scan", "stopping") : "Stop"}
+          </Button>
+        </div>
       )}
 
-      {/* ─── 3. Channels — grouped by Paid / Organic ─── */}
+      {/* ─── 3. Channels — grouped by Paid / Organic. Hidden while a
+              scan is running so the user cannot fire a second scan
+              from the same brand (the rate-limit gate would reject
+              it server-side, but client-side hiding makes the state
+              visually unambiguous and removes the failure path). */}
+      {!showStop && (
       <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
         {/* Paid group */}
         <div className="space-y-2">
@@ -542,9 +560,12 @@ export function ScanDropdown({
           </div>
         </div>
       </div>
+      )}
 
-      {/* ─── 3. Missing config details (amber box) ─── */}
-      {(!hasGoogleConfig ||
+      {/* ─── 4. Missing config details (amber box). Also hidden while
+              a scan is running — keeps the running state focused on
+              the Stop CTA and removes secondary visual noise. */}
+      {!showStop && (!hasGoogleConfig ||
         !hasInstagramConfig ||
         !hasTiktokConfig ||
         !hasSnapchatConfig ||

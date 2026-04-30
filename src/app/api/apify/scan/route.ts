@@ -135,6 +135,14 @@ export async function POST(req: Request) {
     .single();
 
   if (jobErr || !job) {
+    // Race-loss against the partial unique index from migration 0033 —
+    // a concurrent request beat us after we passed the rate check.
+    // Refund credits and return the same 429 the rate check would
+    // have given.
+    if ((jobErr as { code?: string } | null)?.code === "23505") {
+      await refundCredits(user.id, "scan_meta", `Meta Ads scan race-rejected: ${competitor.page_name}`);
+      return NextResponse.json({ error: "already_running" }, { status: 429 });
+    }
     return NextResponse.json({ error: jobErr?.message ?? "Job error" }, { status: 500 });
   }
 

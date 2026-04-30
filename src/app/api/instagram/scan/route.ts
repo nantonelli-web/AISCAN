@@ -157,6 +157,14 @@ export async function POST(req: Request) {
     .single();
 
   if (jobErr || !job) {
+    if ((jobErr as { code?: string } | null)?.code === "23505") {
+      await refundCredits(
+        user.id,
+        "scan_instagram",
+        `Instagram scan race-rejected: ${competitor.page_name}`,
+      );
+      return NextResponse.json({ error: "already_running" }, { status: 429 });
+    }
     return NextResponse.json(
       { error: jobErr?.message ?? "Job error" },
       { status: 500 }

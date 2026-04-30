@@ -120,6 +120,23 @@ export async function POST(req: Request) {
     .single();
 
   if (jobErr || !job) {
+    // Unique violation on the partial index "one running scan per
+    // competitor" (migration 0033). Means a concurrent request beat
+    // us to it after we passed the rate-limit check — surface it as
+    // the same 429 / "already_running" the rate check would have
+    // returned, refund the credits we just consumed, and let the
+    // user retry once the running scan finishes.
+    if ((jobErr as { code?: string } | null)?.code === "23505") {
+      await refundCredits(
+        user.id,
+        "scan_google",
+        `Google Ads scan race-rejected: ${competitor.page_name}`,
+      );
+      return NextResponse.json(
+        { error: "already_running" },
+        { status: 429 },
+      );
+    }
     return NextResponse.json(
       { error: jobErr?.message ?? "Job error" },
       { status: 500 }

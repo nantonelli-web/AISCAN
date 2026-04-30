@@ -144,6 +144,9 @@ export async function POST(req: Request) {
       "scan_tiktok",
       `TikTok scan: ${competitor.page_name}`,
     );
+    if ((jobErr as { code?: string } | null)?.code === "23505") {
+      return NextResponse.json({ error: "already_running" }, { status: 429 });
+    }
     return NextResponse.json(
       { error: jobErr?.message ?? "Job error" },
       { status: 500 },
