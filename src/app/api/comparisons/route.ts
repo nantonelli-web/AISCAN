@@ -65,7 +65,7 @@ export const maxDuration = 300;
  *         bare "No preview" when the actor returns null imageUrl
  *         for video creatives.
  */
-const CURRENT_DATA_VERSION = 9;
+const CURRENT_DATA_VERSION = 10;
 
 /* ── Schemas ─────────────────────────────────────────────── */
 
@@ -412,6 +412,86 @@ async function computeTechnicalStats(
         source === "google" ? "google" : "meta";
 
       if (channel === "google") {
+        // Format mix from silva's uppercase `format` (TEXT/IMAGE/VIDEO/
+        // SHOPPING). Fallback to legacy automation-lab `adFormat` so
+        // pre-silva rows aren't lost. We don't normalise via
+        // classifyAdFormat here because that bucket only knows
+        // image/video/carousel/dpa — Google's TEXT and SHOPPING are
+        // first-class formats and worth surfacing distinctly.
+        const formatCounts = new Map<string, number>();
+        for (const a of adsList) {
+          const raw = a.raw_data as Record<string, unknown> | null;
+          const f =
+            (raw?.format as string | undefined) ??
+            (raw?.adFormat as string | undefined);
+          if (!f) continue;
+          const key = String(f).toUpperCase();
+          formatCounts.set(key, (formatCounts.get(key) ?? 0) + 1);
+        }
+        const formatMix = [...formatCounts.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([name, count]) => ({ name, count }));
+
+        // Surface mix — silva returns regionStats[].surfaceServingStats[]
+        // with `surfaceCode` ∈ {SEARCH, YOUTUBE, SHOPPING, MAPS}. Sum
+        // occurrences across all regions; we don't multiply by
+        // impressions because the brackets are too coarse to be
+        // meaningful (lowerBound: 0, upperBound: 1000 on most rows).
+        // memo23 / automation-lab don't return regionStats so the
+        // tile silently shows nothing for legacy rows.
+        const surfaceCounts = new Map<string, number>();
+        for (const a of adsList) {
+          const raw = a.raw_data as Record<string, unknown> | null;
+          const regionStats = raw?.regionStats;
+          if (!Array.isArray(regionStats)) continue;
+          for (const r of regionStats) {
+            const stats = (r as Record<string, unknown>)?.surfaceServingStats;
+            if (!Array.isArray(stats)) continue;
+            for (const s of stats) {
+              const code = (s as Record<string, unknown>)?.surfaceCode;
+              if (typeof code !== "string" || !code) continue;
+              surfaceCounts.set(code, (surfaceCounts.get(code) ?? 0) + 1);
+            }
+          }
+        }
+        const surfaceMix = [...surfaceCounts.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([name, count]) => ({ name, count }));
+
+        // Avg served days — silva's `numServedDays` is Google's
+        // authoritative running-time count (firstShown→lastShown in
+        // days, integer). More accurate than our heuristic-based
+        // computeAdDurationDays because Google computed it from real
+        // serving observations, not our scrape window.
+        let servedSum = 0;
+        let servedN = 0;
+        for (const a of adsList) {
+          const raw = a.raw_data as Record<string, unknown> | null;
+          const n = raw?.numServedDays;
+          if (typeof n === "number" && Number.isFinite(n) && n >= 0) {
+            servedSum += n;
+            servedN += 1;
+          }
+        }
+        const avgServedDays =
+          servedN > 0 ? Math.round(servedSum / servedN) : 0;
+
+        // Region footprint — distinct regions from silva
+        // `creativeRegions[]` (full country names like "Italy",
+        // "Germany"). We just count distinct values so the tile can
+        // show "Served in 24 countries" — granular per-country UI
+        // belongs to the brand-detail page (Phase 3), not Compare.
+        const regionSet = new Set<string>();
+        for (const a of adsList) {
+          const raw = a.raw_data as Record<string, unknown> | null;
+          const regions = raw?.creativeRegions;
+          if (!Array.isArray(regions)) continue;
+          for (const r of regions) {
+            if (typeof r === "string" && r) regionSet.add(r);
+          }
+        }
+        const regionFootprint = regionSet.size;
+
         return {
           id,
           name: comp?.page_name ?? "—",
@@ -425,6 +505,11 @@ async function computeTechnicalStats(
           avgDuration,
           adsPerWeek,
           latestAds,
+          formatMix,
+          surfaceMix,
+          avgServedDays,
+          regionFootprint,
+          topCtas,
         };
       }
       return {
