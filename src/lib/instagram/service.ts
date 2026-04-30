@@ -61,6 +61,11 @@ export interface InstagramScrapeResult {
   runId: string;
   records: NormalizedPost[];
   costCu: number;
+  credentials?: {
+    source: "managed" | "byo";
+    keyRecordId: string | null;
+    billingMode: "credits" | "subscription";
+  };
 }
 
 export interface InstagramScrapeOptions {
@@ -70,6 +75,7 @@ export interface InstagramScrapeOptions {
   dateFrom?: string;
   /** ISO date (YYYY-MM-DD). Posts newer than this are dropped post-fetch. */
   dateTo?: string;
+  workspaceId?: string;
 }
 
 /**
@@ -128,11 +134,24 @@ interface RawInstagramProfile {
 }
 
 export async function scrapeInstagramProfile(
-  usernameInput: string
+  usernameInput: string,
+  workspaceId?: string,
 ): Promise<InstagramProfile | null> {
   const handle = cleanInstagramUsername(usernameInput);
   if (!handle) {
     console.warn(`[Instagram profile] invalid handle: ${usernameInput}`);
+    return null;
+  }
+
+  // BYO dispatch: subscription-mode workspaces with no Apify key
+  // throw here, caller handles by returning null (profile is
+  // optional metadata, not blocking).
+  let token: string;
+  try {
+    const creds = await getApifyCredentials(workspaceId);
+    token = creds.token;
+  } catch (e) {
+    console.error("[Instagram profile] credentials error:", e);
     return null;
   }
 
@@ -152,7 +171,8 @@ export async function scrapeInstagramProfile(
       {
         method: "POST",
         body: JSON.stringify(input),
-      }
+      },
+      token,
     );
 
     const runId: string = run.data?.id ?? run.id ?? "";
@@ -170,7 +190,7 @@ export async function scrapeInstagramProfile(
       Date.now() - start < maxWait
     ) {
       await new Promise((r) => setTimeout(r, 3000));
-      const info = await apifyFetch(`/actor-runs/${runId}`);
+      const info = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
       status = info.data?.status ?? info.status ?? status;
     }
 
@@ -181,7 +201,9 @@ export async function scrapeInstagramProfile(
     }
 
     const ds = await apifyFetch(
-      `/datasets/${datasetId}/items?format=json&limit=5`
+      `/datasets/${datasetId}/items?format=json&limit=5`,
+      undefined,
+      token,
     );
     const list: RawInstagramProfile[] = Array.isArray(ds)
       ? ds
@@ -237,6 +259,9 @@ export async function scrapeInstagramProfile(
 export async function scrapeInstagramPosts(
   opts: InstagramScrapeOptions
 ): Promise<InstagramScrapeResult> {
+  const creds = await getApifyCredentials(opts.workspaceId);
+  const token = creds.token;
+
   const maxPosts = opts.maxPosts ?? 30;
 
   const handle = cleanInstagramUsername(opts.username);
@@ -266,7 +291,7 @@ export async function scrapeInstagramPosts(
   const run = await apifyFetch(actorPath, {
     method: "POST",
     body: JSON.stringify(input),
-  });
+  }, token);
 
   const runId: string = run.data?.id ?? run.id ?? "";
   const datasetId: string =
@@ -290,7 +315,7 @@ export async function scrapeInstagramPosts(
   ) {
     await new Promise((r) => setTimeout(r, 5000));
     pollCount++;
-    const runInfo = await apifyFetch(`/actor-runs/${runId}`);
+    const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
     status = runInfo.data?.status ?? runInfo.status ?? status;
     console.log(`[Instagram] Poll #${pollCount}: status=${status} elapsed=${Math.round((Date.now() - startTime) / 1000)}s`);
   }
@@ -299,7 +324,7 @@ export async function scrapeInstagramPosts(
     // Fetch detailed error info
     let errorDetail = "";
     try {
-      const runInfo = await apifyFetch(`/actor-runs/${runId}`);
+      const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
       const stats = runInfo.data?.stats ?? runInfo.stats ?? {};
       errorDetail = ` | stats: ${JSON.stringify(stats)}`;
     } catch { /* ignore */ }
@@ -313,7 +338,9 @@ export async function scrapeInstagramPosts(
   let dataset;
   try {
     dataset = await apifyFetch(
-      `/datasets/${datasetId}/items?format=json&limit=1000`
+      `/datasets/${datasetId}/items?format=json&limit=1000`,
+      undefined,
+      token,
     );
   } catch (fetchErr) {
     console.error(`[Instagram] Dataset fetch failed:`, fetchErr);
@@ -368,13 +395,13 @@ export async function scrapeInstagramPosts(
 
   let costCu = 0;
   try {
-    const runInfo = await apifyFetch(`/actor-runs/${runId}`);
+    const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
     costCu = runInfo.data?.usageTotalUsd ?? 0;
   } catch {
     /* ignore */
   }
 
-  return { runId, records, costCu };
+  return { runId, records, costCu, credentials: creds };
 }
 
 // ------- Raw post shape from apify/instagram-scraper -------
