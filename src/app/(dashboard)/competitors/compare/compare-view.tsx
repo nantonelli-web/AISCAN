@@ -119,6 +119,28 @@ interface GoogleAdsCompStats extends AdsCompStatsBase {
    *  Same JSON shape as Meta `platforms` but the values come from
    *  Google adFormat, not the Meta `publisherPlatform` array. */
   platforms: GoogleSurfaces;
+  /** Format mix derived from `raw_data.format` — TEXT / IMAGE / VIDEO /
+   *  SHOPPING. Different from Meta `imageCount` / `videoCount` because
+   *  Google has 4 buckets and Search ads (TEXT) are first-class. */
+  formatMix: { name: string; count: number }[];
+  /** Surface mix from silva's `regionStats[].surfaceServingStats[]` —
+   *  SEARCH / YOUTUBE / SHOPPING / MAPS. Tells where Google actually
+   *  placed each ad, summed across regions. Empty when the actor did
+   *  not return regionStats (legacy automation-lab rows). */
+  surfaceMix: { name: string; count: number }[];
+  /** Average of silva's `numServedDays` across all rows — Google's
+   *  authoritative running-time count, more accurate than the
+   *  `start_date → end_date` heuristic used for Meta. */
+  avgServedDays: number;
+  /** Distinct regions (ISO-2) the ad served in, from silva
+   *  `creativeRegions[]`. Lets Compare show "Pan-EU footprint"
+   *  vs "Italy-only" at a glance. */
+  regionFootprint: number;
+  /** CTA presence is sparse on Google (only some VIDEO Skippable
+   *  creatives) — kept here so the tile can show the rare values
+   *  when present and an explanatory message when empty. Same
+   *  shape as Meta `topCtas` for tile reuse. */
+  topCtas: { name: string; count: number }[];
 }
 
 type AdsCompStats = MetaAdsCompStats | GoogleAdsCompStats;
@@ -1782,6 +1804,21 @@ function AdsTechnicalView({
         label={t("compare", "formatMix")}
         stats={stats}
         render={(s) => {
+          // Google has 4 first-class formats (TEXT/IMAGE/VIDEO/SHOPPING)
+          // — surface them all from the dedicated formatMix instead of
+          // collapsing to the Meta-shaped img/video pair, which silently
+          // hid Search and Shopping ads.
+          if (s.channel === "google") {
+            if (s.formatMix.length === 0) return "—";
+            const total = s.formatMix.reduce((a, b) => a + b.count, 0);
+            return s.formatMix
+              .slice(0, 4)
+              .map(
+                (f) =>
+                  `${Math.round((f.count / total) * 100)}% ${f.name.toLowerCase()}`,
+              )
+              .join(" · ");
+          }
           const total = s.imageCount + s.videoCount;
           if (total === 0) return "—";
           const imgPct = Math.round((s.imageCount / total) * 100);
@@ -1791,13 +1828,17 @@ function AdsTechnicalView({
       <CompareTable
         label={t("compare", "topCta")}
         stats={stats}
-        render={(s) =>
-          // Narrow on the discriminator: topCtas only exists on the
-          // Meta variant of AdsCompStats (Phase 3 type split).
-          s.channel === "meta"
-            ? s.topCtas.slice(0, 3).map((c) => c.name).join(", ") || "—"
-            : t("compare", "naGoogle")
-        }
+        render={(s) => {
+          // Both channels carry topCtas now (Phase 1 enrichment).
+          // On Google the field is sparse — show it when present,
+          // explain why otherwise so the user knows it isn't a bug.
+          if (s.topCtas.length > 0) {
+            return s.topCtas.slice(0, 3).map((c) => c.name).join(", ");
+          }
+          return s.channel === "google"
+            ? t("compare", "googleCtaEmpty")
+            : "—";
+        }}
       />
       {/* "Platforms" carries different semantics per channel — Meta
           placements (Facebook / Instagram / Threads / etc) on Meta,
@@ -1812,6 +1853,26 @@ function AdsTechnicalView({
         stats={stats}
         render={(s) => s.platforms.map((p) => p.name).join(", ") || "—"}
       />
+      {/* Surface mix from silva's regionStats — where Google ACTUALLY
+          placed each creative (SEARCH / YOUTUBE / SHOPPING / MAPS).
+          More accurate than the format-derived `platforms` row above
+          because it reads Google's authoritative serving stats. Only
+          rendered on Google channel; legacy rows w/o regionStats fall
+          back to "—". */}
+      {isGoogle && (
+        <CompareTable
+          label={t("compare", "googleSurfaceMix")}
+          stats={stats}
+          render={(s) =>
+            s.channel === "google" && s.surfaceMix.length > 0
+              ? s.surfaceMix
+                  .slice(0, 4)
+                  .map((sm) => sm.name)
+                  .join(", ")
+              : "—"
+          }
+        />
+      )}
       <CompareTable
         label={t("compare", "avgDuration")}
         stats={stats}
@@ -1821,6 +1882,35 @@ function AdsTechnicalView({
             : "—"
         }
       />
+      {/* Google's authoritative running-time count from silva
+          `numServedDays` — distinct from avgDuration above which is
+          our heuristic from start/end dates. When both are visible
+          the user sees Google's number alongside ours, useful for
+          longer campaigns where firstShown predates our scrape. */}
+      {isGoogle && (
+        <CompareTable
+          label={t("compare", "googleAvgServedDays")}
+          stats={stats}
+          render={(s) =>
+            s.channel === "google" && s.avgServedDays > 0
+              ? `${s.avgServedDays} ${t("compare", "googleAvgServedDaysSuffix")}`
+              : "—"
+          }
+        />
+      )}
+      {/* Region footprint — distinct creativeRegions count from silva.
+          A pan-EU brand will show 24+; an Italy-only brand 1. */}
+      {isGoogle && (
+        <CompareTable
+          label={t("compare", "googleRegionFootprint")}
+          stats={stats}
+          render={(s) =>
+            s.channel === "google" && s.regionFootprint > 0
+              ? `${s.regionFootprint} ${t("compare", "googleRegionFootprintSuffix")}`
+              : "—"
+          }
+        />
+      )}
       {/* Avg copy length is dropped entirely on Google — the metric is
           structurally meaningless there (text ads are length-capped by
           Google) and the actor does not return ad_text anyway. Showing

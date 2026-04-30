@@ -589,6 +589,24 @@ const translations = {
       it: "Superfici Google",
       en: "Google surfaces",
     },
+    googleCtaEmpty: {
+      it: "Google Transparency espone il bottone CTA solo per alcuni creativi VIDEO Skippable. Per la maggior parte degli annunci, Google non rende pubblico questo dato.",
+      en: "Google Transparency only exposes the CTA button for some Skippable VIDEO creatives. For most ads, Google does not publish this field.",
+    },
+    googleAvgServedDays: {
+      it: "Giorni medi di erogazione",
+      en: "Avg served days",
+    },
+    googleAvgServedDaysSuffix: { it: "giorni", en: "days" },
+    googleRegionFootprint: {
+      it: "Paesi di erogazione",
+      en: "Region footprint",
+    },
+    googleRegionFootprintSuffix: { it: "paesi", en: "countries" },
+    googleSurfaceMix: {
+      it: "Mix superfici (servito)",
+      en: "Surface mix (served)",
+    },
     videoPreviewUnavailable: {
       it: "Video — anteprima non disponibile",
       en: "Video — preview unavailable",
