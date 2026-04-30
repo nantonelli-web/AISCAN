@@ -23,6 +23,7 @@
  */
 
 import type { NormalizedAd, ScrapeResult } from "./service";
+import { getApifyCredentials } from "@/lib/billing/credentials";
 
 const APIFY_BASE = "https://api.apify.com/v2";
 const GOOGLE_ACTOR_ID =
@@ -30,19 +31,20 @@ const GOOGLE_ACTOR_ID =
   "automation-lab/google-ads-scraper";
 const isMemoActor = GOOGLE_ACTOR_ID.startsWith("memo23/");
 
-function getToken(): string {
+function getToken(override?: string): string {
+  if (override) return override;
   const token = process.env.APIFY_API_TOKEN;
   if (!token) throw new Error("APIFY_API_TOKEN missing.");
   return token;
 }
 
-async function apifyFetch(path: string, init?: RequestInit) {
-  const token = getToken();
+async function apifyFetch(path: string, init?: RequestInit, token?: string) {
+  const resolved = getToken(token);
   const res = await fetch(`${APIFY_BASE}${path}`, {
     ...init,
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${token}`,
+      authorization: `Bearer ${resolved}`,
       ...init?.headers,
     },
   });
@@ -139,6 +141,10 @@ export interface GoogleScrapeOptions {
    *  falls back to the global "anywhere" sweep on memo23 (legacy
    *  behaviour, expensive — pass real countries to keep cost sane). */
   country?: string;
+  /** When supplied, the service resolves the Apify token via the
+   *  billing helper (getApifyCredentials) so subscription-mode
+   *  workspaces use their BYO key. */
+  workspaceId?: string;
 }
 
 /**
@@ -351,6 +357,13 @@ function normalize(ad: RawGoogleAd): NormalizedAd {
 export async function scrapeGoogleAds(
   opts: GoogleScrapeOptions
 ): Promise<ScrapeResult> {
+  // Resolve credentials up front. Subscription-mode workspaces with
+  // no BYO Apify key throw BillingError("MISSING_KEY","apify") here
+  // — caught in the route handler to return a 400 with a clear
+  // "configure your Apify key" message.
+  const creds = await getApifyCredentials(opts.workspaceId);
+  const token = creds.token;
+
   const maxAds = opts.maxResults ?? 200;
   const t0 = Date.now();
 
@@ -454,7 +467,7 @@ export async function scrapeGoogleAds(
   const run = await apifyFetch(actorPath, {
     method: "POST",
     body: JSON.stringify(input),
-  });
+  }, token);
 
   const runId: string = run.data?.id ?? run.id ?? "";
   const datasetId: string =
@@ -477,7 +490,7 @@ export async function scrapeGoogleAds(
   ) {
     await new Promise((r) => setTimeout(r, 3000));
     pollCount++;
-    const runInfo = await apifyFetch(`/actor-runs/${runId}`);
+    const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
     status = runInfo.data?.status ?? runInfo.status ?? status;
     console.log(`[Google Ads] Poll #${pollCount}: status=${status} elapsed=${Math.round((Date.now() - t0) / 1000)}s`);
   }
@@ -493,7 +506,7 @@ export async function scrapeGoogleAds(
     // fails we still throw the original timeout error.
     if (status === "RUNNING" || status === "READY") {
       try {
-        await apifyFetch(`/actor-runs/${runId}/abort`, { method: "POST" });
+        await apifyFetch(`/actor-runs/${runId}/abort`, { method: "POST" }, token);
         console.warn(`[Google Ads] Aborted run ${runId} on our side after ${elapsed}s`);
       } catch (abortErr) {
         console.error(
@@ -517,6 +530,8 @@ export async function scrapeGoogleAds(
   for (let offset = 0; offset < safetyCap; offset += pageSize) {
     const page = await apifyFetch(
       `/datasets/${datasetId}/items?format=json&limit=${pageSize}&offset=${offset}`,
+      undefined,
+      token,
     );
     const pageItems: Array<RawGoogleAd | MemoRawGoogleAd> = Array.isArray(page)
       ? page
@@ -586,7 +601,7 @@ export async function scrapeGoogleAds(
 
   let costCu = 0;
   try {
-    const runInfo = await apifyFetch(`/actor-runs/${runId}`);
+    const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
     costCu = runInfo.data?.usageTotalUsd ?? 0;
   } catch {
     /* ignore */
@@ -604,6 +619,7 @@ export async function scrapeGoogleAds(
     // Google Ads is not scraped per-country, so callers must NOT use
     // this list to drive a status reconcile. Empty by design.
     scannedCountries: [],
+    credentials: creds,
     debug: {
       actorId: GOOGLE_ACTOR_ID,
       input,

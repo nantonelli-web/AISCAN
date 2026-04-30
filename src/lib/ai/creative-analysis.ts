@@ -12,6 +12,8 @@
  * vision. See memory/project_ai_model_options.md for the matrix.
  */
 
+import { getOpenRouterCredentials } from "@/lib/billing/credentials";
+
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const COPYWRITER_MODEL = "anthropic/claude-haiku-4.5";
 const CREATIVE_DIRECTOR_MODEL = "google/gemini-2.5-flash";
@@ -195,10 +197,19 @@ export async function analyzeCopy(
   brands: BrandAdData[],
   locale: "it" | "en" = "en",
   source?: "meta" | "google",
+  workspaceId?: string,
 ): Promise<CreativeAnalysisResult["copywriterReport"]> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    console.error("OPENROUTER_API_KEY not set, skipping copy analysis");
+  // BYO dispatch: subscription-mode workspaces hit their own
+  // OpenRouter key. Caller without a workspace context falls back
+  // to env (legacy behaviour). MISSING_KEY surfaces here as a
+  // BillingError that the comparisons route translates to a
+  // user-facing "configure your OpenRouter key" message.
+  let apiKey: string;
+  try {
+    const creds = await getOpenRouterCredentials(workspaceId);
+    apiKey = creds.token;
+  } catch (e) {
+    console.error("[analyzeCopy] credentials error:", e);
     return null;
   }
 
@@ -345,10 +356,15 @@ export async function analyzeVisuals(
   brands: BrandAdData[],
   locale: "it" | "en" = "en",
   source?: "meta" | "google",
+  workspaceId?: string,
 ): Promise<CreativeAnalysisResult["creativeDirectorReport"]> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    console.error("OPENROUTER_API_KEY not set, skipping visual analysis");
+  // Same BYO dispatch as analyzeCopy.
+  let apiKey: string;
+  try {
+    const creds = await getOpenRouterCredentials(workspaceId);
+    apiKey = creds.token;
+  } catch (e) {
+    console.error("[analyzeVisuals] credentials error:", e);
     return null;
   }
 
