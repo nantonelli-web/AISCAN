@@ -2316,7 +2316,13 @@ function LatestAdTile({
         <div
           className={cn(
             "relative w-full bg-muted",
-            ad.format === "text" ? "aspect-[2/1]" : "aspect-square",
+            // 2:1 lands closest to Google text-ad screenshot ratio so
+            // we don't waste vertical space on a square tile. Padding
+            // shrinks the image inside that tile by ~25% so the
+            // built-in Google copy (rendered at desktop-search size)
+            // doesn't read as oversized once placed inside a compact
+            // Compare card.
+            ad.format === "text" ? "aspect-[2/1] p-6" : "aspect-square",
           )}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
