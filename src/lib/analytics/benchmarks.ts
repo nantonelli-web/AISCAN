@@ -138,6 +138,25 @@ export interface BenchmarkData {
   avgDurationByCompetitor: { name: string; days: number }[];
   /** Average copy length per competitor */
   avgCopyLengthByCompetitor: { name: string; chars: number }[];
+  /** silva-only — Google's authoritative running-time count per brand,
+   *  averaged from `raw_data.numServedDays`. Distinct from
+   *  `avgDurationByCompetitor` which is our heuristic from start/end
+   *  dates. Empty when source !== "google" or rows pre-date silva. */
+  avgServedDaysByCompetitor: { name: string; days: number }[];
+  /** silva-only — distinct `raw_data.creativeRegions[]` per brand.
+   *  Tells "pan-EU footprint" vs "single-market". Empty when source
+   *  !== "google" or rows don't carry the field. */
+  regionFootprintByCompetitor: { name: string; countries: number }[];
+  /** silva-only — surface mix per brand from
+   *  `raw_data.regionStats[].surfaceServingStats[]` (SEARCH / YOUTUBE /
+   *  SHOPPING / MAPS). Counts surface occurrences across all regions.
+   *  Often empty even on Google because Google publishes
+   *  surfaceServingStats only above an internal impression threshold —
+   *  the UI surfaces an explanatory empty-state when the list is empty. */
+  surfaceMixByCompetitor: {
+    competitor: string;
+    data: { name: string; count: number }[];
+  }[];
   /** Ad refresh rate: avg new ads per week per competitor over
    *  `refreshRateWindowDays`. The window matches the user-selected
    *  dateFrom/dateTo so refresh rate is comparable to the rest of the
@@ -829,6 +848,92 @@ export async function computeBenchmarks(
     }))
     .sort((a, b) => b.chars - a.chars);
 
+  // ---- silva-only Google enrichments ----
+  // Three Google-specific signals that silva returns and we used to
+  // throw away. All read from raw_data and degrade gracefully on rows
+  // that don't carry the field (legacy automation-lab / Meta rows
+  // simply don't enter the maps).
+  const surfaceByComp = new Map<string, Map<string, number>>();
+  const servedDaysByComp = new Map<string, number[]>();
+  const regionsByComp = new Map<string, Set<string>>();
+  for (const ad of ads) {
+    const key = ad.competitor_id ?? "unknown";
+    const raw = ad.raw_data;
+    if (!raw) continue;
+
+    // surfaceServingStats[].surfaceCode (SEARCH / YOUTUBE / SHOPPING /
+    // MAPS). Only published by Google for ads above an internal
+    // impression threshold, so this map stays empty for many brands —
+    // that's the empty-state the UI explains, not a bug.
+    const regionStats = (raw as Record<string, unknown>).regionStats;
+    if (Array.isArray(regionStats)) {
+      const sMap = surfaceByComp.get(key) ?? new Map<string, number>();
+      for (const r of regionStats) {
+        const stats = (r as Record<string, unknown>)?.surfaceServingStats;
+        if (!Array.isArray(stats)) continue;
+        for (const s of stats) {
+          const code = (s as Record<string, unknown>)?.surfaceCode;
+          if (typeof code === "string" && code) {
+            sMap.set(code, (sMap.get(code) ?? 0) + 1);
+          }
+        }
+      }
+      if (sMap.size > 0) surfaceByComp.set(key, sMap);
+    }
+
+    // numServedDays — Google's authoritative running-time count, more
+    // accurate than our heuristic on long-running campaigns whose
+    // firstShown predates our scrape.
+    const n = (raw as Record<string, unknown>).numServedDays;
+    if (typeof n === "number" && Number.isFinite(n) && n >= 0) {
+      const list = servedDaysByComp.get(key) ?? [];
+      list.push(n);
+      servedDaysByComp.set(key, list);
+    }
+
+    // creativeRegions[] — distinct region names ("Italy", "Germany"…).
+    // We just count the set size so the UI can show "Served in 24
+    // countries" — granular per-country UI belongs to brand detail.
+    const regions = (raw as Record<string, unknown>).creativeRegions;
+    if (Array.isArray(regions)) {
+      const set = regionsByComp.get(key) ?? new Set<string>();
+      for (const r of regions) if (typeof r === "string" && r) set.add(r);
+      if (set.size > 0) regionsByComp.set(key, set);
+    }
+  }
+
+  const surfaceMixByCompetitor = [...surfaceByComp.entries()]
+    .map(([id, m]) => ({
+      competitor: compMap.get(id) ?? "N/A",
+      data: [...m.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, count]) => ({ name, count })),
+    }))
+    .sort(
+      (a, b) =>
+        b.data.reduce((s, d) => s + d.count, 0) -
+        a.data.reduce((s, d) => s + d.count, 0),
+    );
+
+  const avgServedDaysByCompetitor = [...servedDaysByComp.entries()]
+    .map(([id, list]) => ({
+      name: compMap.get(id) ?? "N/A",
+      days:
+        list.length > 0
+          ? Math.round(list.reduce((a, b) => a + b, 0) / list.length)
+          : 0,
+    }))
+    .filter((e) => e.days > 0)
+    .sort((a, b) => b.days - a.days);
+
+  const regionFootprintByCompetitor = [...regionsByComp.entries()]
+    .map(([id, set]) => ({
+      name: compMap.get(id) ?? "N/A",
+      countries: set.size,
+    }))
+    .filter((e) => e.countries > 0)
+    .sort((a, b) => b.countries - a.countries);
+
   // ---- Refresh rate ----
   // Window matches the user-selected dateFrom/dateTo so refresh rate is
   // comparable across brands evaluated under the same analysis window.
@@ -1033,6 +1138,9 @@ export async function computeBenchmarks(
     platformByCompetitor,
     avgDurationByCompetitor,
     avgCopyLengthByCompetitor,
+    avgServedDaysByCompetitor,
+    regionFootprintByCompetitor,
+    surfaceMixByCompetitor,
     refreshRate,
     refreshRateWindowDays: windowDays,
     refreshRateDebug,

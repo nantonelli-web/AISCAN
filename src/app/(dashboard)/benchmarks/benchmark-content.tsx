@@ -298,28 +298,106 @@ export async function BenchmarkContent({
         </Card>
       )}
 
-      {/* CTA per brand. Skipped on Google: the actor does not return
-          CTA text, so we'd render an empty bar grid that the user
-          would read as "no CTAs", not "channel doesn't expose this". */}
-      {channel !== "google" && (
+      {/* CTA per brand. silva exposes CTA on a fraction of Google
+          creatives (mostly Skippable VIDEO) so we surface what is
+          present and explain the empty case rather than skipping the
+          card entirely. Same UX as Compare. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("benchmarks", "topCtaPerBrand")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descTopCtaPerBrand")}</p>
+          {data.ctaMixByCompetitor.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-4">
+              {channel === "google"
+                ? t("compare", "googleCtaEmpty")
+                : t("benchmarks", "noData")}
+            </p>
+          ) : (
+            <div className={`grid gap-6 ${data.ctaMixByCompetitor.length <= 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
+              {data.ctaMixByCompetitor.map((entry) => (
+                <div key={entry.competitor} className="space-y-2">
+                  <p className="text-xs font-medium text-gold text-center">{entry.competitor}</p>
+                  <HorizontalBarChart data={entry.data} dataKey="count" label={t("benchmarks", "adsLabel")} />
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Google-only enrichments — silva surfaces these three signals
+          and we render them only when the channel is Google. Surface
+          mix and region footprint are silva-only; avg served days
+          cross-checks our duration heuristic against Google's
+          authoritative numServedDays. */}
+      {channel === "google" && (
         <Card>
           <CardHeader>
-            <CardTitle>{t("benchmarks", "topCtaPerBrand")}</CardTitle>
+            <CardTitle>{t("benchmarks", "surfaceMixPerBrand")}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descTopCtaPerBrand")}</p>
-            {data.ctaMixByCompetitor.length === 0 ? (
-              <p className="text-xs text-muted-foreground py-4">{t("benchmarks", "noData")}</p>
+            <p className="text-xs text-muted-foreground mb-3">
+              {t("benchmarks", "descSurfaceMixPerBrand")}
+            </p>
+            {data.surfaceMixByCompetitor.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-4">
+                {t("compare", "googleSurfaceMixEmpty")}
+              </p>
             ) : (
-              <div className={`grid gap-6 ${data.ctaMixByCompetitor.length <= 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
-                {data.ctaMixByCompetitor.map((entry) => (
+              <div className={`grid gap-6 ${data.surfaceMixByCompetitor.length <= 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
+                {data.surfaceMixByCompetitor.map((entry) => (
                   <div key={entry.competitor} className="space-y-2">
                     <p className="text-xs font-medium text-gold text-center">{entry.competitor}</p>
-                    <HorizontalBarChart data={entry.data} dataKey="count" label={t("benchmarks", "adsLabel")} />
+                    <HorizontalBarChart
+                      data={entry.data}
+                      dataKey="count"
+                      label={t("benchmarks", "adsLabel")}
+                      color="#5b7ea3"
+                    />
                   </div>
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {channel === "google" && data.avgServedDaysByCompetitor.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("benchmarks", "avgServedDaysPerBrand")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">
+              {t("benchmarks", "descAvgServedDaysPerBrand")}
+            </p>
+            <HorizontalBarChart
+              data={data.avgServedDaysByCompetitor}
+              dataKey="days"
+              label={t("benchmarks", "daysAxisLabel")}
+              color="#6b8e6b"
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {channel === "google" && data.regionFootprintByCompetitor.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("benchmarks", "regionFootprintPerBrand")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">
+              {t("benchmarks", "descRegionFootprintPerBrand")}
+            </p>
+            <HorizontalBarChart
+              data={data.regionFootprintByCompetitor}
+              dataKey="countries"
+              label={t("benchmarks", "countriesAxisLabel")}
+              color="#8a6bb0"
+            />
           </CardContent>
         </Card>
       )}

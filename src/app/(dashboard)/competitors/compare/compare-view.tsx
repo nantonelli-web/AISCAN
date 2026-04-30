@@ -2796,14 +2796,16 @@ function BenchmarkCharts({
         </CardContent>
       </Card>
 
-      {/* CTA — the Google Transparency actor does not return CTA text,
-          so the chart is replaced by an explanatory note instead of
-          rendering an empty bar. */}
+      {/* CTA — silva exposes CTA on a fraction of Google creatives
+          (mostly Skippable VIDEO). Render what is present and explain
+          the empty state instead of refusing entirely. */}
       <Card>
         <CardHeader><CardTitle>{t("benchmarks", "topCta")}</CardTitle></CardHeader>
         <CardContent>
-          {isGoogle ? (
-            <p className="text-sm text-muted-foreground py-6">{naGoogle}</p>
+          {data.topCtas.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6">
+              {isGoogle ? t("compare", "googleCtaEmpty") : naGoogle}
+            </p>
           ) : (
             <>
               <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descTopCta")}</p>
@@ -2883,6 +2885,79 @@ function BenchmarkCharts({
           <CardContent>
             <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descTopCountries")}</p>
             <HorizontalBarChart data={data.topTargetedCountries} dataKey="count" label={t("benchmarks", "adsLabel")} color="#6b8e6b" />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Google-only enrichments — same three sections as the standalone
+          Benchmarks page, mirrored here so the user sees consistent
+          data on both surfaces. */}
+      {isGoogle && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("benchmarks", "surfaceMixPerBrand")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">
+              {t("benchmarks", "descSurfaceMixPerBrand")}
+            </p>
+            {data.surfaceMixByCompetitor.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-4">
+                {t("compare", "googleSurfaceMixEmpty")}
+              </p>
+            ) : (
+              <div className={`grid gap-6 ${data.surfaceMixByCompetitor.length <= 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
+                {data.surfaceMixByCompetitor.map((entry) => (
+                  <div key={entry.competitor} className="space-y-2">
+                    <p className="text-xs font-medium text-gold text-center">{entry.competitor}</p>
+                    <HorizontalBarChart
+                      data={entry.data}
+                      dataKey="count"
+                      label={t("benchmarks", "adsLabel")}
+                      color="#5b7ea3"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {isGoogle && data.avgServedDaysByCompetitor.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("benchmarks", "avgServedDaysPerBrand")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">
+              {t("benchmarks", "descAvgServedDaysPerBrand")}
+            </p>
+            <HorizontalBarChart
+              data={data.avgServedDaysByCompetitor}
+              dataKey="days"
+              label={t("benchmarks", "daysAxisLabel")}
+              color="#6b8e6b"
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {isGoogle && data.regionFootprintByCompetitor.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("benchmarks", "regionFootprintPerBrand")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">
+              {t("benchmarks", "descRegionFootprintPerBrand")}
+            </p>
+            <HorizontalBarChart
+              data={data.regionFootprintByCompetitor}
+              dataKey="countries"
+              label={t("benchmarks", "countriesAxisLabel")}
+              color="#8a6bb0"
+            />
           </CardContent>
         </Card>
       )}

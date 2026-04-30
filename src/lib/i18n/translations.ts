@@ -1003,6 +1003,31 @@ const translations = {
       en: "The most targeted countries in monitored campaigns.",
     },
     daysAxisLabel: { it: "giorni", en: "days" },
+    countriesAxisLabel: { it: "paesi", en: "countries" },
+    surfaceMixPerBrand: {
+      it: "Mix superfici Google (servito)",
+      en: "Google surface mix (served)",
+    },
+    descSurfaceMixPerBrand: {
+      it: "Dove ciascun brand fa apparire le ads (Search / YouTube / Shopping / Maps), in base ai dati che Google pubblica per gli annunci con impressioni accumulate sufficienti.",
+      en: "Where each brand's ads actually serve (Search / YouTube / Shopping / Maps), from the surface stats Google publishes for ads with enough accumulated impressions.",
+    },
+    avgServedDaysPerBrand: {
+      it: "Giorni medi di erogazione (Google)",
+      en: "Avg served days (Google)",
+    },
+    descAvgServedDaysPerBrand: {
+      it: "Numero medio di giorni di erogazione per brand, calcolato sui giorni autoritativi pubblicati da Google (numServedDays). Si confronta con la durata media calcolata su start/end date.",
+      en: "Per-brand average of Google's authoritative running-time count (numServedDays). Cross-checks the duration heuristic computed from start/end dates.",
+    },
+    regionFootprintPerBrand: {
+      it: "Estensione geografica (Google)",
+      en: "Region footprint (Google)",
+    },
+    descRegionFootprintPerBrand: {
+      it: "Numero di paesi distinti in cui Google ha servito le ads di ciascun brand (creativeRegions). Aiuta a distinguere brand pan-EU da brand mono-paese.",
+      en: "Distinct countries where Google has served each brand's ads (creativeRegions). Tells pan-EU brands apart from single-market ones.",
+    },
     charsAxisLabel: { it: "caratteri", en: "chars" },
     adsPerWeekAxisLabel: { it: "ads/sett.", en: "ads/wk" },
   },
