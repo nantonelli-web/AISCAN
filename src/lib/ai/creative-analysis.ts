@@ -260,18 +260,41 @@ export async function analyzeCopy(
         : source === "google"
           ? "No ad copy available on the scanned ads. Google Transparency Library only exposes ad text / headline for a fraction of creatives (mostly Shopping and some Skippable VIDEO)."
           : "No ad copy available on the scanned ads.";
+    // Empty brandAnalyses + message in comparison only — UI renders a
+    // single centred message instead of N empty per-brand cards.
     return {
-      brandAnalyses: brands.map((b) => ({
-        brandName: b.brandName,
-        toneOfVoice: message,
-        copyStyle: "",
-        emotionalTriggers: [],
-        ctaPatterns: "",
-        strengths: "",
-        weaknesses: "",
-      })),
+      brandAnalyses: [],
       comparison: message,
-      recommendations: message,
+      recommendations: "",
+    };
+  }
+
+  // Asymmetry guard: if some brands have copy but others have none,
+  // the per-brand comparison would render with one full side and the
+  // other side filled with hallucinated "N/A" values. Refuse cleanly.
+  const brandsWithoutCopy = brands
+    .filter(
+      (b) =>
+        !b.ads.some(
+          (ad) =>
+            (ad.headline && ad.headline.length > 0) ||
+            (ad.ad_text && ad.ad_text.length > 0) ||
+            (ad.description && ad.description.length > 0) ||
+            (ad.cta && ad.cta.length > 0),
+        ),
+    )
+    .map((b) => b.brandName);
+  if (brandsWithoutCopy.length > 0) {
+    const joiner = locale === "it" ? " e " : " and ";
+    const missing = brandsWithoutCopy.join(joiner);
+    const message =
+      locale === "it"
+        ? `Confronto copy non eseguito: ${missing} non ha copy strutturata (solo annunci che Google Transparency non rivela), mentre l'altro brand sì. Un confronto su due lati così asimmetrici sarebbe fuorviante. Riprova quando entrambi i brand avranno headline / body / CTA da confrontare.`
+        : `Copy comparison was not run: ${missing} has no structured copy (only ads that Google Transparency does not reveal), while the other brand does. A comparison across such asymmetric sides would be misleading. Retry when both brands have headline / body / CTA to compare.`;
+    return {
+      brandAnalyses: [],
+      comparison: message,
+      recommendations: "",
     };
   }
 
@@ -444,11 +467,23 @@ export async function analyzeVisuals(
     }
   }
 
-  // No analysable visual creatives — return a structured placeholder
-  // so the UI can render a clear message instead of falling back to
-  // "an error occurred". Differentiate the Google text-only case
-  // because that's the most common scenario worth explaining.
-  if (imageEntries.length === 0) {
+  // Per-brand image counts. The comparison is only meaningful when
+  // EVERY selected brand has at least one analysable visual — letting
+  // it through with one brand at zero produces a sbilanced report
+  // where the empty side fills with "N/A" the LLM invents to honour
+  // the prompt's "one entry per brand" requirement.
+  const perBrandCount = new Map<string, number>();
+  for (const b of brands) perBrandCount.set(b.brandName, 0);
+  for (const e of imageEntries) {
+    perBrandCount.set(e.brandName, (perBrandCount.get(e.brandName) ?? 0) + 1);
+  }
+  const brandsWithoutImages = brands
+    .map((b) => b.brandName)
+    .filter((name) => (perBrandCount.get(name) ?? 0) === 0);
+
+  if (imageEntries.length === 0 || brandsWithoutImages.length > 0) {
+    // Decide which scenario we're in so the user gets a precise
+    // explanation instead of a generic "no data".
     const totalAds = brands.reduce((s, b) => s + b.ads.length, 0);
     const textOnlyAds = brands.reduce(
       (s, b) =>
@@ -456,32 +491,37 @@ export async function analyzeVisuals(
         b.ads.filter((a) => (a.format ?? "").toLowerCase() === "text").length,
       0,
     );
-    const dominantText =
-      totalAds > 0 && textOnlyAds / totalAds >= 0.5;
+    const dominantText = totalAds > 0 && textOnlyAds / totalAds >= 0.5;
+    const allBrandsEmpty = imageEntries.length === 0;
+    // Names of the brands that lack visual creatives. Joined with `e`
+    // / `and` so the message reads naturally even with 1 or 2 items.
+    const joiner = locale === "it" ? " e " : " and ";
+    const missingNames = brandsWithoutImages.join(joiner);
+
     const message =
       locale === "it"
-        ? dominantText
-          ? "Analisi creativa non disponibile: la selezione contiene solo annunci Google Search (testuali). Non hanno foto, video o grafica originale — solo testo formattato in stile risultato di ricerca, quindi non c'è niente di visivo da analizzare. Il confronto creativo torna utile su brand con creativi Image, Video o Shopping."
-          : "Nessun creativo visivo disponibile da analizzare. Gli annunci scansionati non includono immagini, video o caroselli prodotto utilizzabili per il confronto."
-        : dominantText
-          ? "Visual analysis is not available: the selection only contains Google Search ads (text). They have no photo, video or original graphics — just formatted text in search-result style, so there is nothing visual to analyse. Creative comparison is meaningful on brands with Image, Video or Shopping creatives."
-          : "No visual creatives available to analyse. The scanned ads do not include usable images, videos or shopping carousels for comparison.";
+        ? allBrandsEmpty
+          ? dominantText
+            ? "Confronto creativo non disponibile: i brand selezionati hanno solo annunci Google Search (testuali). Non hanno foto, video o grafica originale — solo testo formattato in stile risultato di ricerca, quindi non c'è niente di visivo da confrontare. Il confronto creativo torna utile su brand con creativi Image, Video o Shopping."
+            : "Confronto creativo non disponibile: nessun brand selezionato ha creativi visivi (immagini, video o caroselli prodotto) utilizzabili per il confronto."
+          : `Confronto creativo non eseguito: ${missingNames} non ha creativi visivi (solo annunci testuali in Google Search), mentre l'altro brand sì. Un confronto su due lati così asimmetrici sarebbe fuorviante. Riprova quando entrambi i brand avranno creativi Image, Video o Shopping da confrontare.`
+        : allBrandsEmpty
+          ? dominantText
+            ? "Creative comparison is not available: the selected brands only have Google Search ads (text). They have no photo, video or original graphics — just formatted text in search-result style, so there is nothing visual to compare. Creative comparison is meaningful on brands with Image, Video or Shopping creatives."
+            : "Creative comparison is not available: none of the selected brands has usable visual creatives (images, videos or shopping carousels) for comparison."
+          : `Creative comparison was not run: ${missingNames} has no visual creatives (only text ads in Google Search), while the other brand does. A comparison across such asymmetric sides would be misleading. Retry when both brands have Image, Video or Shopping creatives to compare.`;
     console.warn(
-      `[analyzeVisuals] no analysable images — totalAds=${totalAds} textOnly=${textOnlyAds} dominantText=${dominantText}`,
+      `[analyzeVisuals] skipping run — totalAds=${totalAds} textOnly=${textOnlyAds} dominantText=${dominantText} brandsMissingImages=${brandsWithoutImages.join(", ") || "none"}`,
     );
+    // Empty brandAnalyses signals "skip the per-brand grid entirely"
+    // to the renderer (analysis-report.tsx) — it now shows a single
+    // centred message card instead of N empty per-brand cards filled
+    // with hallucinated N/A values. Keep `recommendations` empty so
+    // we don't echo the same paragraph twice.
     return {
-      brandAnalyses: brands.map((b) => ({
-        brandName: b.brandName,
-        visualStyle: message,
-        colorPalette: "",
-        photographyStyle: "",
-        brandConsistency: "",
-        formatPreferences: "",
-        strengths: "",
-        weaknesses: "",
-      })),
+      brandAnalyses: [],
       comparison: message,
-      recommendations: message,
+      recommendations: "",
     };
   }
 

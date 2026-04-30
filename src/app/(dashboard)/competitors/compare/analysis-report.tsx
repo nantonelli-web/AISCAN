@@ -28,6 +28,12 @@ export function AnalysisReport({
     if (!Array.isArray(report.brandAnalyses)) {
       return <AgentFailed text={t("creativeAnalysis", "copywriterFailed")} />;
     }
+    // Empty brandAnalyses signals an explicit skip (e.g. Google text-
+    // only brands where the comparison is structurally meaningless).
+    // Render a single centred message card instead of an empty grid.
+    if (report.brandAnalyses.length === 0) {
+      return <SkippedAnalysisCard message={String(report.comparison ?? "")} />;
+    }
     return (
       <div className="space-y-4">
         <div className={cn("grid gap-4", report.brandAnalyses.length === 2 ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1 md:grid-cols-3")}>
@@ -71,6 +77,12 @@ export function AnalysisReport({
   const report = result.creativeDirectorReport;
   if (!Array.isArray(report.brandAnalyses)) {
     return <AgentFailed text={t("creativeAnalysis", "creativeDirectorFailed")} />;
+  }
+  // Same skipped-analysis path as copywriter — empty brandAnalyses
+  // means the comparison was explicitly refused (asymmetric image
+  // availability, all-text selection, etc.). Show one card.
+  if (report.brandAnalyses.length === 0) {
+    return <SkippedAnalysisCard message={String(report.comparison ?? "")} />;
   }
   return (
     <div className="space-y-4">
@@ -159,6 +171,27 @@ function AgentFailed({ text }: { text: string }) {
     <div className="py-16 text-center space-y-2">
       <AlertCircle className="size-8 text-muted-foreground/50 mx-auto" />
       <p className="text-sm text-muted-foreground">{text}</p>
+    </div>
+  );
+}
+
+/**
+ * Single explanatory card rendered when an AI section is intentionally
+ * skipped — e.g. Google text-only brands where the visual comparison is
+ * structurally meaningless. Distinct from `AgentFailed` because this is
+ * not a model error, it's a deliberate refusal that the user should
+ * read as informative, not as something to retry.
+ */
+function SkippedAnalysisCard({ message }: { message: string }) {
+  if (!message) {
+    return null;
+  }
+  return (
+    <div className="rounded-lg border border-border bg-muted/30 p-6 text-center max-w-2xl mx-auto">
+      <AlertCircle className="size-8 text-muted-foreground/60 mx-auto mb-3" />
+      <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
+        {message}
+      </p>
     </div>
   );
 }
