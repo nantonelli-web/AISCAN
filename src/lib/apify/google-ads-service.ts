@@ -136,11 +136,19 @@ interface MemoRawGoogleAd {
 
 interface SilvaGoogleAdVariation {
   headline?: string | null;
+  // The actor returns the description text under `body`, not
+  // `description` (verified on a 45-record live dataset
+  // 2026-04-30). The public docs were ambiguous on this. Keep
+  // `description` as a defensive fallback in case a future
+  // version renames it back.
+  body?: string | null;
   description?: string | null;
   cta?: string | null;
   imageUrl?: string | null;
   videoUrl?: string | null;
   clickUrl?: string | null;
+  // base64-encoded brand logo on text ads — not used for now.
+  logoUri?: string | null;
   [k: string]: unknown;
 }
 
@@ -365,14 +373,17 @@ function normalizeSilva(
         ? fallbackRegions.map((r) => r.toUpperCase())
         : null;
 
+  // Description text is in `body` on silva (live-verified
+  // 2026-04-30). `description` kept as fallback for forward-compat.
+  const bodyText = variant.body ?? variant.description ?? null;
+
   return {
     ad_archive_id: adId,
-    // silva exposes `description` consistently; mirror Meta semantics
-    // by mapping it to ad_text (which is what avg_copy_length and
-    // AI Copy analysis read).
-    ad_text: variant.description ?? null,
+    // mirror Meta semantics: map description → ad_text so
+    // avg_copy_length and AI Copy analysis pick it up.
+    ad_text: bodyText,
     headline: variant.headline ?? null,
-    description: variant.description ?? null,
+    description: bodyText,
     cta: variant.cta ?? null,
     image_url: variant.imageUrl ?? null,
     video_url: variant.videoUrl ?? null,
@@ -644,10 +655,16 @@ export async function scrapeGoogleAds(
     throw new Error("Apify run started but no datasetId returned.");
   }
 
-  // Poll until the run finishes (max 3 min)
+  // Poll until the run finishes. Cap at 4 min to leave 1 min budget
+  // for the dataset fetch + DB upsert + DB updates inside Vercel's
+  // 5-min function cap. silva95gustavo on a real Luisa Viola test
+  // (2026-04-30) emitted ~45 records before our previous 3-min cap
+  // killed it; lifting to 4 min should let typical brands complete.
+  // If a brand still sfora con questo cap, è il segnale che serve
+  // background-job pattern (out of scope of this lift).
   let status = run.data?.status ?? run.status ?? "RUNNING";
   let pollCount = 0;
-  const maxWait = 3 * 60 * 1000;
+  const maxWait = 4 * 60 * 1000;
 
   while (
     (status === "RUNNING" || status === "READY") &&
