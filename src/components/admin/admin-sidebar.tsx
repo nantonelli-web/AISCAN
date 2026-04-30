@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Users, Coins, DollarSign, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, Coins, DollarSign, LogOut, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { toast } from "sonner";
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/admin/workspaces", label: "Workspaces", icon: Building2 },
   { href: "/admin/credits", label: "Credits", icon: Coins },
   { href: "/admin/costs", label: "Costs", icon: DollarSign },
 ] as const;

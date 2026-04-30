@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { InviteSection } from "./invite-form";
 import { CompanyForm } from "./company-form";
+import { ProviderKeysForm } from "./provider-keys-form";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import type { UserCompany } from "@/config/company";
 
@@ -36,10 +37,11 @@ export default async function SettingsPage() {
     { data: members },
     { data: invitations },
     { data: company },
+    { data: providerKeys },
   ] = await Promise.all([
     admin
       .from("mait_workspaces")
-      .select("name, slug, created_at")
+      .select("name, slug, billing_mode, created_at")
       .eq("id", profile.workspace_id!)
       .single(),
     admin
@@ -58,8 +60,16 @@ export default async function SettingsPage() {
       )
       .eq("user_id", profile.id)
       .maybeSingle(),
+    admin
+      .from("mait_provider_keys")
+      .select(
+        "id, provider, last_4, label, status, last_tested_at, last_test_error",
+      )
+      .eq("workspace_id", profile.workspace_id!),
   ]);
 
+  const billingMode =
+    (ws?.billing_mode as "credits" | "subscription" | undefined) ?? "credits";
   const isAdmin = ["super_admin", "admin"].includes(profile.role);
 
   return (
@@ -89,6 +99,25 @@ export default async function SettingsPage() {
       <div id="company" className="scroll-mt-20">
         <CompanyForm initial={(company ?? null) as UserCompany | null} />
       </div>
+
+      {/* Provider Keys card — gated to subscription mode AND admin role.
+          Subscription = workspace pays its own provider costs, must
+          configure these. Credit mode users never see the card. */}
+      {isAdmin && billingMode === "subscription" && (
+        <div id="provider-keys" className="scroll-mt-20">
+          <ProviderKeysForm
+            initial={(providerKeys ?? []).map((k) => ({
+              id: k.id as string,
+              provider: k.provider as "apify" | "openrouter",
+              last_4: k.last_4 as string,
+              label: (k.label as string | null) ?? null,
+              status: k.status as "active" | "invalid" | "revoked",
+              last_tested_at: (k.last_tested_at as string | null) ?? null,
+              last_test_error: (k.last_test_error as string | null) ?? null,
+            }))}
+          />
+        </div>
+      )}
 
       <Card>
         <CardHeader>
