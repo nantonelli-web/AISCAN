@@ -31,6 +31,26 @@ export function formatDate(d: string | Date | null | undefined): string {
  * the request. focus() alone is the safe fallback when showPicker()
  * throws (Safari pre-16.4, lost user activation, etc).
  */
+/** Extract the YouTube video ID from any of the watch / share / embed
+ *  URL forms silva returns. Returns the 11-char ID or null. Used by
+ *  Compare and the ad-detail page to substitute the unplayable YouTube
+ *  watch URL with a real thumbnail (`i.ytimg.com/vi/{ID}/hqdefault.jpg`)
+ *  and a click-out link to YouTube. */
+export function youtubeIdFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/i);
+  return m ? m[1] : null;
+}
+
+/** True only if the URL points at a media file the HTML <video> element
+ *  can actually play — i.e. NOT a YouTube/Vimeo watch URL, which need
+ *  an iframe embed and otherwise render as a black rectangle. */
+export function isPlayableVideoUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  if (/youtube\.com|youtu\.be|vimeo\.com/i.test(url)) return false;
+  return true;
+}
+
 export function jumpToDateInput(el: HTMLInputElement | null): void {
   if (!el) return;
   setTimeout(() => {

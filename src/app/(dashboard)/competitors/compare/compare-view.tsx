@@ -29,7 +29,13 @@ import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
 import { FallbackImage } from "@/components/ui/fallback-image";
 import { CollapsibleClientSection } from "../collapsible-client-section";
-import { cn, formatNumber, jumpToDateInput } from "@/lib/utils";
+import {
+  cn,
+  formatNumber,
+  isPlayableVideoUrl,
+  jumpToDateInput,
+  youtubeIdFromUrl,
+} from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { AnalysisReport } from "./analysis-report";
 import {
@@ -2237,23 +2243,6 @@ function OrganicTechnicalView({
  * The naturalWidth check on load catches the icon case: real ad
  * creatives are ≥ 200px wide; Google's info icon is ~120px.
  */
-/** Extract the YouTube video ID from any of the watch / share / embed
- *  URL forms silva returns. Returns the 11-char ID or null. */
-function youtubeIdFromUrl(url: string | null | undefined): string | null {
-  if (!url) return null;
-  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/i);
-  return m ? m[1] : null;
-}
-
-/** True only if the URL points at a media file the HTML <video> element
- *  can actually play — i.e. NOT a YouTube/Vimeo watch URL, which need
- *  an iframe embed and otherwise render as a black rectangle. */
-function isPlayableVideoUrl(url: string | null | undefined): boolean {
-  if (!url) return false;
-  if (/youtube\.com|youtu\.be|vimeo\.com/i.test(url)) return false;
-  return true;
-}
-
 function LatestAdTile({
   ad,
   t,
