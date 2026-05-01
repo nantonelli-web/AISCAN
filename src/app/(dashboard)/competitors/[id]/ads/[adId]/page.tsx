@@ -52,15 +52,20 @@ export default async function AdDetailPage({
     ? (raw?.advertiserName as string) ?? null
     : (raw?.pageName as string) ?? (snapshot?.pageName as string) ?? null;
 
-  // External ad-library link — Meta vs Google. Mirrors the logic in
-  // ad-card.tsx so the detail page and the grid card always agree on
-  // which transparency surface to point to. Only the Meta path has a
-  // safe `id`-based fallback URL; for Google we either have an
-  // advertiserId on raw_data or we omit the link.
+  // External ad-library link — Meta vs Google. silva returns a
+  // creative-specific URL on `raw.adLibraryUrl`
+  // (`/advertiser/{AID}/creative/{CID}`) which lands directly on
+  // the single ad we are inspecting. The previous code ignored it
+  // and constructed a URL pointing at the advertiser page, which
+  // listed ALL the brand ads and made it impossible to find the
+  // specific creative. Prefer the creative-level URL when present
+  // (silva), fall back to the advertiser-level URL otherwise
+  // (legacy automation-lab rows).
   const adLibraryUrl: string | null = isGoogle
-    ? raw?.advertiserId
-      ? `https://adstransparency.google.com/advertiser/${raw.advertiserId}`
-      : null
+    ? (raw?.adLibraryUrl as string | undefined) ??
+        (raw?.advertiserId
+          ? `https://adstransparency.google.com/advertiser/${raw.advertiserId}`
+          : null)
     : (raw?.adLibraryURL as string) ??
       `https://www.facebook.com/ads/library/?id=${ad.ad_archive_id}`;
   const adLibraryLabel = isGoogle
@@ -140,6 +145,17 @@ export default async function AdDetailPage({
   // protects the duration number here.
   const durationDays = computeAdDurationDays(ad);
   const isActive = ad.status === "ACTIVE";
+
+  // For Google ads we now prefer silva's `numServedDays` because it
+  // is Google's authoritative count and correctly reports 0 for
+  // sub-day campaigns (the heuristic above clamps everything to 1
+  // and produces an indistinguishable "1 giorno" both for genuine
+  // 1-day ads and for polling-artifact 0-day ads). Falls back to
+  // the heuristic when silva did not return the field (legacy rows).
+  const displayDurationDays =
+    isGoogle && typeof numServedDays === "number"
+      ? numServedDays
+      : durationDays;
 
   const aiTagLabels: Record<string, string> = {
     sector: t("adDetail", "aiTagSector"),
@@ -406,11 +422,22 @@ export default async function AdDetailPage({
                     : formatDate(ad.end_date)
                 }
               />
-              {durationDays && (
+              {displayDurationDays != null && (
                 <DetailRow
                   icon={<Clock className="size-4" />}
                   label={t("adDetail", "duration")}
-                  value={`${durationDays} ${t("adDetail", "daysUnit")}`}
+                  // 0 days = sub-day campaign (silva numServedDays=0
+                  // happens on ads that ran for less than 24h). Show
+                  // an explicit "less than 1 day" so the user does
+                  // not confuse it with a real 1-day ad. Singular vs
+                  // plural for everything else.
+                  value={
+                    displayDurationDays === 0
+                      ? t("adDetail", "lessThanADay")
+                      : displayDurationDays === 1
+                        ? `1 ${t("adDetail", "dayUnit")}`
+                        : `${displayDurationDays} ${t("adDetail", "daysUnit")}`
+                  }
                 />
               )}
               {ad.cta && (

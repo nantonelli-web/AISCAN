@@ -41,11 +41,17 @@ export function AdCard({
   const isGoogle = source === "google";
   const snapshot = raw?.snapshot as Record<string, unknown> | null;
 
-  // Ad library URL — Meta vs Google
+  // Ad library URL — Meta vs Google. On Google, silva exposes a
+  // creative-specific link in `raw.adLibraryUrl` that lands directly
+  // on the single ad. Prefer it over the advertiser-page URL (which
+  // shows the full ad list and forces the user to hunt the specific
+  // creative). Fall back to the advertiser page on legacy rows that
+  // do not carry adLibraryUrl.
   const adLibraryUrl = isGoogle
-    ? (raw?.advertiserId
-        ? `https://adstransparency.google.com/advertiser/${raw.advertiserId}`
-        : null)
+    ? ((raw?.adLibraryUrl as string | undefined) ??
+        (raw?.advertiserId
+          ? `https://adstransparency.google.com/advertiser/${raw.advertiserId}`
+          : null))
     : (raw?.adLibraryURL as string) ??
       (ad.ad_archive_id
         ? `https://www.facebook.com/ads/library/?id=${ad.ad_archive_id}`
