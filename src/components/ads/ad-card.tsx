@@ -178,7 +178,13 @@ export function AdCard({
             onError={() => setImgFailed(true)}
           />
         ) : isGoogle ? (
-          // Google ad without direct image — centered placeholder
+          // Google ad without direct image — centered placeholder.
+          // We hide the advertiser name when the card is rendered
+          // inside the brand detail page (`competitorId` prop set by
+          // channel-tabs but NOT by Library / Collections / Dashboard
+          // where ads from many advertisers mix and attribution
+          // matters). On the brand page the name is just visual
+          // repetition since the page header already shows it.
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted/50 p-4">
             <div className="size-10 rounded-full bg-muted grid place-items-center">
               {formatLabel === "VIDEO" ? (
@@ -189,7 +195,7 @@ export function AdCard({
                 <ImageIcon className="size-5 text-muted-foreground" />
               )}
             </div>
-            {pageName && (
+            {pageName && !competitorId && (
               <p className="text-xs font-medium text-foreground text-center truncate max-w-full">
                 {pageName}
               </p>
