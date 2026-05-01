@@ -507,6 +507,18 @@ export default async function AdDetailPage({
                   </div>
                 </div>
               )}
+              {/* Our own scan-history signal — distinct from the
+                  actor's lastShown above. Tells the user "we last
+                  observed this ad in our scans on [date]". Useful
+                  when the actor's catalog data drifts from the
+                  user's actual scan cadence (e.g. Google takes
+                  24-48h to refresh Transparency lastShown after
+                  the ad has stopped serving). */}
+              <DetailRow
+                icon={<Clock className="size-4" />}
+                label={t("adDetail", "lastSeenInScan")}
+                value={formatDate(ad.last_seen_in_scan_at)}
+              />
             </CardContent>
           </Card>
 

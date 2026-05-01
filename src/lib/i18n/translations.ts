@@ -524,6 +524,10 @@ const translations = {
       it: "Ultima rilevazione",
       en: "Last observed",
     },
+    lastSeenInScan: {
+      it: "Vista nei nostri scan",
+      en: "Last seen in our scans",
+    },
     landingPage: { it: "Landing page", en: "Landing page" },
     platforms: { it: "Piattaforme", en: "Platforms" },
     campaignType: { it: "Tipo di campagna", en: "Campaign type" },

@@ -70,6 +70,14 @@ export interface MaitAdExternal {
    *  legacy rows (scanned before per-country scraping) and for Google
    *  ads (not scraped per-country). */
   scan_countries: string[] | null;
+  /** Timestamp of the most recent scan that included this ad. Updated
+   *  on every upsert by /api/apify/scan{,-google}; defaults to now()
+   *  on insert. Distinct from `created_at` (first time the row
+   *  landed) and from raw `lastShown` from the actor (Google
+   *  catalog observation). Used on the ad-detail page as a
+   *  transparency signal: "we last saw this ad in our own scans on
+   *  [date]". */
+  last_seen_in_scan_at: string;
   created_at: string;
 }
 
