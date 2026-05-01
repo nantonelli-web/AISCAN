@@ -507,6 +507,8 @@ const translations = {
     stillActive: { it: "Ancora attiva", en: "Still active" },
     duration: { it: "Durata", en: "Duration" },
     daysUnit: { it: "giorni", en: "days" },
+    dayUnit: { it: "giorno", en: "day" },
+    lessThanADay: { it: "Meno di 1 giorno", en: "Less than 1 day" },
     landingPage: { it: "Landing page", en: "Landing page" },
     platforms: { it: "Piattaforme", en: "Platforms" },
     campaignType: { it: "Tipo di campagna", en: "Campaign type" },
