@@ -177,14 +177,46 @@ export function AdCard({
             loading="lazy"
             onError={() => setImgFailed(true)}
           />
+        ) : isGoogle && (ad.headline || ad.ad_text) ? (
+          // Google ad with NO usable image but structured copy is
+          // present — silva sometimes captures headline / body even
+          // when imageUrl is null (typical on Shopping + some Video
+          // creatives). Rendering them inline matches the Meta text
+          // preview branch and turns "empty placeholder" rows into
+          // readable cards.
+          <div className="absolute inset-0 p-4 flex flex-col justify-between bg-white">
+            <div className="space-y-2">
+              {ad.headline && (
+                <p className="font-semibold text-sm line-clamp-2 text-blue-700">
+                  {ad.headline}
+                </p>
+              )}
+              {ad.ad_text && (
+                <p className="text-xs text-muted-foreground line-clamp-4 leading-relaxed">
+                  {cleanAdText(ad.ad_text)}
+                </p>
+              )}
+            </div>
+            {adLibraryUrl && (
+              <a
+                href={adLibraryUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-[10px] text-gold hover:underline mt-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Eye className="size-3" /> {t("adCard", "viewOnGoogle")}
+              </a>
+            )}
+          </div>
         ) : isGoogle ? (
-          // Google ad without direct image — centered placeholder.
-          // We hide the advertiser name when the card is rendered
-          // inside the brand detail page (`competitorId` prop set by
-          // channel-tabs but NOT by Library / Collections / Dashboard
-          // where ads from many advertisers mix and attribution
-          // matters). On the brand page the name is just visual
-          // repetition since the page header already shows it.
+          // Google ad without direct image AND without structured
+          // copy — centered placeholder explaining the format and
+          // pointing to Google Ads Transparency. Hide the advertiser
+          // name when the card is rendered inside the brand detail
+          // page (`competitorId` prop set by channel-tabs but NOT by
+          // Library / Collections / Dashboard where ads from many
+          // advertisers mix and attribution matters).
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted/50 p-4">
             <div className="size-10 rounded-full bg-muted grid place-items-center">
               {formatLabel === "VIDEO" ? (
