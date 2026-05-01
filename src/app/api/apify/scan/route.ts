@@ -185,11 +185,17 @@ export async function POST(req: Request) {
 
     // Download images to permanent storage, then upsert ads
     if (result.records.length > 0) {
+      // Stamp the moment we observed each ad in our scan. Independent
+      // of silva's `lastShown` (Google catalog) — useful as a
+      // transparency signal on the ad-detail page and as the basis
+      // for any future "have we seen this ad recently?" check.
+      const seenAt = new Date().toISOString();
       const rows = result.records.map((r) => ({
         ...r,
         source: "meta" as const,
         workspace_id: competitor.workspace_id,
         competitor_id: competitor.id,
+        last_seen_in_scan_at: seenAt,
       }));
 
       await storeAdImages(admin, competitor.workspace_id, rows, "meta");

@@ -192,11 +192,18 @@ export async function POST(req: Request) {
 
     // Upsert ads (no image download — Google CDN URLs are persistent)
     if (result.records.length > 0) {
+      // Stamp the moment we observed each ad in our scan. Independent
+      // of silva's `lastShown` (Google catalog) — useful as a
+      // transparency signal on the ad-detail page so the user can
+      // distinguish "Google's catalog says X" from "we last saw it
+      // ourselves on Y".
+      const seenAt = new Date().toISOString();
       const rows = result.records.map((r) => ({
         ...r,
         source: "google" as const,
         workspace_id: competitor.workspace_id,
         competitor_id: competitor.id,
+        last_seen_in_scan_at: seenAt,
       }));
 
       const { error: upErr } = await admin
