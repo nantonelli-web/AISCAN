@@ -509,6 +509,21 @@ const translations = {
     daysUnit: { it: "giorni", en: "days" },
     dayUnit: { it: "giorno", en: "day" },
     lessThanADay: { it: "Meno di 1 giorno", en: "Less than 1 day" },
+    statusLabel: { it: "Stato", en: "Status" },
+    statusActive: { it: "Attiva", en: "Active" },
+    statusInactive: { it: "Non attiva", en: "Inactive" },
+    statusGoogleHelp: {
+      it: "Google Transparency non dichiara se un annuncio è ancora in erogazione. Lo stato qui è dedotto: ancora attivo se l'ultima rilevazione è degli ultimi 24h, altrimenti non attivo.",
+      en: "Google Transparency does not declare whether an ad is still serving. The status here is inferred: active if the last observation is within the last 24h, otherwise inactive.",
+    },
+    googleFirstObserved: {
+      it: "Prima rilevazione",
+      en: "First observed",
+    },
+    googleLastObserved: {
+      it: "Ultima rilevazione",
+      en: "Last observed",
+    },
     landingPage: { it: "Landing page", en: "Landing page" },
     platforms: { it: "Piattaforme", en: "Platforms" },
     campaignType: { it: "Tipo di campagna", en: "Campaign type" },

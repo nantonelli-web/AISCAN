@@ -404,9 +404,49 @@ export default async function AdDetailPage({
               <CardTitle className="text-sm">{t("adDetail", "details")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Status row — first thing the user sees on Google
+                  ads. Google Transparency does not expose an
+                  Active/Inactive flag on its public panel, so we
+                  derive it from the freshness of `lastShown` (silva
+                  / our normalizer). Render it explicitly with help
+                  copy explaining where the value comes from. On
+                  Meta the column maps directly so the help text is
+                  redundant — keep the badge only. */}
+              {isGoogle && (
+                <div className="flex items-start gap-3">
+                  <span className="text-muted-foreground mt-0.5 shrink-0">
+                    <Zap className="size-4" />
+                  </span>
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      {t("adDetail", "statusLabel")}
+                    </p>
+                    <div className="mt-0.5">
+                      <Badge variant={isActive ? "gold" : "muted"}>
+                        {isActive
+                          ? t("adDetail", "statusActive")
+                          : t("adDetail", "statusInactive")}
+                      </Badge>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-1.5 leading-snug">
+                      {t("adDetail", "statusGoogleHelp")}
+                    </p>
+                  </div>
+                </div>
+              )}
               <DetailRow
                 icon={<Calendar className="size-4" />}
-                label={t("adDetail", "startDate")}
+                // On Google these are silva's `firstShown` /
+                // `lastShown` from regionStats — i.e. when Google
+                // first / last observed the ad in its catalog, NOT
+                // a user-declared campaign start/end. Relabel so
+                // the user reads them as observations and does not
+                // expect the Meta-style "campaign window".
+                label={
+                  isGoogle
+                    ? t("adDetail", "googleFirstObserved")
+                    : t("adDetail", "startDate")
+                }
                 value={formatDate(ad.start_date)}
               />
               {/* For ACTIVE ads we always show "still active" — the
@@ -415,7 +455,11 @@ export default async function AdDetailPage({
                   as a misleading 1-day-after-start value. */}
               <DetailRow
                 icon={<Calendar className="size-4" />}
-                label={t("adDetail", "endDate")}
+                label={
+                  isGoogle
+                    ? t("adDetail", "googleLastObserved")
+                    : t("adDetail", "endDate")
+                }
                 value={
                   isActive || !ad.end_date
                     ? t("adDetail", "stillActive")
