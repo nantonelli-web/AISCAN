@@ -10,7 +10,7 @@ export default function AuthLayout({
       <div className="w-full max-w-md">
         <Link href="/" className="flex justify-center mb-8">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.webp" alt="AISCAN" className="h-[67px]" />
+          <img src="/logo.webp" alt="AISCAN" className="h-[80px]" />
         </Link>
         {children}
       </div>

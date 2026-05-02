@@ -36,7 +36,7 @@ export function AdminSidebar() {
       <div className="h-16 flex items-center gap-2 px-6 border-b border-border">
         <Link href="/admin" className="flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.webp" alt="AISCAN" className="h-10" />
+          <img src="/logo.webp" alt="AISCAN" className="h-12" />
         </Link>
         <Badge variant="gold">Admin</Badge>
       </div>
