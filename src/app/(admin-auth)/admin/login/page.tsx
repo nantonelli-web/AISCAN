@@ -53,7 +53,7 @@ export default function AdminLoginPage() {
     <>
       <div className="flex justify-center mb-8">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.webp" alt="AISCAN" className="h-[67px]" />
+        <img src="/logo.webp" alt="AISCAN" className="h-[80px]" />
       </div>
 
       <Card>

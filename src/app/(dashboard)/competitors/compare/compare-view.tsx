@@ -1549,7 +1549,7 @@ export function CompareView({
       {false && hasResults && (
         <div className="hidden print:flex print-cover flex-col items-center justify-center min-h-[260mm] gap-8 text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.webp" alt="AISCAN" className="h-24" />
+          <img src="/logo.webp" alt="AISCAN" className="h-[115px]" />
           <div className="space-y-2">
             <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
               {t("compare", "printCoverTitle")}

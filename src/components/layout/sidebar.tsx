@@ -78,7 +78,7 @@ export function Sidebar({
       <div className="h-16 flex items-center px-6 border-b border-border shrink-0">
         <Link href="/dashboard" className="flex items-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.webp" alt="AISCAN" className="h-[58px]" />
+          <img src="/logo.webp" alt="AISCAN" className="h-[70px]" />
         </Link>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
