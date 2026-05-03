@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -80,6 +80,13 @@ export function SerpPageClient({ initialQueries, competitors }: Props) {
   const allCountries = getCountries(locale);
 
   const [queries, setQueries] = useState<QueryWithRuns[]>(initialQueries);
+  // Re-sync from server prop after router.refresh() so a newly
+  // created query becomes visible without forcing a hard reload.
+  // Same fix as Maps page — symptom was "Query Created" toast
+  // followed by no row in the list.
+  useEffect(() => {
+    setQueries(initialQueries);
+  }, [initialQueries]);
   const [showForm, setShowForm] = useState(initialQueries.length === 0);
 
   // Form state

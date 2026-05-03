@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -59,6 +59,14 @@ export function MapsPageClient({ initialSearches }: Props) {
 
   const [searches, setSearches] =
     useState<SearchWithCounts[]>(initialSearches);
+  // Re-sync from server prop when router.refresh() re-renders the
+  // page server component (e.g. after createSearch or scanSearch).
+  // Without this the local state stays frozen at the mount-time
+  // value and the user sees "Ricerca Creata" toast but no new row
+  // in the list — confirmed bug 2026-05-03.
+  useEffect(() => {
+    setSearches(initialSearches);
+  }, [initialSearches]);
   const [showForm, setShowForm] = useState(initialSearches.length === 0);
 
   // Form
