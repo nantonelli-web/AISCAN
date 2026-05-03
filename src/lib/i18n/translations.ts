@@ -1548,8 +1548,8 @@ const translations = {
   monitoring: {
     title: { it: "Monitoring", en: "Monitoring" },
     subtitle: {
-      it: "Accesso per canale a tutti i dati raccolti dai brand del workspace. Scegli un canale per visualizzare l'aggregato cross-brand e filtrare per il singolo brand. La stessa vista è disponibile anche entrando dal brand → tab del canale.",
-      en: "Channel-first access to all data collected across workspace brands. Pick a channel to view the cross-brand aggregate and filter by individual brand. The same view is also reachable from a brand detail → channel tab.",
+      it: "Accesso per canale a tutti i dati del workspace. La stessa vista è disponibile anche dalla pagina di un brand.",
+      en: "Channel-first access to all workspace data. The same view is also reachable from a brand detail page.",
     },
     metaTitle: { it: "Meta Ads", en: "Meta Ads" },
     metaDescription: {

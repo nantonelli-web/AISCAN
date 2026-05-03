@@ -169,7 +169,7 @@ export default async function MonitoringLandingPage() {
         <h1 className="text-3xl font-serif tracking-tight">
           {t("monitoring", "title")}
         </h1>
-        <p className="text-sm text-muted-foreground leading-relaxed max-w-3xl">
+        <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl text-pretty">
           {t("monitoring", "subtitle")}
         </p>
       </header>
