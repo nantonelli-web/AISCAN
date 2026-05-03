@@ -190,6 +190,9 @@ const translations = {
     library: { it: "Creative Library", en: "Creative Library" },
     collections: { it: "Collezioni", en: "Collections" },
     benchmarks: { it: "Benchmarks", en: "Benchmarks" },
+    monitoring: { it: "Monitoring", en: "Monitoring" },
+    // legacy keys, kept so any inline t("sidebar","serp") elsewhere
+    // still resolves rather than crashing on missing translation.
     serp: { it: "Google SERP", en: "Google SERP" },
     maps: { it: "Google Maps", en: "Google Maps" },
     report: { it: "Report", en: "Report" },
@@ -1541,6 +1544,27 @@ const translations = {
     emptyClient: { it: "Nessun brand in questo progetto.", en: "No brands in this project." },
   },
 
+  // ─── Monitoring landing ────────────────────────────────────
+  monitoring: {
+    title: { it: "Monitoring", en: "Monitoring" },
+    subtitle: {
+      it: "Strumenti di monitoraggio a livello workspace. Ogni tool tiene traccia di un asset (keyword, luogo, hashtag…) indipendentemente dal singolo brand. Le stesse analisi sono accessibili anche dalla pagina di un brand quando vuoi una vista per-brand.",
+      en: "Workspace-level monitoring tools. Each tool tracks an asset (keyword, place, hashtag…) independently from any single brand. The same analyses are also available from a brand page when you want a per-brand view.",
+    },
+    serpTitle: { it: "Google SERP", en: "Google SERP" },
+    serpDescription: {
+      it: "Monitora le posizioni dei risultati di ricerca Google per parole chiave specifiche. Ogni query può essere collegata a uno o più brand del workspace.",
+      en: "Track Google search result positions for specific keywords. Each query can be linked to one or more workspace brands.",
+    },
+    serpCountLabel: { it: "query monitorate", en: "monitored queries" },
+    mapsTitle: { it: "Google Maps", en: "Google Maps" },
+    mapsDescription: {
+      it: "Monitora attività e recensioni Google Maps per termini di ricerca su un'area geografica.",
+      en: "Track Google Maps places and reviews for search terms over a geographic area.",
+    },
+    mapsCountLabel: { it: "ricerche monitorate", en: "monitored searches" },
+  },
+
   // ─── Organic Posts ─────────────────────────────────────────
   maps: {
     title: { it: "Google Maps", en: "Google Maps" },
@@ -1613,8 +1637,12 @@ const translations = {
     queryPlural: { it: "query collegate", en: "linked queries" },
     matchingDomain: { it: "match su", en: "matching" },
     noLinkedYet: {
-      it: "Nessuna query SERP collegata a questo brand. Vai su /serp e associa una query.",
-      en: "No SERP queries linked to this brand. Go to /serp and link a query.",
+      it: "Nessuna query SERP collegata a questo brand. Crea la prima dal pulsante qui sopra.",
+      en: "No SERP queries linked to this brand. Create the first one from the button above.",
+    },
+    createForBrand: {
+      it: "Nuova query per questo brand",
+      en: "New query for this brand",
     },
   },
 
@@ -1671,6 +1699,12 @@ const translations = {
       it: "Nessuna query ancora. Aggiungine una per iniziare.",
       en: "No queries yet. Add one to start.",
     },
+    noQueriesForBrand: {
+      it: "Nessuna query collegata a questo brand. Aggiungine una per iniziare a monitorare.",
+      en: "No queries linked to this brand. Add one to start monitoring.",
+    },
+    filteringBy: { it: "Filtrando per brand", en: "Filtering by brand" },
+    clearFilter: { it: "Rimuovi filtro", en: "Clear filter" },
     noScanYet: {
       it: "Nessuno scan ancora. Lancia uno scan per vedere i risultati.",
       en: "No scan yet. Run a scan to see results.",

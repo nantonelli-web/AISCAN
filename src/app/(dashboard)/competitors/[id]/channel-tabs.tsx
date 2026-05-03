@@ -279,13 +279,18 @@ export function ChannelTabs({
   const snapchatCount = channelTotals.snapchat;
   const youtubeCount = channelTotals.youtube;
   const serpCount = channelTotals.serpQueries;
+  // SERP tab: show whenever the brand has a googleDomain, even with
+  // zero queries linked. The tab content provides the entry point
+  // to create a brand-attached query — without this gate the
+  // bidirectional flow (brand → SERP) would be inaccessible until
+  // the user manually navigated to /serp first.
 
   // SERP tab visibility gate (project memory): show only when the
   // brand has a google_domain configured AND at least one query is
   // linked via the M:N junction. Without google_domain there is
   // nothing to match SERP results against; without linked queries
   // there is nothing to render.
-  const serpTabVisible = !!googleDomain && serpCount > 0;
+  const serpTabVisible = !!googleDomain;
 
   const tabs: { key: Channel; label: string; count: number; icon?: React.ReactNode }[] = [
     {
@@ -332,8 +337,17 @@ export function ChannelTabs({
     { key: "inactive", label: t("competitors", "statusInactive") },
   ];
 
-  // Filter out channels with 0 items (except "all")
-  const visibleTabs = tabs.filter((entry) => entry.key === "all" || entry.count > 0);
+  // Filter out channels with 0 items (except "all"). SERP is the
+  // exception: when serpTabVisible is true (brand has googleDomain
+  // set) we show the tab even with zero queries — the tab content
+  // hosts the "Create query" entry point that bootstraps the first
+  // linked query, so hiding it would break the flow.
+  const visibleTabs = tabs.filter(
+    (entry) =>
+      entry.key === "all" ||
+      entry.count > 0 ||
+      (entry.key === "serp" && serpTabVisible),
+  );
 
   const showMeta = channel === "all" || channel === "meta";
   const showGoogle = channel === "all" || channel === "google";
@@ -974,6 +988,17 @@ export function ChannelTabs({
                 </>
               )}
             </p>
+            {/* New-query CTA — navigates to the workspace SERP page
+                with brandId + new=1 so the create form opens with
+                this brand pre-attached. Same data model on both
+                surfaces, single create flow to maintain. */}
+            <Link
+              href={`/serp?brandId=${competitorId}&new=1`}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 h-8 text-xs hover:border-gold/40 hover:text-gold transition-colors"
+            >
+              <SearchIcon className="size-3.5" />
+              {t("brandSerp", "createForBrand")}
+            </Link>
           </div>
           {visibleSerpQueries.length > 0 ? (
             <div className="space-y-3">

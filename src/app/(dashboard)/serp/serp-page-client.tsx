@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   Plus,
@@ -76,8 +76,24 @@ const COMMON_COUNTRIES = ["IT", "FR", "DE", "ES", "GB", "US", "PT", "NL"];
 
 export function SerpPageClient({ initialQueries, competitors }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { t, locale } = useT();
   const allCountries = getCountries(locale);
+
+  // URL-driven hooks for the bidirectional brand-first vs
+  // workspace-first flow:
+  //   ?brandId=X  → pre-attach the brand on the create form. Set
+  //                 by the brand-detail SERP tab when the user
+  //                 clicks "New query for this brand".
+  //   ?new=1      → force the create form open even when other
+  //                 queries already exist (otherwise the form
+  //                 only auto-opens on empty state).
+  //   ?brand=X    → top-level filter chip — narrows the query list
+  //                 to those linked to brand X. Distinct from
+  //                 brandId because filter ≠ pre-attach on create.
+  const preselectBrandId = searchParams.get("brandId");
+  const forceShowForm = searchParams.get("new") === "1";
+  const filterBrandId = searchParams.get("brand");
 
   const [queries, setQueries] = useState<QueryWithRuns[]>(initialQueries);
   // Re-sync from server prop after router.refresh() so a newly
@@ -87,7 +103,9 @@ export function SerpPageClient({ initialQueries, competitors }: Props) {
   useEffect(() => {
     setQueries(initialQueries);
   }, [initialQueries]);
-  const [showForm, setShowForm] = useState(initialQueries.length === 0);
+  const [showForm, setShowForm] = useState(
+    initialQueries.length === 0 || forceShowForm || !!preselectBrandId,
+  );
 
   // Form state
   const [query, setQuery] = useState("");
@@ -95,7 +113,9 @@ export function SerpPageClient({ initialQueries, competitors }: Props) {
   const [language, setLanguage] = useState("it");
   const [device, setDevice] = useState<"DESKTOP" | "MOBILE">("DESKTOP");
   const [label, setLabel] = useState("");
-  const [linkedBrandIds, setLinkedBrandIds] = useState<string[]>([]);
+  const [linkedBrandIds, setLinkedBrandIds] = useState<string[]>(
+    preselectBrandId ? [preselectBrandId] : [],
+  );
   const [creating, setCreating] = useState(false);
 
   // Per-row scan/delete state
@@ -201,13 +221,53 @@ export function SerpPageClient({ initialQueries, competitors }: Props) {
       .sort((a, b) => a.name.localeCompare(b.name)),
   ];
 
+  // Brand filter for the bidirectional flow — when the user lands
+  // here from /serp?brand=ID we narrow the displayed queries to
+  // those linked to that brand. Filtering is purely client-side
+  // because the M:N junction is already loaded; no extra fetch.
+  const filteredBrand = filterBrandId
+    ? competitors.find((c) => c.id === filterBrandId)
+    : null;
+  const displayedQueries = filterBrandId
+    ? queries.filter((q) =>
+        q.brands.some((b) => b.competitor_id === filterBrandId),
+      )
+    : queries;
+
+  function clearBrandFilter() {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("brand");
+    const next = params.toString();
+    router.replace(`/serp${next ? `?${next}` : ""}`);
+  }
+
   return (
     <div className="space-y-5">
+      {/* ─── Brand filter chip — shown only when filtering is active.
+              Same UX pattern as the Benchmarks country chip: visible
+              chip with brand name + clear button. */}
+      {filteredBrand && (
+        <div className="flex items-center gap-2 rounded-md border border-gold/30 bg-gold/5 px-3 py-2">
+          <span className="text-xs uppercase tracking-wider text-gold">
+            {t("serp", "filteringBy")}
+          </span>
+          <Badge variant="gold">{filteredBrand.page_name}</Badge>
+          <button
+            onClick={clearBrandFilter}
+            className="ml-auto text-xs text-muted-foreground hover:text-foreground underline"
+          >
+            {t("serp", "clearFilter")}
+          </button>
+        </div>
+      )}
+
       {/* ─── Add-query toggle / form ───────────────────────────── */}
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          {queries.length}{" "}
-          {queries.length === 1 ? t("serp", "querySingular") : t("serp", "queryPlural")}
+          {displayedQueries.length}{" "}
+          {displayedQueries.length === 1
+            ? t("serp", "querySingular")
+            : t("serp", "queryPlural")}
         </p>
         <Button onClick={() => setShowForm((s) => !s)} variant="outline" className="gap-2">
           <Plus className="size-4" />
@@ -343,15 +403,17 @@ export function SerpPageClient({ initialQueries, competitors }: Props) {
       )}
 
       {/* ─── Queries grid ──────────────────────────────────────── */}
-      {queries.length === 0 ? (
+      {displayedQueries.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground text-sm">
-            {t("serp", "noQueriesYet")}
+            {filterBrandId
+              ? t("serp", "noQueriesForBrand")
+              : t("serp", "noQueriesYet")}
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
-          {queries.map((q) => {
+          {displayedQueries.map((q) => {
             const latest = q.runs[0];
             const isScanning = scanningId === q.id;
             const isDeleting = deletingId === q.id;
