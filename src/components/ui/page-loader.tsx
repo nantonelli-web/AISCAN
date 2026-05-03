@@ -32,10 +32,14 @@ export function PageLoader({
   label,
   className,
 }: PageLoaderProps) {
+  // Block variant uses 70vh so the loader sits in the optical centre
+  // of the visible viewport instead of the natural document flow
+  // position (`py-24` only padded inside the parent and the user
+  // saw it stuck near the page top).
   const wrapperClass =
     variant === "overlay"
       ? "absolute inset-0 z-20 grid place-items-center bg-background/70 backdrop-blur-sm"
-      : "flex items-center justify-center py-24";
+      : "flex items-center justify-center min-h-[70vh]";
 
   return (
     <div className={cn(wrapperClass, className)} aria-busy="true" aria-live="polite">

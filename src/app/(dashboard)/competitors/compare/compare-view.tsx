@@ -1474,7 +1474,7 @@ export function CompareView({
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center">
           <Card className="w-80">
             <CardContent className="py-8 space-y-4">
-              <PageLoader className="!py-4" />
+              <PageLoader className="!min-h-0" />
               <div className="text-center space-y-1">
                 <p className="text-sm font-medium">{t("compare", "scanningBrands")}</p>
                 <p className="text-xs text-muted-foreground">{t("compare", "scanningWait")}</p>
