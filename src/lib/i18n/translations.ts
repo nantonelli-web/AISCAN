@@ -1548,21 +1548,56 @@ const translations = {
   monitoring: {
     title: { it: "Monitoring", en: "Monitoring" },
     subtitle: {
-      it: "Strumenti di monitoraggio a livello workspace. Ogni tool tiene traccia di un asset (keyword, luogo, hashtag…) indipendentemente dal singolo brand. Le stesse analisi sono accessibili anche dalla pagina di un brand quando vuoi una vista per-brand.",
-      en: "Workspace-level monitoring tools. Each tool tracks an asset (keyword, place, hashtag…) independently from any single brand. The same analyses are also available from a brand page when you want a per-brand view.",
+      it: "Accesso per canale a tutti i dati raccolti dai brand del workspace. Scegli un canale per visualizzare l'aggregato cross-brand e filtrare per il singolo brand. La stessa vista è disponibile anche entrando dal brand → tab del canale.",
+      en: "Channel-first access to all data collected across workspace brands. Pick a channel to view the cross-brand aggregate and filter by individual brand. The same view is also reachable from a brand detail → channel tab.",
+    },
+    metaTitle: { it: "Meta Ads", en: "Meta Ads" },
+    metaDescription: {
+      it: "Tutti gli annunci Meta scansionati nel workspace, filtrabili per brand.",
+      en: "All Meta ads scanned across the workspace, filterable by brand.",
+    },
+    googleAdsTitle: { it: "Google Ads", en: "Google Ads" },
+    googleAdsDescription: {
+      it: "Tutti gli annunci Google Ads scansionati nel workspace, filtrabili per brand.",
+      en: "All Google ads scanned across the workspace, filterable by brand.",
+    },
+    instagramTitle: { it: "Instagram", en: "Instagram" },
+    instagramDescription: {
+      it: "Post Instagram scansionati per i brand del workspace, ordinati per data.",
+      en: "Instagram posts scanned across the workspace, ordered by date.",
+    },
+    tiktokTitle: { it: "TikTok", en: "TikTok" },
+    tiktokDescription: {
+      it: "Post TikTok organici dei brand del workspace.",
+      en: "Organic TikTok posts from the workspace brands.",
+    },
+    snapchatTitle: { it: "Snapchat", en: "Snapchat" },
+    snapchatDescription: {
+      it: "Snapshot dei profili Snapchat dei brand del workspace, ordinati per data dello scan.",
+      en: "Snapchat profile snapshots for the workspace brands, ordered by scan date.",
+    },
+    youtubeTitle: { it: "YouTube", en: "YouTube" },
+    youtubeDescription: {
+      it: "Video YouTube dei canali brand del workspace.",
+      en: "YouTube videos from the workspace brand channels.",
     },
     serpTitle: { it: "Google SERP", en: "Google SERP" },
     serpDescription: {
-      it: "Monitora le posizioni dei risultati di ricerca Google per parole chiave specifiche. Ogni query può essere collegata a uno o più brand del workspace.",
-      en: "Track Google search result positions for specific keywords. Each query can be linked to one or more workspace brands.",
+      it: "Posizioni dei risultati Google per parole chiave. Ogni query può essere collegata a uno o più brand.",
+      en: "Google search result positions for keywords. Each query can be linked to one or more brands.",
     },
-    serpCountLabel: { it: "query monitorate", en: "monitored queries" },
     mapsTitle: { it: "Google Maps", en: "Google Maps" },
     mapsDescription: {
-      it: "Monitora attività e recensioni Google Maps per termini di ricerca su un'area geografica.",
-      en: "Track Google Maps places and reviews for search terms over a geographic area.",
+      it: "Attività e recensioni Google Maps per termini di ricerca su un'area geografica.",
+      en: "Google Maps places and reviews for search terms over a geographic area.",
     },
+    adsCountLabel: { it: "annunci nel workspace", en: "ads in workspace" },
+    postsCountLabel: { it: "post nel workspace", en: "posts in workspace" },
+    snapshotsCountLabel: { it: "snapshot nel workspace", en: "snapshots in workspace" },
+    videosCountLabel: { it: "video nel workspace", en: "videos in workspace" },
+    serpCountLabel: { it: "query monitorate", en: "monitored queries" },
     mapsCountLabel: { it: "ricerche monitorate", en: "monitored searches" },
+    backLabel: { it: "Torna a Monitoring", en: "Back to Monitoring" },
   },
 
   // ─── Organic Posts ─────────────────────────────────────────

@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { getSessionUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { getLocale, serverT } from "@/lib/i18n/server";
@@ -42,6 +44,15 @@ export default async function SerpPage() {
 
   return (
     <div className="space-y-6">
+      {/* Back to the section root — Monitoring is the channel-first
+          entry point for every workspace tool. /serp is one of those
+          tools, so the back arrow lives in the section header. */}
+      <Link
+        href="/monitoring"
+        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" /> {t("monitoring", "backLabel")}
+      </Link>
       <header className="space-y-1">
         <h1 className="text-3xl font-serif tracking-tight">{t("serp", "title")}</h1>
         <p className="text-sm text-muted-foreground max-w-2xl">

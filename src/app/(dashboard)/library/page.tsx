@@ -2,12 +2,21 @@ import { getSessionUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { AdCard } from "@/components/ads/ad-card";
 import { OrganicPostCard } from "@/components/organic/organic-post-card";
+import { TikTokPostCard } from "@/components/organic/tiktok-post-card";
+import { SnapchatProfileCard } from "@/components/organic/snapchat-profile-card";
+import { YoutubeVideoCard } from "@/components/organic/youtube-video-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { LibraryFilters } from "./filters";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { PrintButton } from "@/components/ui/print-button";
 import { getCompetitors } from "@/lib/library/cached-data";
-import type { MaitAdExternal, MaitOrganicPost } from "@/types";
+import type {
+  MaitAdExternal,
+  MaitOrganicPost,
+  MaitTikTokPost,
+  MaitSnapchatProfile,
+  MaitYoutubeVideo,
+} from "@/types";
 
 export const dynamic = "force-dynamic";
 
@@ -33,9 +42,17 @@ export default async function LibraryPage({
   const t = serverT(locale);
 
   const isInstagram = sp.channel === "instagram";
+  const isTiktok = sp.channel === "tiktok";
+  const isSnapchat = sp.channel === "snapchat";
+  const isYoutube = sp.channel === "youtube";
+  const isOrganic = isInstagram || isTiktok || isSnapchat || isYoutube;
   const workspaceId = profile.workspace_id!;
 
-  // Build the main content query (ads or Instagram posts)
+  // Build the main content query. Branches by channel because each
+  // organic surface lives in its own table; ads live in
+  // mait_ads_external (split by source). The "Monitoring → channel"
+  // entry path lands here with sp.channel set, so every channel
+  // must have a workspace-level branch.
   const buildContentQuery = () => {
     if (isInstagram) {
       let igQuery = supabase
@@ -49,6 +66,50 @@ export default async function LibraryPage({
         igQuery = igQuery.ilike("caption", `%${sp.q.trim()}%`);
       }
       return igQuery;
+    }
+
+    if (isTiktok) {
+      let ttQuery = supabase
+        .from("mait_tiktok_posts")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("posted_at", { ascending: false, nullsFirst: false })
+        .limit(120);
+      if (sp.brand) ttQuery = ttQuery.eq("competitor_id", sp.brand);
+      if (sp.q && sp.q.trim().length > 0) {
+        ttQuery = ttQuery.ilike("caption", `%${sp.q.trim()}%`);
+      }
+      return ttQuery;
+    }
+
+    if (isSnapchat) {
+      // Snapshot history: every scan creates a row. For workspace
+      // monitoring we list every snapshot ordered by scraped_at —
+      // user filters by brand to focus on a single profile.
+      let scQuery = supabase
+        .from("mait_snapchat_profiles")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("scraped_at", { ascending: false })
+        .limit(60);
+      if (sp.brand) scQuery = scQuery.eq("competitor_id", sp.brand);
+      return scQuery;
+    }
+
+    if (isYoutube) {
+      let ytQuery = supabase
+        .from("mait_youtube_videos")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("posted_at", { ascending: false, nullsFirst: false })
+        .limit(120);
+      if (sp.brand) ytQuery = ytQuery.eq("competitor_id", sp.brand);
+      if (sp.q && sp.q.trim().length > 0) {
+        ytQuery = ytQuery.or(
+          `title.ilike.%${sp.q.trim()}%,description.ilike.%${sp.q.trim()}%`,
+        );
+      }
+      return ytQuery;
     }
 
     let query = supabase
@@ -84,13 +145,24 @@ export default async function LibraryPage({
     buildContentQuery(),
   ]);
 
-  const ads: MaitAdExternal[] = isInstagram ? [] : ((contentData ?? []) as MaitAdExternal[]);
+  const ads: MaitAdExternal[] = isOrganic ? [] : ((contentData ?? []) as MaitAdExternal[]);
   const organicPosts: MaitOrganicPost[] = isInstagram ? ((contentData ?? []) as MaitOrganicPost[]) : [];
+  const tiktokPosts: MaitTikTokPost[] = isTiktok ? ((contentData ?? []) as MaitTikTokPost[]) : [];
+  const snapchatProfiles: MaitSnapchatProfile[] = isSnapchat ? ((contentData ?? []) as MaitSnapchatProfile[]) : [];
+  const youtubeVideos: MaitYoutubeVideo[] = isYoutube ? ((contentData ?? []) as MaitYoutubeVideo[]) : [];
 
-  const totalResults = isInstagram ? organicPosts.length : ads.length;
+  const totalResults = isInstagram
+    ? organicPosts.length
+    : isTiktok
+      ? tiktokPosts.length
+      : isSnapchat
+        ? snapchatProfiles.length
+        : isYoutube
+          ? youtubeVideos.length
+          : ads.length;
 
   // When no channel filter, split ads into Meta/Google sections for clarity
-  const showSourceSections = !sp.channel && !isInstagram && ads.length > 0;
+  const showSourceSections = !sp.channel && !isOrganic && ads.length > 0;
   const metaAds = showSourceSections ? ads.filter((a) => a.source === "meta") : [];
   const googleAds = showSourceSections ? ads.filter((a) => a.source === "google") : [];
 
@@ -128,6 +200,24 @@ export default async function LibraryPage({
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {organicPosts.map((p) => (
                 <OrganicPostCard key={p.id} post={p} />
+              ))}
+            </div>
+          ) : isTiktok ? (
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {tiktokPosts.map((p) => (
+                <TikTokPostCard key={p.id} post={p} />
+              ))}
+            </div>
+          ) : isSnapchat ? (
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              {snapchatProfiles.map((p) => (
+                <SnapchatProfileCard key={p.id} profile={p} />
+              ))}
+            </div>
+          ) : isYoutube ? (
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {youtubeVideos.map((v) => (
+                <YoutubeVideoCard key={v.id} video={v} />
               ))}
             </div>
           ) : showSourceSections ? (
