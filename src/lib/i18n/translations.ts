@@ -408,6 +408,7 @@ const translations = {
     scanPeriod: { it: "Periodo di scansione", en: "Scan period" },
     paid: { it: "Paid", en: "Paid" },
     organic: { it: "Organic", en: "Organic" },
+    monitoringGroup: { it: "Monitoring", en: "Monitoring" },
     days: { it: "giorni", en: "days" },
     scanStopped: { it: "Scansione interrotta.", en: "Scan stopped." },
     stopping: { it: "Fermando…", en: "Stopping…" },
@@ -569,6 +570,10 @@ const translations = {
     ctaType: { it: "Tipo CTA", en: "CTA type" },
     variantsCount: { it: "Varianti creative", en: "Creative variants" },
     enabled: { it: "Attivo", en: "Enabled" },
+    advantageEligible: {
+      it: "Compatibile con Advantage+",
+      en: "Advantage+ eligible",
+    },
     aiGenerated: { it: "Generato con AI", en: "AI generated" },
     reshared: { it: "Condiviso da altra pagina", en: "Reshared" },
     yes: { it: "S\u00EC", en: "Yes" },
@@ -1662,7 +1667,7 @@ const translations = {
   },
 
   brandSerp: {
-    tabLabel: { it: "SERP", en: "SERP" },
+    tabLabel: { it: "Google SERP", en: "Google SERP" },
     organic: { it: "Organico", en: "Organic" },
     paid: { it: "Ads", en: "Ads" },
     lastScraped: { it: "Aggiornato", en: "Updated" },

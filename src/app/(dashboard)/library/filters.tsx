@@ -8,6 +8,10 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { MetaIcon } from "@/components/ui/meta-icon";
+import { InstagramIcon } from "@/components/ui/instagram-icon";
+import { TikTokIcon } from "@/components/ui/tiktok-icon";
+import { SnapchatIcon } from "@/components/ui/snapchat-icon";
+import { YouTubeIcon } from "@/components/ui/youtube-icon";
 
 interface Initial {
   q?: string;
@@ -31,6 +35,19 @@ function GoogleIcon({ className }: { className?: string }) {
 }
 
 type Facets = { ctas: string[]; platforms: string[]; statuses: string[] };
+
+/** Channels backed by organic post tables (no ad-style format /
+ *  CTA / platform / status filters apply). Used to gate the
+ *  Advanced filters panel — those facets only make sense on the
+ *  paid `mait_ads_external` rows. */
+function isOrganicChannel(channel: string | undefined): boolean {
+  return (
+    channel === "instagram" ||
+    channel === "tiktok" ||
+    channel === "snapchat" ||
+    channel === "youtube"
+  );
+}
 
 export function LibraryFilters({
   initial,
@@ -130,6 +147,9 @@ export function LibraryFilters({
     meta: "Meta Ads",
     google: "Google Ads",
     instagram: "Instagram",
+    tiktok: "TikTok",
+    snapchat: "Snapchat",
+    youtube: "YouTube",
   };
 
   return (
@@ -169,11 +189,22 @@ export function LibraryFilters({
 
           <div className="h-5 w-px bg-border" />
 
-          {/* Channel — Organic */}
+          {/* Channel — Organic. Each surface lives in its own
+              data table; the /library page branches per channel
+              and renders the dedicated card component. */}
           <div className="flex items-center gap-2">
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Organic</span>
             <Pill active={filters.channel === "instagram"} onClick={() => selectChannel("instagram")}>
-              Instagram
+              <InstagramIcon className="size-3" /> Instagram
+            </Pill>
+            <Pill active={filters.channel === "tiktok"} onClick={() => selectChannel("tiktok")}>
+              <TikTokIcon className="size-3" /> TikTok
+            </Pill>
+            <Pill active={filters.channel === "snapchat"} onClick={() => selectChannel("snapchat")}>
+              <SnapchatIcon className="size-3" /> Snapchat
+            </Pill>
+            <Pill active={filters.channel === "youtube"} onClick={() => selectChannel("youtube")}>
+              <YouTubeIcon className="size-3" /> YouTube
             </Pill>
           </div>
 
@@ -200,7 +231,7 @@ export function LibraryFilters({
           </div>
 
           {/* Advanced toggle — hidden for Instagram (no ads filters) */}
-          {filters.channel !== "instagram" && (
+          {!isOrganicChannel(filters.channel) && (
             <>
               <div className="h-5 w-px bg-border" />
               <button
@@ -230,7 +261,7 @@ export function LibraryFilters({
         </div>
 
         {/* ─── Advanced filters (expandable, hidden for Instagram) ─── */}
-        {showAdvanced && filters.channel !== "instagram" && (
+        {showAdvanced && !isOrganicChannel(filters.channel) && (
           <div className="mt-3 pt-3 border-t border-border flex flex-wrap gap-6">
             <FilterSelect
               label={t("library", "formatLabel")}

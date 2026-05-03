@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useRef } from "react";
+import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
-import { RefreshCw, CalendarRange, Square } from "lucide-react";
+import { RefreshCw, CalendarRange, Square, Search, MapPin } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
 import { TikTokIcon } from "@/components/ui/tiktok-icon";
@@ -12,7 +13,7 @@ import { YouTubeIcon } from "@/components/ui/youtube-icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useT } from "@/lib/i18n/context";
-import { cn, jumpToDateInput } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 /* ─── Platform SVG logos ─────────────────────────────────── */
 
@@ -87,7 +88,11 @@ export function ScanDropdown({
   // Shared date range
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const dateToRef = useRef<HTMLInputElement | null>(null);
+  // Removed jumpToDateInput auto-jump from From → To: showPicker()
+  // inside a setTimeout loses the user-activation gesture, leaving
+  // the To picker in a frozen state where clicks/keys do not register
+  // and click-outside does not close it. User can click To manually
+  // — minor UX regression, much better than a stuck calendar.
 
   const isLoading = loading !== null;
   const showStop = isLoading || hasRunningJob;
@@ -387,10 +392,7 @@ export function ScanDropdown({
           <Input
             type="date"
             value={dateFrom}
-            onChange={(e) => {
-              setDateFrom(e.target.value);
-              if (e.target.value) jumpToDateInput(dateToRef.current);
-            }}
+            onChange={(e) => setDateFrom(e.target.value)}
             placeholder={daysAgo(30)}
             className="text-xs h-8 w-36"
           />
@@ -398,7 +400,6 @@ export function ScanDropdown({
         <label className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">{t("scan", "dateTo")}</span>
           <Input
-            ref={dateToRef}
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
@@ -557,6 +558,39 @@ export function ScanDropdown({
               )}
               {loading === "youtube" ? t("organic", "scanning") : "YouTube"}
             </Button>
+          </div>
+        </div>
+
+        {/* Divider between groups */}
+        <div className="hidden sm:block w-px self-stretch bg-border mt-6" />
+
+        {/* Monitoring group — workspace-level tools surfaced on the
+            brand page so the user can launch a SERP query / Maps
+            search pre-attached to the current brand without going
+            through the sidebar. SERP and Maps don't have a "scan"
+            action per se — clicking opens the create flow on the
+            workspace page with brand context preserved. */}
+        <div className="space-y-2">
+          <p className={groupLabel}>{t("scan", "monitoringGroup")}</p>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Link
+              href={`/serp?brandId=${competitorId}&new=1`}
+              className={cn(
+                bigCta,
+                "inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+              )}
+            >
+              <Search className="size-6" /> Google SERP
+            </Link>
+            <Link
+              href="/maps"
+              className={cn(
+                bigCta,
+                "inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+              )}
+            >
+              <MapPin className="size-6" /> Google Maps
+            </Link>
           </div>
         </div>
       </div>

@@ -166,6 +166,14 @@ export default async function LibraryPage({
   const metaAds = showSourceSections ? ads.filter((a) => a.source === "meta") : [];
   const googleAds = showSourceSections ? ads.filter((a) => a.source === "google") : [];
 
+  // Brand attribution: when the user has NOT narrowed the list to a
+  // single brand the cards mix items from many brands and the user
+  // legitimately needs to know which brand each card belongs to.
+  // When brand filter is active we hide the label (it would be
+  // identical on every card and therefore noise).
+  const showBrandLabel = !sp.brand;
+  const brandNameById = new Map(competitors.map((c) => [c.id, c.page_name]));
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -199,40 +207,85 @@ export default async function LibraryPage({
           {isInstagram ? (
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {organicPosts.map((p) => (
-                <OrganicPostCard key={p.id} post={p} />
+                <BrandFramedItem
+                  key={p.id}
+                  brandName={
+                    showBrandLabel ? brandNameById.get(p.competitor_id ?? "") ?? null : null
+                  }
+                >
+                  <OrganicPostCard post={p} />
+                </BrandFramedItem>
               ))}
             </div>
           ) : isTiktok ? (
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {tiktokPosts.map((p) => (
-                <TikTokPostCard key={p.id} post={p} />
+                <BrandFramedItem
+                  key={p.id}
+                  brandName={
+                    showBrandLabel ? brandNameById.get(p.competitor_id ?? "") ?? null : null
+                  }
+                >
+                  <TikTokPostCard post={p} />
+                </BrandFramedItem>
               ))}
             </div>
           ) : isSnapchat ? (
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {snapchatProfiles.map((p) => (
-                <SnapchatProfileCard key={p.id} profile={p} />
+                <BrandFramedItem
+                  key={p.id}
+                  brandName={
+                    showBrandLabel ? brandNameById.get(p.competitor_id ?? "") ?? null : null
+                  }
+                >
+                  <SnapchatProfileCard profile={p} />
+                </BrandFramedItem>
               ))}
             </div>
           ) : isYoutube ? (
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {youtubeVideos.map((v) => (
-                <YoutubeVideoCard key={v.id} video={v} />
+                <BrandFramedItem
+                  key={v.id}
+                  brandName={
+                    showBrandLabel ? brandNameById.get(v.competitor_id ?? "") ?? null : null
+                  }
+                >
+                  <YoutubeVideoCard video={v} />
+                </BrandFramedItem>
               ))}
             </div>
           ) : showSourceSections ? (
             <div className="space-y-8">
               {metaAds.length > 0 && (
-                <AdSection title="Meta Ads" count={metaAds.length} ads={metaAds} />
+                <AdSection
+                  title="Meta Ads"
+                  count={metaAds.length}
+                  ads={metaAds}
+                  brandNameById={showBrandLabel ? brandNameById : null}
+                />
               )}
               {googleAds.length > 0 && (
-                <AdSection title="Google Ads" count={googleAds.length} ads={googleAds} />
+                <AdSection
+                  title="Google Ads"
+                  count={googleAds.length}
+                  ads={googleAds}
+                  brandNameById={showBrandLabel ? brandNameById : null}
+                />
               )}
             </div>
           ) : (
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {ads.map((a) => (
-                <AdCard key={a.id} ad={a} />
+                <BrandFramedItem
+                  key={a.id}
+                  brandName={
+                    showBrandLabel ? brandNameById.get(a.competitor_id ?? "") ?? null : null
+                  }
+                >
+                  <AdCard ad={a} />
+                </BrandFramedItem>
               ))}
             </div>
           )}
@@ -250,10 +303,15 @@ function AdSection({
   title,
   count,
   ads,
+  brandNameById,
 }: {
   title: string;
   count: number;
   ads: MaitAdExternal[];
+  /** When non-null, render the brand attribution above each card.
+   *  Null means brand filter is active so the label would just be
+   *  noise. */
+  brandNameById: Map<string, string> | null;
 }) {
   return (
     <section>
@@ -265,9 +323,38 @@ function AdSection({
       </div>
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {ads.map((a) => (
-          <AdCard key={a.id} ad={a} />
+          <BrandFramedItem
+            key={a.id}
+            brandName={brandNameById ? brandNameById.get(a.competitor_id ?? "") ?? null : null}
+          >
+            <AdCard ad={a} />
+          </BrandFramedItem>
         ))}
       </div>
     </section>
+  );
+}
+
+/** Wraps a Library card with a small brand attribution row above it.
+ *  When brandName is null (brand filter active or competitor_id
+ *  missing) we just render the card as-is — the wrapper becomes a
+ *  no-op fragment. */
+function BrandFramedItem({
+  brandName,
+  children,
+}: {
+  brandName: string | null;
+  children: React.ReactNode;
+}) {
+  if (!brandName) {
+    return <>{children}</>;
+  }
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[10px] uppercase tracking-widest text-gold/80 px-1 truncate">
+        {brandName}
+      </p>
+      {children}
+    </div>
   );
 }
