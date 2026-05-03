@@ -170,30 +170,32 @@ export function LibraryFilters({
         </Button>
       </form>
 
-      {/* ─── Row 2: Primary filters ─── */}
-      <div className="rounded-lg border border-border bg-card p-3">
-        <div className="flex flex-wrap items-center gap-6">
+      {/* ─── Row 2: Primary filters ───
+          Channels split into two visually-distinct group cards
+          (Paid / Organic). The original inline divider was a single
+          5px hairline that the user couldn't see; framing each
+          group with its own bordered/tinted box makes the boundary
+          unmistakable. Brand filter and Reset stay on a third row
+          so the channel cards keep breathing room. */}
+      <div className="rounded-lg border border-border bg-card p-3 space-y-3">
+        <div className="flex flex-wrap items-stretch gap-2">
           {/* Channel — Paid */}
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Paid</span>
-            <div className="flex items-center gap-1">
-              <Pill active={(filters.channel ?? "") === ""} onClick={() => selectChannel()}>{t("library", "allChannels")}</Pill>
-              <Pill active={filters.channel === "meta"} onClick={() => selectChannel("meta")}>
-                <MetaIcon className="size-3" /> Meta
-              </Pill>
-              <Pill active={filters.channel === "google"} onClick={() => selectChannel("google")}>
-                <GoogleIcon className="size-3" /> Google
-              </Pill>
-            </div>
+          <div className="flex items-center gap-2 rounded-md border border-border/80 bg-muted/30 px-3 py-1.5">
+            <span className="text-[10px] uppercase tracking-wider text-foreground/70 font-bold">Paid</span>
+            <Pill active={(filters.channel ?? "") === ""} onClick={() => selectChannel()}>{t("library", "allChannels")}</Pill>
+            <Pill active={filters.channel === "meta"} onClick={() => selectChannel("meta")}>
+              <MetaIcon className="size-3" /> Meta
+            </Pill>
+            <Pill active={filters.channel === "google"} onClick={() => selectChannel("google")}>
+              <GoogleIcon className="size-3" /> Google
+            </Pill>
           </div>
 
-          <div className="h-5 w-px bg-border" />
-
-          {/* Channel — Organic. Each surface lives in its own
-              data table; the /library page branches per channel
-              and renders the dedicated card component. */}
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Organic</span>
+          {/* Channel — Organic. Each surface lives in its own data
+              table; the /library page branches per channel and
+              renders the dedicated card component. */}
+          <div className="flex items-center gap-2 rounded-md border border-border/80 bg-muted/30 px-3 py-1.5">
+            <span className="text-[10px] uppercase tracking-wider text-foreground/70 font-bold">Organic</span>
             <Pill active={filters.channel === "instagram"} onClick={() => selectChannel("instagram")}>
               <InstagramIcon className="size-3" /> Instagram
             </Pill>
@@ -207,9 +209,9 @@ export function LibraryFilters({
               <YouTubeIcon className="size-3" /> YouTube
             </Pill>
           </div>
+        </div>
 
-          <div className="h-5 w-px bg-border" />
-
+        <div className="flex flex-wrap items-center gap-6">
           {/* Brand */}
           <div className="flex items-center gap-2">
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Brand</span>

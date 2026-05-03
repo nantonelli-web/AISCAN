@@ -55,7 +55,7 @@ export default async function SerpPage() {
       </Link>
       <header className="space-y-1">
         <h1 className="text-3xl font-serif tracking-tight">{t("serp", "title")}</h1>
-        <p className="text-sm text-muted-foreground max-w-2xl">
+        <p className="text-sm text-muted-foreground max-w-2xl text-pretty">
           {t("serp", "subtitle")}
         </p>
       </header>

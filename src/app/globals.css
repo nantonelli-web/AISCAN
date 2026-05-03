@@ -51,6 +51,39 @@ html, body {
   color: var(--gold-foreground);
 }
 
+/* PageLoader animations — radar pulse + breathing core. Defined here
+   (instead of inline on the component) so the keyframes survive a
+   Tailwind v4 JIT pass and the loader can be reused across sections. */
+@keyframes aiscan-pulse {
+  0% {
+    transform: scale(0.55);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+@keyframes aiscan-core {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.18);
+    opacity: 1;
+  }
+}
+.animate-aiscan-pulse {
+  animation: aiscan-pulse 1.8s ease-out infinite;
+}
+.animate-aiscan-core {
+  animation: aiscan-core 1.6s ease-in-out infinite;
+}
+
 /* Subtle scrollbar, tuned for the light background */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: #f3f4f6; }

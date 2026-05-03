@@ -767,7 +767,16 @@ const translations = {
     channel: { it: "Canale", en: "Channel" },
     channelPaid: { it: "Paid", en: "Paid" },
     channelOrganic: { it: "Organic", en: "Organic" },
+    channelMonitoring: { it: "Monitoring", en: "Monitoring" },
     allChannels: { it: "Tutti i canali", en: "All channels" },
+    channelComingSoonTitle: {
+      it: "Confronto in arrivo per",
+      en: "Comparison coming soon for",
+    },
+    channelComingSoonHelp: {
+      it: "I dati sono già raccolti per ogni brand: il prossimo step è l'aggregatore lato server che li impagina nei tab tecnico, copy e visivo. Nel frattempo usa Meta, Google, Instagram o Tutti i canali.",
+      en: "Per-brand data is already collected; the next step is the server aggregator that powers the technical, copy and visual tabs. In the meantime, use Meta, Google, Instagram or All channels.",
+    },
     selectCountries: { it: "Paesi", en: "Countries" },
     selectCountriesHint: {
       it: "Seleziona i paesi su cui vuoi effettuare il confronto.",
@@ -866,6 +875,7 @@ const translations = {
       it: "Tutte le creativit\u00E0 raccolte nel workspace.",
       en: "All creatives collected in the workspace.",
     },
+    backLabel: { it: "Indietro", en: "Back" },
     noAdsFiltered: {
       it: "Nessuna ad trovata con questi filtri.",
       en: "No ads found with these filters.",
@@ -970,6 +980,15 @@ const translations = {
     rangeInvalid: { it: "Range non valido", en: "Invalid range" },
     paidChannels: { it: "Paid", en: "Paid" },
     organicChannels: { it: "Organic", en: "Organic" },
+    monitoringChannels: { it: "Monitoring", en: "Monitoring" },
+    channelComingSoonTitle: {
+      it: "Benchmark in arrivo per questo canale",
+      en: "Benchmarks coming soon for this channel",
+    },
+    channelComingSoonHelp: {
+      it: "I dati per brand sono già raccolti — manca l'aggregatore lato server che alimenta i grafici. Nel frattempo, usa Meta Ads, Google Ads o Instagram per i benchmark completi.",
+      en: "Per-brand data is already collected — the missing piece is the server aggregator that feeds the charts. In the meantime, use Meta Ads, Google Ads or Instagram for full benchmarks.",
+    },
     noScanWarningTitle: {
       it: "Brand non visibili nei grafici {channel}",
       en: "Brands missing from {channel} charts",
@@ -1689,8 +1708,8 @@ const translations = {
   serp: {
     title: { it: "Google SERP", en: "Google SERP" },
     subtitle: {
-      it: "Traccia query su Google, vedi chi compete in organico e in ads. Le query possono essere stand-alone oppure associate ai tuoi brand per monitorarne il ranking.",
-      en: "Track Google queries, see who competes organically and in ads. Queries can be stand-alone or linked to your brands to monitor their ranking.",
+      it: "Traccia query su Google: chi compete in organico, chi in ads, chi presidia il ranking dei tuoi brand.",
+      en: "Track Google queries: who competes organically, who competes in ads, who owns your brands' ranking.",
     },
     addQuery: { it: "Aggiungi query", en: "Add query" },
     closeForm: { it: "Chiudi", en: "Close" },

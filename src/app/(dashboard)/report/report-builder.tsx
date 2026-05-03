@@ -20,6 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
+import { PageLoader } from "@/components/ui/page-loader";
 import { useT } from "@/lib/i18n/context";
 import type { MaitCompetitor } from "@/types";
 
@@ -1068,10 +1069,12 @@ export function ReportBuilder({
       {scanning && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center">
           <Card className="w-80">
-            <CardContent className="py-8 text-center space-y-4">
-              <Loader2 className="size-8 animate-spin text-gold mx-auto" />
-              <p className="text-sm font-medium">{t("report", "scanningBrands")}</p>
-              <p className="text-xs text-muted-foreground">{t("report", "scanningWait")}</p>
+            <CardContent className="py-8 space-y-4">
+              <PageLoader className="!py-4" />
+              <div className="text-center space-y-1">
+                <p className="text-sm font-medium">{t("report", "scanningBrands")}</p>
+                <p className="text-xs text-muted-foreground">{t("report", "scanningWait")}</p>
+              </div>
             </CardContent>
           </Card>
         </div>

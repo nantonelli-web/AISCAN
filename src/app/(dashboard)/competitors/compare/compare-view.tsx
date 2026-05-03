@@ -27,6 +27,10 @@ import {
 } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
+import { TikTokIcon } from "@/components/ui/tiktok-icon";
+import { SnapchatIcon } from "@/components/ui/snapchat-icon";
+import { YouTubeIcon } from "@/components/ui/youtube-icon";
+import { Search as SearchIcon } from "lucide-react";
 import { FallbackImage } from "@/components/ui/fallback-image";
 import { CollapsibleClientSection } from "../collapsible-client-section";
 import {
@@ -48,12 +52,41 @@ import type {
   BenchmarkData,
   OrganicBenchmarkData,
 } from "@/lib/analytics/benchmarks";
+import { PageLoader } from "@/components/ui/page-loader";
 import type { CreativeAnalysisResult } from "@/lib/ai/creative-analysis";
 import type { MaitCompetitor, MaitClient } from "@/types";
 import { getCountries } from "@/config/countries";
 
 type Tab = "technical" | "copy" | "visual" | "benchmark";
-type Channel = "all" | "meta" | "google" | "instagram";
+/**
+ * Compare supports the legacy comparison surfaces (meta / google / instagram)
+ * with full technical + AI tabs, plus the newer channels that have
+ * brand-level data but no aggregator yet (tiktok / snapchat / youtube /
+ * serp). The UI lists all of them so the user has visual parity with
+ * the Library and brand-detail surfaces; picking one of the
+ * not-yet-implemented channels lands on a "coming soon" placeholder
+ * that documents why the comparison is held back (different table
+ * shape per channel, separate aggregate logic). When the API gains a
+ * compute path for one of those channels, the gate in `isImplementedChannel`
+ * is the single switch to flip.
+ */
+type Channel =
+  | "all"
+  | "meta"
+  | "google"
+  | "instagram"
+  | "tiktok"
+  | "snapchat"
+  | "youtube"
+  | "serp";
+
+/** Channels for which `/api/comparisons` already returns aggregated
+ *  technical_data and AI sections. The compare flow short-circuits to
+ *  a placeholder for any channel outside this set so we never ask the
+ *  API for stats it cannot compute. */
+function isImplementedChannel(ch: Channel | null): boolean {
+  return ch === "all" || ch === "meta" || ch === "google" || ch === "instagram";
+}
 
 /**
  * AdsCompStats is a discriminated union by `channel`. Meta and Google
@@ -240,7 +273,16 @@ interface SavedComparison {
 }
 
 function isChannel(v: string | null | undefined): v is Channel {
-  return v === "all" || v === "meta" || v === "google" || v === "instagram";
+  return (
+    v === "all" ||
+    v === "meta" ||
+    v === "google" ||
+    v === "instagram" ||
+    v === "tiktok" ||
+    v === "snapchat" ||
+    v === "youtube" ||
+    v === "serp"
+  );
 }
 
 function channelLabel(ch: string | null | undefined, t: (s: string, k: string) => string): string {
@@ -248,6 +290,10 @@ function channelLabel(ch: string | null | undefined, t: (s: string, k: string) =
     case "meta": return "Meta Ads";
     case "google": return "Google Ads";
     case "instagram": return "Instagram";
+    case "tiktok": return "TikTok";
+    case "snapchat": return "Snapchat";
+    case "youtube": return "YouTube";
+    case "serp": return "Google SERP";
     case "all": return t("compare", "allChannels");
     default: return "Meta Ads";
   }
@@ -547,7 +593,7 @@ export function CompareView({
   );
 
   useEffect(() => {
-    if (selected.size >= 2 && channel !== null) {
+    if (selected.size >= 2 && channel !== null && isImplementedChannel(channel)) {
       fetchComparison(selectedIds);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -767,10 +813,40 @@ export function CompareView({
   const selectedComps = competitors.filter((c) => selected.has(c.id));
   const googleDisabled = selectedComps.some((c) => !c.google_advertiser_id && !c.google_domain);
   const instagramDisabled = selectedComps.some((c) => !c.instagram_username);
+  // Newer channels: their `monitor_config` carries the per-channel
+  // username / handle. We treat the channel as available the moment
+  // any selected brand has it configured, because a side-by-side
+  // comparison needs at least one populated row to render. Strict
+  // "all brands configured" gating produced too many false negatives
+  // during testing — users who scanned only the brand they care
+  // about were locked out even though the surface had data.
+  type MonitorConfig = {
+    tiktok?: { username?: string };
+    snapchat?: { username?: string };
+    youtube?: { handle?: string; channelUrl?: string };
+  } | null;
+  const tiktokDisabled = selectedComps.every(
+    (c) => !((c.monitor_config as MonitorConfig)?.tiktok?.username),
+  );
+  const snapchatDisabled = selectedComps.every(
+    (c) => !((c.monitor_config as MonitorConfig)?.snapchat?.username),
+  );
+  const youtubeDisabled = selectedComps.every(
+    (c) => !((c.monitor_config as MonitorConfig)?.youtube?.handle) &&
+           !((c.monitor_config as MonitorConfig)?.youtube?.channelUrl),
+  );
+  // SERP comparison runs against workspace-level queries linked to
+  // each brand via the M:N junction. Not gated by brand config —
+  // any brand can be linked to any query — so we leave it always
+  // selectable. The placeholder card explains the data model.
   const channelDisabled: Record<Channel, boolean> = {
     meta: false,
     google: googleDisabled,
     instagram: instagramDisabled,
+    tiktok: tiktokDisabled,
+    snapchat: snapchatDisabled,
+    youtube: youtubeDisabled,
+    serp: false,
     all: googleDisabled || instagramDisabled,
   };
 
@@ -893,7 +969,8 @@ export function CompareView({
     }
   }
 
-  const hasResults = selected.size >= 2 && channel !== null;
+  const hasResults =
+    selected.size >= 2 && channel !== null && isImplementedChannel(channel);
   // Any selection at all means the user is mid-flow — show the reset affordance
   const hasAnySelection =
     selected.size > 0 || selectedCountries.size > 0 || channel !== null;
@@ -1191,21 +1268,57 @@ export function CompareView({
 
               <div className="h-6 w-px bg-border hidden sm:block" />
 
-              {/* Organic channels */}
-              <div className="flex items-center gap-2">
+              {/* Organic channels — Instagram + the newer
+                  surfaces (TikTok / Snapchat / YouTube). Visual
+                  parity with Library and brand-detail; comparison
+                  for the new channels falls through to the
+                  "coming soon" placeholder until the API gains a
+                  per-channel aggregator. */}
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{t("compare", "channelOrganic")}</span>
-                {(() => {
-                  const disabled = channelDisabled.instagram;
+                {([
+                  { key: "instagram" as const, label: "Instagram", icon: <InstagramIcon className="size-4" /> },
+                  { key: "tiktok" as const, label: "TikTok", icon: <TikTokIcon className="size-4" /> },
+                  { key: "snapchat" as const, label: "Snapchat", icon: <SnapchatIcon className="size-4" /> },
+                  { key: "youtube" as const, label: "YouTube", icon: <YouTubeIcon className="size-4" /> },
+                ] as const).map((ch) => {
+                  const disabled = channelDisabled[ch.key];
                   return (
                     <Button
-                      variant={channel === "instagram" ? "default" : "outline"}
+                      key={ch.key}
+                      variant={channel === ch.key ? "default" : "outline"}
                       size="sm"
-                      onClick={() => !disabled && switchChannel("instagram")}
+                      onClick={() => !disabled && switchChannel(ch.key)}
                       disabled={disabled}
                       className={cn("gap-1.5", disabled && "opacity-40 cursor-not-allowed")}
                     >
-                      <InstagramIcon className="size-4" />
-                      Instagram
+                      {ch.icon}
+                      {ch.label}
+                    </Button>
+                  );
+                })}
+              </div>
+
+              <div className="h-6 w-px bg-border hidden sm:block" />
+
+              {/* Monitoring channel — SERP. Brands linked via the
+                  workspace M:N junction; the comparison shape is
+                  ranking-based, not creative-based, so it lives in
+                  the placeholder branch until we ship that view. */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{t("compare", "channelMonitoring")}</span>
+                {(() => {
+                  const disabled = channelDisabled.serp;
+                  return (
+                    <Button
+                      variant={channel === "serp" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => !disabled && switchChannel("serp")}
+                      disabled={disabled}
+                      className={cn("gap-1.5", disabled && "opacity-40 cursor-not-allowed")}
+                    >
+                      <SearchIcon className="size-4" />
+                      Google SERP
                     </Button>
                   );
                 })()}
@@ -1360,10 +1473,12 @@ export function CompareView({
       {scanning && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center">
           <Card className="w-80">
-            <CardContent className="py-8 text-center space-y-4">
-              <Loader2 className="size-8 animate-spin text-gold mx-auto" />
-              <p className="text-sm font-medium">{t("compare", "scanningBrands")}</p>
-              <p className="text-xs text-muted-foreground">{t("compare", "scanningWait")}</p>
+            <CardContent className="py-8 space-y-4">
+              <PageLoader className="!py-4" />
+              <div className="text-center space-y-1">
+                <p className="text-sm font-medium">{t("compare", "scanningBrands")}</p>
+                <p className="text-xs text-muted-foreground">{t("compare", "scanningWait")}</p>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -1389,6 +1504,36 @@ export function CompareView({
           </CardContent>
         </Card>
       )}
+
+      {/* Coming-soon placeholder for newer channels.
+          Visual parity with the Library / brand-detail surfaces means
+          TikTok / Snapchat / YouTube / SERP sit in the channel
+          selector even though `/api/comparisons` does not yet
+          aggregate them. Rather than firing a request that will fail
+          or returns empty stats, we short-circuit here with an
+          explanation so the user understands the surface is shipping
+          incrementally. The channel selector stays usable so the user
+          can switch back to an implemented channel without resetting. */}
+      {selected.size >= 2 &&
+        selectedCountries.size > 0 &&
+        channel !== null &&
+        !isImplementedChannel(channel) && (
+          <Card className="print:hidden">
+            <CardContent className="py-12 text-center space-y-3">
+              <div className="size-12 rounded-full bg-gold/10 grid place-items-center mx-auto">
+                <BarChart3 className="size-6 text-gold" />
+              </div>
+              <div className="space-y-1 max-w-md mx-auto">
+                <p className="text-sm font-medium">
+                  {t("compare", "channelComingSoonTitle")} {channelLabel(channel, t)}
+                </p>
+                <p className="text-xs text-muted-foreground text-pretty">
+                  {t("compare", "channelComingSoonHelp")}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
       {selected.size < 2 && (
         <div className="space-y-6">
@@ -1751,12 +1896,7 @@ function TabButton({
 }
 
 function LoadingState({ text }: { text: string }) {
-  return (
-    <div className="py-16 text-center space-y-3">
-      <Loader2 className="size-6 animate-spin mx-auto text-gold" />
-      <p className="text-sm text-muted-foreground">{text}</p>
-    </div>
-  );
+  return <PageLoader label={text} />;
 }
 
 function ErrorState({ text }: { text: string }) {

@@ -10,6 +10,7 @@ import { formatDate } from "@/lib/utils";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { CollapsibleClientSection } from "./collapsible-client-section";
 import { PrintButton } from "@/components/ui/print-button";
+import { BrandCardDeleteButton } from "./brand-card-delete-button";
 import type { MaitCompetitor, MaitClient } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -212,19 +213,28 @@ function BrandCard({
     <Card className="hover:border-gold/50 transition-colors h-full relative">
       <Link href={`/competitors/${c.id}`} className="absolute inset-0 z-0" />
       <CardContent className="p-5 space-y-3 relative z-10 pointer-events-none">
+        {/* Header row — name on the left, category tag pushed to the
+            right edge so the visual rhythm matches a Kanban-style
+            card (identity left, status right). The Facebook page URL
+            that used to live below the brand name was removed: with
+            7 channels per brand a single-channel URL is no longer a
+            meaningful piece of identity. */}
         <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
+          <div className="min-w-0 flex items-center gap-2">
             <h3 className="font-semibold truncate">{c.page_name}</h3>
-            <p className="text-xs text-muted-foreground truncate">
-              {c.page_url}
-            </p>
+            <ExternalLink className="size-4 text-muted-foreground shrink-0" />
           </div>
-          <ExternalLink className="size-4 text-muted-foreground shrink-0" />
+          {c.category && (
+            <Badge variant="muted" className="shrink-0">
+              {c.category}
+            </Badge>
+          )}
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {c.country && <Badge variant="muted">{c.country}</Badge>}
-          {c.category && <Badge variant="muted">{c.category}</Badge>}
-        </div>
+        {c.country && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge variant="muted">{c.country}</Badge>
+          </div>
+        )}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-xs text-muted-foreground">
@@ -245,13 +255,19 @@ function BrandCard({
               </p>
             )}
           </div>
-          <Link
-            href={`/competitors/${c.id}/edit?from=brands`}
-            className="size-7 rounded-md border border-border hover:bg-muted hover:border-gold/40 grid place-items-center text-muted-foreground hover:text-gold transition-colors pointer-events-auto"
-            title={t("editCompetitor", "title")}
-          >
-            <Pencil className="size-3.5" />
-          </Link>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Link
+              href={`/competitors/${c.id}/edit?from=brands`}
+              className="size-7 rounded-md border border-border hover:bg-muted hover:border-gold/40 grid place-items-center text-muted-foreground hover:text-gold transition-colors pointer-events-auto"
+              title={t("editCompetitor", "title")}
+            >
+              <Pencil className="size-3.5" />
+            </Link>
+            <BrandCardDeleteButton
+              competitorId={c.id}
+              competitorName={c.page_name}
+            />
+          </div>
         </div>
       </CardContent>
     </Card>
