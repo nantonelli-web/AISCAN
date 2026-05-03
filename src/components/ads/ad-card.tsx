@@ -6,7 +6,7 @@ import { ExternalLink, Eye, Sparkles, Play, ImageIcon, LayoutGrid, Bot, Type, Sh
 import { Badge } from "@/components/ui/badge";
 import { SaveToCollection } from "@/components/ads/save-to-collection";
 import { VideoPreview } from "@/components/ads/video-preview";
-import { formatDate, isPlayableVideoUrl, youtubeIdFromUrl } from "@/lib/utils";
+import { cn, formatDate, isPlayableVideoUrl, youtubeIdFromUrl } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { AI_TAGS_ENABLED } from "@/config/features";
 import type { MaitAdExternal } from "@/types";
@@ -122,8 +122,20 @@ export function AdCard({
     : null;
   const hasPlayableVideo = isPlayableVideoUrl(ad.video_url);
 
+  // Channel rail — colour-codes the card edge so the user can scan a
+  // 4-up grid and identify Meta vs Google at a glance instead of
+  // squinting at the small format pill. data-channel is consumed by
+  // the .channel-rail CSS rule in globals.css.
+  const channelKey = isGoogle ? "google" : source === "meta" ? "meta" : null;
+
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col hover:border-gold/40 transition-colors">
+    <div
+      className={cn(
+        "rounded-xl border border-border bg-card overflow-hidden flex flex-col hover:border-gold/40 hover:shadow-md transition-all",
+        channelKey && "channel-rail",
+      )}
+      data-channel={channelKey ?? undefined}
+    >
       {/* Preview area — for Google ads we use object-contain on a
           white backdrop because the creatives are flat designs with
           embedded text ("Lino da indossare", brand logos, etc.).
@@ -331,8 +343,8 @@ export function AdCard({
             )}
           </div>
           {ad.status === "ACTIVE" && (
-            <span className="shrink-0 text-[10px] font-medium text-green-400 bg-green-400/10 rounded px-1.5 py-0.5">
-              ACTIVE
+            <span className="status-pill is-active shrink-0">
+              {t("adCard", "active")}
             </span>
           )}
         </div>

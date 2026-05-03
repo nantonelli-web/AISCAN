@@ -283,26 +283,24 @@ export default async function BenchmarksPage({
       : "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-serif tracking-tight">{t("benchmarks", "title")}</h1>
-          <p className="text-sm text-muted-foreground">{t("benchmarks", "subtitle")}</p>
+        <div className="space-y-1">
+          <p className="eyebrow">{t("benchmarks", "title").toUpperCase()}</p>
+          <h1 className="text-3xl font-serif tracking-tight">{t("benchmarks", "title")}</h1>
+          <p className="text-sm text-muted-foreground max-w-2xl text-pretty">{t("benchmarks", "subtitle")}</p>
         </div>
         <PrintButton label={t("common", "print")} variant="outline" />
       </div>
 
-      {/* ─── Channels + Status ─────────────────────────────────
-          Status sits next to the channel groups because it is also
-          an attribute of the ad itself, not of the project / country
-          / brand selection. Hidden on Instagram — organic posts do
-          not carry an ACTIVE/INACTIVE concept. */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 print:hidden">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wider text-foreground font-bold">
-            {t("benchmarks", "paidChannels")}
-          </span>
-          <div className="flex items-center gap-2">
+      {/* ─── Channel pivot ─────────────────────────────────────
+          Channel selector lives in its own tinted card so it reads
+          as the PRIMARY pivot. All other filters (project, country,
+          brand, status, dates) are modifiers and sit underneath. */}
+      <div className="rounded-lg border border-border bg-muted/20 px-4 py-3 print:hidden">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="eyebrow shrink-0">{t("benchmarks", "paidChannels")}</span>
             {paidChannels.map((ch) => (
               <Link key={ch.key} href={hrefForProject(ch.key, activeClient)} className={chipClass(channel === ch.key)}>
                 {ch.icon}
@@ -310,13 +308,9 @@ export default async function BenchmarksPage({
               </Link>
             ))}
           </div>
-        </div>
-        <div className="h-5 w-px bg-border" />
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] uppercase tracking-wider text-foreground font-bold">
-            {t("benchmarks", "organicChannels")}
-          </span>
+          <div className="h-5 w-px bg-border" />
           <div className="flex items-center gap-2 flex-wrap">
+            <span className="eyebrow shrink-0">{t("benchmarks", "organicChannels")}</span>
             {organicChannels.map((ch) => (
               <Link key={ch.key} href={hrefForProject(ch.key, activeClient)} className={chipClass(channel === ch.key)}>
                 {ch.icon}
@@ -324,13 +318,9 @@ export default async function BenchmarksPage({
               </Link>
             ))}
           </div>
-        </div>
-        <div className="h-5 w-px bg-border" />
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] uppercase tracking-wider text-foreground font-bold">
-            {t("benchmarks", "monitoringChannels")}
-          </span>
+          <div className="h-5 w-px bg-border" />
           <div className="flex items-center gap-2 flex-wrap">
+            <span className="eyebrow shrink-0">{t("benchmarks", "monitoringChannels")}</span>
             {monitoringChannels.map((ch) => (
               <Link key={ch.key} href={hrefForProject(ch.key, activeClient)} className={chipClass(channel === ch.key)}>
                 {ch.icon}
@@ -339,26 +329,29 @@ export default async function BenchmarksPage({
             ))}
           </div>
         </div>
-        {(channel === "meta" || channel === "google") && (
-          <>
-            <div className="h-5 w-px bg-border" />
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase tracking-wider text-foreground font-bold">
-                {t("benchmarks", "filterByStatus")}
-              </span>
-              <Link href={hrefForStatus(null)} className={chipClass(status === null)}>
-                {t("benchmarks", "statusAll")}
-              </Link>
-              <Link href={hrefForStatus("active")} className={chipClass(status === "active")}>
-                {t("benchmarks", "statusActive")}
-              </Link>
-              <Link href={hrefForStatus("inactive")} className={chipClass(status === "inactive")}>
-                {t("benchmarks", "statusInactive")}
-              </Link>
-            </div>
-          </>
-        )}
       </div>
+
+      {/* Status pills — only on paid channels. Sit on their own
+          subtle row so the user reads them as a refinement of the
+          channel above. Active uses a green dot, inactive grey. */}
+      {(channel === "meta" || channel === "google") && (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 print:hidden">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="eyebrow">{t("benchmarks", "filterByStatus")}</span>
+            <Link href={hrefForStatus(null)} className={chipClass(status === null)}>
+              {t("benchmarks", "statusAll")}
+            </Link>
+            <Link href={hrefForStatus("active")} className={chipClass(status === "active")}>
+              <span className="size-1.5 rounded-full tone-success bg-current shrink-0" />
+              {t("benchmarks", "statusActive")}
+            </Link>
+            <Link href={hrefForStatus("inactive")} className={chipClass(status === "inactive")}>
+              <span className="size-1.5 rounded-full tone-neutral bg-current shrink-0" />
+              {t("benchmarks", "statusInactive")}
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* ─── Project row ─── */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-3 print:hidden">

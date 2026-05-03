@@ -164,8 +164,9 @@ export default async function MonitoringLandingPage() {
   ];
 
   return (
-    <div className="space-y-6">
-      <header className="space-y-2">
+    <div className="space-y-8">
+      <header className="space-y-1">
+        <p className="eyebrow">{t("monitoring", "title").toUpperCase()}</p>
         <h1 className="text-3xl font-serif tracking-tight">
           {t("monitoring", "title")}
         </h1>
@@ -174,32 +175,40 @@ export default async function MonitoringLandingPage() {
         </p>
       </header>
 
+      {/* Channel cards now wear a coloured left rail (.channel-rail)
+          so the user can scan the 8-up grid by colour first, label
+          second. The big number is the dataset size for that channel
+          — a stronger pulse than the previous text-[11px] muted
+          line that read like a footnote. */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {tools.map((tool) => (
           <Link key={tool.key} href={tool.href} className="block group">
-            <Card className="h-full hover:border-gold/40 transition-colors cursor-pointer">
-              <CardContent className="p-5 space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="size-10 rounded-md bg-gold/10 border border-gold/30 grid place-items-center text-gold">
+            <Card
+              className="h-full hover:shadow-md hover:border-gold/30 transition-all cursor-pointer channel-rail"
+              data-channel={tool.key}
+            >
+              <CardContent className="p-5 space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="size-10 rounded-md bg-muted/50 grid place-items-center text-foreground/80">
                     {tool.iconNode}
                   </div>
-                  <ChevronRight className="size-4 text-muted-foreground group-hover:text-gold ml-auto transition-colors" />
+                  <ChevronRight className="size-4 text-muted-foreground group-hover:text-gold group-hover:translate-x-0.5 transition-all" />
                 </div>
                 <div>
                   <h2 className="text-base font-semibold text-foreground">
                     {tool.title}
                   </h2>
-                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed line-clamp-2">
                     {tool.description}
                   </p>
                 </div>
-                <div className="pt-2 border-t border-border">
-                  <p className="text-[11px] text-muted-foreground">
-                    <span className="font-semibold text-foreground">
-                      {tool.count}
-                    </span>{" "}
+                <div className="flex items-baseline gap-1.5 pt-3 section-rule">
+                  <span className="text-2xl font-semibold tabular-nums tracking-tight">
+                    {tool.count}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground uppercase tracking-wider">
                     {tool.countLabel}
-                  </p>
+                  </span>
                 </div>
               </CardContent>
             </Card>

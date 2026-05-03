@@ -272,6 +272,7 @@ export default async function LibraryPage({
                   count={metaAds.length}
                   ads={metaAds}
                   brandNameById={showBrandLabel ? brandNameById : null}
+                  channelKey="meta"
                 />
               )}
               {googleAds.length > 0 && (
@@ -280,6 +281,7 @@ export default async function LibraryPage({
                   count={googleAds.length}
                   ads={googleAds}
                   brandNameById={showBrandLabel ? brandNameById : null}
+                  channelKey="google"
                 />
               )}
             </div>
@@ -312,6 +314,7 @@ function AdSection({
   count,
   ads,
   brandNameById,
+  channelKey,
 }: {
   title: string;
   count: number;
@@ -320,15 +323,23 @@ function AdSection({
    *  Null means brand filter is active so the label would just be
    *  noise. */
   brandNameById: Map<string, string> | null;
+  /** Drives the channel-rail accent on the section header so Meta
+   *  vs Google sections are immediately distinguishable. */
+  channelKey?: "meta" | "google";
 }) {
   return (
-    <section>
-      <div className="flex items-baseline gap-2 mb-3 pb-2 border-b border-border">
-        <h2 className="text-sm font-medium text-gold uppercase tracking-wider">
-          {title}
-        </h2>
-        <span className="text-xs text-muted-foreground">({count})</span>
-      </div>
+    <section className="space-y-4">
+      {/* Section header with channel-coded left rail. Bigger title
+          weight than the previous text-sm uppercase row so the
+          section break is unmissable. */}
+      <header className="channel-rail rounded-md bg-muted/20 pl-4 pr-3 py-2.5 flex items-center justify-between" data-channel={channelKey}>
+        <div className="flex items-baseline gap-3">
+          <h2 className="text-base font-semibold tracking-tight">{title}</h2>
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {count} ads
+          </span>
+        </div>
+      </header>
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {ads.map((a) => (
           <BrandFramedItem

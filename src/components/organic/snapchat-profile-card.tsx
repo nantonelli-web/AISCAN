@@ -47,7 +47,7 @@ export function SnapchatProfileCard({ profile }: { profile: MaitSnapchatProfile 
   ];
 
   return (
-    <Card>
+    <Card className="channel-rail" data-channel="snapchat">
       <CardContent className="p-6 space-y-5">
         {/* Header — avatar + identity + verified */}
         <div className="flex items-start gap-4">

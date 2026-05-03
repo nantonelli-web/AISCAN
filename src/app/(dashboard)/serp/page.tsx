@@ -43,17 +43,18 @@ export default async function SerpPage() {
     .order("page_name", { ascending: true });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Back to the section root — Monitoring is the channel-first
           entry point for every workspace tool. /serp is one of those
           tools, so the back arrow lives in the section header. */}
       <Link
         href="/monitoring"
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground print:hidden"
       >
         <ArrowLeft className="size-4" /> {t("monitoring", "backLabel")}
       </Link>
       <header className="space-y-1">
+        <p className="eyebrow">{t("monitoring", "title").toUpperCase()}</p>
         <h1 className="text-3xl font-serif tracking-tight">{t("serp", "title")}</h1>
         <p className="text-sm text-muted-foreground max-w-2xl text-pretty">
           {t("serp", "subtitle")}

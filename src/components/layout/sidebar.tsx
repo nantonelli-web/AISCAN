@@ -20,27 +20,64 @@ import {
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 
+// Navigation grouped semantically. "Setup" = configure who you watch.
+// "Analyze" = look at what they did. "Output" = produce something for
+// a stakeholder. "Account" = administrative. The flat 9-item list was
+// hard to scan and gave Dashboard/Settings the same visual weight as
+// the high-traffic Brands/Library entries.
+//
 // `aliases`: extra URL prefixes that should also mark the item active.
 // /brands rewrites to /competitors via next.config.ts, so both forms
 // can appear in pathname depending on how the user navigated.
-const itemDefs = [
-  { href: "/dashboard", key: "dashboard", icon: LayoutDashboard, aliases: [] as string[] },
-  { href: "/brands", key: "brands", icon: Users, aliases: ["/competitors"] },
-  // Single "Monitoring" entry that hosts workspace-level tools
-  // (SERP + Maps today, future Hashtag / Trends / Reviews). The
-  // landing page at /monitoring lists each tool; aliases keep the
-  // entry highlighted while the user is inside /serp or /maps so
-  // the visual breadcrumb still works.
-  { href: "/monitoring", key: "monitoring", icon: Radar, aliases: ["/serp", "/maps"] },
-  { href: "/brands/compare", key: "compare", icon: GitCompareArrows, aliases: ["/competitors/compare"] },
-  { href: "/library", key: "library", icon: Library, aliases: [] as string[] },
-  { href: "/collections", key: "collections", icon: FolderHeart, aliases: [] as string[] },
-  { href: "/benchmarks", key: "benchmarks", icon: Target, aliases: [] as string[] },
-  { href: "/report", key: "report", icon: FileText, aliases: [] as string[] },
-  // { href: "/alerts", key: "alerts", icon: Bell }, // hidden — info already visible in brand scan history
-  { href: "/credits", key: "credits", icon: Coins, aliases: [] as string[] },
-  { href: "/settings", key: "settings", icon: Settings, aliases: [] as string[] },
-] as const;
+type NavItem = {
+  href: string;
+  key: string;
+  icon: typeof LayoutDashboard;
+  aliases: string[];
+};
+type NavGroup = { key: string; items: NavItem[] };
+
+const navGroups: NavGroup[] = [
+  {
+    key: "groupSetup",
+    items: [
+      { href: "/dashboard", key: "dashboard", icon: LayoutDashboard, aliases: [] },
+      { href: "/brands", key: "brands", icon: Users, aliases: ["/competitors"] },
+    ],
+  },
+  {
+    key: "groupAnalyze",
+    items: [
+      // Single "Monitoring" entry that hosts workspace-level tools
+      // (SERP + Maps today, future Hashtag / Trends / Reviews). The
+      // landing page at /monitoring lists each tool; aliases keep the
+      // entry highlighted while the user is inside /serp or /maps so
+      // the visual breadcrumb still works.
+      { href: "/monitoring", key: "monitoring", icon: Radar, aliases: ["/serp", "/maps"] },
+      { href: "/library", key: "library", icon: Library, aliases: [] },
+      { href: "/brands/compare", key: "compare", icon: GitCompareArrows, aliases: ["/competitors/compare"] },
+      { href: "/benchmarks", key: "benchmarks", icon: Target, aliases: [] },
+    ],
+  },
+  {
+    key: "groupBuild",
+    items: [
+      { href: "/collections", key: "collections", icon: FolderHeart, aliases: [] },
+      { href: "/report", key: "report", icon: FileText, aliases: [] },
+    ],
+  },
+  {
+    key: "groupAccount",
+    items: [
+      { href: "/credits", key: "credits", icon: Coins, aliases: [] },
+      { href: "/settings", key: "settings", icon: Settings, aliases: [] },
+    ],
+  },
+];
+
+// Flat list rebuilt from groups so the longest-prefix-wins active
+// detection keeps working unchanged.
+const itemDefs: NavItem[] = navGroups.flatMap((g) => g.items);
 
 function CreditBadge() {
   const [balance, setBalance] = useState<number | null>(null);
@@ -70,11 +107,6 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const { t } = useT();
-  // Hide /credits + balance badge entirely for workspaces that pay
-  // platform-fee separately and bring their own provider keys.
-  const visibleItems = itemDefs.filter(
-    (it) => it.key !== "credits" || billingMode !== "subscription",
-  );
 
   return (
     <aside className="hidden md:flex md:w-60 md:flex-col border-r border-border bg-card sticky top-0 h-screen">
@@ -84,34 +116,54 @@ export function Sidebar({
           <img src="/logo.webp" alt="AISCAN" className="h-[58px]" />
         </Link>
       </div>
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {visibleItems.map(({ href, key, icon: Icon, aliases }) => {
-          // Longest-prefix wins — so /competitors/compare activates
-          // Compare, not Brands, even though /competitors also matches.
-          const prefixes = [href, ...aliases];
-          const bestOwnMatch = prefixes
-            .filter((p) => pathname === p || pathname.startsWith(`${p}/`))
-            .reduce((max, p) => (p.length > max ? p.length : max), -1);
-          const bestOtherMatch = itemDefs
-            .filter((o) => o.href !== href)
-            .flatMap((o) => [o.href, ...o.aliases])
-            .filter((p) => pathname === p || pathname.startsWith(`${p}/`))
-            .reduce((max, p) => (p.length > max ? p.length : max), -1);
-          const active = bestOwnMatch >= 0 && bestOwnMatch >= bestOtherMatch;
+      <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
+        {navGroups.map((group) => {
+          // Hide /credits entirely for workspaces that pay platform-fee
+          // separately and bring their own provider keys. If the
+          // filter empties a group we drop the entire group label.
+          const items = group.items.filter(
+            (it) => it.key !== "credits" || billingMode !== "subscription",
+          );
+          if (items.length === 0) return null;
           return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                active
-                  ? "bg-gold/10 text-gold border border-gold/30"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-            >
-              <Icon className="size-4" />
-              {t("sidebar", key)}
-            </Link>
+            <div key={group.key} className="space-y-1">
+              <div className="px-3 mb-1.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/80 font-semibold">
+                {t("sidebar", group.key)}
+              </div>
+              {items.map(({ href, key, icon: Icon, aliases }) => {
+                // Longest-prefix wins — so /competitors/compare activates
+                // Compare, not Brands, even though /competitors also matches.
+                const prefixes = [href, ...aliases];
+                const bestOwnMatch = prefixes
+                  .filter((p) => pathname === p || pathname.startsWith(`${p}/`))
+                  .reduce((max, p) => (p.length > max ? p.length : max), -1);
+                const bestOtherMatch = itemDefs
+                  .filter((o) => o.href !== href)
+                  .flatMap((o) => [o.href, ...o.aliases])
+                  .filter((p) => pathname === p || pathname.startsWith(`${p}/`))
+                  .reduce((max, p) => (p.length > max ? p.length : max), -1);
+                const active = bestOwnMatch >= 0 && bestOwnMatch >= bestOtherMatch;
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={cn(
+                      "relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                      active
+                        // Active state now uses a left rail + tinted text
+                        // so the eye lands on it instantly, instead of a
+                        // full-card border-and-tint that competed with
+                        // KPI cards on the page.
+                        ? "bg-gold-soft text-gold font-medium pl-[14px] before:content-[''] before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-r before:bg-gold"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    <Icon className={cn("size-4 shrink-0", active && "text-gold")} />
+                    {t("sidebar", key)}
+                  </Link>
+                );
+              })}
+            </div>
           );
         })}
       </nav>

@@ -1,13 +1,21 @@
 @import "tailwindcss";
 
 /* Light theme — pure-white background so dashboard screenshots drop cleanly
-   into white client presentations. Gold stays as the brand accent. */
+   into white client presentations. Brand accent (under --gold for codebase
+   continuity) is deep navy. Plus a small semantic palette so success / warning
+   / danger / info live in the design system instead of being hand-rolled with
+   tailwind colours every time. */
 :root {
   --background: #ffffff;
   --foreground: #0a0a0a;
+  /* Slightly richer secondary so the body / caption text is not invisibly
+     close to the foreground — used heavily across stat labels, dates, etc. */
+  --foreground-muted: #4b5563;
   --muted: #f3f4f6;
   --muted-foreground: #5b6472;
+  --subtle: #f9fafb;
   --border: #e5e7eb;
+  --border-strong: #d1d5db;
   --card: #ffffff;
   --card-foreground: #0a0a0a;
   /* Brand accent — kept under the --gold variable name for compatibility
@@ -15,8 +23,37 @@
      codebase. The actual colour is now deep navy blue #0E3590. */
   --gold: #0e3590;
   --gold-foreground: #ffffff;
+  --gold-soft: #eef2fb;
   --destructive: #dc2626;
   --ring: #0e3590;
+
+  /* Semantic palette — used by KPIs, status badges, trend arrows, alerts.
+     Each tone has a "main" (icons, text on light bg, accents) and a "soft"
+     (background tint, ring/border helper) so we can be expressive without
+     getting noisy. Not exposed as Tailwind utilities directly; consumed via
+     the helper classes below (`.kpi-positive`, `.tone-warning`, etc.). */
+  --success: #047857;
+  --success-soft: #ecfdf5;
+  --warning: #b45309;
+  --warning-soft: #fffbeb;
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+  --info: #1d4ed8;
+  --info-soft: #eff6ff;
+  --neutral: #475569;
+  --neutral-soft: #f1f5f9;
+
+  /* Channel accent colours — used as 2-3px left-bar / icon tint on cards
+     where we want the surface to be readable at a glance ("this is a Meta
+     card / this is an Instagram card"). Subtle, never as backgrounds. */
+  --channel-meta: #1877f2;
+  --channel-google: #ea4335;
+  --channel-instagram: #e1306c;
+  --channel-tiktok: #00f2ea;
+  --channel-snapchat: #fffc00;
+  --channel-youtube: #ff0000;
+  --channel-serp: #4285f4;
+  --channel-maps: #34a853;
 }
 
 @theme inline {
@@ -31,8 +68,136 @@
   --color-gold-foreground: var(--gold-foreground);
   --color-destructive: var(--destructive);
   --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Inter", "Segoe UI", Helvetica, Arial, sans-serif;
   --font-serif: Georgia, "Times New Roman", serif;
+}
+
+/* ─── Semantic helpers ────────────────────────────────────────
+   Single source of truth for "this number / pill / icon means
+   active / warning / danger / info". Use these instead of hand-
+   rolling `text-green-400 bg-green-400/10` throughout the codebase. */
+.tone-success { color: var(--success); }
+.tone-warning { color: var(--warning); }
+.tone-danger  { color: var(--danger); }
+.tone-info    { color: var(--info); }
+.tone-neutral { color: var(--neutral); }
+
+.bg-success-soft { background-color: var(--success-soft); }
+.bg-warning-soft { background-color: var(--warning-soft); }
+.bg-danger-soft  { background-color: var(--danger-soft); }
+.bg-info-soft    { background-color: var(--info-soft); }
+.bg-neutral-soft { background-color: var(--neutral-soft); }
+.bg-gold-soft    { background-color: var(--gold-soft); }
+
+.ring-success { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--success) 30%, transparent); }
+.ring-warning { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warning) 30%, transparent); }
+.ring-danger  { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 30%, transparent); }
+.ring-info    { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--info) 30%, transparent); }
+
+/* ─── Status pills ──────────────────────────────────────────────
+   Active / Inactive / Paused etc. read better with a small dot than
+   with all-caps text — eyes catch the colour first, then the label. */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.status-pill::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: currentColor;
+  display: inline-block;
+}
+.status-pill.is-active   { color: var(--success); background: var(--success-soft); }
+.status-pill.is-paused   { color: var(--warning); background: var(--warning-soft); }
+.status-pill.is-inactive { color: var(--neutral); background: var(--neutral-soft); }
+.status-pill.is-running  { color: var(--info);    background: var(--info-soft); }
+.status-pill.is-error    { color: var(--danger);  background: var(--danger-soft); }
+
+/* ─── Channel accent strips ─────────────────────────────────────
+   Apply via `data-channel="meta"` etc. on a card — we render a
+   2px coloured rail on the left edge so the user can identify the
+   channel at a glance without us colour-flooding the entire card. */
+.channel-rail { position: relative; overflow: hidden; }
+.channel-rail::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--accent, var(--gold));
+}
+.channel-rail[data-channel="meta"]      { --accent: var(--channel-meta); }
+.channel-rail[data-channel="google"]    { --accent: var(--channel-google); }
+.channel-rail[data-channel="instagram"] { --accent: var(--channel-instagram); }
+.channel-rail[data-channel="tiktok"]    { --accent: #14b8a6; /* tiktok-ish but readable on white */ }
+.channel-rail[data-channel="snapchat"]  { --accent: #eab308; /* snapchat yellow @ AAA-friendly */ }
+.channel-rail[data-channel="youtube"]   { --accent: var(--channel-youtube); }
+.channel-rail[data-channel="serp"]      { --accent: var(--channel-serp); }
+.channel-rail[data-channel="maps"]      { --accent: var(--channel-maps); }
+
+/* ─── Section header rule ───────────────────────────────────────
+   Marks the boundary between two visually-equal cards/sections.
+   Lighter than a plain border so it nests inside cards without
+   feeling like a separator-on-separator. */
+.section-rule {
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+/* ─── KPI hierarchy ─────────────────────────────────────────────
+   Bigger primary numbers (text-3xl was too modest), tighter
+   leading, optical-aligned tabular numerals so a column of stats
+   lines up regardless of digit count. */
+.kpi-value {
+  font-size: 2rem;       /* 32px — vs the previous text-2xl 24px */
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.kpi-value--lg {
+  font-size: 2.5rem;
+  letter-spacing: -0.025em;
+}
+.kpi-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+.kpi-trend {
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.kpi-trend.is-up   { color: var(--success); }
+.kpi-trend.is-down { color: var(--danger); }
+.kpi-trend.is-flat { color: var(--neutral); }
+
+/* ─── Eyebrow ──────────────────────────────────────────────────
+   Tiny uppercase label that sits ABOVE a heading. We use it on the
+   brand detail hero (BRAND), on section breaks, on the report
+   builder. Single class, consistent rhythm. */
+.eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  font-weight: 600;
 }
 
 * {

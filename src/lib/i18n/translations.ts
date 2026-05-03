@@ -199,6 +199,14 @@ const translations = {
     alerts: { it: "Alerts", en: "Alerts" },
     settings: { it: "Settings", en: "Settings" },
     credits: { it: "Crediti", en: "Credits" },
+    // Sidebar group labels \u2014 the navigation is split into "what
+    // are you looking at?" (Source data) vs "what are you
+    // building?" (Output) so the user does not have to scan a
+    // flat 9-row list.
+    groupSetup: { it: "Setup", en: "Setup" },
+    groupAnalyze: { it: "Analizza", en: "Analyze" },
+    groupBuild: { it: "Output", en: "Output" },
+    groupAccount: { it: "Account", en: "Account" },
     footer: { it: "NIMA Digital \u00B7 v0.1", en: "NIMA Digital \u00B7 v0.1" },
   },
 
@@ -242,6 +250,7 @@ const translations = {
 
   // ─── Dashboard ─────────────────────────────────────────────
   dashboard: {
+    title: { it: "Dashboard", en: "Dashboard" },
     greeting: { it: "Buongiorno", en: "Good morning" },
     subtitle: {
       it: "Panoramica del tuo workspace AISCAN.",
@@ -281,6 +290,23 @@ const translations = {
     },
     lastScan: { it: "Ultimo scan:", en: "Last scan:" },
     scanPeriod: { it: "Periodo:", en: "Period:" },
+    // Brand-card freshness pill — colour-coded by the
+    // last_scraped_at age. Shown next to country / category as a
+    // status dot ("Today", "3 days", "Never") so the user can see
+    // at a glance which brands need a refresh without parsing dates.
+    freshNever: { it: "Mai scansionato", en: "Never scanned" },
+    freshToday: { it: "Oggi", en: "Today" },
+    freshDay: { it: "giorno fa", en: "day ago" },
+    freshDays: { it: "giorni fa", en: "days ago" },
+    // KPI strip at the top of the brands list. "Brand monitorati",
+    // "Progetti attivi", "Da aggiornare" (brands stale > 14d).
+    kpiBrandsLabel: { it: "Brand monitorati", en: "Brands tracked" },
+    kpiProjectsLabel: { it: "Progetti attivi", en: "Active projects" },
+    kpiStaleLabel: { it: "Da aggiornare", en: "Need refresh" },
+    kpiStaleHint: {
+      it: "Brand non scansionati negli ultimi {n} giorni.",
+      en: "Brands not scanned in the last {n} days.",
+    },
     allCompetitors: { it: "Tutti i brand", en: "All brands" },
     exportCsv: { it: "Export CSV", en: "Export CSV" },
     noAdsCollected: {
@@ -378,6 +404,17 @@ const translations = {
     backToReport: { it: "Torna al report", en: "Back to report" },
     backToBrands: { it: "Torna ai brand", en: "Back to brands" },
     backToBrand: { it: "Torna al brand", en: "Back to brand" },
+  },
+
+  // ─── Brand detail hero ────────────────────────────────────
+  // KPI tiles that sit above the channel tabs. "Creatività" =
+  // total ads + organic posts collected; "Canali coperti" = how
+  // many of the 7 channels have at least one row; "Ultimo scan"
+  // = relative time since last successful job.
+  brandHero: {
+    kpiCreatives: { it: "Creatività raccolte", en: "Creatives collected" },
+    kpiChannels: { it: "Canali coperti", en: "Channels covered" },
+    kpiLastScan: { it: "Ultimo scan", en: "Last scan" },
   },
 
   // ─── Scan Button ───────────────────────────────────────────
@@ -769,6 +806,13 @@ const translations = {
     channelOrganic: { it: "Organic", en: "Organic" },
     channelMonitoring: { it: "Monitoring", en: "Monitoring" },
     allChannels: { it: "Tutti i canali", en: "All channels" },
+    // 4-step Compare flow indicator — labels for the stepper at the
+    // top of the page so the user knows where they are in the
+    // brands → countries → channel → results flow.
+    stepBrands: { it: "Brand", en: "Brands" },
+    stepCountries: { it: "Paesi", en: "Countries" },
+    stepChannel: { it: "Canale", en: "Channel" },
+    stepResults: { it: "Risultati", en: "Results" },
     channelComingSoonTitle: {
       it: "Confronto in arrivo per",
       en: "Comparison coming soon for",
@@ -1471,6 +1515,7 @@ const translations = {
       en: "View on Google Ads Transparency",
     },
     onPlatforms: { it: "Su", en: "On" },
+    active: { it: "Attiva", en: "Active" },
     saveToCollection: { it: "Salva in collezione", en: "Save to collection" },
     notAnalyzed: { it: "Non analizzata dall'AI", en: "Not analyzed by AI" },
     formatImage: { it: "IMAGE", en: "IMAGE" },

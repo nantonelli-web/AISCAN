@@ -165,7 +165,9 @@ export async function BenchmarkContent({
 
       {/* KPI cards. avgCopyLength is dropped on Google — Transparency
           Library does not return ad_text and the metric is structurally
-          meaningless there (text ads are length-capped by the platform). */}
+          meaningless there (text ads are length-capped by the platform).
+          Active ads tile uses a success tone so the eye picks it up
+          first — that's almost always the metric the user is going to. */}
       <div
         className={
           channel === "google"
@@ -174,7 +176,11 @@ export async function BenchmarkContent({
         }
       >
         <Stat label={t("benchmarks", "totalAds")} value={formatNumber(data.totals.totalAds)} />
-        <Stat label={t("benchmarks", "activeAds")} value={formatNumber(data.totals.activeAds)} />
+        <Stat
+          label={t("benchmarks", "activeAds")}
+          value={formatNumber(data.totals.activeAds)}
+          tone="success"
+        />
         <Stat label={t("benchmarks", "avgCampaignDuration")} value={`${data.totals.avgDuration}gg`} />
         {channel !== "google" && (
           <Stat
@@ -884,12 +890,24 @@ function AudienceProfileRow({
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  tone?: "neutral" | "success" | "info";
+}) {
+  const valueClass =
+    tone === "success" ? "tone-success"
+    : tone === "info" ? "text-gold"
+    : "text-foreground";
   return (
     <Card>
       <CardContent className="p-5">
-        <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">{label}</div>
-        <div className="text-2xl font-semibold">{value}</div>
+        <div className="kpi-label">{label}</div>
+        <div className={`kpi-value mt-1.5 ${valueClass}`}>{value}</div>
       </CardContent>
     </Card>
   );

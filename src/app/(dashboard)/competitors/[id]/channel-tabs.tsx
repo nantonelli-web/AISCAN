@@ -20,7 +20,7 @@ import { TikTokIcon } from "@/components/ui/tiktok-icon";
 import { SnapchatIcon } from "@/components/ui/snapchat-icon";
 import { YouTubeIcon } from "@/components/ui/youtube-icon";
 import { Download, Loader2, Search as SearchIcon } from "lucide-react";
-import { formatNumber } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { CountryFilterDropdown } from "./country-filter-dropdown";
 import type { BrandSerpQueryRank } from "./brand-channels-section";
@@ -380,44 +380,61 @@ export function ChannelTabs({
 
   return (
     <div className="space-y-6">
-      {/* ─── Channel · Country · Status — all on one row ──────
-          Same grammar as the Benchmarks filter strip: inline label
-          (uppercase 10px bold), pills without count badges, vertical
-          divider between groups. Country dropdown sits in the middle
-          (Meta-only, hidden on Instagram/Google) so the row reads
-          left-to-right as "narrow the channel, then the market,
-          then the status". */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 print:hidden">
+      {/* ─── Channel tabs ──────────────────────────────────────
+          Channel selector now lives inside its own card on a tinted
+          surface so it reads as the PRIMARY pivot (the user picks
+          a channel first, then narrows). Status + Country are
+          secondary — they sit on a flatter row underneath, marked
+          as "modificatori" by the smaller eyebrow label. */}
+      <div className="rounded-lg border border-border bg-muted/20 px-4 py-3 print:hidden">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] uppercase tracking-wider text-foreground font-bold">
+          <span className="eyebrow shrink-0">
             {t("competitors", "filterByChannel")}
           </span>
-          {visibleTabs.map((p) => (
-            <Link
-              key={p.key}
-              href={buildHref({
-                tab: p.key === "all" ? null : p.key,
-                // Switching to Instagram or Google disables the
-                // country filter (no scan_countries on those rows).
-                // Drop the selection rather than carrying an
-                // invisible filter forward.
-                ...(p.key === "instagram" || p.key === "google"
-                  ? { countries: null }
-                  : {}),
-              })}
-              className={chipClass(channel === p.key)}
-            >
-              {p.icon}
-              {p.label}
-            </Link>
-          ))}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {visibleTabs.map((p) => (
+              <Link
+                key={p.key}
+                href={buildHref({
+                  tab: p.key === "all" ? null : p.key,
+                  // Switching to Instagram or Google disables the
+                  // country filter (no scan_countries on those rows).
+                  // Drop the selection rather than carrying an
+                  // invisible filter forward.
+                  ...(p.key === "instagram" || p.key === "google"
+                    ? { countries: null }
+                    : {}),
+                })}
+                className={chipClass(channel === p.key)}
+              >
+                {p.icon}
+                <span>{p.label}</span>
+                {/* Show count next to the channel — quick way to
+                    see at-a-glance which channels have data. Hidden
+                    on "all" because that's the sum and it'd just
+                    duplicate the breakdown to its right. */}
+                {p.key !== "all" && p.count > 0 && (
+                  <span className={cn(
+                    "text-[10px] tabular-nums ml-0.5",
+                    channel === p.key ? "text-gold/80" : "text-muted-foreground/70",
+                  )}>
+                    {p.count}
+                  </span>
+                )}
+              </Link>
+            ))}
+          </div>
         </div>
+      </div>
 
-        {showCountryFilter && (
-          <>
-            <div className="h-5 w-px bg-border" />
+      {/* Secondary filters — Country + Status. Only render the row
+          if at least one of them applies on the current channel,
+          otherwise we'd leave an empty bar that adds noise. */}
+      {(showCountryFilter || showStatusFilter) && (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 print:hidden">
+          {showCountryFilter && (
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] uppercase tracking-wider text-foreground font-bold">
+              <span className="eyebrow">
                 {t("competitors", "filterByCountry")}
               </span>
               <CountryFilterDropdown
@@ -433,14 +450,11 @@ export function ChannelTabs({
                 }}
               />
             </div>
-          </>
-        )}
+          )}
 
-        {showStatusFilter && (
-          <>
-            <div className="h-5 w-px bg-border" />
+          {showStatusFilter && (
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] uppercase tracking-wider text-foreground font-bold">
+              <span className="eyebrow">
                 {t("competitors", "filterByStatus")}
               </span>
               {statusPills.map((p) => (
@@ -449,15 +463,27 @@ export function ChannelTabs({
                   href={buildHref({
                     status: p.key === "all" ? null : p.key,
                   })}
-                  className={chipClass(status === p.key)}
+                  className={cn(
+                    chipClass(status === p.key),
+                    // Color-code active vs inactive so the eye
+                    // can distinguish them without reading.
+                    status !== p.key && p.key === "active" && "hover:tone-success",
+                    status !== p.key && p.key === "inactive" && "hover:tone-neutral",
+                  )}
                 >
+                  {p.key === "active" && (
+                    <span className="size-1.5 rounded-full bg-current shrink-0 tone-success" />
+                  )}
+                  {p.key === "inactive" && (
+                    <span className="size-1.5 rounded-full bg-current shrink-0 tone-neutral" />
+                  )}
                   {p.label}
                 </Link>
               ))}
             </div>
-          </>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* ─── Ads section ─── */}
       {channel === "all" ? (

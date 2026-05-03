@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdCard } from "@/components/ads/ad-card";
 import { Badge } from "@/components/ui/badge";
+import { Kpi } from "@/components/ui/kpi";
 import { formatNumber } from "@/lib/utils";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { PrintButton } from "@/components/ui/print-button";
@@ -91,32 +92,41 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-8">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-serif tracking-tight">
+        <div className="space-y-1">
+          <p className="eyebrow">{t("dashboard", "title").toUpperCase()}</p>
+          <h1 className="text-3xl font-serif tracking-tight">
             {t("dashboard", "greeting")}{profile.name ? `, ${profile.name.split(" ")[0]}` : ""}.
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground max-w-2xl text-pretty">
             {t("dashboard", "subtitle")}
           </p>
         </div>
         <PrintButton label={t("common", "print")} variant="outline" />
       </div>
 
+      {/* KPI strip — first thing the user sees. Tones differentiate
+          the three numbers: total = neutral big-data, active = success
+          (the green metric every marketer goes for), competitors =
+          info / brand-blue. Same data, but the eye now reads
+          structure. */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <Stat
-          icon={<Eye className="size-4 text-gold" />}
+        <Kpi
+          icon={<Eye className="size-4" />}
           label={t("dashboard", "totalAds")}
           value={formatNumber(totalAds ?? 0)}
+          tone="neutral"
         />
-        <Stat
-          icon={<Sparkles className="size-4 text-gold" />}
+        <Kpi
+          icon={<Sparkles className="size-4" />}
           label={t("dashboard", "activeAds")}
           value={formatNumber(activeAds ?? 0)}
+          tone="success"
         />
-        <Stat
-          icon={<Users className="size-4 text-gold" />}
+        <Kpi
+          icon={<Users className="size-4" />}
           label={t("dashboard", "monitoredCompetitors")}
           value={formatNumber(competitorsCount ?? 0)}
+          tone="info"
         />
       </div>
 
@@ -177,28 +187,3 @@ export default async function DashboardPage() {
   );
 }
 
-function Stat({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
-  return (
-    <Card>
-      <CardContent className="p-5 flex items-center gap-4">
-        <div className="size-10 rounded-lg bg-gold/10 border border-gold/30 grid place-items-center">
-          {icon}
-        </div>
-        <div>
-          <div className="text-xs text-muted-foreground uppercase tracking-wider">
-            {label}
-          </div>
-          <div className="text-2xl font-semibold">{value}</div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}

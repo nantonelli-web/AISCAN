@@ -33,7 +33,7 @@ export function YoutubeChannelCard({
   ];
 
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden channel-rail" data-channel="youtube">
       {/* Banner — fills full card width, gradient-mask-bottom so the
           identity row reads cleanly even on light banners. */}
       {channel.banner_url ? (

@@ -65,16 +65,17 @@ export default async function MapsPage() {
   }));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <Link
         href="/monitoring"
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground print:hidden"
       >
         <ArrowLeft className="size-4" /> {t("monitoring", "backLabel")}
       </Link>
       <header className="space-y-1">
+        <p className="eyebrow">{t("monitoring", "title").toUpperCase()}</p>
         <h1 className="text-3xl font-serif tracking-tight">{t("maps", "title")}</h1>
-        <p className="text-sm text-muted-foreground max-w-2xl">
+        <p className="text-sm text-muted-foreground max-w-2xl text-pretty">
           {t("maps", "subtitle")}
         </p>
       </header>

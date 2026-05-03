@@ -19,7 +19,10 @@ export function TikTokPostCard({ post }: { post: MaitTikTokPost }) {
   const duration = formatDuration(post.duration_seconds);
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col hover:border-gold/40 transition-colors">
+    <div
+      className="rounded-xl border border-border bg-card overflow-hidden flex flex-col hover:border-gold/40 hover:shadow-md transition-all channel-rail"
+      data-channel="tiktok"
+    >
       {/* Preview area — portrait 4/5 to hint at TikTok's vertical native
           format without breaking the grid rhythm too much. */}
       <div className="aspect-[4/5] bg-muted relative overflow-hidden">

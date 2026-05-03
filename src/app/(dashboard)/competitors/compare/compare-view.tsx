@@ -1004,6 +1004,18 @@ export function CompareView({
     }
   }
 
+  // Step indicator state — mirrors the linear flow:
+  //   1. pick brands  → 2. pick countries  → 3. pick channel  → 4. results
+  // Without an indicator the user landed on a long page and had to
+  // figure out where they were in the flow. This is read-only, just
+  // a visual breadcrumb.
+  const stepIndex =
+    hasResults ? 4
+    : selected.size >= 2 && selectedCountries.size > 0 && channel !== null && !isImplementedChannel(channel) ? 4
+    : selected.size >= 2 && selectedCountries.size > 0 ? 3
+    : selected.size >= 2 ? 2
+    : 1;
+
   return (
     <div className="space-y-6">
       {/* Always-visible breadcrumb-style back action — lets the user exit the
@@ -1018,6 +1030,51 @@ export function CompareView({
           {t("compare", "backToSelection")}
         </button>
       )}
+
+      {/* ─── Stepper ──────────────────────────────────────────
+          Tells the user "you are at step 2 of 4". Subtle but the
+          presence of completion ticks vs a faded number reads as
+          progress in the way a flat list of cards never could.
+          Hidden on print so the reports stay clean. */}
+      <div className="flex items-center gap-2 print:hidden">
+        {[
+          { n: 1, label: t("compare", "stepBrands") },
+          { n: 2, label: t("compare", "stepCountries") },
+          { n: 3, label: t("compare", "stepChannel") },
+          { n: 4, label: t("compare", "stepResults") },
+        ].map((s, i) => (
+          <div key={s.n} className="flex items-center gap-2">
+            <div
+              className={cn(
+                "size-6 rounded-full grid place-items-center text-[11px] font-semibold tabular-nums shrink-0 transition-colors",
+                stepIndex > s.n
+                  ? "bg-gold text-gold-foreground"
+                  : stepIndex === s.n
+                    ? "bg-gold-soft text-gold ring-2 ring-gold/30"
+                    : "bg-muted text-muted-foreground",
+              )}
+            >
+              {stepIndex > s.n ? "✓" : s.n}
+            </div>
+            <span
+              className={cn(
+                "text-xs",
+                stepIndex >= s.n ? "text-foreground font-medium" : "text-muted-foreground",
+              )}
+            >
+              {s.label}
+            </span>
+            {i < 3 && (
+              <div
+                className={cn(
+                  "h-px w-6 sm:w-10 transition-colors",
+                  stepIndex > s.n ? "bg-gold" : "bg-border",
+                )}
+              />
+            )}
+          </div>
+        ))}
+      </div>
 
       {/* Selector — brands grouped by project, each group collapsible */}
       <Card className="print:hidden">

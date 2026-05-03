@@ -20,7 +20,10 @@ export function OrganicPostCard({ post }: { post: MaitOrganicPost }) {
     typeLabel === "Reel" ? Film : isVideo ? Play : typeLabel === "Sidecar" ? ImageIcon : ImageIcon;
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col hover:border-gold/40 transition-colors">
+    <div
+      className="rounded-xl border border-border bg-card overflow-hidden flex flex-col hover:border-gold/40 hover:shadow-md transition-all channel-rail"
+      data-channel="instagram"
+    >
       {/* Preview area — square aspect for Instagram */}
       <div className="aspect-square bg-muted relative overflow-hidden">
         {post.display_url ? (
