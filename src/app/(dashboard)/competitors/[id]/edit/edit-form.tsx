@@ -100,6 +100,9 @@ export function EditCompetitorForm({
     setSelectedCountries((prev) =>
       prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
     );
+    // Reset the search input after pick — same friction fix as the
+    // new-brand form (2026-05-04 user feedback).
+    setCountrySearch("");
   }
 
   function removeCountry(code: string) {

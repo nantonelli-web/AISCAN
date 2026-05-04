@@ -72,6 +72,10 @@ export function NewCompetitorForm() {
     setSelectedCountries((prev) =>
       prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
     );
+    // After picking a country, reset the search so the next pick
+    // starts from a clean filter — user feedback 2026-05-04: forcing
+    // them to clear the input by hand was friction.
+    setCountrySearch("");
   }
 
   function removeCountry(code: string) {
