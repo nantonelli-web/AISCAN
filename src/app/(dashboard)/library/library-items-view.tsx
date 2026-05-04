@@ -53,6 +53,7 @@ export function LibraryItemsView({
   initial,
   initialHasMore,
   pageSize,
+  totalCount,
   searchParams,
   brandNameById,
   showBrandLabel,
@@ -61,6 +62,11 @@ export function LibraryItemsView({
   initial: ItemsByKind;
   initialHasMore: boolean;
   pageSize: number;
+  /** Total rows in the database that match the current filter
+   *  set, server-fetched in parallel with the initial page. Lets
+   *  the UI render "X di Y" so the user knows how much more is
+   *  loadable. */
+  totalCount: number;
   searchParams: SearchParamsShape;
   brandNameById: Record<string, string>;
   showBrandLabel: boolean;
@@ -132,13 +138,30 @@ export function LibraryItemsView({
     }
   }
 
+  // Loaded vs total — used both in the result label and to gate
+  // the Load More button. After every fetch the API response
+  // refreshes hasMore via response.hasMore, but we also clamp here
+  // so the count surface and the button stay in sync even on the
+  // edge case where the count returns 0 stale or the user filtered
+  // mid-pagination.
+  const loaded = items.items.length;
+  const showLoadMore = hasMore && loaded < totalCount;
+
   return (
     <div className="space-y-6">
-      {/* Result count — uses the live state length so it grows
-          as the user clicks Load More. */}
+      {/* Result count — "X di Y risultati". The user explicitly
+          asked to see the total beyond what's currently loaded so
+          they know how many more clicks of Load More are needed
+          (or whether to stop). */}
       <p className="text-base text-foreground flex items-baseline gap-2">
-        <span className="font-semibold tabular-nums">{items.items.length}</span>
-        <span className="text-muted-foreground">{t("library", "resultsLabel")}</span>
+        <span className="font-semibold tabular-nums">{loaded}</span>
+        <span className="text-muted-foreground">
+          {t("library", "ofTotal")}{" "}
+          <span className="font-semibold text-foreground tabular-nums">
+            {totalCount}
+          </span>{" "}
+          {t("library", "resultsLabel")}
+        </span>
       </p>
 
       <RenderGrid
@@ -152,7 +175,7 @@ export function LibraryItemsView({
         <p className="text-sm text-red-500 text-center">{error}</p>
       )}
 
-      {hasMore && (
+      {showLoadMore && (
         <div className="flex justify-center pt-2">
           <Button
             type="button"

@@ -8,7 +8,7 @@ import { getLocale, serverT } from "@/lib/i18n/server";
 import { PrintButton } from "@/components/ui/print-button";
 import { DynamicBackLink } from "@/components/ui/dynamic-back-link";
 import { getCompetitors } from "@/lib/library/cached-data";
-import { buildLibraryQuery } from "@/lib/library/build-query";
+import { buildLibraryQuery, buildLibraryCountQuery } from "@/lib/library/build-query";
 import type {
   MaitAdExternal,
   MaitOrganicPost,
@@ -20,11 +20,10 @@ import type {
 
 export const dynamic = "force-dynamic";
 
-// Initial page size restored to 120 (was briefly 60 during the
-// Load More refactor — the user reported the count drop as
-// confusing). 120 matches the historical default; subsequent
-// Load More calls fetch +120 each.
-const PAGE_SIZE = 120;
+// 100 per request — user's explicit cap 2026-05-04 ("per ogni
+// pagina carica al massimo 100 creatività"). Initial render and
+// each subsequent Load More fetch the same chunk size.
+const PAGE_SIZE = 100;
 
 interface SearchParams {
   q?: string;
@@ -75,10 +74,10 @@ export default async function LibraryPage({
         .map((c) => c.id)
     : null;
 
-  // Initial page = first PAGE_SIZE rows. The LibraryItemsView
-  // client island fetches subsequent pages from /api/library/items
-  // when the user clicks Load More.
-  const { data: contentData } = await buildLibraryQuery(supabase, {
+  // Initial page = first PAGE_SIZE rows. We also fetch the total
+  // matching count in parallel so the UI can show "X di Y" — user
+  // explicitly asked to know the total beyond what's loaded.
+  const filterArgs = {
     workspaceId,
     channel: sp.channel,
     brand: sp.brand,
@@ -88,12 +87,15 @@ export default async function LibraryPage({
     platform: sp.platform,
     cta: sp.cta,
     status: sp.status,
-    offset: 0,
-    limit: PAGE_SIZE,
-  });
+  };
+  const [{ data: contentData }, { count: totalCount }] = await Promise.all([
+    buildLibraryQuery(supabase, { ...filterArgs, offset: 0, limit: PAGE_SIZE }),
+    buildLibraryCountQuery(supabase, filterArgs),
+  ]);
 
   const initialList = (contentData ?? []) as unknown[];
-  const initialHasMore = initialList.length === PAGE_SIZE;
+  const totalAvailable = totalCount ?? initialList.length;
+  const initialHasMore = initialList.length < totalAvailable;
 
   // Brand attribution: when no single brand is selected, the
   // grid mixes items from many brands and the user needs to
@@ -154,6 +156,7 @@ export default async function LibraryPage({
           initial={initial}
           initialHasMore={initialHasMore}
           pageSize={PAGE_SIZE}
+          totalCount={totalAvailable}
           searchParams={sp}
           brandNameById={brandNameById}
           showBrandLabel={showBrandLabel}

@@ -1066,6 +1066,7 @@ const translations = {
     clearSearch: { it: "Pulisci ricerca", en: "Clear search" },
     loadMore: { it: "Carica altri", en: "Load more" },
     loadingMore: { it: "Caricamento…", en: "Loading…" },
+    ofTotal: { it: "di", en: "of" },
   },
 
   // ─── TikTok Ads (paid) ─────────────────────────────────────
