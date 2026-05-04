@@ -312,8 +312,11 @@ function BrandCard({
           )}
         </div>
 
-        {/* Secondary metadata — country chip + freshness pill. Both
-            visually small and subordinate to the brand name. */}
+        {/* Secondary metadata — country chip + freshness pill.
+            Both visually small and subordinate to the brand name.
+            Channel-of-last-scan is no longer rendered as a dangling
+            "· Instagram" here — moved into the footer line where
+            it belongs grammatically ("Last scan: <date> · Instagram"). */}
         <div className="flex items-center gap-2 flex-wrap">
           {c.country && (
             <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground">
@@ -321,17 +324,16 @@ function BrandCard({
             </span>
           )}
           <span className={`status-pill ${freshTone}`}>{freshLabel}</span>
-          {lastScan?.source && (
-            <span className="text-[11px] text-muted-foreground">
-              · {channelLabel(lastScan.source)}
-            </span>
-          )}
         </div>
 
-        {/* Scan window — third-tier info, smaller still. Only renders
-            when both bounds are present (cron full-archive scans get
-            NULL for both). */}
-        {hasPeriod && (
+        {/* Scan window — only meaningful for ad scans (Meta /
+            Google) where the user-chosen date range actually
+            filters which ads come back. Organic scans (Instagram /
+            TikTok / Snapchat / YouTube / SERP) pull the most-
+            recent N items and ignore date_from/date_to entirely,
+            so showing "Period: 20 Apr → 04 May" on them was
+            misleading (user-flagged 2026-05-04). */}
+        {hasPeriod && (lastScan.source === "meta" || lastScan.source === "google") && (
           <p className="text-[11px] text-muted-foreground/80">
             {t("competitors", "scanPeriod")}{" "}
             <span className="tabular-nums">
@@ -345,7 +347,21 @@ function BrandCard({
             their metadata height differs. */}
         <div className="flex items-center justify-between gap-2 pt-2 section-rule">
           <span className="text-[11px] text-muted-foreground">
-            {t("competitors", "lastScan")} {formatDate(c.last_scraped_at)}
+            {c.last_scraped_at ? (
+              <>
+                {t("competitors", "lastScan")} {formatDate(c.last_scraped_at)}
+                {lastScan?.source && (
+                  <>
+                    {" · "}
+                    <span className="text-foreground/70 font-medium">
+                      {channelLabel(lastScan.source)}
+                    </span>
+                  </>
+                )}
+              </>
+            ) : (
+              <>{t("competitors", "lastScan")} —</>
+            )}
           </span>
           <div className="flex items-center gap-1.5 shrink-0">
             <Link

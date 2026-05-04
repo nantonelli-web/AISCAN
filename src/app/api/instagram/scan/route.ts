@@ -319,6 +319,17 @@ export async function POST(req: Request) {
       })
       .eq("id", job.id);
 
+    // Stamp last_scraped_at on the brand row — drives the
+    // "freshness" pill on the brands list ("Today" / "3 days ago"
+    // / "Never scanned"). Every other scan route (Meta, Google,
+    // TikTok, Snapchat, YouTube) already does this; Instagram was
+    // missing it and the brand card kept showing "Never scanned"
+    // even after a successful run (user-flagged 2026-05-04).
+    await admin
+      .from("mait_competitors")
+      .update({ last_scraped_at: new Date().toISOString() })
+      .eq("id", competitor.id);
+
     // Create alert
     if (result.records.length > 0) {
       await admin.from("mait_alerts").insert({
