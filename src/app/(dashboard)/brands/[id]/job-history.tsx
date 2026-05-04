@@ -94,6 +94,56 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
     return `${fStr} \u2192 ${tStr}`;
   }
 
+  // Scope chip \u2014 replaces the date-range chip for channels whose
+  // actor doesn't take a date filter (TikTok organic, YouTube,
+  // Snapchat). For those, the actor pulls the latest N items and
+  // there's no honest "DD/MM \u2192 DD/MM" to show. Instead we surface
+  // the count-based scope so the user knows what was collected:
+  //
+  //   \u2022 snapchat \u2192 "Snapshot profilo"
+  //   \u2022 youtube  \u2192 "Ultimi N video"
+  //   \u2022 tiktok   \u2192 "Ultimi N post"
+  //
+  // Returns null when no scope is meaningful (legacy rows missing
+  // source, or paid-channel scans where formatRange is the right
+  // surface).
+  function scopeLabel(source: string | null, count: number): string | null {
+    if (source === "snapchat") return "Snapshot profilo";
+    if (source === "youtube") return `Ultimi ${count} video`;
+    if (source === "tiktok") return `Ultimi ${count} post`;
+    return null;
+  }
+
+  // Per-source unit label for the records count. Snapchat returns
+  // a single profile snapshot per scan, NOT an ad \u2014 the previous
+  // hard-coded "ads" caption was misleading (user feedback
+  // 2026-05-04: "Snapchat riporta '1 ads' ma \u00e8 organico"). Each
+  // source gets its own noun + auto-pluralisation.
+  function recordsLabel(source: string | null, count: number): string {
+    const plural = count !== 1;
+    switch (source) {
+      case "snapchat":
+        return plural ? "snapshot" : "snapshot";
+      case "instagram":
+        return plural ? "post" : "post";
+      case "tiktok":
+        return plural ? "post" : "post";
+      case "youtube":
+        return plural ? "video" : "video";
+      case "tiktok_ads":
+      case "tiktok_cc":
+      case "meta":
+      case "google":
+        return plural ? "ads" : "ad";
+      case "serp":
+        return plural ? "query" : "query";
+      case "maps":
+        return plural ? "luoghi" : "luogo";
+      default:
+        return plural ? "elementi" : "elemento";
+    }
+  }
+
   const allSelected = selected.size === jobs.length && jobs.length > 0;
   const someSelected = selected.size > 0 && !allSelected;
   const totalAdsSelected = jobs
@@ -292,13 +342,20 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
                         {channelLabel(j.source)}
                       </span>
                     )}
-                    {/* Window chip — only when the scan was windowed
-                        (full-archive runs leave date_from/to NULL). */}
-                    {formatRange(j.date_from, j.date_to) && (
+                    {/* Scope chip — date range when the scan was
+                        windowed (paid + Instagram), count-based
+                        scope label for actors that don't take a
+                        date filter (TikTok / YouTube / Snapchat).
+                        Hidden on legacy rows where neither applies. */}
+                    {formatRange(j.date_from, j.date_to) ? (
                       <span className="inline-flex items-center rounded-md bg-muted text-muted-foreground border border-border px-2 py-0.5 text-[11px] tabular-nums">
                         {formatRange(j.date_from, j.date_to)}
                       </span>
-                    )}
+                    ) : scopeLabel(j.source, j.records_count) ? (
+                      <span className="inline-flex items-center rounded-md bg-muted text-muted-foreground border border-border px-2 py-0.5 text-[11px]">
+                        {scopeLabel(j.source, j.records_count)}
+                      </span>
+                    ) : null}
                     <span className="text-muted-foreground">
                       {formatRelative(j.started_at)}
                     </span>
@@ -309,7 +366,9 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
                     )}
                   </div>
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span>{j.records_count} ads</span>
+                    <span>
+                      {j.records_count} {recordsLabel(j.source, j.records_count)}
+                    </span>
                     {j.cost_cu > 0 && <span>${j.cost_cu.toFixed(3)}</span>}
                     <button
                       onClick={() =>
