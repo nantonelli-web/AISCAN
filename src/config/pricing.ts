@@ -30,6 +30,17 @@ export type CreditAction =
   | 'scan_maps'
   | 'ai_tagging'
   | 'ai_analysis'
+  // Tier-specific Compare AI variants — the comparisons API
+  // bills one of these depending on the model picker the user
+  // chose at run time. Costs scale with the underlying token
+  // economics (see project_ai_model_options.md):
+  //   cheap     ≈ $0.005 / call → 1 credit
+  //   pragmatic ≈ $0.025 / call → 3 credits  (default)
+  //   premium   ≈ $0.150 / call → 8 credits
+  // Plain ai_analysis is kept for backwards-compat cached txns.
+  | 'ai_analysis_cheap'
+  | 'ai_analysis_pragmatic'
+  | 'ai_analysis_premium'
   | 'report_single'
   | 'report_comparison';
 
@@ -142,9 +153,21 @@ export const creditCosts: Record<CreditAction, number> = {
   scan_maps: 2,
   ai_tagging: 1,
   ai_analysis: 3,
+  ai_analysis_cheap: 1,
+  ai_analysis_pragmatic: 3,
+  ai_analysis_premium: 8,
   report_single: 2,
   report_comparison: 3,
 };
+
+/** Map the AI tier the user picked to its CreditAction. */
+export function aiAnalysisAction(
+  tier: 'cheap' | 'pragmatic' | 'premium' | undefined,
+): CreditAction {
+  if (tier === 'cheap') return 'ai_analysis_cheap';
+  if (tier === 'premium') return 'ai_analysis_premium';
+  return 'ai_analysis_pragmatic';
+}
 
 // ---------------------------------------------------------------------------
 // Constants

@@ -139,6 +139,9 @@ const translations = {
     creditAction_scan_instagram: { it: "Scan Instagram", en: "Instagram scan" },
     creditAction_ai_tagging: { it: "AI Tagging (batch)", en: "AI Tagging (batch)" },
     creditAction_ai_analysis: { it: "Analisi AI (confronto)", en: "AI Analysis (comparison)" },
+    creditAction_ai_analysis_cheap: { it: "Analisi AI – Essenziale", en: "AI Analysis – Essential" },
+    creditAction_ai_analysis_pragmatic: { it: "Analisi AI – Bilanciato", en: "AI Analysis – Balanced" },
+    creditAction_ai_analysis_premium: { it: "Analisi AI – Premium", en: "AI Analysis – Premium" },
     creditAction_report_single: { it: "Report singolo", en: "Single report" },
     creditAction_report_comparison: { it: "Report confronto", en: "Comparison report" },
     // Final CTA
@@ -789,6 +792,36 @@ const translations = {
       en: "Text ad — preview unavailable",
     },
     backToSelection: { it: "Torna alla selezione", en: "Back to selection" },
+    backToCompareHome: { it: "Torna ai confronti", en: "Back to comparisons" },
+    // AI model tier picker — three pre-evaluated combinations
+    // (cheap / pragmatic / premium). Shown above Copy / Visual
+    // tabs before the user has triggered an AI generation.
+    aiTierTitle: { it: "Modello AI", en: "AI model" },
+    aiTierSubtitle: {
+      it: "Scegli quale modello usare per l'analisi. Più qualità, più crediti.",
+      en: "Choose which model to run the analysis with. More quality, more credits.",
+    },
+    aiTierCheapTitle: { it: "Essenziale", en: "Essential" },
+    aiTierCheapDesc: {
+      it: "DeepSeek + Gemini Flash Lite. Veloce ed economico, qualità sufficiente per draft rapidi.",
+      en: "DeepSeek + Gemini Flash Lite. Fast and cheap, good enough for quick drafts.",
+    },
+    aiTierPragmaticTitle: { it: "Bilanciato", en: "Balanced" },
+    aiTierPragmaticDesc: {
+      it: "Claude Haiku 4.5 + Gemini 2.5 Flash. Italiano nativo + visione multimodale moderna. Default consigliato.",
+      en: "Claude Haiku 4.5 + Gemini 2.5 Flash. Native Italian + modern multimodal vision. Recommended default.",
+    },
+    aiTierPremiumTitle: { it: "Premium", en: "Premium" },
+    aiTierPremiumDesc: {
+      it: "Claude Sonnet 4.5 su entrambi gli agenti. Massima qualità narrativa, tono coerente tra copy e visual.",
+      en: "Claude Sonnet 4.5 across both agents. Top narrative quality, consistent voice across copy and visual.",
+    },
+    aiTierCostNote: {
+      it: "Verranno scalati {cost} crediti.",
+      en: "{cost} credits will be charged.",
+    },
+    aiTierGenerate: { it: "Genera analisi", en: "Generate analysis" },
+    aiTierRetry: { it: "Riprova", en: "Retry" },
     tabTechnical: { it: "Analisi tecnica", en: "Technical analysis" },
     tabCopy: { it: "AI - Analisi copy", en: "AI - Copy analysis" },
     tabVisual: { it: "AI - Analisi creativa", en: "AI - Creative analysis" },
@@ -923,17 +956,9 @@ const translations = {
       it: "Dai brand selezionati",
       en: "From selected brands",
     },
-    searchOtherCountries: {
-      it: "Cerca altri paesi",
-      en: "Search other countries",
-    },
-    searchCountryPlaceholder: {
-      it: "Es. Stati Uniti, Japan, DE…",
-      en: "E.g. United States, Japan, DE…",
-    },
-    searchNoResults: {
-      it: "Nessun paese trovato.",
-      en: "No country matches your search.",
+    noScopeCountries: {
+      it: "Nessun paese rilevato dalle scansioni dei brand selezionati. Configura i paesi nei brand prima di confrontare.",
+      en: "No country found in the scans of the selected brands. Set the country list on each brand before comparing.",
     },
     countryScanNeeded: {
       it: "Alcuni brand non sono stati scansionati per i paesi selezionati. Vuoi avviare la scansione?",
@@ -2100,6 +2125,7 @@ const translations = {
 
   // ─── Credits Page ──────────────────────────────────────────
   credits: {
+    creditsLabel: { it: "crediti", en: "credits" },
     title: { it: "Crediti", en: "Credits" },
     subtitle: {
       it: "Gestisci il saldo, ricarica con un pack quando serve.",

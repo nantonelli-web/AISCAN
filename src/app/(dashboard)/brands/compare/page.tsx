@@ -2,7 +2,6 @@ import { getSessionUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CompareView } from "./compare-view";
-import { DynamicBackLink } from "@/components/ui/dynamic-back-link";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import type { MaitCompetitor, MaitClient } from "@/types";
 
@@ -37,7 +36,11 @@ export default async function ComparePage() {
 
   return (
     <div className="space-y-6">
-      <DynamicBackLink fallbackHref="/brands" label={t("competitors", "allCompetitors")} />
+      {/* Back link is rendered inside CompareView so it can be
+          state-aware: when the user has entered a comparison the
+          link resets to the compare home (saved-list view) instead
+          of leaving the page; only when no comparison is loaded
+          does it walk back up to /brands. */}
       <div>
         <h1 className="text-2xl font-serif tracking-tight">
           {t("compare", "title")}

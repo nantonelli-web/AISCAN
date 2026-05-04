@@ -15,8 +15,53 @@
 import { getOpenRouterCredentials } from "@/lib/billing/credentials";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const COPYWRITER_MODEL = "anthropic/claude-haiku-4.5";
-const CREATIVE_DIRECTOR_MODEL = "google/gemini-2.5-flash";
+
+/**
+ * Model tier — three pre-evaluated combinations per the
+ * memory note `project_ai_model_options.md`:
+ *
+ *   • cheap     — DeepSeek V3.2 + Gemini 2.0 Flash Lite
+ *                 ~$0.005 / Compare. Lower-quality Italian
+ *                 narrative, lite vision. 1 credit.
+ *   • pragmatic — Claude Haiku 4.5 + Gemini 2.5 Flash
+ *                 ~$0.025 / Compare. Native-quality Italian,
+ *                 modern vision. 3 credits (default).
+ *   • premium   — Claude Sonnet 4.5 (both agents)
+ *                 ~$0.15 / Compare. Top-tier narrative,
+ *                 same writing style across copy + visual.
+ *                 8 credits.
+ *
+ * Switch tier per call: callers pass `tier` to analyzeCopy /
+ * analyzeVisuals; the comparisons route reads the tier from
+ * the POST payload and charges credits accordingly.
+ */
+export type ModelTier = "cheap" | "pragmatic" | "premium";
+
+export const DEFAULT_TIER: ModelTier = "pragmatic";
+
+interface TierModels {
+  copywriter: string;
+  creativeDirector: string;
+}
+
+const TIER_MODELS: Record<ModelTier, TierModels> = {
+  cheap: {
+    copywriter: "deepseek/deepseek-v3.2",
+    creativeDirector: "google/gemini-2.0-flash-lite-001",
+  },
+  pragmatic: {
+    copywriter: "anthropic/claude-haiku-4.5",
+    creativeDirector: "google/gemini-2.5-flash",
+  },
+  premium: {
+    copywriter: "anthropic/claude-sonnet-4.5",
+    creativeDirector: "anthropic/claude-sonnet-4.5",
+  },
+};
+
+function modelsFor(tier: ModelTier | undefined): TierModels {
+  return TIER_MODELS[tier ?? DEFAULT_TIER];
+}
 
 export interface BrandAdData {
   brandName: string;
@@ -205,6 +250,7 @@ export async function analyzeCopy(
   locale: "it" | "en" = "en",
   source?: "meta" | "google",
   workspaceId?: string,
+  tier?: ModelTier,
 ): Promise<CreativeAnalysisResult["copywriterReport"]> {
   // BYO dispatch: subscription-mode workspaces hit their own
   // OpenRouter key. Caller without a workspace context falls back
@@ -364,7 +410,7 @@ Important:
         "x-title": "AISCAN - Ads Analysis Tool",
       },
       body: JSON.stringify({
-        model: COPYWRITER_MODEL,
+        model: modelsFor(tier).copywriter,
         max_tokens: 4000,
         messages: [{ role: "user", content: prompt }],
       }),
@@ -406,6 +452,7 @@ export async function analyzeVisuals(
   locale: "it" | "en" = "en",
   source?: "meta" | "google",
   workspaceId?: string,
+  tier?: ModelTier,
 ): Promise<CreativeAnalysisResult["creativeDirectorReport"]> {
   // Same BYO dispatch as analyzeCopy.
   let apiKey: string;
@@ -625,7 +672,7 @@ Important:
         "x-title": "AISCAN - Ads Analysis Tool",
       },
       body: JSON.stringify({
-        model: CREATIVE_DIRECTOR_MODEL,
+        model: modelsFor(tier).creativeDirector,
         max_tokens: 4000,
         messages: [{ role: "user", content }],
       }),

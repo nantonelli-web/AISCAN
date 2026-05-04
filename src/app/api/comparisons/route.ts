@@ -12,8 +12,11 @@ import {
   analyzeCopy,
   analyzeVisuals,
   type BrandAdData,
+  type ModelTier,
 } from "@/lib/ai/creative-analysis";
 import { cleanInstagramUsername } from "@/lib/instagram/service";
+import { consumeCredits, refundCredits } from "@/lib/credits/consume";
+import { aiAnalysisAction } from "@/config/pricing";
 
 export const maxDuration = 300;
 
@@ -83,6 +86,11 @@ const postSchema = z.object({
     .min(1)
     .optional()
     .default(["technical"]),
+  /** AI model tier picker. Drives both (a) which OpenRouter
+   *  model the analyzers use and (b) how many credits we
+   *  charge. Optional → caller without a preference falls
+   *  through to the pragmatic default. */
+  tier: z.enum(["cheap", "pragmatic", "premium"]).optional(),
 });
 
 const deleteSchema = z.object({
@@ -1042,6 +1050,7 @@ export async function POST(req: Request) {
   // For organic, captions + display_urls are mapped into the BrandAdData
   // shape so the same analyzers work unchanged.
   const needsAi = sections.includes("copy") || sections.includes("visual");
+  const tier: ModelTier = parsed.data.tier ?? "pragmatic";
   if (needsAi) {
     if (!process.env.OPENROUTER_API_KEY) {
       return NextResponse.json(
@@ -1049,6 +1058,35 @@ export async function POST(req: Request) {
         { status: 503 }
       );
     }
+    // Charge credits up front based on the tier the caller picked.
+    // Refunded only when BOTH analyzers come back null below — a
+    // partial failure (one OK, one null) is still useful output and
+    // the user paid for it. Note: technical-only POSTs are free,
+    // so the gate is `needsAi`, not the outer presence of any AI.
+    const action = aiAnalysisAction(tier);
+    // Use the calling user's ID (not workspace_id) — consume looks
+    // up the workspace owner's balance from mait_users.
+    const userRes = await supabase.auth.getUser();
+    const userId = userRes.data.user?.id;
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const credit = await consumeCredits(
+      userId,
+      action,
+      `AI Compare (${tier})`,
+    );
+    if (!credit.ok) {
+      return NextResponse.json(
+        {
+          error: "Insufficient credits",
+          balance: credit.balance,
+          tier,
+        },
+        { status: 402 },
+      );
+    }
+
     // Source filter for the AI fetch: same as for technical stats,
     // so the LLM never sees Meta rows on a Google-only Compare. When
     // channel="all" we deliberately leave it undefined so the
@@ -1068,7 +1106,7 @@ export async function POST(req: Request) {
 
     if (sections.includes("copy")) {
       aiTasks.push(
-        analyzeCopy(brands, aiLocale, aiSource, workspaceId)
+        analyzeCopy(brands, aiLocale, aiSource, workspaceId, tier)
           .then((result) => {
             payload.copy_analysis = result;
           })
@@ -1086,7 +1124,7 @@ export async function POST(req: Request) {
 
     if (sections.includes("visual")) {
       aiTasks.push(
-        analyzeVisuals(brands, aiLocale, aiSource, workspaceId)
+        analyzeVisuals(brands, aiLocale, aiSource, workspaceId, tier)
           .then((result) => {
             payload.visual_analysis = result;
           })
@@ -1098,6 +1136,20 @@ export async function POST(req: Request) {
     }
 
     await Promise.all(aiTasks);
+
+    // Total-failure refund: both analyzers requested but both
+    // returned null. The user got nothing, so put the credits back.
+    const askedCopy = sections.includes("copy");
+    const askedVisual = sections.includes("visual");
+    const copyFailed = askedCopy && payload.copy_analysis == null;
+    const visualFailed = askedVisual && payload.visual_analysis == null;
+    const allFailed =
+      (askedCopy && askedVisual && copyFailed && visualFailed) ||
+      (askedCopy && !askedVisual && copyFailed) ||
+      (!askedCopy && askedVisual && visualFailed);
+    if (allFailed) {
+      await refundCredits(userId, action, `AI Compare refund (${tier})`);
+    }
   }
 
   // If the underlying content kind changed (ads ↔ organic) since we last

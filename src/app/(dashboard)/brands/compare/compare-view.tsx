@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import {
   Play,
   X,
   Filter,
+  Sparkles,
 } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
@@ -59,6 +61,7 @@ import { DateRangeShortcuts, defaultPresets } from "@/components/ui/date-range-s
 import type { CreativeAnalysisResult } from "@/lib/ai/creative-analysis";
 import type { MaitCompetitor, MaitClient } from "@/types";
 import { getCountries } from "@/config/countries";
+import { creditCosts } from "@/config/pricing";
 
 type Tab = "technical" | "copy" | "visual" | "benchmark";
 /**
@@ -314,7 +317,6 @@ export function CompareView({
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectedCountries, setSelectedCountries] = useState<Set<string>>(new Set());
-  const [countrySearch, setCountrySearch] = useState("");
   const [channel, setChannel] = useState<Channel | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("technical");
 
@@ -354,6 +356,28 @@ export function CompareView({
   const [scanning, setScanning] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const [savedList, setSavedList] = useState(savedComparisons);
+  // AI model tier — three pre-evaluated tiers (cheap, pragmatic,
+  // premium) drive both the OpenRouter model picked by the
+  // analyzers and the credits charged on the comparisons POST.
+  // Default = pragmatic (Haiku 4.5 + Gemini 2.5 Flash, 3 credits).
+  // Persisted in localStorage so the user's choice survives across
+  // sessions — they pick once, the rest of their workflow respects
+  // it. Storage key is namespaced so a future per-product tier
+  // setting (e.g. Reports) wouldn't collide.
+  const [aiTier, setAiTier] = useState<"cheap" | "pragmatic" | "premium">(
+    "pragmatic",
+  );
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem("aiscan.compare.aiTier");
+    if (stored === "cheap" || stored === "pragmatic" || stored === "premium") {
+      setAiTier(stored);
+    }
+  }, []);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("aiscan.compare.aiTier", aiTier);
+  }, [aiTier]);
   // Saved-comparisons panel filters — both default to "any":
   //
   //  • savedChannelFilter: single-select per channel name (null =
@@ -675,42 +699,43 @@ export function CompareView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedKey]);
 
-  // Generate AI analysis when copy/visual tab is selected and not cached
+  // Hydrate aiResult from cache when a tab is opened on a comparison
+  // that already has the AI section stored in mait_comparisons.
+  // Generation itself moved to an explicit `triggerAi(section)` handler
+  // (below) — without that the user had no way to choose tier before
+  // paying credits, and the AI auto-charged the moment a tab was
+  // clicked. New flow: clicking the tab shows the model picker; the
+  // POST + credit consumption only fires when the user clicks
+  // "Generate".
   useEffect(() => {
     if (selected.size < 2 || channel === null) return;
     if (activeTab !== "copy" && activeTab !== "visual") return;
-
-    // Check if we already have the data
-    if (activeTab === "copy" && cache?.copy_analysis) {
-      if (!aiResult?.copywriterReport) {
-        setAiResult((prev) => ({
-          copywriterReport: cache.copy_analysis,
-          creativeDirectorReport: prev?.creativeDirectorReport ?? null,
-        }));
-      }
-      return;
+    if (activeTab === "copy" && cache?.copy_analysis && !aiResult?.copywriterReport) {
+      setAiResult((prev) => ({
+        copywriterReport: cache.copy_analysis,
+        creativeDirectorReport: prev?.creativeDirectorReport ?? null,
+      }));
     }
-    if (activeTab === "visual" && cache?.visual_analysis) {
-      if (!aiResult?.creativeDirectorReport) {
-        setAiResult((prev) => ({
-          copywriterReport: prev?.copywriterReport ?? null,
-          creativeDirectorReport: cache.visual_analysis,
-        }));
-      }
-      return;
+    if (activeTab === "visual" && cache?.visual_analysis && !aiResult?.creativeDirectorReport) {
+      setAiResult((prev) => ({
+        copywriterReport: prev?.copywriterReport ?? null,
+        creativeDirectorReport: cache.visual_analysis,
+      }));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, selectedKey, cache?.copy_analysis, cache?.visual_analysis]);
 
-    // Need to generate
-    const section = activeTab === "copy" ? "copy" : "visual";
-    const alreadyHas =
-      section === "copy"
-        ? aiResult?.copywriterReport
-        : aiResult?.creativeDirectorReport;
-    if (alreadyHas || aiLoading) return;
-
+  // Explicit AI generation trigger — invoked by the "Genera analisi"
+  // button in the copy / visual tabs. Carries the user-selected
+  // model tier through to the POST so the API charges the correct
+  // credit cost and the analyzers pick the matching OpenRouter
+  // models. Forces section regeneration even when an older, lower-
+  // tier result is cached (the user explicitly asked for a re-run
+  // with this tier).
+  function triggerAi(section: "copy" | "visual") {
+    if (selected.size < 2 || channel === null || aiLoading) return;
     setAiLoading(true);
     setAiError(null);
-
     fetch("/api/comparisons", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -721,6 +746,7 @@ export function CompareView({
         date_from: dateFrom,
         date_to: dateTo,
         sections: [section],
+        tier: aiTier,
       }),
     })
       .then(async (res) => {
@@ -730,7 +756,6 @@ export function CompareView({
           return;
         }
         const data = await res.json();
-        // Update cache
         setCache((prev) => ({
           technical_data:
             prev?.technical_data ?? normalizeStats(data.technical_data),
@@ -740,10 +765,7 @@ export function CompareView({
           created_at: data.updated_at ?? data.created_at,
           stale: data.stale ?? false,
         }));
-        // Saved-list panel sync — same merge as the technical-data
-        // POST so the user sees AI generations reflected too.
         mergeSavedRow(data);
-        // Update AI result
         setAiResult((prev) => ({
           copywriterReport:
             data.copy_analysis ?? prev?.copywriterReport ?? null,
@@ -753,8 +775,7 @@ export function CompareView({
       })
       .catch(() => setAiError(t("creativeAnalysis", "analysisFailed")))
       .finally(() => setAiLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, selectedKey, cache?.copy_analysis, cache?.visual_analysis]);
+  }
 
   // Fetch benchmark data when benchmark tab is selected
   useEffect(() => {
@@ -809,7 +830,10 @@ export function CompareView({
       if (cache?.visual_analysis || aiResult?.creativeDirectorReport)
         sections.push("visual");
 
-      // Regenerate
+      // Regenerate. AI tier is included for free — it's a no-op when
+      // `sections` doesn't include "copy" / "visual" and the API is
+      // free to ignore it; when it does, the regen reuses whatever
+      // tier the user has currently selected (sticky preference).
       const res = await fetch("/api/comparisons", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -821,6 +845,7 @@ export function CompareView({
           date_from: dateFrom,
           date_to: dateTo,
           sections,
+          tier: aiTier,
         }),
       });
 
@@ -959,21 +984,6 @@ export function CompareView({
     return allCountries.filter((c) => codes.has(c.code));
   }, [selectedComps, allCountries]);
 
-  // When the user types, match against the full ISO list (excluding the
-  // scan-scope suggestions to avoid duplicating them).
-  const countrySearchResults = useMemo(() => {
-    const q = countrySearch.trim().toLowerCase();
-    if (!q) return [];
-    const scopeCodes = new Set(scanScopeCountries.map((c) => c.code));
-    return allCountries
-      .filter((c) => !scopeCodes.has(c.code))
-      .filter(
-        (c) =>
-          c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)
-      )
-      .slice(0, 40);
-  }, [countrySearch, allCountries, scanScopeCountries]);
-
   // Group brands by client for the selector (same ordering as /brands)
   const brandSections = useMemo(() => {
     const grouped = new Map<string | null, MaitCompetitor[]>();
@@ -1000,17 +1010,6 @@ export function CompareView({
       return next;
     });
     // Reset comparison state when countries change
-    setChannel(null);
-    setCache(null);
-    setStats(null);
-    setAiResult(null);
-    setAiError(null);
-    setMissingBrands([]);
-    fetchingRef.current = "";
-  }
-
-  function selectAllCountries() {
-    setSelectedCountries(new Set(allCountries.map((c) => c.code)));
     setChannel(null);
     setCache(null);
     setStats(null);
@@ -1098,17 +1097,34 @@ export function CompareView({
 
   return (
     <div className="space-y-6">
-      {/* Always-visible breadcrumb-style back action — lets the user exit the
-          comparison at any stage (mid-selection, while loading, or after results). */}
-      {hasAnySelection && (
+      {/* State-aware top back link.
+          Two affordances unified into one element:
+            • no selection yet → goes UP to /brands ("Tutti i brand").
+            • any selection / loaded comparison → resets selection
+              and lands the user on Compare's home (the saved-list
+              view), which is what they expect when escaping a
+              comparison.
+          Previously the page header rendered a separate
+          DynamicBackLink to /brands while this component rendered
+          "Torna alla selezione", producing two stacked back arrows
+          and confusing the exit path (user feedback 2026-05-04). */}
+      {hasAnySelection ? (
         <button
           type="button"
           onClick={resetToSelection}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-gold transition-colors cursor-pointer print:hidden"
         >
           <ArrowLeft className="size-4" />
-          {t("compare", "backToSelection")}
+          {t("compare", "backToCompareHome")}
         </button>
+      ) : (
+        <Link
+          href="/brands"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-gold transition-colors cursor-pointer print:hidden"
+        >
+          <ArrowLeft className="size-4" />
+          {t("competitors", "allCompetitors")}
+        </Link>
       )}
 
       {/* ─── Stepper ──────────────────────────────────────────
@@ -1206,138 +1222,113 @@ export function CompareView({
         </CardContent>
       </Card>
 
-      {/* Country selector — redesigned: scope-first chips + searchable ISO */}
+      {/* Country selector — single list of inherited scan-scope
+          countries. User feedback 2026-05-04:
+
+            "Il box Paesi è confusionario. Di fatto i paesi sono
+             ripetuti due volte e non si capisce bene il perché.
+             Il box 'cerca altri paesi' non capisco cosa dovrebbe
+             fare visto che il confronto eredita i paesi dalla
+             scansione."
+
+          The previous layout had: (a) selected-chips strip on top,
+          (b) scope chips, (c) search-the-full-ISO-list input.
+          Selecting a country made it appear in BOTH the chip strip
+          and as a highlighted scope pill — the duplication. The
+          search section was orthogonal to the actual semantic
+          (Compare metrics only see ad rows whose scan_countries
+          overlap with the brand's monitor scope), so any country
+          outside that scope returned 0 ads anyway.
+
+          New design:
+            - one row of toggle pills, source = scanScopeCountries.
+            - selected = filled gold + ✓ marker; unselected = outline.
+            - "Seleziona tutti" / "Azzera" inline header actions.
+          No duplicate chip strip, no search box. */}
       {selected.size >= 2 && (
         <Card className="print:hidden">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
             <CardTitle className="text-sm">{t("compare", "selectCountries")}</CardTitle>
+            {scanScopeCountries.length > 0 && (
+              <div className="flex items-center gap-2 text-xs">
+                {scanScopeCountries.some((c) => !selectedCountries.has(c.code)) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCountries(
+                        new Set(scanScopeCountries.map((c) => c.code)),
+                      );
+                      setChannel(null);
+                      setCache(null);
+                      setStats(null);
+                      setAiResult(null);
+                      setAiError(null);
+                      setMissingBrands([]);
+                      fetchingRef.current = "";
+                    }}
+                    className="text-gold hover:underline cursor-pointer"
+                  >
+                    {t("compare", "selectAllScope")}
+                  </button>
+                )}
+                {selectedCountries.size > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCountries(new Set());
+                      setChannel(null);
+                      setCache(null);
+                      setStats(null);
+                      setAiResult(null);
+                      setAiError(null);
+                      setMissingBrands([]);
+                      fetchingRef.current = "";
+                    }}
+                    className="text-muted-foreground hover:text-red-500 hover:underline cursor-pointer"
+                  >
+                    {t("compare", "reset")}
+                  </button>
+                )}
+              </div>
+            )}
           </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Selected chips at the top, each removable */}
-            {selectedCountries.size > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
-                {[...selectedCountries]
-                  .map((code) => allCountries.find((c) => c.code === code))
-                  .filter((c): c is { code: string; name: string } => !!c)
-                  .map((c) => (
+          <CardContent className="space-y-3">
+            {scanScopeCountries.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                {t("compare", "noScopeCountries")}
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {scanScopeCountries.map((c) => {
+                  const isSelected = selectedCountries.has(c.code);
+                  return (
                     <button
                       key={c.code}
                       type="button"
                       onClick={() => toggleCountry(c.code)}
-                      className="inline-flex items-center gap-1.5 rounded-md bg-gold/15 text-gold border border-gold/40 px-2.5 py-1 text-xs font-medium hover:bg-gold/25 transition-colors cursor-pointer"
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs cursor-pointer transition-colors border",
+                        isSelected
+                          ? "bg-gold text-gold-foreground border-gold font-medium"
+                          : "border-border text-foreground hover:bg-muted",
+                      )}
                     >
-                      <span>{c.code}</span>
-                      <span className="text-gold/80">{c.name}</span>
-                      <span className="ml-1">×</span>
+                      {isSelected && <Check className="size-3" />}
+                      <span className="font-medium">{c.code}</span>
+                      <span
+                        className={cn(
+                          "text-[10px]",
+                          isSelected ? "opacity-80" : "text-muted-foreground",
+                        )}
+                      >
+                        {c.name}
+                      </span>
                     </button>
-                  ))}
-                <button
-                  onClick={() => {
-                    setSelectedCountries(new Set());
-                    setChannel(null);
-                    setCache(null);
-                    setStats(null);
-                    setAiResult(null);
-                    setAiError(null);
-                    setMissingBrands([]);
-                    fetchingRef.current = "";
-                  }}
-                  className="text-xs text-muted-foreground hover:text-red-500 underline ml-1"
-                >
-                  {t("compare", "reset")}
-                </button>
+                  );
+                })}
               </div>
             )}
-
-            {/* Scope: countries already in the scan coverage of picked brands */}
-            {scanScopeCountries.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-                    {t("compare", "scanScopeCountries")}
-                  </p>
-                  {scanScopeCountries.some((c) => !selectedCountries.has(c.code)) && (
-                    <button
-                      onClick={() => {
-                        setSelectedCountries(
-                          new Set(scanScopeCountries.map((c) => c.code))
-                        );
-                        setChannel(null);
-                        setCache(null);
-                        setStats(null);
-                        setAiResult(null);
-                        setAiError(null);
-                        setMissingBrands([]);
-                        fetchingRef.current = "";
-                      }}
-                      className="text-xs text-gold hover:underline"
-                    >
-                      {t("compare", "selectAllScope")}
-                    </button>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {scanScopeCountries.map((c) => {
-                    const isSelected = selectedCountries.has(c.code);
-                    return (
-                      <Button
-                        key={c.code}
-                        variant={isSelected ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => toggleCountry(c.code)}
-                        className="gap-1"
-                      >
-                        <span className="font-medium">{c.code}</span>
-                        <span className={cn("text-[10px]", isSelected ? "opacity-80" : "text-muted-foreground")}>
-                          {c.name}
-                        </span>
-                      </Button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Search the full ISO list for anything outside the scan scope */}
-            <div className="space-y-2">
-              <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium block">
-                {t("compare", "searchOtherCountries")}
-              </label>
-              <Input
-                value={countrySearch}
-                onChange={(e) => setCountrySearch(e.target.value)}
-                placeholder={t("compare", "searchCountryPlaceholder")}
-                className="h-9 text-sm"
-              />
-              {countrySearch.trim() && countrySearchResults.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {t("compare", "searchNoResults")}
-                </p>
-              )}
-              {countrySearchResults.length > 0 && (
-                <div className="flex flex-wrap gap-2 max-h-56 overflow-y-auto rounded-md border border-border p-2">
-                  {countrySearchResults.map((c) => {
-                    const isSelected = selectedCountries.has(c.code);
-                    return (
-                      <Button
-                        key={c.code}
-                        variant={isSelected ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => toggleCountry(c.code)}
-                        className="gap-1"
-                      >
-                        <span className="font-medium">{c.code}</span>
-                        <span className={cn("text-[10px]", isSelected ? "opacity-80" : "text-muted-foreground")}>
-                          {c.name}
-                        </span>
-                      </Button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {selectedCountries.size === 0 && (
+            {selectedCountries.size === 0 && scanScopeCountries.length > 0 && (
               <p className="text-xs text-muted-foreground">
                 {t("compare", "selectCountriesHint")}
               </p>
@@ -2203,28 +2194,60 @@ export function CompareView({
             (aiLoading || regenerating ? (
               <LoadingState text={t("compare", "generatingAi")} />
             ) : aiError ? (
-              <ErrorState text={aiError} />
+              <div className="space-y-4">
+                <ErrorState text={aiError} />
+                <AiTierPicker
+                  tier={aiTier}
+                  onChange={setAiTier}
+                  onGenerate={() => triggerAi("copy")}
+                  t={t}
+                  retry
+                />
+              </div>
             ) : aiResult?.copywriterReport ? (
               <AnalysisReport
                 result={aiResult}
                 mode="copywriter"
                 onClose={() => setActiveTab("technical")}
               />
-            ) : null)}
+            ) : (
+              <AiTierPicker
+                tier={aiTier}
+                onChange={setAiTier}
+                onGenerate={() => triggerAi("copy")}
+                t={t}
+              />
+            ))}
 
           {/* Visual Tab */}
           {activeTab === "visual" &&
             (aiLoading || regenerating ? (
               <LoadingState text={t("compare", "generatingAi")} />
             ) : aiError ? (
-              <ErrorState text={aiError} />
+              <div className="space-y-4">
+                <ErrorState text={aiError} />
+                <AiTierPicker
+                  tier={aiTier}
+                  onChange={setAiTier}
+                  onGenerate={() => triggerAi("visual")}
+                  t={t}
+                  retry
+                />
+              </div>
             ) : aiResult?.creativeDirectorReport ? (
               <AnalysisReport
                 result={aiResult}
                 mode="creativeDirector"
                 onClose={() => setActiveTab("technical")}
               />
-            ) : null)}
+            ) : (
+              <AiTierPicker
+                tier={aiTier}
+                onChange={setAiTier}
+                onGenerate={() => triggerAi("visual")}
+                t={t}
+              />
+            ))}
 
           {/* Benchmark Tab — branch on kind (ads vs organic) */}
           {activeTab === "benchmark" &&
@@ -2257,6 +2280,120 @@ export function CompareView({
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * AI model tier picker — three pre-evaluated combinations
+ * (cheap / pragmatic / premium) shown as selectable cards with
+ * the per-call credit cost. Embedded inside Copy + Visual tabs
+ * before the user has triggered an AI generation, so the cost
+ * is transparent BEFORE the credits are charged. Costs come
+ * from `creditCosts` so any pricing change is centralised.
+ */
+function AiTierPicker({
+  tier,
+  onChange,
+  onGenerate,
+  t,
+  retry,
+}: {
+  tier: "cheap" | "pragmatic" | "premium";
+  onChange: (next: "cheap" | "pragmatic" | "premium") => void;
+  onGenerate: () => void;
+  t: (ns: string, k: string) => string;
+  retry?: boolean;
+}) {
+  const tiers: Array<{
+    key: "cheap" | "pragmatic" | "premium";
+    cost: number;
+    title: string;
+    desc: string;
+  }> = [
+    {
+      key: "cheap",
+      cost: creditCosts.ai_analysis_cheap,
+      title: t("compare", "aiTierCheapTitle"),
+      desc: t("compare", "aiTierCheapDesc"),
+    },
+    {
+      key: "pragmatic",
+      cost: creditCosts.ai_analysis_pragmatic,
+      title: t("compare", "aiTierPragmaticTitle"),
+      desc: t("compare", "aiTierPragmaticDesc"),
+    },
+    {
+      key: "premium",
+      cost: creditCosts.ai_analysis_premium,
+      title: t("compare", "aiTierPremiumTitle"),
+      desc: t("compare", "aiTierPremiumDesc"),
+    },
+  ];
+  const selectedCost = tiers.find((x) => x.key === tier)?.cost ?? 0;
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm">{t("compare", "aiTierTitle")}</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          {t("compare", "aiTierSubtitle")}
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
+          {tiers.map((opt) => {
+            const active = opt.key === tier;
+            return (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => onChange(opt.key)}
+                className={cn(
+                  "rounded-lg border p-4 text-left transition-colors cursor-pointer",
+                  active
+                    ? "border-gold bg-gold/5 ring-1 ring-gold"
+                    : "border-border hover:border-gold/40 hover:bg-muted/50",
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span
+                    className={cn(
+                      "text-sm font-semibold",
+                      active ? "text-gold" : "text-foreground",
+                    )}
+                  >
+                    {opt.title}
+                  </span>
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium tabular-nums",
+                      active
+                        ? "bg-gold text-gold-foreground"
+                        : "bg-muted text-foreground",
+                    )}
+                  >
+                    {opt.cost} {t("credits", "creditsLabel")}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
+                  {opt.desc}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex items-center justify-end gap-3 pt-1">
+          <p className="text-xs text-muted-foreground">
+            {t("compare", "aiTierCostNote").replace("{cost}", String(selectedCost))}
+          </p>
+          <Button onClick={onGenerate} className="gap-1.5">
+            <Sparkles className="size-3.5" />
+            {retry
+              ? t("compare", "aiTierRetry")
+              : t("compare", "aiTierGenerate")}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
