@@ -24,6 +24,8 @@ import {
   Film,
   FileText,
   Play,
+  X,
+  Filter,
 } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
@@ -352,11 +354,38 @@ export function CompareView({
   const [scanning, setScanning] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const [savedList, setSavedList] = useState(savedComparisons);
-  // Filter for the "Saved comparisons" panel — Paid (meta/google),
-  // Organic (instagram) or All. User feedback 2026-05-04: as the
-  // saved list grew it was hard to find a specific channel, and
-  // the visual mix made paid + organic confronti indistinguibili.
-  const [savedFilter, setSavedFilter] = useState<"all" | "paid" | "organic">("all");
+  // Saved-comparisons panel filters — both default to "any":
+  //
+  //  • savedChannelFilter: single-select per channel name (null =
+  //    all channels). Channels are visually grouped Paid / Organic
+  //    in the UI but the underlying state stores the concrete
+  //    channel string ("meta" / "google" / "instagram" / "all").
+  //
+  //  • savedClientIds: multi-select of client_ids. A saved row
+  //    matches when ANY of its competitor_ids belongs to one of
+  //    the selected clients — that's the "find comparisons that
+  //    involve project X" semantic users expect, not "all brands
+  //    in this project" (which would exclude cross-project rows).
+  //    Empty set = no filter.
+  const [savedChannelFilter, setSavedChannelFilter] = useState<string | null>(null);
+  const [savedClientIds, setSavedClientIds] = useState<Set<string>>(new Set());
+  const [projectFilterOpen, setProjectFilterOpen] = useState(false);
+  const projectFilterRef = useRef<HTMLDivElement | null>(null);
+  // Close the project popover on outside click — same pattern as
+  // benchmarks/brand-filter.tsx so the filter feels native.
+  useEffect(() => {
+    if (!projectFilterOpen) return;
+    function onClick(e: MouseEvent) {
+      if (
+        projectFilterRef.current &&
+        !projectFilterRef.current.contains(e.target as Node)
+      ) {
+        setProjectFilterOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [projectFilterOpen]);
 
   /**
    * Merge a freshly-saved comparison into the local saved list so
@@ -1670,60 +1699,266 @@ export function CompareView({
             {t("compare", "selectAtLeast2")}
           </p>
 
-          {/* Saved comparisons — with Paid / Organic filter on top.
-              Filter classifies each saved row by its channel field:
-              meta + google + all → paid (where 'all' implicitly
-              includes paid surfaces); instagram → organic. The
-              count badge per pill is computed against the full
-              savedList so the user sees how many entries each
-              filter would show before clicking. */}
+          {/* Saved comparisons — Project + Channel filter row.
+              Channel pills are grouped under Paid / Organic labels
+              so the user sees the dichotomy at a glance but still
+              picks a specific channel ("Meta", "Google", "All paid",
+              "Instagram"). Project is a multi-select popover keyed
+              on client_id; a row matches when ANY of its
+              competitor_ids belongs to one of the selected clients
+              (cross-project comparisons stay visible). Counts on
+              every pill are computed AFTER the project filter so
+              they reflect what clicking will actually show. */}
           {savedList.length > 0 && (() => {
-            const paidCount = savedList.filter(
-              (s) => s.channel === "meta" || s.channel === "google" || s.channel === "all",
-            ).length;
-            const organicCount = savedList.filter((s) => s.channel === "instagram").length;
+            // Project filter — set to brand → client_id index, then
+            // for each saved row collect the union of clients its
+            // brands belong to.
+            function rowClientIds(sc: SavedComparison): Set<string> {
+              const ids = new Set<string>();
+              for (const cid of sc.competitor_ids) {
+                const clientId = competitors.find((c) => c.id === cid)?.client_id;
+                if (clientId) ids.add(clientId);
+              }
+              return ids;
+            }
+            const projectFiltered =
+              savedClientIds.size === 0
+                ? savedList
+                : savedList.filter((sc) => {
+                    const ids = rowClientIds(sc);
+                    for (const cid of savedClientIds) if (ids.has(cid)) return true;
+                    return false;
+                  });
+
+            // Channels grouped — order shown in the bar matches the
+            // mait_comparisons.channel domain. We only render groups
+            // that have at least one row in projectFiltered, so the
+            // bar shrinks naturally when a project has no Organic
+            // entries (or vice-versa).
+            const PAID_CHANNELS: Array<{ value: string; key: string }> = [
+              { value: "meta", key: "channelMetaAds" },
+              { value: "google", key: "channelGoogleAds" },
+              { value: "all", key: "channelAll" },
+            ];
+            const ORGANIC_CHANNELS: Array<{ value: string; key: string }> = [
+              { value: "instagram", key: "channelInstagram" },
+            ];
+            const channelCount = (val: string) =>
+              projectFiltered.filter((s) => s.channel === val).length;
+            const paidGroup = PAID_CHANNELS.filter((c) => channelCount(c.value) > 0);
+            const organicGroup = ORGANIC_CHANNELS.filter((c) => channelCount(c.value) > 0);
+
             const filteredList =
-              savedFilter === "paid"
-                ? savedList.filter(
-                    (s) => s.channel === "meta" || s.channel === "google" || s.channel === "all",
-                  )
-                : savedFilter === "organic"
-                  ? savedList.filter((s) => s.channel === "instagram")
-                  : savedList;
+              savedChannelFilter === null
+                ? projectFiltered
+                : projectFiltered.filter((s) => s.channel === savedChannelFilter);
+
             const pillClass = (active: boolean) =>
               cn(
-                "inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs cursor-pointer transition-colors",
+                "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs cursor-pointer transition-colors",
                 active
                   ? "bg-gold text-gold-foreground font-medium"
                   : "border border-border text-muted-foreground hover:bg-muted hover:text-foreground",
               );
+
+            const projectButtonLabel =
+              savedClientIds.size === 0
+                ? t("compare", "projectFilterAll")
+                : savedClientIds.size === 1
+                  ? clients.find((c) => c.id === [...savedClientIds][0])?.name ??
+                    t("compare", "projectFilterAll")
+                  : `${savedClientIds.size} ${t("compare", "projectsSelected")}`;
+
+            const filtersActive =
+              savedClientIds.size > 0 || savedChannelFilter !== null;
+
             return (
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
-                  <CardTitle className="text-sm">{t("compare", "savedComparisons")}</CardTitle>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setSavedFilter("all")}
-                      className={pillClass(savedFilter === "all")}
-                    >
-                      {t("compare", "savedFilterAll")} <span className="opacity-60 tabular-nums">({savedList.length})</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSavedFilter("paid")}
-                      className={pillClass(savedFilter === "paid")}
-                    >
-                      {t("compare", "savedFilterPaid")} <span className="opacity-60 tabular-nums">({paidCount})</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSavedFilter("organic")}
-                      className={pillClass(savedFilter === "organic")}
-                    >
-                      {t("compare", "savedFilterOrganic")} <span className="opacity-60 tabular-nums">({organicCount})</span>
-                    </button>
+                <CardHeader className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <CardTitle className="text-sm">{t("compare", "savedComparisons")}</CardTitle>
+                    <div className="flex items-center gap-2">
+                      {/* Project popover — Benchmarks filter
+                          pattern: button trigger + absolute panel
+                          with checkbox list. Hidden when there are
+                          no clients in the workspace. */}
+                      {clients.length > 0 && (
+                        <div className="relative" ref={projectFilterRef}>
+                          <button
+                            type="button"
+                            onClick={() => setProjectFilterOpen((v) => !v)}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 text-xs rounded-md border border-border text-foreground hover:bg-muted transition-colors cursor-pointer min-w-[170px] justify-between"
+                          >
+                            <span className="inline-flex items-center gap-1.5 truncate">
+                              <Filter className="size-3.5 text-muted-foreground" />
+                              <span className="text-muted-foreground">
+                                {t("compare", "projectFilterLabel")}:
+                              </span>
+                              <span className="truncate">{projectButtonLabel}</span>
+                            </span>
+                            <ChevronDown
+                              className={cn(
+                                "size-3.5 transition-transform",
+                                projectFilterOpen && "rotate-180",
+                              )}
+                            />
+                          </button>
+                          {projectFilterOpen && (
+                            <div className="absolute right-0 top-full mt-2 z-30 w-64 rounded-lg border border-border bg-card shadow-lg p-2 space-y-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSavedClientIds(new Set());
+                                  setProjectFilterOpen(false);
+                                }}
+                                className={cn(
+                                  "w-full flex items-center gap-2 px-3 py-2 text-xs text-left rounded-md transition-colors cursor-pointer",
+                                  savedClientIds.size === 0
+                                    ? "bg-gold/10 text-gold"
+                                    : "hover:bg-muted",
+                                )}
+                              >
+                                <span
+                                  className={cn(
+                                    "size-4 rounded border flex items-center justify-center shrink-0",
+                                    savedClientIds.size === 0
+                                      ? "bg-gold border-gold text-gold-foreground"
+                                      : "border-border bg-background",
+                                  )}
+                                >
+                                  {savedClientIds.size === 0 && <Check className="size-3" />}
+                                </span>
+                                <span>{t("compare", "projectFilterAll")}</span>
+                                <span className="ml-auto opacity-60 tabular-nums">
+                                  ({savedList.length})
+                                </span>
+                              </button>
+                              <div className="h-px bg-border my-1" />
+                              <div className="max-h-[260px] overflow-y-auto space-y-0.5">
+                                {clients.map((cl) => {
+                                  const on = savedClientIds.has(cl.id);
+                                  const count = savedList.filter((sc) =>
+                                    rowClientIds(sc).has(cl.id),
+                                  ).length;
+                                  return (
+                                    <button
+                                      key={cl.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setSavedClientIds((prev) => {
+                                          const next = new Set(prev);
+                                          if (next.has(cl.id)) next.delete(cl.id);
+                                          else next.add(cl.id);
+                                          return next;
+                                        });
+                                      }}
+                                      className={cn(
+                                        "w-full flex items-center gap-2 px-3 py-2 text-xs text-left rounded-md transition-colors cursor-pointer",
+                                        on ? "bg-gold/10 text-gold" : "hover:bg-muted",
+                                      )}
+                                    >
+                                      <span
+                                        className={cn(
+                                          "size-4 rounded border flex items-center justify-center shrink-0",
+                                          on
+                                            ? "bg-gold border-gold text-gold-foreground"
+                                            : "border-border bg-background",
+                                        )}
+                                      >
+                                        {on && <Check className="size-3" />}
+                                      </span>
+                                      <span
+                                        className="size-2 rounded-full shrink-0"
+                                        style={{ backgroundColor: cl.color ?? "#9ca3af" }}
+                                      />
+                                      <span className="truncate">{cl.name}</span>
+                                      <span className="ml-auto opacity-60 tabular-nums">
+                                        ({count})
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {filtersActive && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSavedClientIds(new Set());
+                            setSavedChannelFilter(null);
+                          }}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
+                        >
+                          <X className="size-3" />
+                          {t("compare", "savedFilterReset")}
+                        </button>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Channel row: All + grouped pills under Paid /
+                      Organic labels. Groups appear only when they
+                      contain at least one matching row, so the bar
+                      stays compact for small lists. */}
+                  {(paidGroup.length > 0 || organicGroup.length > 0) && (
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setSavedChannelFilter(null)}
+                        className={pillClass(savedChannelFilter === null)}
+                      >
+                        {t("compare", "savedFilterAll")}{" "}
+                        <span className="opacity-60 tabular-nums">
+                          ({projectFiltered.length})
+                        </span>
+                      </button>
+                      {paidGroup.length > 0 && (
+                        <>
+                          <span className="h-4 w-px bg-border" />
+                          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                            {t("compare", "savedFilterPaid")}
+                          </span>
+                          {paidGroup.map((c) => (
+                            <button
+                              key={c.value}
+                              type="button"
+                              onClick={() => setSavedChannelFilter(c.value)}
+                              className={pillClass(savedChannelFilter === c.value)}
+                            >
+                              {t("compare", c.key)}{" "}
+                              <span className="opacity-60 tabular-nums">
+                                ({channelCount(c.value)})
+                              </span>
+                            </button>
+                          ))}
+                        </>
+                      )}
+                      {organicGroup.length > 0 && (
+                        <>
+                          <span className="h-4 w-px bg-border" />
+                          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                            {t("compare", "savedFilterOrganic")}
+                          </span>
+                          {organicGroup.map((c) => (
+                            <button
+                              key={c.value}
+                              type="button"
+                              onClick={() => setSavedChannelFilter(c.value)}
+                              className={pillClass(savedChannelFilter === c.value)}
+                            >
+                              {t("compare", c.key)}{" "}
+                              <span className="opacity-60 tabular-nums">
+                                ({channelCount(c.value)})
+                              </span>
+                            </button>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {filteredList.length === 0 && (

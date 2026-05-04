@@ -877,6 +877,20 @@ const translations = {
       it: "Nessun confronto salvato in questa categoria.",
       en: "No saved comparisons in this category.",
     },
+    savedFilterReset: { it: "Azzera filtri", en: "Reset filters" },
+    // Project (client) filter — multi-select popover scoped to the
+    // saved-comparisons panel.
+    projectFilterLabel: { it: "Progetto", en: "Project" },
+    projectFilterAll: { it: "Tutti i progetti", en: "All projects" },
+    projectsSelected: { it: "progetti", en: "projects" },
+    // Channel pill labels inside the saved-comparisons filter row.
+    // Distinct from the comparison-channel selector keys above so
+    // we can keep the saved-list copy short ("Meta", "Google",
+    // "Instagram", "Tutti") without rewriting older callers.
+    channelMetaAds: { it: "Meta", en: "Meta" },
+    channelGoogleAds: { it: "Google", en: "Google" },
+    channelInstagram: { it: "Instagram", en: "Instagram" },
+    channelAll: { it: "Tutti", en: "All" },
     channel: { it: "Canale", en: "Channel" },
     channelPaid: { it: "Paid", en: "Paid" },
     channelOrganic: { it: "Organic", en: "Organic" },
