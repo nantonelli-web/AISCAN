@@ -794,7 +794,7 @@ export function ScanDropdown({
             </span>
             <span className="text-foreground/80">{missing.join(", ")}</span>
             <a
-              href={`/competitors/${competitorId}/edit?from=brand`}
+              href={`/brands/${competitorId}/edit?from=brand`}
               className="ml-auto text-xs underline tone-warning hover:opacity-80"
             >
               {t("compare", "goToEdit")}

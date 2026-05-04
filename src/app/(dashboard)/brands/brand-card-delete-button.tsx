@@ -34,7 +34,7 @@ export function BrandCardDeleteButton({
     setDeleting(true);
     const toastId = toast.loading(t("editCompetitor", "deletingProgress"));
     try {
-      const res = await fetch(`/api/competitors/${competitorId}`, {
+      const res = await fetch(`/api/brands/${competitorId}`, {
         method: "DELETE",
       });
       if (!res.ok) {

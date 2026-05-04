@@ -9,7 +9,7 @@ import { useT } from "@/lib/i18n/context";
 
 /**
  * In-place destructive action for the brand detail header. The full
- * delete UX also lives in /competitors/[id]/edit, but most users hit
+ * delete UX also lives in /brands/[id]/edit, but most users hit
  * the brand page first and not the edit page — having the button here
  * cuts a navigation step. Confirmation is inline so we never delete
  * from a single click.
@@ -37,7 +37,7 @@ export function DeleteBrandButton({
     setDeleting(true);
     const toastId = toast.loading(t("editCompetitor", "deletingProgress"));
     try {
-      const res = await fetch(`/api/competitors/${competitorId}`, {
+      const res = await fetch(`/api/brands/${competitorId}`, {
         method: "DELETE",
       });
       if (!res.ok) {
@@ -46,7 +46,7 @@ export function DeleteBrandButton({
         return;
       }
       toast.success(t("editCompetitor", "deleted"), { id: toastId });
-      router.push("/competitors");
+      router.push("/brands");
       router.refresh();
     } catch {
       toast.error(t("editCompetitor", "deleteError"), { id: toastId });

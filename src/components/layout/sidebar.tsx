@@ -27,7 +27,7 @@ import { useT } from "@/lib/i18n/context";
 // the high-traffic Brands/Library entries.
 //
 // `aliases`: extra URL prefixes that should also mark the item active.
-// /brands rewrites to /competitors via next.config.ts, so both forms
+// /brands rewrites to /brands via next.config.ts, so both forms
 // can appear in pathname depending on how the user navigated.
 type NavItem = {
   href: string;
@@ -42,7 +42,7 @@ const navGroups: NavGroup[] = [
     key: "groupSetup",
     items: [
       { href: "/dashboard", key: "dashboard", icon: LayoutDashboard, aliases: [] },
-      { href: "/brands", key: "brands", icon: Users, aliases: ["/competitors"] },
+      { href: "/brands", key: "brands", icon: Users, aliases: ["/brands"] },
     ],
   },
   {
@@ -55,7 +55,7 @@ const navGroups: NavGroup[] = [
       // the visual breadcrumb still works.
       { href: "/monitoring", key: "monitoring", icon: Radar, aliases: ["/serp", "/maps"] },
       { href: "/library", key: "library", icon: Library, aliases: [] },
-      { href: "/brands/compare", key: "compare", icon: GitCompareArrows, aliases: ["/competitors/compare"] },
+      { href: "/brands/compare", key: "compare", icon: GitCompareArrows, aliases: ["/brands/compare"] },
       { href: "/benchmarks", key: "benchmarks", icon: Target, aliases: [] },
     ],
   },
@@ -131,8 +131,8 @@ export function Sidebar({
                 {t("sidebar", group.key)}
               </div>
               {items.map(({ href, key, icon: Icon, aliases }) => {
-                // Longest-prefix wins — so /competitors/compare activates
-                // Compare, not Brands, even though /competitors also matches.
+                // Longest-prefix wins — so /brands/compare activates
+                // Compare, not Brands, even though /brands also matches.
                 const prefixes = [href, ...aliases];
                 const bestOwnMatch = prefixes
                   .filter((p) => pathname === p || pathname.startsWith(`${p}/`))

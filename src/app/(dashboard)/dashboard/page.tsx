@@ -169,7 +169,7 @@ export default async function DashboardPage() {
             {topComps.map((tc) => (
               <Link
                 key={tc.id}
-                href={`/competitors/${tc.id}`}
+                href={`/brands/${tc.id}`}
                 className="flex items-center justify-between p-3 rounded-md border border-border hover:border-gold/50 transition-colors"
               >
                 <span className="font-medium text-sm truncate">{tc.name}</span>

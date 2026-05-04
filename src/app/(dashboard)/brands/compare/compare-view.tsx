@@ -428,7 +428,7 @@ export function CompareView({
         // 0. Check if brands have data for this channel
         if (channel !== "all") {
           const checkRes = await fetch(
-            `/api/competitors/check-channel?ids=${ids.join(",")}&channel=${channel}`
+            `/api/brands/check-channel?ids=${ids.join(",")}&channel=${channel}`
           );
           if (checkRes.ok) {
             const { results } = await checkRes.json();
@@ -895,7 +895,7 @@ export function CompareView({
       .slice(0, 40);
   }, [countrySearch, allCountries, scanScopeCountries]);
 
-  // Group brands by client for the selector (same ordering as /competitors)
+  // Group brands by client for the selector (same ordering as /brands)
   const brandSections = useMemo(() => {
     const grouped = new Map<string | null, MaitCompetitor[]>();
     for (const c of competitors) {
@@ -1280,7 +1280,7 @@ export function CompareView({
                 <div key={g.id} className="flex items-center gap-2 text-xs">
                   <span className="text-foreground font-medium">{g.brand}</span>
                   <span className="text-muted-foreground">— {g.missingCountries.join(", ")}</span>
-                  <a href={`/competitors/${g.id}/edit?from=compare`} className="ml-auto shrink-0">
+                  <a href={`/brands/${g.id}/edit?from=compare`} className="ml-auto shrink-0">
                     <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer">
                       {t("compare", "addCountryAndScan")}
                     </Button>
@@ -1417,7 +1417,7 @@ export function CompareView({
                         <span className="text-foreground font-medium">{d.brand}</span>
                         <span className="text-muted-foreground">— {d.channel}: {d.reason}</span>
                         <a
-                          href={`/competitors/${d.id}/edit?from=compare`}
+                          href={`/brands/${d.id}/edit?from=compare`}
                           className="ml-auto shrink-0"
                         >
                           <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer">

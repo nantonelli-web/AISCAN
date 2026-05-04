@@ -75,7 +75,7 @@ export function AdCard({
 
   const detailHref =
     competitorId ?? ad.competitor_id
-      ? `/competitors/${competitorId ?? ad.competitor_id}/ads/${ad.id}`
+      ? `/brands/${competitorId ?? ad.competitor_id}/ads/${ad.id}`
       : null;
 
   // Extract displayFormat — Meta uses snapshot.displayFormat. On

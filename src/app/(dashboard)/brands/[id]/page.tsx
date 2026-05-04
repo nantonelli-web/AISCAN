@@ -319,7 +319,7 @@ export default async function CompetitorDetailPage({
     <div className="space-y-8">
       <div className="flex items-center justify-between gap-3 print:hidden">
         <Link
-          href="/competitors"
+          href="/brands"
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="size-4" /> {t("competitors", "allCompetitors")}
@@ -383,7 +383,7 @@ export default async function CompetitorDetailPage({
             <FrequencySelector competitorId={c.id} initial={frequency} />
           </div>
           <Link
-            href={`/competitors/${c.id}/edit?from=brand`}
+            href={`/brands/${c.id}/edit?from=brand`}
             className="size-9 rounded-md border border-border grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             title={t("editCompetitor", "title")}
           >

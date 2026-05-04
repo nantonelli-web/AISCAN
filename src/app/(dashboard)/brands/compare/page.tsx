@@ -37,7 +37,7 @@ export default async function ComparePage() {
 
   return (
     <div className="space-y-6">
-      <DynamicBackLink fallbackHref="/competitors" label={t("competitors", "allCompetitors")} />
+      <DynamicBackLink fallbackHref="/brands" label={t("competitors", "allCompetitors")} />
       <div>
         <h1 className="text-2xl font-serif tracking-tight">
           {t("compare", "title")}

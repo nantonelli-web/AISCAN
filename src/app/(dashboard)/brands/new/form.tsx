@@ -179,7 +179,7 @@ export function NewCompetitorForm() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const res = await fetch("/api/competitors", {
+    const res = await fetch("/api/brands", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -206,7 +206,7 @@ export function NewCompetitorForm() {
     }
     const { id } = await res.json();
     toast.success(t("newCompetitor", "created"));
-    router.push(`/competitors/${id}`);
+    router.push(`/brands/${id}`);
     router.refresh();
   }
 

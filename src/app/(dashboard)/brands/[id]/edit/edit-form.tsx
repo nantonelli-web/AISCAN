@@ -119,7 +119,7 @@ export function EditCompetitorForm({
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const res = await fetch(`/api/competitors/${competitor.id}`, {
+    const res = await fetch(`/api/brands/${competitor.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -144,13 +144,13 @@ export function EditCompetitorForm({
       return;
     }
     toast.success(t("editCompetitor", "saved"));
-    router.push(`/competitors/${competitor.id}`);
+    router.push(`/brands/${competitor.id}`);
     router.refresh();
   }
 
   async function onDelete() {
     setDeleting(true);
-    const res = await fetch(`/api/competitors/${competitor.id}`, {
+    const res = await fetch(`/api/brands/${competitor.id}`, {
       method: "DELETE",
     });
     setDeleting(false);
@@ -159,7 +159,7 @@ export function EditCompetitorForm({
       return;
     }
     toast.success(t("editCompetitor", "deleted"));
-    router.push("/competitors");
+    router.push("/brands");
     router.refresh();
   }
 

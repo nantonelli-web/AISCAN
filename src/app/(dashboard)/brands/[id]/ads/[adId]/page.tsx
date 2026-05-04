@@ -174,7 +174,7 @@ export default async function AdDetailPage({
           page was loaded via a deep link with no referrer, so the
           user is never stranded. */}
       <BackLink
-        fallbackHref={`/competitors/${competitorId}?tab=${isGoogle ? "google" : "meta"}`}
+        fallbackHref={`/brands/${competitorId}?tab=${isGoogle ? "google" : "meta"}`}
         label={t("adDetail", "backToCompetitor")}
       />
 

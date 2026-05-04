@@ -9,7 +9,7 @@ export default async function NewCompetitorPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <DynamicBackLink fallbackHref="/competitors" label={t("competitors", "allCompetitors")} />
+      <DynamicBackLink fallbackHref="/brands" label={t("competitors", "allCompetitors")} />
       <div>
         <h1 className="text-2xl font-serif tracking-tight">{t("newCompetitor", "title")}</h1>
         <p className="text-sm text-muted-foreground">

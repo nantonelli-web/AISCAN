@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
  * clicks a brand card so the page swap feels instant. Without this
  * the user stares at the brand list while the server fetches the
  * competitor row, ads, posts and counts in parallel before sending
- * the first byte. Mirrors the actual shape of /competitors/[id]/page
+ * the first byte. Mirrors the actual shape of /brands/[id]/page
  * so the visual jump on hydration is small.
  */
 function SkeletonBar({ className = "" }: { className?: string }) {

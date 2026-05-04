@@ -52,10 +52,25 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  async rewrites() {
+  // Legacy /competitors paths redirect to /brands. The directory
+  // moved 2026-05-04 (was /competitors, now /brands) for SEO/GEO
+  // reasons — the canonical URL is /brands and we don't want
+  // outside links / bookmarks to 404. Permanent (308) so search
+  // engines pass authority. Internal codebase links should target
+  // /brands directly; this catch-all is purely a courtesy for
+  // anything we missed.
+  async redirects() {
     return [
-      { source: "/brands", destination: "/competitors" },
-      { source: "/brands/:path*", destination: "/competitors/:path*" },
+      {
+        source: "/competitors",
+        destination: "/brands",
+        permanent: true,
+      },
+      {
+        source: "/competitors/:path*",
+        destination: "/brands/:path*",
+        permanent: true,
+      },
     ];
   },
 };

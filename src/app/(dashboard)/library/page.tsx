@@ -181,9 +181,9 @@ export default async function LibraryPage({
           from per-brand "all ads" links, and from Compare / report
           drill-downs. Hard-coding a single fallback would mis-route
           users coming from those flows; the smart back honours the
-          referrer when same-origin and falls through to /competitors
+          referrer when same-origin and falls through to /brands
           (the most common origin) otherwise. */}
-      <DynamicBackLink fallbackHref="/competitors" label={t("library", "backLabel")} />
+      <DynamicBackLink fallbackHref="/brands" label={t("library", "backLabel")} />
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-serif tracking-tight">{t("library", "title")}</h1>

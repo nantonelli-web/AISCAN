@@ -28,7 +28,7 @@ export function FrequencySelector({
     const next = e.target.value as typeof value;
     setValue(next);
     startTransition(async () => {
-      const res = await fetch(`/api/competitors/${competitorId}`, {
+      const res = await fetch(`/api/brands/${competitorId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ frequency: next }),

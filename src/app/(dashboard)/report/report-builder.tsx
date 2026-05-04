@@ -238,7 +238,7 @@ export function ReportBuilder({
     if (channel !== "all") {
       try {
         const checkRes = await fetch(
-          `/api/competitors/check-channel?ids=${selectedArray.join(",")}&channel=${channel}`
+          `/api/brands/check-channel?ids=${selectedArray.join(",")}&channel=${channel}`
         );
         if (checkRes.ok) {
           const { results } = await checkRes.json();
@@ -586,7 +586,7 @@ export function ReportBuilder({
                     <div key={i} className="flex items-center gap-2 text-xs">
                       <span className="text-foreground font-medium">{d.brand}</span>
                       <span className="text-muted-foreground">— {d.ch}: {d.reason}</span>
-                      <a href={`/competitors/${d.id}/edit?from=report`} className="ml-auto shrink-0">
+                      <a href={`/brands/${d.id}/edit?from=report`} className="ml-auto shrink-0">
                         <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer">{t("report", "goToEdit")}</Button>
                       </a>
                     </div>
@@ -645,7 +645,7 @@ export function ReportBuilder({
                       {t("report", "noSavedComparisons")}
                     </p>
                     <Button asChild variant="outline" size="sm" className="gap-1.5 cursor-pointer">
-                      <Link href="/competitors/compare">{t("report", "goToCompare")}</Link>
+                      <Link href="/brands/compare">{t("report", "goToCompare")}</Link>
                     </Button>
                   </div>
                 ) : (

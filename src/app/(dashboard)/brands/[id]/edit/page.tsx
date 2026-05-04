@@ -65,11 +65,11 @@ export default async function EditCompetitorPage({
     <div className="max-w-3xl space-y-6">
       <Link
         href={
-          from === "compare" ? "/competitors/compare"
+          from === "compare" ? "/brands/compare"
           : from === "report" ? "/report"
-          : from === "brands" ? "/competitors"
-          : from === "brand" ? `/competitors/${id}`
-          : `/competitors/${id}`
+          : from === "brands" ? "/brands"
+          : from === "brand" ? `/brands/${id}`
+          : `/brands/${id}`
         }
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
       >

@@ -219,7 +219,7 @@ export function ChannelTabs({
   // ── Load more: client-appended ads beyond the initial 30 ──
   // The server-rendered Suspense child caps the first paint at 30
   // ads to keep the wire transfer light (each ad carries 50-200 KB
-  // of raw_data). The "Load more" button calls /api/competitors/{id}
+  // of raw_data). The "Load more" button calls /api/brands/{id}
   // /ads?offset=… to pull the next page client-side and append in
   // place — no full Suspense reload, no skeleton flash.
   //
@@ -256,7 +256,7 @@ export function ChannelTabs({
         params.set("countries", countriesFilter.join(","));
       }
       const res = await fetch(
-        `/api/competitors/${competitorId}/ads?${params.toString()}`,
+        `/api/brands/${competitorId}/ads?${params.toString()}`,
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as { ads: MaitAdExternal[] };

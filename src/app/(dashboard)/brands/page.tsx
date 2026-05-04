@@ -109,7 +109,7 @@ export default async function CompetitorsPage() {
           <div className="flex items-center gap-3">
             <PrintButton label={t("common", "print")} variant="outline" />
             <Button asChild>
-              <Link href="/competitors/new">
+              <Link href="/brands/new">
                 <Plus className="size-4" /> {t("competitors", "addCompetitor")}
               </Link>
             </Button>
@@ -296,7 +296,7 @@ function BrandCard({
 
   return (
     <Card className="h-full relative group hover:border-gold/40 hover:shadow-md transition-all">
-      <Link href={`/competitors/${c.id}`} className="absolute inset-0 z-0" />
+      <Link href={`/brands/${c.id}`} className="absolute inset-0 z-0" />
       <CardContent className="p-5 space-y-3.5 relative z-10 pointer-events-none">
         {/* Title row — brand identity dominates. Category badge
             removed 2026-05-04 alongside hiding the field in the
@@ -376,7 +376,7 @@ function BrandCard({
           </span>
           <div className="flex items-center gap-1.5 shrink-0">
             <Link
-              href={`/competitors/${c.id}/edit?from=brands`}
+              href={`/brands/${c.id}/edit?from=brands`}
               className="size-7 rounded-md border border-border hover:bg-muted hover:border-gold/40 grid place-items-center text-muted-foreground hover:text-gold transition-colors pointer-events-auto"
               title={t("editCompetitor", "title")}
             >

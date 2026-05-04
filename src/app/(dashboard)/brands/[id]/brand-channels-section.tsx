@@ -59,7 +59,7 @@ export interface BrandSerpQueryRank {
 /**
  * The heavy half of the brand detail page — 30 ads + 30 organic
  * posts, each carrying full raw_data (50–200 KB on Meta). Lifted out
- * of /competitors/[id]/page.tsx into its own async server component
+ * of /brands/[id]/page.tsx into its own async server component
  * so it can stream behind a Suspense boundary while the lightweight
  * shell (hero, scan card, job history) renders immediately.
  *
