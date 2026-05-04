@@ -135,11 +135,13 @@ export function AnalysisReport({
           icon={Scale}
           label={t("creativeAnalysis", "comparison")}
           text={report.comparison}
+          brandNames={brandNames}
         />
         <HighlightCard
           icon={Lightbulb}
           label={t("creativeAnalysis", "recommendations")}
           text={report.recommendations}
+          brandNames={brandNames}
         />
       </div>
     );
@@ -391,22 +393,115 @@ function coerce(value: unknown): string {
   return JSON.stringify(value).slice(0, 400);
 }
 
+/**
+ * Detect "BRAND_NAME - …" / "BRAND_NAME:" sub-sections in a long
+ * text and split it into per-brand chunks. Returns null when the
+ * text doesn't seem brand-keyed (e.g. a flat narrative comparison),
+ * so the caller falls back to a plain rendering.
+ *
+ * Why: the recommendations / comparison text from the LLM is
+ * almost always structured as "BRAND A - … \n\n BRAND B - …",
+ * but rendered as one flat <p> the brand names disappear into a
+ * wall of text (user feedback 2026-05-04: "ricchissimo di testo,
+ * leggibilità scarsa, i nomi dei brand sono quasi invisibili").
+ *
+ * Detection rules:
+ *   - the match must START a line (line break or string start),
+ *     to avoid catching cross-references inside paragraphs.
+ *   - allowed separators after the brand name: " - ", " — ", " : "
+ *     (whitespace optional). The model typically uses " - ".
+ *   - case-insensitive match of the actual brand name.
+ *   - we keep ONLY the first occurrence per brand — if the same
+ *     name appears later in another brand's body, that's a
+ *     reference, not a new section.
+ *   - all configured brands must produce at least one match,
+ *     otherwise the text is flat narrative and we return null.
+ */
+function splitByBrand(
+  text: string,
+  brandNames: string[],
+): Array<{ name: string; body: string }> | null {
+  if (brandNames.length < 2) return null;
+  type M = { name: string; headerStart: number; headerEnd: number };
+  const allMatches: M[] = [];
+  for (const name of brandNames) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // (?:^|\n) anchors to line start. The capture absorbs the
+    // brand text + optional separator so headerEnd lands at the
+    // start of the body. Leading whitespace inside the line is
+    // tolerated.
+    const re = new RegExp(
+      `(?:^|\\n)[ \\t]*(${escaped})[ \\t]*(?:[-—:]+)?[ \\t]*`,
+      "gi",
+    );
+    const found: M[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      // Don't double-count zero-width matches.
+      if (m[0].length === 0) {
+        re.lastIndex += 1;
+        continue;
+      }
+      const headerStart = m.index + (text[m.index] === "\n" ? 1 : 0);
+      found.push({ name, headerStart, headerEnd: re.lastIndex });
+    }
+    if (found.length === 0) return null; // brand never starts a line → fallback
+    allMatches.push(...found);
+  }
+  allMatches.sort((a, b) => a.headerStart - b.headerStart);
+  // Keep only the first occurrence per brand (subsequent ones are
+  // references inside another brand's section).
+  const firsts: M[] = [];
+  const seen = new Set<string>();
+  for (const m of allMatches) {
+    if (seen.has(m.name)) continue;
+    seen.add(m.name);
+    firsts.push(m);
+  }
+  if (firsts.length !== brandNames.length) return null;
+  // Re-sort the firsts (already sorted but defensive — the iteration
+  // order above could otherwise be misleading after dedup).
+  firsts.sort((a, b) => a.headerStart - b.headerStart);
+  const sections: Array<{ name: string; body: string }> = [];
+  for (let i = 0; i < firsts.length; i++) {
+    const cur = firsts[i];
+    const next = firsts[i + 1];
+    const body = text
+      .slice(cur.headerEnd, next ? next.headerStart : undefined)
+      .trim();
+    sections.push({ name: cur.name, body });
+  }
+  return sections;
+}
+
+/**
+ * Long-form section card. When the text contains per-brand
+ * keyed sub-sections (the LLM almost always does this for
+ * comparison + recommendations), splitByBrand picks them up
+ * and we render one tile per brand with a strong gold header.
+ * Otherwise we render the text flat. Either way the caller
+ * passes the same props so we keep brand-name awareness even
+ * for sections that turn out to be flat.
+ */
 function HighlightCard({
   icon: Icon,
   label,
   text,
+  brandNames,
 }: {
   icon: LucideIcon;
   label: string;
   text: unknown;
+  brandNames?: string[];
 }) {
   const safe =
     typeof text === "string"
       ? text
       : text == null
         ? ""
-        : JSON.stringify(text).slice(0, 800);
+        : JSON.stringify(text).slice(0, 1600);
   if (!safe) return null;
+  const sections = brandNames ? splitByBrand(safe, brandNames) : null;
   return (
     <Card>
       <CardHeader className="pb-3 border-b border-border">
@@ -415,11 +510,26 @@ function HighlightCard({
           {label}
         </CardTitle>
       </CardHeader>
-      <CardContent className="p-5">
-        <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
-          {safe}
-        </p>
-      </CardContent>
+      {sections ? (
+        <CardContent className="p-0 divide-y divide-border">
+          {sections.map((s) => (
+            <div key={s.name} className="p-5 space-y-2">
+              <p className="text-sm font-semibold uppercase tracking-wider text-gold">
+                {s.name}
+              </p>
+              <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
+                {s.body}
+              </p>
+            </div>
+          ))}
+        </CardContent>
+      ) : (
+        <CardContent className="p-5">
+          <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
+            {safe}
+          </p>
+        </CardContent>
+      )}
     </Card>
   );
 }

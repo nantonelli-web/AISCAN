@@ -481,8 +481,11 @@ Important:
 - Provide one entry in brandAnalyses for each brand, in the same order as presented
 - Be specific, reference actual ad examples when possible
 - Include Italian marketing terminology where it adds value
-- emotionalTriggers should be 3-5 specific triggers per brand
-- LENGTH BUDGET: keep each text field under ~600 characters (~100 words). The "comparison" and "recommendations" can be up to ~800 characters each. The total response MUST fit in 6000 tokens; if you start running long, prioritise concise insight over exhaustive description.
+- emotionalTriggers should be 3-5 specific triggers per brand (single words / short phrases, NEVER full sentences)
+- LENGTH BUDGET: keep each text field under ~400 characters (~70 words). The "comparison" can be up to ~600 characters. "recommendations" up to ~600 characters TOTAL across all brands — be concise. Truncated JSON breaks downstream parsing, so concise + complete is mandatory.
+- STRUCTURE FOR comparison and recommendations: write each brand on its own paragraph starting with the EXACT brand name followed by " - " and the body text. Example:
+    "House of Yamina - The brand wins on visual consistency but...\n\nHarithand - More aggressive on CTA clarity, lacks emotional pull..."
+  This per-brand layout is parsed into separate UI cards downstream — DO NOT mix multiple brands in one paragraph or omit the leading brand name.
 - ${locale === "it" ? "Write ALL descriptions, comparisons, and recommendations in Italian" : "Write all in English"}`;
 
   try {
@@ -771,7 +774,10 @@ Important:
 - Provide one entry in brandAnalyses for each brand, in the same order as listed above
 - Be specific about colors (use names or approximate hex values), compositions, and styles
 - Reference fashion/luxury advertising benchmarks where relevant
-- LENGTH BUDGET: keep each text field under ~600 characters (~100 words). The "comparison" and "recommendations" can be up to ~800 characters each. The total response MUST fit in 6000 tokens; if you start running long, prioritise concise insight over exhaustive description. A truncated JSON breaks downstream parsing — concise + complete is mandatory.
+- LENGTH BUDGET: keep each text field under ~400 characters (~70 words). The "comparison" can be up to ~600 characters. "recommendations" up to ~600 characters TOTAL across all brands — be concise. Truncated JSON breaks downstream parsing.
+- STRUCTURE FOR comparison and recommendations: write each brand on its own paragraph starting with the EXACT brand name followed by " - " and the body text. Example:
+    "House of Yamina - Strong colour discipline, ...\n\nHarithand - Better photography but..."
+  This per-brand layout is parsed into separate UI cards downstream — DO NOT mix brands in one paragraph or omit the leading brand name.
 - ${locale === "it" ? "Write ALL descriptions, comparisons, and recommendations in Italian" : "Write all in English"}`,
   };
 
