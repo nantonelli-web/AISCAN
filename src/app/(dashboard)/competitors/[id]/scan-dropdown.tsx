@@ -12,6 +12,7 @@ import { SnapchatIcon } from "@/components/ui/snapchat-icon";
 import { YouTubeIcon } from "@/components/ui/youtube-icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateRangeShortcuts, defaultPresets } from "@/components/ui/date-range-shortcuts";
 import { useT } from "@/lib/i18n/context";
 import { cn } from "@/lib/utils";
 
@@ -388,7 +389,7 @@ export function ScanDropdown({
       {/* ─── 1. Scan period — its own row with proper label.
               The user reads it as a config setting, not as a sibling
               of the channel buttons. */}
-      <div className="flex flex-wrap items-center gap-3 pb-4 border-b border-border/60">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 pb-4 border-b border-border/60">
         <div className="inline-flex items-center gap-2 shrink-0">
           <div className="size-7 rounded-md bg-info-soft tone-info grid place-items-center">
             <CalendarRange className="size-4" />
@@ -415,6 +416,15 @@ export function ScanDropdown({
             className="text-sm h-9 w-40"
           />
         </div>
+        {/* One-click date-range presets — most users want "last 30
+            days" 90% of the time, the manual two-date dance was
+            friction. Highlights when current values match a preset. */}
+        <DateRangeShortcuts
+          presets={defaultPresets((s, k) => t(s, k))}
+          activeFrom={dateFrom}
+          activeTo={dateTo}
+          onPick={(r) => { setDateFrom(r.from); setDateTo(r.to); }}
+        />
         {(dateFrom || dateTo) && (
           <button
             onClick={() => { setDateFrom(""); setDateTo(""); }}

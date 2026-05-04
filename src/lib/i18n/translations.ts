@@ -959,6 +959,22 @@ const translations = {
     moreFilters: { it: "Filtri", en: "Filters" },
   },
 
+  // ─── Date-range shortcut chips ─────────────────────────────
+  // Used by ScanDropdown / Compare / Benchmarks date pickers.
+  // Single source of truth so a future "Ultimo trimestre" or
+  // "Anno in corso" only needs adding here once.
+  dateShortcuts: {
+    today: { it: "Oggi", en: "Today" },
+    yesterday: { it: "Ieri", en: "Yesterday" },
+    last7Days: { it: "Ultimi 7gg", en: "Last 7d" },
+    last14Days: { it: "Ultimi 14gg", en: "Last 14d" },
+    last30Days: { it: "Ultimi 30gg", en: "Last 30d" },
+    last60Days: { it: "Ultimi 60gg", en: "Last 60d" },
+    last90Days: { it: "Ultimi 90gg", en: "Last 90d" },
+    thisMonth: { it: "Questo mese", en: "This month" },
+    lastMonth: { it: "Mese scorso", en: "Last month" },
+  },
+
   // ─── Benchmarks ────────────────────────────────────────────
   benchmarks: {
     title: { it: "Benchmarks", en: "Benchmarks" },

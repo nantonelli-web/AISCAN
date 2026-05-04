@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CalendarRange, Check, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateRangeShortcuts, defaultPresets } from "@/components/ui/date-range-shortcuts";
 import { useT } from "@/lib/i18n/context";
 import { jumpToDateInput } from "@/lib/utils";
 
@@ -103,6 +104,19 @@ export function DateRangeFilter({
         value={to}
         onChange={(e) => setTo(e.target.value)}
         className="text-xs h-8 w-36"
+      />
+      {/* Shortcut chips — auto-apply on click since the user's intent
+          is unambiguous ("show me last 30 days"). Skipping the
+          manual Apply step removes a friction point. */}
+      <DateRangeShortcuts
+        presets={defaultPresets((s, k) => t(s, k))}
+        activeFrom={from}
+        activeTo={to}
+        onPick={(r) => {
+          setFrom(r.from);
+          setTo(r.to);
+          router.push(buildHref(r.from, r.to));
+        }}
       />
       {rangeInvalid && (
         <span className="text-[11px] text-red-500">{t("benchmarks", "rangeInvalid")}</span>

@@ -53,6 +53,7 @@ import type {
   OrganicBenchmarkData,
 } from "@/lib/analytics/benchmarks";
 import { PageLoader } from "@/components/ui/page-loader";
+import { DateRangeShortcuts, defaultPresets } from "@/components/ui/date-range-shortcuts";
 import type { CreativeAnalysisResult } from "@/lib/ai/creative-analysis";
 import type { MaitCompetitor, MaitClient } from "@/types";
 import { getCountries } from "@/config/countries";
@@ -1462,6 +1463,27 @@ export function CompareView({
             value={draftTo}
             onChange={(e) => setDraftTo(e.target.value)}
             className="text-xs h-8 w-36"
+          />
+          {/* Shortcut chips. Auto-apply (skip the draft step) since the
+              user explicitly clicked a known-good window — the draft
+              two-step is only needed for manual date-by-date editing. */}
+          <DateRangeShortcuts
+            presets={defaultPresets((s, k) => t(s, k))}
+            activeFrom={draftFrom}
+            activeTo={draftTo}
+            onPick={(r) => {
+              setDraftFrom(r.from);
+              setDraftTo(r.to);
+              if (r.from === dateFrom && r.to === dateTo) return;
+              setDateFrom(r.from);
+              setDateTo(r.to);
+              setCache(null);
+              setStats(null);
+              setAiResult(null);
+              setAiError(null);
+              setBenchmarkData(null);
+              fetchingRef.current = "";
+            }}
           />
           {(!draftFrom || !draftTo || draftFrom > draftTo) && (
             <span className="text-[11px] text-red-500">{t("compare", "rangeInvalid")}</span>
