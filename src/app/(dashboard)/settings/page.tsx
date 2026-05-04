@@ -6,6 +6,7 @@ import { InviteSection } from "./invite-form";
 import { CompanyForm } from "./company-form";
 import { ProviderKeysForm } from "./provider-keys-form";
 import { getLocale, serverT } from "@/lib/i18n/server";
+import { DynamicBackLink } from "@/components/ui/dynamic-back-link";
 import type { UserCompany } from "@/config/company";
 
 export const dynamic = "force-dynamic";
@@ -74,6 +75,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-6 max-w-3xl">
+      <DynamicBackLink fallbackHref="/dashboard" label={t("common", "backToDashboard")} />
       <div>
         <h1 className="text-2xl font-serif tracking-tight">{t("settings", "title")}</h1>
         <p className="text-sm text-muted-foreground">{t("settings", "subtitle")}</p>

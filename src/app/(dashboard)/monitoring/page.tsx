@@ -12,6 +12,7 @@ import { TikTokIcon } from "@/components/ui/tiktok-icon";
 import { SnapchatIcon } from "@/components/ui/snapchat-icon";
 import { YouTubeIcon } from "@/components/ui/youtube-icon";
 import { getLocale, serverT } from "@/lib/i18n/server";
+import { DynamicBackLink } from "@/components/ui/dynamic-back-link";
 
 export const dynamic = "force-dynamic";
 
@@ -165,6 +166,7 @@ export default async function MonitoringLandingPage() {
 
   return (
     <div className="space-y-8">
+      <DynamicBackLink fallbackHref="/dashboard" label={t("common", "backToDashboard")} />
       <header className="space-y-1">
         <p className="eyebrow">{t("monitoring", "title").toUpperCase()}</p>
         <h1 className="text-3xl font-serif tracking-tight">

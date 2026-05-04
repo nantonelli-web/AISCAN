@@ -7,6 +7,7 @@ import { FolderHeart } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { PrintButton } from "@/components/ui/print-button";
+import { DynamicBackLink } from "@/components/ui/dynamic-back-link";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ export default async function CollectionsPage() {
 
   return (
     <div className="space-y-6">
+      <DynamicBackLink fallbackHref="/dashboard" label={t("common", "backToDashboard")} />
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-serif tracking-tight">{t("collections", "title")}</h1>

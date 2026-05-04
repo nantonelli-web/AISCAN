@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { NewCompetitorForm } from "./form";
+import { DynamicBackLink } from "@/components/ui/dynamic-back-link";
 import { getLocale, serverT } from "@/lib/i18n/server";
 
 export default async function NewCompetitorPage() {
@@ -8,6 +9,7 @@ export default async function NewCompetitorPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
+      <DynamicBackLink fallbackHref="/competitors" label={t("competitors", "allCompetitors")} />
       <div>
         <h1 className="text-2xl font-serif tracking-tight">{t("newCompetitor", "title")}</h1>
         <p className="text-sm text-muted-foreground">

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { PrintButton } from "@/components/ui/print-button";
+import { DynamicBackLink } from "@/components/ui/dynamic-back-link";
 import { ReportBuilder } from "./report-builder";
 import type { MaitCompetitor } from "@/types";
 
@@ -51,6 +52,7 @@ export default async function ReportPage() {
 
   return (
     <div className="space-y-6">
+      <DynamicBackLink fallbackHref="/dashboard" label={t("common", "backToDashboard")} />
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-serif tracking-tight">

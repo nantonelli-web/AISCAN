@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { DynamicBackLink } from "@/components/ui/dynamic-back-link";
 import { getLocale, serverT } from "@/lib/i18n/server";
 
 export default async function AnalyticsPage() {
@@ -7,6 +8,7 @@ export default async function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
+      <DynamicBackLink fallbackHref="/dashboard" label={t("common", "backToDashboard")} />
       <div>
         <h1 className="text-2xl font-serif tracking-tight">{t("analytics", "title")}</h1>
         <p className="text-sm text-muted-foreground">

@@ -2132,6 +2132,7 @@ const translations = {
     loading: { it: "Caricamento...", en: "Loading..." },
     ads: { it: "ads", en: "ads" },
     print: { it: "Stampa", en: "Print" },
+    backToDashboard: { it: "Torna alla Dashboard", en: "Back to Dashboard" },
   },
 
   // ─── Language Switcher ─────────────────────────────────────

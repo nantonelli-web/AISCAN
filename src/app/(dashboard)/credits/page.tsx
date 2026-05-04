@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Coins, CalendarClock, TrendingUp, Receipt } from "lucide-react";
 import { RechargeSection } from "./recharge-section";
 import { HistorySection } from "./history-section";
+import { DynamicBackLink } from "@/components/ui/dynamic-back-link";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,7 @@ export default async function CreditsPage() {
 
   return (
     <div className="max-w-4xl space-y-8">
+      <DynamicBackLink fallbackHref="/dashboard" label={t("common", "backToDashboard")} />
       <div>
         <h1 className="text-2xl font-serif tracking-tight">
           {t("credits", "title")}

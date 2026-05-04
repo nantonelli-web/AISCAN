@@ -12,6 +12,7 @@ import { SnapchatIcon } from "@/components/ui/snapchat-icon";
 import { YouTubeIcon } from "@/components/ui/youtube-icon";
 import { Search as SearchIcon } from "lucide-react";
 import Link from "next/link";
+import { DynamicBackLink } from "@/components/ui/dynamic-back-link";
 import { BenchmarkContent } from "./benchmark-content";
 import { BrandFilter } from "./brand-filter";
 import { CountryFilter } from "./country-filter";
@@ -284,6 +285,7 @@ export default async function BenchmarksPage({
 
   return (
     <div className="space-y-8">
+      <DynamicBackLink fallbackHref="/dashboard" label={t("common", "backToDashboard")} />
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <p className="eyebrow">{t("benchmarks", "title").toUpperCase()}</p>

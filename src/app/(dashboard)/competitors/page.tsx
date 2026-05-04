@@ -11,6 +11,7 @@ import { formatDate } from "@/lib/utils";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { CollapsibleClientSection } from "./collapsible-client-section";
 import { PrintButton } from "@/components/ui/print-button";
+import { DynamicBackLink } from "@/components/ui/dynamic-back-link";
 import { BrandCardDeleteButton } from "./brand-card-delete-button";
 import type { MaitCompetitor, MaitClient } from "@/types";
 
@@ -98,6 +99,7 @@ export default async function CompetitorsPage() {
 
   return (
     <div className="space-y-8">
+      <DynamicBackLink fallbackHref="/dashboard" label={t("common", "backToDashboard")} />
       <SectionHeader
         size="page"
         icon={<Users className="size-5" />}

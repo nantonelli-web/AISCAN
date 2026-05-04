@@ -2,6 +2,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertRow } from "./alert-row";
+import { DynamicBackLink } from "@/components/ui/dynamic-back-link";
 import { getLocale, serverT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +32,7 @@ export default async function AlertsPage() {
 
   return (
     <div className="space-y-6">
+      <DynamicBackLink fallbackHref="/dashboard" label={t("common", "backToDashboard")} />
       <div>
         <h1 className="text-2xl font-serif tracking-tight">{t("alerts", "title")}</h1>
         <p className="text-sm text-muted-foreground">
