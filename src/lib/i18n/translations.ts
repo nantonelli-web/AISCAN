@@ -397,25 +397,15 @@ const translations = {
       it: "Sito non raggiungibile (timeout o blocco). Riprova o compila a mano.",
       en: "Site unreachable (timeout or block). Try again or fill manually.",
     },
-    discoveryApplied: {
-      it: "Campi applicati. Verifica e completa, poi clicca Crea.",
-      en: "Fields applied. Verify and complete, then click Create.",
+    discoveryAppliedN: {
+      it: "{n} campi compilati. Controllali (icona ↗ accanto a ognuno) e completa il resto, poi clicca Crea.",
+      en: "{n} fields filled. Check them (↗ icon next to each) and complete the rest, then click Create.",
     },
-    discoveryDialogTitle: {
-      it: "Conferma i campi trovati",
-      en: "Confirm discovered fields",
+    discoveryNoFields: {
+      it: "Nessun campo trovato sul sito. Compila a mano.",
+      en: "No fields found on the site. Fill manually.",
     },
-    discoveryDialogSubtitle: {
-      it: "{n} campi trovati. Spunta solo quelli corretti — non confermati restano vuoti nel form.",
-      en: "{n} fields found. Check only the correct ones — unchecked stay empty in the form.",
-    },
-    discoveryDialogHint: {
-      it: "Le percentuali indicano la confidenza dell'estrazione.",
-      en: "Percentages show extraction confidence.",
-    },
-    discoveryDialogApply: { it: "Applica selezionati", en: "Apply selected" },
-    discoveryDialogCancel: { it: "Annulla", en: "Cancel" },
-    discoveryNotFound: { it: "(non trovato)", en: "(not found)" },
+    verifyOnSite: { it: "Verifica sul sito", en: "Verify on platform" },
     snapchatLabel: { it: "Username Snapchat", en: "Snapchat username" },
     snapchatPlaceholder: { it: "es. nike (senza @)", en: "e.g. nike (without @)" },
     youtubeLabel: { it: "Canale YouTube", en: "YouTube channel" },

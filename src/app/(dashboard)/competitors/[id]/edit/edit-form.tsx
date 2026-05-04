@@ -282,24 +282,12 @@ export function EditCompetitorForm({
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="category">{t("newCompetitor", "categoryLabel")}</Label>
-              <select
-                id="category"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="flex h-9 w-full rounded-md border border-border bg-muted px-3 py-1 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
-              >
-                <option value="" className="bg-card">
-                  — {t("newCompetitor", "selectCategory")}
-                </option>
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c} className="bg-card">
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Category field hidden 2026-05-04 — same reasoning
+                as the new-brand form: non e' un dato che drive
+                l'analisi. Il valore esistente sul DB resta intoccato
+                (PATCH non lo invia se non lo modifichiamo). Per i
+                brand legacy con categoria gia' settata, il valore
+                appare ancora come badge sulla brands list. */}
             <div className="space-y-2">
               <Label>{t("clients", "clientLabel")}</Label>
               <select

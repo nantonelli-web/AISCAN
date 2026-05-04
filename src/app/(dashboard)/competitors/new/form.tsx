@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { X, Plus, Sparkles, Loader2, Check, Globe } from "lucide-react";
+import { X, Plus, Sparkles, Loader2, Globe, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,20 +61,19 @@ export function NewCompetitorForm() {
   const [countrySearch, setCountrySearch] = useState("");
 
   // ── Brand auto-discovery (Strategy A) ────────────────────────
-  // The discovery flow: user types a domain in the dedicated input,
-  // hits "Auto-fill", we hit /api/brand-discovery, then show a
-  // confirmation dialog with every found field pre-checked. Only
-  // the user-confirmed fields get applied to the form, so a wrong-
-  // positive on (e.g.) Snapchat doesn't pollute the saved record.
+  // User types a domain → click Auto-fill → fields populate
+  // directly into the form. No modal, no opt-in checklist —
+  // we apply every confidence ≥ 50 hit and let the user verify
+  // visually before clicking Save. Each populated field gets a
+  // small "open in tab" icon next to it so the user can spot-
+  // check the result on the source platform with one click
+  // instead of pasting URLs into a separate browser tab.
   const [discoveryDomain, setDiscoveryDomain] = useState("");
   const [discoveryRunning, setDiscoveryRunning] = useState(false);
-  const [discovery, setDiscovery] = useState<DiscoveryResult | null>(null);
-  const [discoveryPicked, setDiscoveryPicked] = useState<Record<string, boolean>>({});
 
   async function runDiscovery() {
     if (!discoveryDomain.trim()) return;
     setDiscoveryRunning(true);
-    setDiscovery(null);
     try {
       const res = await fetch("/api/brand-discovery", {
         method: "POST",
@@ -87,60 +86,48 @@ export function NewCompetitorForm() {
         return;
       }
       const d = json as DiscoveryResult;
-      setDiscovery(d);
-      // Pre-check every field whose confidence ≥ 50 — those are
-      // strong matches the user will almost always accept. Lower-
-      // confidence fields show in the dialog but unchecked, so the
-      // user opts in actively.
-      setDiscoveryPicked({
-        page_name: d.page_name.confidence >= 50,
-        page_url: d.page_url.confidence >= 50,
-        instagram_username: d.instagram_username.confidence >= 50,
-        tiktok_username: d.tiktok_username.confidence >= 50,
-        youtube_channel_url: d.youtube_channel_url.confidence >= 50,
-        snapchat_handle: d.snapchat_handle.confidence >= 50,
-        google_domain: d.google_domain.confidence >= 50,
-        category: d.category.confidence >= 50,
-      });
+
       if (!d.fetched) {
         toast.warning(t("newCompetitor", "discoveryNoFetch"));
+        return;
+      }
+
+      // Apply every hit with confidence ≥ 50 — empirically the
+      // threshold below which a result is more often a false
+      // positive (favicon → 40, language-derived country → 35).
+      // Wrong-positives at this level are rare; if they happen
+      // the user just edits the field before saving.
+      let applied = 0;
+      const apply = <T,>(
+        field: { value: T | null; confidence: number },
+        setter: (v: T) => void,
+      ) => {
+        if (field.value && field.confidence >= 50) {
+          setter(field.value);
+          applied++;
+        }
+      };
+
+      apply(d.page_name, setPageName);
+      apply(d.page_url, setPageUrl);
+      apply(d.instagram_username, setInstagramUsername);
+      apply(d.tiktok_username, setTiktokUsername);
+      apply(d.youtube_channel_url, setYoutubeChannelUrl);
+      apply(d.snapchat_handle, setSnapchatHandle);
+      apply(d.google_domain, setGoogleDomain);
+
+      if (applied === 0) {
+        toast.warning(t("newCompetitor", "discoveryNoFields"));
+      } else {
+        toast.success(
+          t("newCompetitor", "discoveryAppliedN").replace("{n}", String(applied)),
+        );
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Discovery failed");
     } finally {
       setDiscoveryRunning(false);
     }
-  }
-
-  function applyDiscovery() {
-    if (!discovery) return;
-    const d = discovery;
-    if (discoveryPicked.page_name && d.page_name.value) {
-      setPageName(d.page_name.value);
-    }
-    if (discoveryPicked.page_url && d.page_url.value) {
-      setPageUrl(d.page_url.value);
-    }
-    if (discoveryPicked.instagram_username && d.instagram_username.value) {
-      setInstagramUsername(d.instagram_username.value);
-    }
-    if (discoveryPicked.tiktok_username && d.tiktok_username.value) {
-      setTiktokUsername(d.tiktok_username.value);
-    }
-    if (discoveryPicked.youtube_channel_url && d.youtube_channel_url.value) {
-      setYoutubeChannelUrl(d.youtube_channel_url.value);
-    }
-    if (discoveryPicked.snapchat_handle && d.snapchat_handle.value) {
-      setSnapchatHandle(d.snapchat_handle.value);
-    }
-    if (discoveryPicked.google_domain && d.google_domain.value) {
-      setGoogleDomain(d.google_domain.value);
-    }
-    if (discoveryPicked.category && d.category.value) {
-      setCategory(d.category.value);
-    }
-    setDiscovery(null);
-    toast.success(t("newCompetitor", "discoveryApplied"));
   }
 
   useEffect(() => {
@@ -279,20 +266,6 @@ export function NewCompetitorForm() {
         </div>
       </div>
 
-      {/* Discovery confirmation dialog */}
-      {discovery && (
-        <DiscoveryConfirmDialog
-          discovery={discovery}
-          picked={discoveryPicked}
-          onTogglePicked={(key) =>
-            setDiscoveryPicked((p) => ({ ...p, [key]: !p[key] }))
-          }
-          onApply={applyDiscovery}
-          onClose={() => setDiscovery(null)}
-          t={t}
-        />
-      )}
-
       <div className="grid gap-5 lg:grid-cols-2">
         {/* Left column */}
         <div className="space-y-4">
@@ -313,12 +286,14 @@ export function NewCompetitorForm() {
                 {t("newCompetitor", "optionalLabel")}
               </span>
             </Label>
-            <Input
+            <FieldWithVerifyLink
               id="url"
               type="url"
               value={pageUrl}
-              onChange={(e) => setPageUrl(e.target.value)}
+              onChange={(v) => setPageUrl(v)}
               placeholder="https://www.facebook.com/nike"
+              verifyHref={pageUrl.trim() || null}
+              verifyLabel={t("newCompetitor", "verifyOnSite")}
             />
             <p className="text-[11px] text-muted-foreground leading-snug">
               {t("newCompetitor", "pageUrlHint")}
@@ -326,38 +301,58 @@ export function NewCompetitorForm() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="instagram">{t("newCompetitor", "instagramLabel")}</Label>
-            <Input
+            <FieldWithVerifyLink
               id="instagram"
               value={instagramUsername}
-              onChange={(e) => setInstagramUsername(e.target.value)}
+              onChange={(v) => setInstagramUsername(v)}
               placeholder={t("newCompetitor", "instagramPlaceholder")}
+              verifyHref={
+                instagramUsername.trim()
+                  ? `https://www.instagram.com/${instagramUsername.replace(/^@/, "").trim()}/`
+                  : null
+              }
+              verifyLabel={t("newCompetitor", "verifyOnSite")}
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="tiktok">{t("newCompetitor", "tiktokLabel")}</Label>
-            <Input
+            <FieldWithVerifyLink
               id="tiktok"
               value={tiktokUsername}
-              onChange={(e) => setTiktokUsername(e.target.value)}
+              onChange={(v) => setTiktokUsername(v)}
               placeholder={t("newCompetitor", "tiktokPlaceholder")}
+              verifyHref={
+                tiktokUsername.trim()
+                  ? `https://www.tiktok.com/@${tiktokUsername.replace(/^@/, "").trim()}`
+                  : null
+              }
+              verifyLabel={t("newCompetitor", "verifyOnSite")}
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="snapchat">{t("newCompetitor", "snapchatLabel")}</Label>
-            <Input
+            <FieldWithVerifyLink
               id="snapchat"
               value={snapchatHandle}
-              onChange={(e) => setSnapchatHandle(e.target.value)}
+              onChange={(v) => setSnapchatHandle(v)}
               placeholder={t("newCompetitor", "snapchatPlaceholder")}
+              verifyHref={
+                snapchatHandle.trim()
+                  ? `https://www.snapchat.com/add/${snapchatHandle.replace(/^@/, "").trim()}`
+                  : null
+              }
+              verifyLabel={t("newCompetitor", "verifyOnSite")}
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="youtube">{t("newCompetitor", "youtubeLabel")}</Label>
-            <Input
+            <FieldWithVerifyLink
               id="youtube"
               value={youtubeChannelUrl}
-              onChange={(e) => setYoutubeChannelUrl(e.target.value)}
+              onChange={(v) => setYoutubeChannelUrl(v)}
               placeholder={t("newCompetitor", "youtubePlaceholder")}
+              verifyHref={youtubeChannelUrl.trim() || null}
+              verifyLabel={t("newCompetitor", "verifyOnSite")}
             />
           </div>
 
@@ -369,11 +364,17 @@ export function NewCompetitorForm() {
             <div className="space-y-3">
               <div className="space-y-2">
                 <Label htmlFor="googleDomain">{t("newCompetitor", "googleDomainLabel")}</Label>
-                <Input
+                <FieldWithVerifyLink
                   id="googleDomain"
                   value={googleDomain}
-                  onChange={(e) => setGoogleDomain(e.target.value)}
+                  onChange={(v) => setGoogleDomain(v)}
                   placeholder={t("newCompetitor", "googleDomainPlaceholder")}
+                  verifyHref={
+                    googleDomain.trim()
+                      ? `https://${googleDomain.replace(/^https?:\/\//i, "").replace(/\/.*$/, "").trim()}`
+                      : null
+                  }
+                  verifyLabel={t("newCompetitor", "verifyOnSite")}
                 />
               </div>
               <div className="space-y-2">
@@ -396,26 +397,13 @@ export function NewCompetitorForm() {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="category">
-              {t("newCompetitor", "categoryLabel")}
-            </Label>
-            <select
-              id="category"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-border bg-muted px-3 py-1 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
-            >
-              <option value="" className="bg-card">
-                — {t("newCompetitor", "selectCategory")}
-              </option>
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c} className="bg-card">
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Category field hidden 2026-05-04 — non e' un dato
+              che drive l'analisi competitor (e gli utenti scelgono
+              chi confrontare manualmente, non per industry). Il
+              campo DB resta per retrocompatibilita' delle righe
+              esistenti, ma il form non lo mostra piu'. CATEGORIES
+              + setCategory restano nel codice ma sono dead-state
+              che il form lascia vuoto. */}
           <div className="space-y-2">
             <Label>{t("clients", "clientLabel")}</Label>
             <div className="flex gap-2">
@@ -531,149 +519,64 @@ export function NewCompetitorForm() {
   );
 }
 
-/* ─── Discovery confirmation dialog ───────────────────────────
-   Modal that lists every field the discovery returned plus a
-   checkbox per row. Checked rows get applied to the form on
-   "Apply"; unchecked stay as the user originally had them.
-   Confidence shown as a small bar so the user can prioritise
-   reviewing the lower-confidence guesses. */
-function DiscoveryConfirmDialog({
-  discovery,
-  picked,
-  onTogglePicked,
-  onApply,
-  onClose,
-  t,
+/**
+ * Input + small "open in new tab" affordance on the right.
+ *
+ * The verify link sits inside the input wrapper (absolute pos)
+ * instead of as a sibling button so the field takes the same
+ * grid slot as a plain Input — keeps form rhythm consistent with
+ * the non-verify rows. When verifyHref is null (empty field) the
+ * icon is greyed out and disabled, so the user gets a visual hint
+ * that there is nothing to check yet.
+ */
+function FieldWithVerifyLink({
+  id,
+  value,
+  onChange,
+  placeholder,
+  type,
+  verifyHref,
+  verifyLabel,
 }: {
-  discovery: DiscoveryResult;
-  picked: Record<string, boolean>;
-  onTogglePicked: (key: string) => void;
-  onApply: () => void;
-  onClose: () => void;
-  t: (s: string, k: string) => string;
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+  /** URL to open in a new tab when the user clicks the icon.
+   *  null = field empty, icon disabled. */
+  verifyHref: string | null;
+  verifyLabel: string;
 }) {
-  const rows: { key: string; label: string; field: { value: string | null; confidence: number; source: string } }[] = [
-    { key: "page_name", label: t("newCompetitor", "pageNameLabel"), field: discovery.page_name },
-    { key: "category", label: t("newCompetitor", "categoryLabel"), field: discovery.category },
-    { key: "instagram_username", label: t("newCompetitor", "instagramLabel"), field: discovery.instagram_username },
-    { key: "tiktok_username", label: t("newCompetitor", "tiktokLabel"), field: discovery.tiktok_username },
-    { key: "youtube_channel_url", label: t("newCompetitor", "youtubeLabel"), field: discovery.youtube_channel_url },
-    { key: "snapchat_handle", label: t("newCompetitor", "snapchatLabel"), field: discovery.snapchat_handle },
-    { key: "page_url", label: t("newCompetitor", "pageUrlLabel"), field: discovery.page_url },
-    { key: "google_domain", label: t("newCompetitor", "googleDomainLabel"), field: discovery.google_domain },
-  ];
-  const found = rows.filter((r) => r.field.value).length;
   return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4 print:hidden"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-xl border border-border bg-card shadow-xl"
-        onClick={(e) => e.stopPropagation()}
+    <div className="relative">
+      <Input
+        id={id}
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="pr-10"
+      />
+      <a
+        href={verifyHref ?? "#"}
+        target={verifyHref ? "_blank" : undefined}
+        rel="noreferrer"
+        aria-label={verifyLabel}
+        title={verifyLabel}
+        onClick={(e) => {
+          if (!verifyHref) e.preventDefault();
+        }}
+        className={cn(
+          "absolute right-1.5 top-1/2 -translate-y-1/2 size-7 rounded-md grid place-items-center transition-colors",
+          verifyHref
+            ? "text-muted-foreground hover:text-gold hover:bg-muted cursor-pointer"
+            : "text-muted-foreground/30 cursor-not-allowed",
+        )}
       >
-        {/* Header */}
-        <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <Sparkles className="size-4 text-gold" />
-              <h2 className="text-base font-semibold">
-                {t("newCompetitor", "discoveryDialogTitle")}
-              </h2>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {t("newCompetitor", "discoveryDialogSubtitle").replace("{n}", String(found))}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="size-8 rounded-md grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="px-5 py-3 divide-y divide-border">
-          {rows.map((r) => {
-            const isFound = !!r.field.value;
-            const checked = picked[r.key] ?? false;
-            return (
-              <div key={r.key} className="flex items-center gap-3 py-2.5">
-                <button
-                  type="button"
-                  onClick={() => isFound && onTogglePicked(r.key)}
-                  disabled={!isFound}
-                  className={cn(
-                    "size-5 rounded border grid place-items-center shrink-0 transition-colors",
-                    !isFound && "border-border bg-muted/30 cursor-not-allowed",
-                    isFound && checked && "border-gold bg-gold cursor-pointer",
-                    isFound && !checked && "border-border hover:border-gold/40 cursor-pointer",
-                  )}
-                >
-                  {checked && isFound && (
-                    <Check className="size-3 text-gold-foreground" strokeWidth={3} />
-                  )}
-                </button>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      {r.label}
-                    </span>
-                    {isFound && (
-                      <span className="text-[10px] text-muted-foreground/70">
-                        {r.field.source}
-                      </span>
-                    )}
-                  </div>
-                  <p
-                    className={cn(
-                      "text-sm mt-0.5 truncate",
-                      isFound ? "text-foreground" : "text-muted-foreground/60 italic",
-                    )}
-                  >
-                    {r.field.value ?? t("newCompetitor", "discoveryNotFound")}
-                  </p>
-                </div>
-                {isFound && (
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <div className="h-1 w-12 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className={cn(
-                          "h-full rounded-full",
-                          r.field.confidence >= 70 && "bg-success",
-                          r.field.confidence >= 40 && r.field.confidence < 70 && "bg-warning",
-                          r.field.confidence < 40 && "bg-muted-foreground/40",
-                        )}
-                        style={{ width: `${r.field.confidence}%` }}
-                      />
-                    </div>
-                    <span className="text-[10px] text-muted-foreground tabular-nums w-7 text-right">
-                      {r.field.confidence}%
-                    </span>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Footer */}
-        <div className="px-5 py-3.5 border-t border-border flex items-center justify-between gap-3">
-          <p className="text-xs text-muted-foreground">
-            {t("newCompetitor", "discoveryDialogHint")}
-          </p>
-          <div className="flex items-center gap-2 shrink-0">
-            <Button type="button" variant="outline" size="sm" onClick={onClose}>
-              {t("newCompetitor", "discoveryDialogCancel")}
-            </Button>
-            <Button type="button" size="sm" onClick={onApply}>
-              {t("newCompetitor", "discoveryDialogApply")}
-            </Button>
-          </div>
-        </div>
-      </div>
+        <ExternalLink className="size-3.5" />
+      </a>
     </div>
   );
 }
+
