@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { AdCard } from "@/components/ads/ad-card";
 import { OrganicPostCard } from "@/components/organic/organic-post-card";
 import { TikTokPostCard } from "@/components/organic/tiktok-post-card";
+import { TiktokAdCard } from "@/components/ads/tiktok-ad-card";
 import { SnapchatProfileCard } from "@/components/organic/snapchat-profile-card";
 import { YoutubeChannelCard } from "@/components/organic/youtube-channel-card";
 import { YoutubeVideoCard } from "@/components/organic/youtube-video-card";
@@ -33,6 +34,7 @@ import type {
   MaitYoutubeChannel,
   MaitYoutubeVideo,
 } from "@/types";
+import type { MaitTiktokAd } from "@/types/tiktok-ads";
 
 type Channel = "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube" | "serp";
 type Status = "all" | "active" | "inactive";
@@ -65,6 +67,10 @@ interface Props {
   ads: MaitAdExternal[];
   organicPosts: MaitOrganicPost[];
   tiktokPosts: MaitTikTokPost[];
+  /** Paid TikTok ads (DSA library + Creative Center co-mingled).
+   *  Discriminated by `source` at row level. Rendered above the
+   *  organic post grid in the TikTok tab. */
+  tiktokAds: MaitTiktokAd[];
   /** Snapshot history for this competitor, ordered most-recent-first.
    *  [0] is the latest profile snapshot rendered as the SnapchatProfileCard;
    *  the rest feed the trend list. */
@@ -141,6 +147,7 @@ export function ChannelTabs({
   ads,
   organicPosts,
   tiktokPosts,
+  tiktokAds,
   snapchatProfiles,
   youtubeChannels,
   youtubeVideos,
@@ -849,8 +856,31 @@ export function ChannelTabs({
             </div>
           )}
 
+          {/* Paid TikTok Ads (DSA + CC) — only on the focused TikTok
+              tab so the "all" view doesn't double up on the channel
+              divider. Renders nothing when zero ads collected so a
+              brand without paid scans doesn't see an empty section. */}
+          {channel === "tiktok" && tiktokAds.length > 0 && (
+            <div className="space-y-3 pb-4 border-b border-border">
+              <div className="flex items-center gap-2">
+                <TikTokIcon className="size-4 text-gold" />
+                <h3 className="text-sm font-semibold">
+                  {t("tiktokAds", "title")}
+                </h3>
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {tiktokAds.length} ads
+                </span>
+              </div>
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {tiktokAds.map((a) => (
+                  <TiktokAdCard key={a.id} ad={a} />
+                ))}
+              </div>
+            </div>
+          )}
+
           {visibleTiktok.length === 0 ? (
-            channel === "tiktok" && (
+            channel === "tiktok" && tiktokAds.length === 0 && (
               <Card>
                 <CardContent className="py-12 text-center text-muted-foreground text-sm">
                   {t("organic", "noPostsYet")}

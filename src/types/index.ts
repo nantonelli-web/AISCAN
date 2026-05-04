@@ -40,6 +40,12 @@ export interface MaitCompetitor {
   country: string | null;
   instagram_username: string | null;
   tiktok_username: string | null;
+  /** Optional TikTok Business advertiser ID (numeric string). Used as
+   *  the silva DSA scrape's `adv_biz_ids` URL param to lock the
+   *  result to a specific advertiser when a brand has same-name
+   *  competitors. Empty in 95% of cases — the scrape falls back to
+   *  `adv_name` matching against the brand's page_name. */
+  tiktok_advertiser_id: string | null;
   tiktok_profile: Record<string, unknown> | null;
   snapchat_handle: string | null;
   snapchat_profile: Record<string, unknown> | null;

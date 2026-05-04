@@ -361,6 +361,19 @@ const translations = {
     instagramPlaceholder: { it: "es. nike (senza @)", en: "e.g. nike (without @)" },
     tiktokLabel: { it: "Username TikTok", en: "TikTok username" },
     tiktokPlaceholder: { it: "es. nike (senza @)", en: "e.g. nike (without @)" },
+    tiktokAdvertiserIdLabel: {
+      it: "TikTok Business advertiser ID",
+      en: "TikTok Business advertiser ID",
+    },
+    tiktokAdvertiserIdPlaceholder: {
+      it: "es. 6891503886842987266",
+      en: "e.g. 6891503886842987266",
+    },
+    tiktokAdvertiserIdHint: {
+      it: "Solo per disambiguare brand omonimi nel TikTok Ads Library DSA. Lasciare vuoto: lo scan trova il brand per nome.",
+      en: "Only needed to disambiguate same-name brands in the TikTok Ads Library DSA. Leave empty — the scan finds the brand by name.",
+    },
+    optionalLabel: { it: "(opzionale)", en: "(optional)" },
     snapchatLabel: { it: "Username Snapchat", en: "Snapchat username" },
     snapchatPlaceholder: { it: "es. nike (senza @)", en: "e.g. nike (without @)" },
     youtubeLabel: { it: "Canale YouTube", en: "YouTube channel" },
@@ -433,6 +446,10 @@ const translations = {
     scrapingInProgress: {
       it: "Scraping in corso\u2026 (pu\u00F2 richiedere 30-90s)",
       en: "Scraping in progress\u2026 (may take 30-90s)",
+    },
+    scrapingTikTokAdsInProgress: {
+      it: "Scraping TikTok Ads\u2026 (pu\u00F2 richiedere 30-90s)",
+      en: "Scraping TikTok Ads\u2026 (may take 30-90s)",
     },
     adsSynced: { it: "ads sincronizzate.", en: "ads synced." },
     snapshotSynced: { it: "Snapshot Snapchat aggiornato.", en: "Snapchat snapshot updated." },
@@ -957,6 +974,22 @@ const translations = {
     allBrands: { it: "Tutti i brand", en: "All brands" },
     allChannels: { it: "Tutti", en: "All" },
     moreFilters: { it: "Filtri", en: "Filters" },
+  },
+
+  // ─── TikTok Ads (paid) ─────────────────────────────────────
+  tiktokAds: {
+    title: { it: "TikTok Ads", en: "TikTok Ads" },
+    sourceLibrary: { it: "DSA Library", en: "DSA Library" },
+    sourceCc: { it: "Creative Center", en: "Creative Center" },
+    budget: { it: "Budget", en: "Budget" },
+    noAdsYet: {
+      it: "Nessuna ad TikTok raccolta ancora. Lancia uno scan per iniziare.",
+      en: "No TikTok ads collected yet. Run a scan to populate.",
+    },
+    totalAds: { it: "Ads totali", en: "Total ads" },
+    avgImpressions: { it: "Impression medie", en: "Avg impressions" },
+    avgReach: { it: "Reach medio", en: "Avg reach" },
+    avgCtr: { it: "CTR medio", en: "Avg CTR" },
   },
 
   // ─── Date-range shortcut chips ─────────────────────────────

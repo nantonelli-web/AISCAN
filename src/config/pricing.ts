@@ -22,6 +22,8 @@ export type CreditAction =
   | 'scan_google'
   | 'scan_instagram'
   | 'scan_tiktok'
+  | 'scan_tiktok_ads'
+  | 'scan_tiktok_cc'
   | 'scan_snapchat'
   | 'scan_youtube'
   | 'scan_serp'
@@ -101,6 +103,16 @@ export const creditCosts: Record<CreditAction, number> = {
   // pricing. Re-evaluate if real-world TikTok runs come in heavier per
   // result (e.g. residential proxy add-on or longer poll cycles).
   scan_tiktok: 2,
+  // TikTok DSA Ads Library scrape (silva95gustavo/tiktok-ads-scraper).
+  // Pricing model is "FREE" on the Apify Store — we only pay platform
+  // compute + residential proxy. ~$0.02-0.05 per 200-ad scan, in line
+  // with the Snapchat/YouTube tier. 2 credits matches scan_tiktok.
+  scan_tiktok_ads: 2,
+  // TikTok Creative Center top-ads (beyondops/tiktok-ad-library-scraper).
+  // $0.00001 per result × ~20-40 results per filter combination = $0.0004
+  // per scan. Charge 1 credit (cheapest tier) since the dataset shape
+  // is essentially a "trending feed snapshot" — same vibe as SERP.
+  scan_tiktok_cc: 1,
   // Snapchat actor (automation-lab/snapchat-scraper) costs ~$0.0017
   // per profile (one row per scan, no per-post amplification like
   // TikTok or Instagram). Charging the platform minimum of 1 credit

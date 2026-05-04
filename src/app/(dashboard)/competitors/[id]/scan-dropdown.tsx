@@ -59,7 +59,14 @@ interface Props {
   hasRunningJob?: boolean;
 }
 
-type ScanTarget = "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube";
+type ScanTarget =
+  | "meta"
+  | "google"
+  | "tiktok_ads"
+  | "instagram"
+  | "tiktok"
+  | "snapchat"
+  | "youtube";
 
 export function ScanDropdown({
   competitorId,
@@ -77,7 +84,14 @@ export function ScanDropdown({
   // user on the previous tab. router.replace + router.refresh keeps
   // the back-stack clean and re-runs the server component.
   function focusChannel(
-    tab: "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube",
+    tab:
+      | "meta"
+      | "google"
+      | "tiktok_ads"
+      | "instagram"
+      | "tiktok"
+      | "snapchat"
+      | "youtube",
   ) {
     router.replace(`${pathname}?tab=${tab}`);
     router.refresh();
@@ -205,6 +219,49 @@ export function ScanDropdown({
         if (json.debug) console.log("[AISCAN Google scan debug]", json.debug);
         toast.success(`${json.records} Google Ads ${t("scan", "adsSynced")} (${rangeLabel})`, { id: toastId });
         focusChannel("google");
+      }
+    } catch (e) {
+      if ((e as Error).name === "AbortError") {
+        toast.dismiss(toastId);
+      } else {
+        toast.error(e instanceof Error ? e.message : "Network error", { id: toastId });
+      }
+    } finally {
+      abortRef.current = null;
+      setLoading(null);
+    }
+  }
+
+  async function scanTiktokAds() {
+    // DSA library scan — silva95gustavo actor. Brand-specific
+    // (filters by adv_name + optional advertiser ID). Date window
+    // inherited from the period inputs above.
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setLoading("tiktok_ads");
+    const toastId = toast.loading(t("scan", "scrapingTikTokAdsInProgress"));
+    try {
+      const res = await fetch("/api/tiktok-ads/scan", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          source: "library",
+          competitor_id: competitorId,
+          date_from: effectiveFrom,
+          date_to: effectiveTo,
+          max_results: 200,
+        }),
+        signal: controller.signal,
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error ?? "TikTok Ads scrape failed", { id: toastId });
+      } else {
+        toast.success(
+          `${json.records} TikTok Ads ${t("scan", "adsSynced")}`,
+          { id: toastId },
+        );
+        focusChannel("tiktok_ads");
       }
     } catch (e) {
       if ((e as Error).name === "AbortError") {
@@ -512,6 +569,23 @@ export function ScanDropdown({
                   <GoogleLogo className="size-4" />
                 )}
                 {loading === "google" ? t("scan", "scanningGoogle") : "Google Ads"}
+              </Button>
+              {/* TikTok Ads — DSA Library scrape (silva95gustavo).
+                  Brand-specific by adv_name; works even when the
+                  advertiser ID isn't set on the brand record. */}
+              <Button
+                onClick={scanTiktokAds}
+                disabled={isLoading}
+                variant="outline"
+                size="sm"
+                className={btn}
+              >
+                {loading === "tiktok_ads" ? (
+                  <RefreshCw className="size-4 animate-spin" />
+                ) : (
+                  <TikTokIcon className="size-4" />
+                )}
+                {loading === "tiktok_ads" ? t("scan", "scanning") : "TikTok Ads"}
               </Button>
             </div>
           </div>

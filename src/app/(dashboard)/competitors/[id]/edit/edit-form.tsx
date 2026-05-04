@@ -68,6 +68,13 @@ export function EditCompetitorForm({
   const [category, setCategory] = useState(competitor.category ?? "");
   const [instagramUsername, setInstagramUsername] = useState(competitor.instagram_username ?? "");
   const [tiktokUsername, setTiktokUsername] = useState(competitor.tiktok_username ?? "");
+  // Optional TikTok Business advertiser ID (numeric string). Empty in
+  // 95% of cases — silva DSA scrape works on `adv_name` alone for
+  // brands with a unique TikTok display name. The override is here
+  // for the edge case where same-name brands need disambiguating.
+  const [tiktokAdvertiserId, setTiktokAdvertiserId] = useState(
+    competitor.tiktok_advertiser_id ?? "",
+  );
   const [snapchatHandle, setSnapchatHandle] = useState(competitor.snapchat_handle ?? "");
   const [youtubeChannelUrl, setYoutubeChannelUrl] = useState(competitor.youtube_channel_url ?? "");
   const [googleAdvertiserId, setGoogleAdvertiserId] = useState(competitor.google_advertiser_id ?? "");
@@ -119,6 +126,7 @@ export function EditCompetitorForm({
         client_id: clientId || null,
         instagram_username: instagramUsername.replace(/^@/, "").trim() || null,
         tiktok_username: tiktokUsername.replace(/^@/, "").trim() || null,
+        tiktok_advertiser_id: tiktokAdvertiserId.trim() || null,
         snapchat_handle: snapchatHandle.replace(/^@/, "").trim() || null,
         youtube_channel_url: youtubeChannelUrl.trim() || null,
         google_advertiser_id: googleAdvertiserId.trim() || null,
@@ -192,6 +200,23 @@ export function EditCompetitorForm({
                 onChange={(e) => setTiktokUsername(e.target.value)}
                 placeholder={t("newCompetitor", "tiktokPlaceholder")}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tiktok-advertiser-id">
+                {t("newCompetitor", "tiktokAdvertiserIdLabel")}
+                <span className="text-[10px] text-muted-foreground ml-2 font-normal">
+                  {t("newCompetitor", "optionalLabel")}
+                </span>
+              </Label>
+              <Input
+                id="tiktok-advertiser-id"
+                value={tiktokAdvertiserId}
+                onChange={(e) => setTiktokAdvertiserId(e.target.value)}
+                placeholder={t("newCompetitor", "tiktokAdvertiserIdPlaceholder")}
+              />
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                {t("newCompetitor", "tiktokAdvertiserIdHint")}
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="snapchat">{t("newCompetitor", "snapchatLabel")}</Label>

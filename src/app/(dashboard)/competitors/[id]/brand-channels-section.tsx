@@ -8,6 +8,7 @@ import type {
   MaitYoutubeChannel,
   MaitYoutubeVideo,
 } from "@/types";
+import type { MaitTiktokAd } from "@/types/tiktok-ads";
 
 // ─── SERP brand-tab shapes (declared here, consumed by ChannelTabs) ──
 interface BrandSerpQueryMeta {
@@ -202,6 +203,7 @@ export async function BrandChannelsSection({
     { data: ads },
     { data: organicPosts },
     { data: tiktokPosts },
+    { data: tiktokAdsRows },
     { data: snapchatProfiles },
     { data: youtubeChannelSnaps },
     { data: youtubeVideos },
@@ -224,6 +226,18 @@ export async function BrandChannelsSection({
       )
       .eq("competitor_id", competitorId)
       .order("posted_at", { ascending: false, nullsFirst: false })
+      .limit(30),
+    // Paid TikTok ads — DSA library + Creative Center co-mingled in
+    // one table, discriminated by `source`. Brand-detail surface
+    // shows them sorted by first_shown_date desc (DSA) / scraped_at
+    // desc (CC, since CC has no first_shown). 30-row cap mirrors
+    // the rest of this fetch.
+    supabase
+      .from("mait_tiktok_ads")
+      .select("*")
+      .eq("competitor_id", competitorId)
+      .order("first_shown_date", { ascending: false, nullsFirst: false })
+      .order("scraped_at", { ascending: false })
       .limit(30),
     // Snapshot history: ordered most-recent-first so the brand-detail
     // tab can show the latest snapshot at the top and the trend below.
@@ -262,6 +276,7 @@ export async function BrandChannelsSection({
   const adsList = (ads ?? []) as MaitAdExternal[];
   const organicList = (organicPosts ?? []) as MaitOrganicPost[];
   const tiktokList = (tiktokPosts ?? []) as MaitTikTokPost[];
+  const tiktokAdsList = (tiktokAdsRows ?? []) as MaitTiktokAd[];
   const snapchatList = (snapchatProfiles ?? []) as MaitSnapchatProfile[];
   const youtubeChannelList = (youtubeChannelSnaps ?? []) as MaitYoutubeChannel[];
   const youtubeVideoList = (youtubeVideos ?? []) as MaitYoutubeVideo[];
@@ -460,6 +475,7 @@ export async function BrandChannelsSection({
       ads={adsList}
       organicPosts={organicList}
       tiktokPosts={tiktokList}
+      tiktokAds={tiktokAdsList}
       snapchatProfiles={snapchatList}
       youtubeChannels={youtubeChannelList}
       youtubeVideos={youtubeVideoList}

@@ -93,7 +93,7 @@ export default async function CompetitorDetailPage({
     supabase
       .from("mait_competitors")
       .select(
-        "id, workspace_id, page_name, page_url, country, category, monitor_config, profile_picture_url, instagram_username, tiktok_username, snapchat_handle, snapchat_profile, youtube_channel_url, youtube_profile, google_advertiser_id, google_domain"
+        "id, workspace_id, page_name, page_url, country, category, monitor_config, profile_picture_url, instagram_username, tiktok_username, tiktok_advertiser_id, snapchat_handle, snapchat_profile, youtube_channel_url, youtube_profile, google_advertiser_id, google_domain"
       )
       .eq("id", id)
       .single(),

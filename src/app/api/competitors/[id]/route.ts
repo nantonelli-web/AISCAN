@@ -23,6 +23,9 @@ const patchSchema = z.object({
   client_id: z.string().uuid().nullable().optional(),
   instagram_username: z.string().max(60).nullable().optional(),
   tiktok_username: z.string().max(60).nullable().optional(),
+  // Optional TikTok Business advertiser ID (numeric string).
+  // Stored verbatim — used by the silva DSA scrape as adv_biz_ids.
+  tiktok_advertiser_id: z.string().max(80).nullable().optional(),
   snapchat_handle: z.string().max(60).nullable().optional(),
   youtube_channel_url: z.string().max(200).nullable().optional(),
   google_advertiser_id: z.string().max(80).nullable().optional(),
@@ -48,8 +51,8 @@ export async function PATCH(
 
   const {
     frequency, max_items, page_name, page_url, country, category,
-    client_id, instagram_username, tiktok_username, snapchat_handle,
-    youtube_channel_url, google_advertiser_id, google_domain,
+    client_id, instagram_username, tiktok_username, tiktok_advertiser_id,
+    snapchat_handle, youtube_channel_url, google_advertiser_id, google_domain,
   } = parsed.data;
 
   // Separate monitor_config fields from direct fields
@@ -69,6 +72,13 @@ export async function PATCH(
     directUpdate.tiktok_username = tiktok_username
       ? cleanTikTokUsername(tiktok_username)
       : null;
+  }
+  if (tiktok_advertiser_id !== undefined) {
+    // Strip whitespace + non-digits so a paste like "id: 689..." or
+    // "6891 5038 86842" lands as a clean numeric string. Empty after
+    // cleaning → store NULL so the scrape falls back to adv_name.
+    const cleaned = tiktok_advertiser_id ? tiktok_advertiser_id.replace(/\D/g, "") : null;
+    directUpdate.tiktok_advertiser_id = cleaned && cleaned.length > 0 ? cleaned : null;
   }
   if (snapchat_handle !== undefined) {
     directUpdate.snapchat_handle = snapchat_handle
