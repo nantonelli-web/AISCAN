@@ -2,9 +2,10 @@
 
 import { ExternalLink, Heart, MessageCircle, Play, Eye, ImageIcon, Film, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { formatDate, formatNumber } from "@/lib/utils";
+import { formatDate, formatNumber, isPlayableVideoUrl } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { AI_TAGS_ENABLED } from "@/config/features";
+import { VideoPreview } from "@/components/ads/video-preview";
 import type { MaitOrganicPost } from "@/types";
 
 export function OrganicPostCard({ post }: { post: MaitOrganicPost }) {
@@ -18,12 +19,21 @@ export function OrganicPostCard({ post }: { post: MaitOrganicPost }) {
   const typeLabel = post.post_type ?? "Image";
   const TypeIcon =
     typeLabel === "Reel" ? Film : isVideo ? Play : typeLabel === "Sidecar" ? ImageIcon : ImageIcon;
+  // Instagram CDN .mp4 URLs play directly through <video>. The cover
+  // (display_url) doubles as the poster so the static frame matches
+  // what the user sees before hover.
+  const hasPlayableVideo = isVideo && isPlayableVideoUrl(post.video_url);
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col hover:border-gold/40 hover:shadow-md transition-all">
       {/* Preview area — square aspect for Instagram */}
-      <div className="aspect-square bg-muted relative overflow-hidden">
-        {post.display_url ? (
+      <div className="aspect-square bg-muted relative overflow-hidden group">
+        {hasPlayableVideo && post.video_url ? (
+          <VideoPreview
+            src={post.video_url}
+            poster={post.display_url ?? undefined}
+          />
+        ) : post.display_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={post.display_url}
@@ -38,26 +48,33 @@ export function OrganicPostCard({ post }: { post: MaitOrganicPost }) {
         )}
 
         {/* Type badge */}
-        <div className="absolute top-2 left-2">
+        <div className="absolute top-2 left-2 pointer-events-none">
           <span className="inline-flex items-center gap-1 rounded bg-black/70 backdrop-blur-sm px-1.5 py-0.5 text-[10px] font-medium text-white">
             <TypeIcon className="size-3" />
             {typeLabel.toUpperCase()}
           </span>
         </div>
 
-        {/* Engagement overlay on hover */}
-        <div className="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-6">
-          <span className="flex items-center gap-1.5 text-white text-sm font-medium">
-            <Heart className="size-4" /> {post.likes_count >= 0 ? formatNumber(post.likes_count) : "—"}
-          </span>
-          <span className="flex items-center gap-1.5 text-white text-sm font-medium">
-            <MessageCircle className="size-4" /> {post.comments_count >= 0 ? formatNumber(post.comments_count) : "—"}
-          </span>
-          {isVideo && post.video_views > 0 && (
-            <span className="flex items-center gap-1.5 text-white text-sm font-medium">
-              <Eye className="size-4" /> {formatNumber(post.video_views)}
+        {/* Bottom hover stats strip — gradient + small chips at the
+            bottom keep the engagement numbers visible without
+            obscuring the video that plays on hover. The stats also
+            repeat in the card body, so this strip is purely a
+            preview-layer aid. pointer-events-none so the video
+            still receives the mouseenter that triggers playback. */}
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2.5 py-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          <div className="flex items-center gap-3 text-white text-[11px] font-medium">
+            <span className="flex items-center gap-1">
+              <Heart className="size-3" /> {post.likes_count >= 0 ? formatNumber(post.likes_count) : "—"}
             </span>
-          )}
+            <span className="flex items-center gap-1">
+              <MessageCircle className="size-3" /> {post.comments_count >= 0 ? formatNumber(post.comments_count) : "—"}
+            </span>
+            {isVideo && post.video_views > 0 && (
+              <span className="flex items-center gap-1">
+                <Eye className="size-3" /> {formatNumber(post.video_views)}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

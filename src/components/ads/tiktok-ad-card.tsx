@@ -3,8 +3,9 @@
 import { ExternalLink, Play, Eye, Heart, ImageIcon, Globe2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TikTokIcon } from "@/components/ui/tiktok-icon";
-import { formatDate, formatNumber, cn } from "@/lib/utils";
+import { formatDate, formatNumber, cn, isPlayableVideoUrl } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
+import { VideoPreview } from "@/components/ads/video-preview";
 import type { MaitTiktokAd } from "@/types/tiktok-ads";
 
 /**
@@ -23,14 +24,22 @@ export function TiktokAdCard({ ad }: { ad: MaitTiktokAd }) {
   const { t } = useT();
   const isLibrary = ad.source === "library";
   const cover = ad.video_cover_url;
-  const playable = !!ad.video_url;
+  // DSA + CC both expose direct .mp4 URLs that play through <video>.
+  // CDN-signed and short-lived, but the cover poster keeps the still
+  // frame correct even when the video URL has expired.
+  const hasPlayableVideo = isPlayableVideoUrl(ad.video_url);
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col hover:border-gold/40 hover:shadow-md transition-all">
       {/* Preview area — TikTok video covers are 9:16 portrait so the
           aspect-[4/5] keeps the proportions while fitting the grid. */}
-      <div className="aspect-[4/5] bg-muted relative overflow-hidden">
-        {cover ? (
+      <div className="aspect-[4/5] bg-muted relative overflow-hidden group">
+        {hasPlayableVideo && ad.video_url ? (
+          <VideoPreview
+            src={ad.video_url}
+            poster={cover ?? undefined}
+          />
+        ) : cover ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={cover}
@@ -44,9 +53,11 @@ export function TiktokAdCard({ ad }: { ad: MaitTiktokAd }) {
           </div>
         )}
 
-        {/* Play overlay */}
-        {playable && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        {/* Play overlay — fades out on hover so the playing video
+            isn't covered by the badge. pointer-events-none keeps
+            the video element's mouseenter responsive. */}
+        {hasPlayableVideo && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-100 group-hover:opacity-0 transition-opacity">
             <div className="bg-black/60 rounded-full p-2.5 backdrop-blur-sm">
               <Play
                 className="size-5 text-white"
@@ -58,7 +69,7 @@ export function TiktokAdCard({ ad }: { ad: MaitTiktokAd }) {
         )}
 
         {/* Source pill — DSA vs Creative Center */}
-        <div className="absolute top-2 left-2">
+        <div className="absolute top-2 left-2 pointer-events-none">
           <span
             className={cn(
               "inline-flex items-center gap-1 rounded backdrop-blur-sm px-1.5 py-0.5 text-[10px] font-medium text-white",
@@ -72,7 +83,7 @@ export function TiktokAdCard({ ad }: { ad: MaitTiktokAd }) {
 
         {/* Format pill (CC only — DSA doesn't expose it) */}
         {!isLibrary && ad.ad_format && (
-          <div className="absolute top-2 right-2">
+          <div className="absolute top-2 right-2 pointer-events-none">
             <span className="inline-flex items-center rounded bg-black/70 backdrop-blur-sm px-1.5 py-0.5 text-[10px] font-medium text-white uppercase">
               {ad.ad_format.replace(/_/g, " ").replace(/ads/i, "")}
             </span>

@@ -2,8 +2,9 @@
 
 import { ExternalLink, Heart, MessageCircle, Play, Bookmark, Music, Image as ImageIcon, Pin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { formatDate, formatNumber } from "@/lib/utils";
+import { formatDate, formatNumber, isPlayableVideoUrl } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
+import { VideoPreview } from "@/components/ads/video-preview";
 import type { MaitTikTokPost } from "@/types";
 
 function formatDuration(s: number | null): string | null {
@@ -17,13 +18,24 @@ function formatDuration(s: number | null): string | null {
 export function TikTokPostCard({ post }: { post: MaitTikTokPost }) {
   const { t } = useT();
   const duration = formatDuration(post.duration_seconds);
+  // TikTok CDN URLs play directly through <video> — same pattern as the
+  // ad-card hover preview. URLs are signed and short-lived, so a 404
+  // is normal for old scans; the poster (cover_url) stays visible
+  // until a successful load. Slideshows have no video_url, so they
+  // fall through to the static-cover branch.
+  const hasPlayableVideo = !post.is_slideshow && isPlayableVideoUrl(post.video_url);
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col hover:border-gold/40 hover:shadow-md transition-all">
       {/* Preview area — portrait 4/5 to hint at TikTok's vertical native
           format without breaking the grid rhythm too much. */}
-      <div className="aspect-[4/5] bg-muted relative overflow-hidden">
-        {post.cover_url ? (
+      <div className="aspect-[4/5] bg-muted relative overflow-hidden group">
+        {hasPlayableVideo && post.video_url ? (
+          <VideoPreview
+            src={post.video_url}
+            poster={post.cover_url ?? undefined}
+          />
+        ) : post.cover_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={post.cover_url}
@@ -38,7 +50,7 @@ export function TikTokPostCard({ post }: { post: MaitTikTokPost }) {
         )}
 
         {/* Top-left: type badge */}
-        <div className="absolute top-2 left-2 flex items-center gap-1.5">
+        <div className="absolute top-2 left-2 flex items-center gap-1.5 pointer-events-none">
           <span className="inline-flex items-center gap-1 rounded bg-black/70 backdrop-blur-sm px-1.5 py-0.5 text-[10px] font-medium text-white">
             {post.is_slideshow ? <ImageIcon className="size-3" /> : <Play className="size-3" />}
             {post.is_slideshow ? "SLIDES" : "VIDEO"}
@@ -53,24 +65,30 @@ export function TikTokPostCard({ post }: { post: MaitTikTokPost }) {
 
         {/* Top-right: duration */}
         {duration && (
-          <div className="absolute top-2 right-2">
+          <div className="absolute top-2 right-2 pointer-events-none">
             <span className="inline-flex items-center rounded bg-black/70 backdrop-blur-sm px-1.5 py-0.5 text-[10px] font-medium text-white tabular-nums">
               {duration}
             </span>
           </div>
         )}
 
-        {/* Hover engagement overlay */}
-        <div className="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-5">
-          <span className="flex items-center gap-1.5 text-white text-sm font-medium">
-            <Play className="size-4" /> {formatNumber(post.play_count)}
-          </span>
-          <span className="flex items-center gap-1.5 text-white text-sm font-medium">
-            <Heart className="size-4" /> {formatNumber(post.digg_count)}
-          </span>
-          <span className="flex items-center gap-1.5 text-white text-sm font-medium">
-            <MessageCircle className="size-4" /> {formatNumber(post.comment_count)}
-          </span>
+        {/* Bottom hover stats strip — gradient bottom-up so the video
+            hover-play stays visible. Engagement chips are pointer-
+            events-none to avoid hijacking the play trigger; the
+            stats already repeat in the card body so no behaviour
+            is lost when this strip is hidden. */}
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2.5 py-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          <div className="flex items-center gap-3 text-white text-[11px] font-medium">
+            <span className="flex items-center gap-1">
+              <Play className="size-3" /> {formatNumber(post.play_count)}
+            </span>
+            <span className="flex items-center gap-1">
+              <Heart className="size-3" /> {formatNumber(post.digg_count)}
+            </span>
+            <span className="flex items-center gap-1">
+              <MessageCircle className="size-3" /> {formatNumber(post.comment_count)}
+            </span>
+          </div>
         </div>
       </div>
 
