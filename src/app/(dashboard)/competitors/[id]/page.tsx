@@ -386,56 +386,55 @@ export default async function CompetitorDetailPage({
         </div>
       </section>
 
-      {/* ─── KPI strip + scan action.
-          Two-column grid: KPI snapshot of the brand on the left
-          (creatives collected, channels covered, last activity) so the
-          user sees the size of the dataset before they pick a channel
-          tab; on the right the Scan action — single most important
-          affordance on this page, visually separated by being the
-          only gold-accented card.
-
-          `items-start` is the load-bearing class here: without it the
-          left sub-grid stretches to match the Scan card's height (CSS
-          grid's default `align-items: stretch`) and the three KPI
-          tiles end up as huge empty boxes — exactly the problem the
-          user flagged in the morning screenshot. */}
-      <div className="grid gap-4 lg:grid-cols-3 items-start">
-        <div className="grid gap-3 grid-cols-3 lg:col-span-2">
-          <MiniKpi
-            label={t("brandHero", "kpiCreatives")}
-            value={formatCompactNumber(totalCreatives)}
-            tone="info"
-          />
-          <MiniKpi
-            label={t("brandHero", "kpiChannels")}
-            value={`${channelsWithData} / ${channelCoverage.length}`}
-            tone={channelsWithData >= 4 ? "success" : channelsWithData >= 2 ? "warning" : "neutral"}
-          />
-          <MiniKpi
-            label={t("brandHero", "kpiLastScan")}
-            value={c.last_scraped_at ? formatRelativeShort(c.last_scraped_at) : "—"}
-            tone={c.last_scraped_at && Date.now() - new Date(c.last_scraped_at).getTime() < 14 * 86_400_000 ? "success" : "neutral"}
-          />
-        </div>
-        <Card className="border-gold/30 bg-gold-soft/40 print:hidden">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] uppercase tracking-[0.18em] text-gold font-bold">
-              {t("scan", "scanNow")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ScanDropdown
-              competitorId={c.id}
-              hasGoogleConfig={!!(c.google_advertiser_id || c.google_domain)}
-              hasInstagramConfig={!!c.instagram_username}
-              hasTiktokConfig={!!c.tiktok_username}
-              hasSnapchatConfig={!!c.snapchat_handle}
-              hasYoutubeConfig={!!c.youtube_channel_url}
-              hasRunningJob={hasRunningJob}
-            />
-          </CardContent>
-        </Card>
+      {/* ─── KPI strip ──────────────────────────────────────
+          Three at-a-glance tiles answer "how rich is this brand?"
+          before the user dives into channel tabs. Full-width grid so
+          the tiles breathe; stays as a separate row from the Scan
+          card below — the previous side-by-side layout left dead
+          vertical space because Scan is naturally tall and the KPIs
+          short. */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <MiniKpi
+          label={t("brandHero", "kpiCreatives")}
+          value={formatCompactNumber(totalCreatives)}
+          tone="info"
+        />
+        <MiniKpi
+          label={t("brandHero", "kpiChannels")}
+          value={`${channelsWithData} / ${channelCoverage.length}`}
+          tone={channelsWithData >= 4 ? "success" : channelsWithData >= 2 ? "warning" : "neutral"}
+        />
+        <MiniKpi
+          label={t("brandHero", "kpiLastScan")}
+          value={c.last_scraped_at ? formatRelativeShort(c.last_scraped_at) : "—"}
+          tone={c.last_scraped_at && Date.now() - new Date(c.last_scraped_at).getTime() < 14 * 86_400_000 ? "success" : "neutral"}
+        />
       </div>
+
+      {/* ─── Scan action — full width.
+          The single most important affordance on this page. Gold
+          soft-tint border so it stands out as primary. Full width
+          gives ScanDropdown room to lay out the three channel
+          groups (Paid / Organic / Monitoring) horizontally instead
+          of squeezing them into a 1/3-column box. */}
+      <Card className="border-gold/30 bg-gold-soft/40 print:hidden">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-[10px] uppercase tracking-[0.18em] text-gold font-bold">
+            {t("scan", "scanNow")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ScanDropdown
+            competitorId={c.id}
+            hasGoogleConfig={!!(c.google_advertiser_id || c.google_domain)}
+            hasInstagramConfig={!!c.instagram_username}
+            hasTiktokConfig={!!c.tiktok_username}
+            hasSnapchatConfig={!!c.snapchat_handle}
+            hasYoutubeConfig={!!c.youtube_channel_url}
+            hasRunningJob={hasRunningJob}
+          />
+        </CardContent>
+      </Card>
 
       {/* ─── Scan history (collapsible) ──────────────────────── */}
       {jobsList.length > 0 && <CollapsibleJobHistory jobs={jobsList} />}
