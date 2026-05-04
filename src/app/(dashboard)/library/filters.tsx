@@ -242,17 +242,17 @@ export function LibraryFilters({
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0 space-y-3">
+          {/* "Tutti" moved to the END of each group per user request
+              2026-05-04: in the prior layout it sat at the start
+              and competed with the eyebrow label. Now the platform
+              pills lead and "Tutti" closes the group as a "reset to
+              all" affordance — same pattern as the Compare saved-
+              comparison filter. */}
           <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
                 Paid
               </span>
-              <BigPill
-                active={!filters.channel}
-                onClick={() => selectChannel()}
-              >
-                {t("library", "allChannels")}
-              </BigPill>
               <BigPill
                 active={filters.channel === "meta"}
                 onClick={() => selectChannel("meta")}
@@ -265,21 +265,18 @@ export function LibraryFilters({
               >
                 <GoogleIcon className="size-3.5" /> Google
               </BigPill>
-            </div>
-            <div className="hidden sm:block h-6 w-px bg-border" />
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
-                Organic
-              </span>
-              {/* Same "Tutti" affordance duplicated in the Organic
-                  group per user request — clears the channel filter,
-                  identical behaviour to the Paid-side "Tutti". */}
               <BigPill
                 active={!filters.channel}
                 onClick={() => selectChannel()}
               >
                 {t("library", "allChannels")}
               </BigPill>
+            </div>
+            <div className="hidden sm:block h-6 w-px bg-border" />
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                Organic
+              </span>
               <BigPill
                 active={filters.channel === "instagram"}
                 onClick={() => selectChannel("instagram")}
@@ -303,6 +300,12 @@ export function LibraryFilters({
                 onClick={() => selectChannel("youtube")}
               >
                 <YouTubeIcon className="size-3.5" /> YouTube
+              </BigPill>
+              <BigPill
+                active={!filters.channel}
+                onClick={() => selectChannel()}
+              >
+                {t("library", "allChannels")}
               </BigPill>
             </div>
           </div>
@@ -382,31 +385,39 @@ export function LibraryFilters({
               </select>
             </div>
 
-            {/* Inline search — demoted from a top-level card to a
-                small auxiliary input inside the Filtri card. The
-                X button clears value + URL in one click so the bug
-                where an emptied input still kept the q param is
-                impossible to hit. */}
-            <form onSubmit={onSearch} className="relative flex-1 min-w-[220px]">
-              <Search className="size-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="search"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder={t("library", "searchPlaceholder")}
-                aria-label={t("library", "searchPlaceholder")}
-                className="w-full h-8 rounded-md border border-border bg-background pl-8 pr-7 text-xs focus:outline-none focus:ring-2 focus:ring-gold/30"
-              />
-              {q && (
-                <button
-                  type="button"
-                  onClick={clearSearch}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
-                  aria-label={t("library", "clearSearch")}
-                >
-                  <X className="size-3.5" />
-                </button>
-              )}
+            {/* Inline search + small "Cerca" CTA. Submit on Enter
+                still works (it's the form default) but the explicit
+                button discoverable for users who don't know they can
+                press Enter (user feedback 2026-05-04). The X button
+                inside the input clears value + URL atomically. */}
+            <form onSubmit={onSearch} className="flex items-center gap-1.5 flex-1 min-w-[220px]">
+              <div className="relative flex-1">
+                <Search className="size-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="search"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder={t("library", "searchPlaceholder")}
+                  aria-label={t("library", "searchPlaceholder")}
+                  className="w-full h-8 rounded-md border border-border bg-background pl-8 pr-7 text-xs focus:outline-none focus:ring-2 focus:ring-gold/30"
+                />
+                {q && (
+                  <button
+                    type="button"
+                    onClick={clearSearch}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                    aria-label={t("library", "clearSearch")}
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
+              </div>
+              <button
+                type="submit"
+                className="inline-flex items-center justify-center h-8 px-3 rounded-md border border-border bg-background text-xs hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+              >
+                {t("library", "searchBtn")}
+              </button>
             </form>
           </div>
 

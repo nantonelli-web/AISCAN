@@ -267,6 +267,25 @@ export function AdCard({
               </a>
             )}
           </div>
+        ) : isVideo ? (
+          // Meta VIDEO ad with neither playable URL nor snapshot
+          // image. Same source-side gap as the Google branch above
+          // — use the explicit "video not delivered" placeholder so
+          // the user knows it's a data-source issue, not a UI bug.
+          <>
+            <VideoUnavailable />
+            {adLibraryUrl && (
+              <a
+                href={adLibraryUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="absolute bottom-2 right-2 inline-flex items-center gap-1 text-[10px] text-gold bg-background/90 backdrop-blur-sm rounded px-1.5 py-0.5 hover:bg-background"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Eye className="size-3" /> {t("adCard", "viewOnMeta")}
+              </a>
+            )}
+          </>
         ) : (
           // Meta text preview (when no direct image available)
           <div className="absolute inset-0 p-4 flex flex-col justify-between">

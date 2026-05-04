@@ -1064,6 +1064,8 @@ const translations = {
     filterByProject: { it: "Progetto", en: "Project" },
     allProjects: { it: "Tutti i progetti", en: "All projects" },
     clearSearch: { it: "Pulisci ricerca", en: "Clear search" },
+    loadMore: { it: "Carica altri", en: "Load more" },
+    loadingMore: { it: "Caricamento…", en: "Loading…" },
   },
 
   // ─── TikTok Ads (paid) ─────────────────────────────────────
