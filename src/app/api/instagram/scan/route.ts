@@ -345,6 +345,12 @@ export async function POST(req: Request) {
       job_id: job.id,
       records: result.records.length,
       username: igUsername,
+      // Diagnostics — surface when the actor returned items but
+      // they all fell outside the date window. Lets the toast
+      // distinguish 'private/wrong handle' (rawCount === 0) from
+      // 'no posts in window' (rawCount > 0 but droppedOlder eats
+      // the whole list).
+      diagnostics: result.diagnostics,
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Instagram scrape failed";

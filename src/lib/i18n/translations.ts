@@ -1980,6 +1980,18 @@ const translations = {
       it: "Scraping YouTube\u2026 (pu\u00F2 richiedere 30-90s)",
       en: "Scraping YouTube\u2026 (may take 30-90s)",
     },
+    // 0-record toast diagnostics. Distinguishes the brand
+    // genuinely having no public posts (or a wrong handle / private
+    // account) from the brand being active but inactive in the
+    // selected scan window.
+    scanZeroNoFeed: {
+      it: "Nessun post trovato nel feed del brand. Verifica che l'username sia corretto e che l'account sia pubblico.",
+      en: "No posts found in the brand's feed. Verify the username is correct and the account is public.",
+    },
+    scanZeroOutOfWindow: {
+      it: "Nessun post nel periodo selezionato. Trovati {raw} post nel feed ma tutti pi\u00F9 vecchi della data 'Da' ({older} esclusi). Allarga il range data e riprova.",
+      en: "No posts in the selected window. {raw} posts found in the feed but all older than 'From' ({older} excluded). Widen the date range and retry.",
+    },
     postsSynced: { it: "post Instagram sincronizzati.", en: "Instagram posts synced." },
     likes: { it: "likes", en: "likes" },
     comments: { it: "commenti", en: "comments" },

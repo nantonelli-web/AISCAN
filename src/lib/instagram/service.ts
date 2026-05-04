@@ -61,6 +61,18 @@ export interface InstagramScrapeResult {
   runId: string;
   records: NormalizedPost[];
   costCu: number;
+  /** Diagnostic counters — populated when the user passed a
+   *  date range. Helps the API surface a useful 'why 0 posts?'
+   *  toast when the actor returned items but they all fell
+   *  outside the window. */
+  diagnostics: {
+    /** Total items the actor returned before any filtering. */
+    rawCount: number;
+    /** Filtered out for being older than dateFrom. */
+    droppedOlder: number;
+    /** Filtered out for being newer than dateTo (rare). */
+    droppedNewer: number;
+  };
   credentials?: {
     source: "managed" | "byo";
     keyRecordId: string | null;
@@ -365,14 +377,14 @@ export async function scrapeInstagramPosts(
 
   // Client-side date filter — belt and braces alongside Apify's
   // onlyPostsNewerThan, which some actor versions silently ignore.
+  const rawCount = records.length;
+  let droppedOlder = 0;
+  let droppedNewer = 0;
   const fromMs = opts.dateFrom ? new Date(opts.dateFrom).getTime() : null;
   const toMs = opts.dateTo
     ? new Date(opts.dateTo).getTime() + 86_400_000 - 1
     : null;
   if (fromMs !== null || toMs !== null) {
-    const before = records.length;
-    let droppedOlder = 0;
-    let droppedNewer = 0;
     records = records.filter((r) => {
       if (!r.posted_at) return true;
       const t = new Date(r.posted_at).getTime();
@@ -387,7 +399,7 @@ export async function scrapeInstagramPosts(
       return true;
     });
     console.log(
-      `[Instagram] Date filter (from=${opts.dateFrom ?? "-"} to=${opts.dateTo ?? "-"}): ${before} fetched, dropped ${droppedOlder} older + ${droppedNewer} newer → ${records.length} kept`
+      `[Instagram] Date filter (from=${opts.dateFrom ?? "-"} to=${opts.dateTo ?? "-"}): ${rawCount} fetched, dropped ${droppedOlder} older + ${droppedNewer} newer → ${records.length} kept`
     );
   }
 
@@ -401,7 +413,13 @@ export async function scrapeInstagramPosts(
     /* ignore */
   }
 
-  return { runId, records, costCu, credentials: creds };
+  return {
+    runId,
+    records,
+    costCu,
+    diagnostics: { rawCount, droppedOlder, droppedNewer },
+    credentials: creds,
+  };
 }
 
 // ------- Raw post shape from apify/instagram-scraper -------

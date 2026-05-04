@@ -303,6 +303,24 @@ export function ScanDropdown({
       const json = await res.json();
       if (!res.ok) {
         toast.error(json.error ?? "Instagram scrape failed", { id: toastId });
+      } else if (json.records === 0) {
+        // Smart 0-record message: distinguish private/wrong-handle
+        // (rawCount = 0) from "no posts in window" (rawCount > 0
+        // but all dropped by the date filter). Without this the
+        // user sees a bare "0 posts" toast and can't tell whether
+        // the brand is silent or the handle is wrong.
+        const diag = json.diagnostics ?? { rawCount: 0, droppedOlder: 0, droppedNewer: 0 };
+        if (diag.rawCount === 0) {
+          toast.warning(t("organic", "scanZeroNoFeed"), { id: toastId });
+        } else {
+          toast.warning(
+            t("organic", "scanZeroOutOfWindow")
+              .replace("{raw}", String(diag.rawCount))
+              .replace("{older}", String(diag.droppedOlder)),
+            { id: toastId },
+          );
+        }
+        focusChannel("instagram");
       } else {
         toast.success(
           `${json.records} ${t("organic", "postsSynced")} (${rangeLabel})`,

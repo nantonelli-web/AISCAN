@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, Pencil, Users } from "lucide-react";
+import { Plus, Pencil, Users, ExternalLink } from "lucide-react";
 import { getSessionUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -309,16 +309,24 @@ function BrandCard({
           </h3>
         </div>
 
-        {/* Secondary metadata — country chip + freshness pill.
-            Both visually small and subordinate to the brand name.
-            Channel-of-last-scan is no longer rendered as a dangling
-            "· Instagram" here — moved into the footer line where
-            it belongs grammatically ("Last scan: <date> · Instagram"). */}
+        {/* Secondary metadata — website link + freshness pill.
+            Country chip removed 2026-05-04: same reasoning as
+            the brand-detail hero — country list is scan-target
+            data, not brand identity. The website (google_domain)
+            is the durable user-facing identifier. */}
         <div className="flex items-center gap-2 flex-wrap">
-          {c.country && (
-            <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground">
-              {c.country}
-            </span>
+          {c.google_domain && (
+            <a
+              href={`https://${c.google_domain}`}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-gold transition-colors pointer-events-auto truncate max-w-[180px]"
+              title={c.google_domain}
+            >
+              <span className="truncate">{c.google_domain}</span>
+              <ExternalLink className="size-3 opacity-60 shrink-0" />
+            </a>
           )}
           <span className={`status-pill ${freshTone}`}>{freshLabel}</span>
         </div>
