@@ -1852,6 +1852,7 @@ export function CompareView({
                 <AdsTechnicalView
                   stats={stats as AdsCompStats[]}
                   t={t}
+                  locale={locale}
                   refreshRateWindowDays={refreshRateWindowDays}
                   isGoogle={channel === "google"}
                 />
@@ -1990,11 +1991,13 @@ function ErrorState({ text }: { text: string }) {
 function AdsTechnicalView({
   stats,
   t,
+  locale,
   refreshRateWindowDays,
   isGoogle,
 }: {
   stats: AdsCompStats[];
   t: (s: string, k: string) => string;
+  locale: string;
   refreshRateWindowDays: number;
   /** When true, KPIs the Google Ads Transparency actor does not expose
    *  (ad_text → avgCopyLength, cta → topCta) render as a single "N/A
@@ -2026,6 +2029,7 @@ function AdsTechnicalView({
             (s): s is MetaAdsCompStats => s.channel === "meta",
           )}
           t={t}
+          locale={locale}
         />
       )}
       <CompareTable
@@ -2623,6 +2627,7 @@ function LatestAdTile({
 function ObjectiveCard({
   stats,
   t,
+  locale,
 }: {
   /** Meta-only — the inference reads Advantage+ / DCO / DPA signals,
    *  none of which exist on Google Transparency rows. The caller
@@ -2630,6 +2635,9 @@ function ObjectiveCard({
    *  the type narrowing is enforced at the boundary. */
   stats: MetaAdsCompStats[];
   t: (s: string, k: string) => string;
+  /** Active UI locale — the previous code hard-coded `?.it` and EN
+   *  users saw the Italian labels (user-flagged 2026-05-04). */
+  locale: string;
 }) {
   const OBJECTIVE_LABELS: Record<string, Record<string, string>> = {
     sales: { it: "Vendite / Conversioni", en: "Sales / Conversions" },
@@ -2662,8 +2670,10 @@ function ObjectiveCard({
       >
         {stats.map((s) => {
           const obj = s.objectiveInference;
-          const label =
-            OBJECTIVE_LABELS[obj.objective]?.it ?? obj.objective;
+          // Pick the active-locale label; fall back to "en" then to
+          // the raw objective key so we never render a blank cell.
+          const labels = OBJECTIVE_LABELS[obj.objective];
+          const label = labels?.[locale] ?? labels?.en ?? obj.objective;
           const isExpanded = expanded === s.id;
           return (
             <div key={s.id} className="px-4 py-3">
