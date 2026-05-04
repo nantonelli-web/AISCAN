@@ -25,23 +25,29 @@ export function CollapsibleJobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
 
   return (
     <div>
-      {/* Compact summary bar */}
+      {/* Section header with icon + real h2. The eye lands on the
+          History icon first, identifies the section, then reads the
+          summary stats — same grammar as Scan Now above. */}
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg border transition-colors text-xs text-muted-foreground"
-        style={{ borderColor: "rgba(212, 168, 67, 0.4)" }}
+        className="flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg border border-border hover:border-gold/40 hover:bg-muted/30 transition-colors group"
       >
-        <History className="size-3.5 shrink-0" />
-        <span className="font-medium text-foreground">{t("jobHistory", "title")}</span>
-        <span className="text-border">—</span>
-        <span>
-          {jobs.length} scan · {succeeded} {t("jobHistory", "succeededLabel")} · {totalAds} ads
-          {latest?.started_at && (
-            <> · {t("jobHistory", "lastRun")} {formatRelative(latest.started_at)}</>
-          )}
-        </span>
+        <div className="size-9 rounded-lg bg-info-soft tone-info grid place-items-center shrink-0">
+          <History className="size-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-base font-semibold tracking-tight leading-tight">
+            {t("jobHistory", "title")}
+          </h2>
+          <p className="text-[11px] text-muted-foreground mt-0.5 tabular-nums">
+            {jobs.length} scan · {succeeded} {t("jobHistory", "succeededLabel")} · {totalAds} ads
+            {latest?.started_at && (
+              <> · {t("jobHistory", "lastRun")} {formatRelative(latest.started_at)}</>
+            )}
+          </p>
+        </div>
         <ChevronDown
-          className={`size-3.5 ml-auto transition-transform ${open ? "rotate-180" : ""}`}
+          className={`size-4 text-muted-foreground group-hover:text-foreground transition-transform shrink-0 ${open ? "rotate-180" : ""}`}
         />
       </button>
 

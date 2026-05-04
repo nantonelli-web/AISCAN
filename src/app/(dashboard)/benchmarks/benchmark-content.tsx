@@ -8,6 +8,15 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatNumber } from "@/lib/utils";
 import {
+  BarChart3,
+  PieChart as PieChartIcon,
+  Users as UsersIcon,
+  Target as TargetIcon,
+  Globe2,
+  Clock,
+  Layers,
+} from "lucide-react";
+import {
   VolumeChart,
   FormatPieChart,
   HorizontalBarChart,
@@ -16,6 +25,28 @@ import {
 } from "@/components/dashboard/benchmark-charts";
 import { CollapsibleAlert } from "./collapsible-alert";
 import { getLocale, serverT } from "@/lib/i18n/server";
+
+/**
+ * Inline section title for chart cards. Pairs an icon with a real h3
+ * so each chart announces what it is at a glance — text-only
+ * CardTitle was getting lost in dense Benchmarks pages.
+ */
+function ChartTitle({
+  icon,
+  children,
+}: {
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <div className="size-7 rounded-md bg-info-soft tone-info grid place-items-center shrink-0">
+        {icon}
+      </div>
+      <CardTitle className="text-base">{children}</CardTitle>
+    </div>
+  );
+}
 
 export async function BenchmarkContent({
   workspaceId,
@@ -193,7 +224,9 @@ export async function BenchmarkContent({
       {/* Volume per competitor */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("benchmarks", "volumePerCompetitor")}</CardTitle>
+          <ChartTitle icon={<BarChart3 className="size-4" />}>
+            {t("benchmarks", "volumePerCompetitor")}
+          </ChartTitle>
         </CardHeader>
         <CardContent>
           <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descVolume")}</p>
@@ -210,7 +243,9 @@ export async function BenchmarkContent({
       {/* Format mix per brand */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("benchmarks", "globalFormatMix")}</CardTitle>
+          <ChartTitle icon={<PieChartIcon className="size-4" />}>
+            {t("benchmarks", "globalFormatMix")}
+          </ChartTitle>
         </CardHeader>
         <CardContent>
           <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descFormatPie")}</p>
@@ -229,7 +264,9 @@ export async function BenchmarkContent({
       {data.audienceByCompetitor.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>{t("benchmarks", "audienceInsights")}</CardTitle>
+            <ChartTitle icon={<UsersIcon className="size-4" />}>
+              {t("benchmarks", "audienceInsights")}
+            </ChartTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground mb-3">
@@ -318,7 +355,9 @@ export async function BenchmarkContent({
           card entirely. Same UX as Compare. */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("benchmarks", "topCtaPerBrand")}</CardTitle>
+          <ChartTitle icon={<TargetIcon className="size-4" />}>
+            {t("benchmarks", "topCtaPerBrand")}
+          </ChartTitle>
         </CardHeader>
         <CardContent>
           <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descTopCtaPerBrand")}</p>
@@ -421,7 +460,7 @@ export async function BenchmarkContent({
       {/* Platform distribution per brand */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("benchmarks", "platformDistribution")}</CardTitle>
+          <ChartTitle icon={<Layers className="size-4" />}>{t("benchmarks", "platformDistribution")}</ChartTitle>
         </CardHeader>
         <CardContent>
           <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descPlatform")}</p>
@@ -441,7 +480,7 @@ export async function BenchmarkContent({
       <div className={channel === "google" ? "grid gap-6 lg:grid-cols-2" : "grid gap-6 lg:grid-cols-3"}>
         <Card>
           <CardHeader>
-            <CardTitle>{t("benchmarks", "avgCampaignDurationChart")}</CardTitle>
+            <ChartTitle icon={<Clock className="size-4" />}>{t("benchmarks", "avgCampaignDurationChart")}</ChartTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descDuration")}</p>
@@ -490,7 +529,7 @@ export async function BenchmarkContent({
       {data.topTargetedCountries.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>{t("benchmarks", "topTargetedCountries")}</CardTitle>
+            <ChartTitle icon={<Globe2 className="size-4" />}>{t("benchmarks", "topTargetedCountries")}</ChartTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descTopCountries")}</p>

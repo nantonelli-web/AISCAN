@@ -112,12 +112,19 @@ export function Kpi({
  * <h2 ...>Title</h2><p ...>desc</p></div>` pattern. Keeps the title /
  * description weight ratio consistent and offers an optional eyebrow
  * tag (BENCHMARKS, MONITORING, …) and right-aligned action slot.
+ *
+ * Optional `icon` slot pairs a meaningful glyph with the title (Radar
+ * for Scan, Clock for History, BarChart for Benchmarks, …) so the
+ * eye lands on the section break before reading the words. Text-only
+ * section titles were a recurring complaint in user testing.
  */
 export function SectionHeader({
   eyebrow,
   title,
   description,
   action,
+  icon,
+  iconTone = "gold",
   className,
   size = "default",
 }: {
@@ -125,24 +132,48 @@ export function SectionHeader({
   title: string;
   description?: string;
   action?: React.ReactNode;
+  icon?: React.ReactNode;
+  iconTone?: "gold" | "info" | "success" | "warning" | "danger" | "neutral";
   className?: string;
   /** "page" = top-of-page <h1>; "default" = section <h2>. */
   size?: "page" | "default";
 }) {
+  const iconBg: Record<NonNullable<typeof iconTone>, string> = {
+    gold: "bg-gold-soft text-gold",
+    info: "bg-info-soft tone-info",
+    success: "bg-success-soft tone-success",
+    warning: "bg-warning-soft tone-warning",
+    danger: "bg-danger-soft tone-danger",
+    neutral: "bg-neutral-soft text-[color:var(--neutral)]",
+  };
   return (
     <header className={cn("flex items-start justify-between gap-4", className)}>
-      <div className="min-w-0 space-y-1">
-        {eyebrow && <div className="eyebrow">{eyebrow}</div>}
-        {size === "page" ? (
-          <h1 className="text-3xl font-serif tracking-tight">{title}</h1>
-        ) : (
-          <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+      <div className="flex items-start gap-3 min-w-0">
+        {icon && size !== "page" && (
+          <div className={cn("size-9 rounded-lg grid place-items-center shrink-0", iconBg[iconTone])}>
+            {icon}
+          </div>
         )}
-        {description && (
-          <p className="text-sm text-muted-foreground max-w-2xl text-pretty">
-            {description}
-          </p>
-        )}
+        <div className="min-w-0 space-y-1">
+          {eyebrow && <div className="eyebrow">{eyebrow}</div>}
+          {size === "page" ? (
+            <div className="flex items-center gap-3">
+              {icon && (
+                <div className={cn("size-10 rounded-lg grid place-items-center shrink-0", iconBg[iconTone])}>
+                  {icon}
+                </div>
+              )}
+              <h1 className="text-3xl font-serif tracking-tight">{title}</h1>
+            </div>
+          ) : (
+            <h2 className="text-lg font-semibold tracking-tight leading-tight">{title}</h2>
+          )}
+          {description && (
+            <p className="text-sm text-muted-foreground max-w-2xl text-pretty">
+              {description}
+            </p>
+          )}
+        </div>
       </div>
       {action && <div className="shrink-0 print:hidden">{action}</div>}
     </header>

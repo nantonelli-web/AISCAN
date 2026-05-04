@@ -19,7 +19,7 @@ import { MetaIcon } from "@/components/ui/meta-icon";
 import { TikTokIcon } from "@/components/ui/tiktok-icon";
 import { SnapchatIcon } from "@/components/ui/snapchat-icon";
 import { YouTubeIcon } from "@/components/ui/youtube-icon";
-import { Download, Loader2, Search as SearchIcon } from "lucide-react";
+import { Download, Layers, Loader2, Search as SearchIcon } from "lucide-react";
 import { cn, formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { CountryFilterDropdown } from "./country-filter-dropdown";
@@ -379,7 +379,26 @@ export function ChannelTabs({
       : "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      {/* ─── Section header — "Creatività" with icon ─────────
+          The page transitions here from "configure & scan" (above) to
+          "explore the data" (below). User feedback: text-only section
+          breaks were invisible. The Layers icon + h2 + subtitle set
+          the change of context unambiguously. */}
+      <header className="flex items-center gap-3 print:hidden">
+        <div className="size-9 rounded-lg bg-info-soft tone-info grid place-items-center shrink-0">
+          <Layers className="size-5" />
+        </div>
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold tracking-tight leading-tight">
+            {t("brandHero", "creativesHeader")}
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {t("brandHero", "creativesSubtitle")}
+          </p>
+        </div>
+      </header>
+
       {/* ─── Channel tabs ──────────────────────────────────────
           Channel selector now lives inside its own card on a tinted
           surface so it reads as the PRIMARY pivot (the user picks

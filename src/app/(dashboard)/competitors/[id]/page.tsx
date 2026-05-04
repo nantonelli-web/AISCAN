@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Pencil } from "lucide-react";
+import { ArrowLeft, Pencil, Radar } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -412,16 +412,27 @@ export default async function CompetitorDetailPage({
       </div>
 
       {/* ─── Scan action — full width.
-          The single most important affordance on this page. Gold
-          soft-tint border so it stands out as primary. Full width
-          gives ScanDropdown room to lay out the three channel
-          groups (Paid / Organic / Monitoring) horizontally instead
-          of squeezing them into a 1/3-column box. */}
+          The single most important affordance on this page. Header
+          carries a Radar icon + a real h2 title (the previous 10px
+          all-caps was unreadable as a section title — user feedback).
+          Soft-gold background tint and gold-bordered card make it
+          stand out as the primary action even before the user reads
+          the buttons. */}
       <Card className="border-gold/30 bg-gold-soft/40 print:hidden">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-[10px] uppercase tracking-[0.18em] text-gold font-bold">
-            {t("scan", "scanNow")}
-          </CardTitle>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-3">
+            <div className="size-9 rounded-lg bg-gold text-gold-foreground grid place-items-center shrink-0 shadow-sm">
+              <Radar className="size-5" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold tracking-tight leading-tight">
+                {t("scan", "scanNow")}
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {t("scan", "scanNowSubtitle")}
+              </p>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <ScanDropdown

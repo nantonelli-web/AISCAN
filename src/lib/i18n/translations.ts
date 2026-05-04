@@ -415,11 +415,20 @@ const translations = {
     kpiCreatives: { it: "Creatività raccolte", en: "Creatives collected" },
     kpiChannels: { it: "Canali coperti", en: "Channels covered" },
     kpiLastScan: { it: "Ultimo scan", en: "Last scan" },
+    creativesHeader: { it: "Creatività & insight", en: "Creatives & insight" },
+    creativesSubtitle: {
+      it: "Esplora ads, post organici e ranking SERP raccolti per questo brand.",
+      en: "Explore ads, organic posts, and SERP rankings collected for this brand.",
+    },
   },
 
   // ─── Scan Button ───────────────────────────────────────────
   scan: {
     scanNow: { it: "Scan now", en: "Scan now" },
+    scanNowSubtitle: {
+      it: "Lancia una scansione su uno o più canali per aggiornare i dati del brand.",
+      en: "Launch a scan on one or more channels to refresh this brand's data.",
+    },
     scanning: { it: "Scanning\u2026", en: "Scanning\u2026" },
     scrapingInProgress: {
       it: "Scraping in corso\u2026 (pu\u00F2 richiedere 30-90s)",

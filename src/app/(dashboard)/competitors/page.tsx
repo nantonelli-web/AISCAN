@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Users } from "lucide-react";
 import { getSessionUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -100,6 +100,7 @@ export default async function CompetitorsPage() {
     <div className="space-y-8">
       <SectionHeader
         size="page"
+        icon={<Users className="size-5" />}
         title={t("competitors", "title")}
         description={t("competitors", "subtitle")}
         action={
