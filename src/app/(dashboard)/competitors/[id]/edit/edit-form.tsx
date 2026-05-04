@@ -179,9 +179,6 @@ export function EditCompetitorForm({
             <div className="space-y-2">
               <Label htmlFor="url">
                 {t("newCompetitor", "pageUrlLabel")}
-                <span className="text-[10px] text-muted-foreground ml-2 font-normal">
-                  {t("newCompetitor", "optionalLabel")}
-                </span>
               </Label>
               <Input
                 id="url"
