@@ -392,8 +392,14 @@ export default async function CompetitorDetailPage({
           user sees the size of the dataset before they pick a channel
           tab; on the right the Scan action — single most important
           affordance on this page, visually separated by being the
-          only gold-accented card. */}
-      <div className="grid gap-4 lg:grid-cols-3">
+          only gold-accented card.
+
+          `items-start` is the load-bearing class here: without it the
+          left sub-grid stretches to match the Scan card's height (CSS
+          grid's default `align-items: stretch`) and the three KPI
+          tiles end up as huge empty boxes — exactly the problem the
+          user flagged in the morning screenshot. */}
+      <div className="grid gap-4 lg:grid-cols-3 items-start">
         <div className="grid gap-3 grid-cols-3 lg:col-span-2">
           <MiniKpi
             label={t("brandHero", "kpiCreatives")}
