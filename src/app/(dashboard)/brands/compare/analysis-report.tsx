@@ -23,31 +23,47 @@ import { useT } from "@/lib/i18n/context";
 import type { CreativeAnalysisResult } from "@/lib/ai/creative-analysis";
 
 /**
- * AI Compare report renderer — copywriter + creative-director
- * agent output. Redesigned 2026-05-04 after user feedback:
+ * AI Compare report — TOPIC-FIRST horizontal layout.
  *
- *   "La parte di analisi AI (testo e immagini) è illegibile.
- *    Una valanga di testo scritto piccolo, senza un'icona a
- *    spezzare, i titoli di ogni paragrafo sono piccoli e di
- *    colore chiaro, hai usato anche un verde chiaro per una
- *    sezione specifica e non si legge quasi niente."
+ * Earlier iterations (v1 wall-of-text, v2 tinted bg, v3
+ * border-left-4) all kept a brand-first column layout where
+ * each brand was a vertical stack of topics. The user
+ * flagged 2026-05-04 evening:
  *
- * Changes:
- *   - body text was text-xs (12px) → now text-sm (14px)
- *     leading-relaxed, with a base text-foreground colour.
- *   - field labels were text-[10px] uppercase muted → now
- *     text-xs font-semibold + a per-field icon, all in the
- *     foreground colour. Each field has an evocative lucide
- *     icon (Mic2 for tone-of-voice, Heart for emotional
- *     triggers, etc.) to break the wall of paragraphs.
- *   - the unreadable emerald-600 on muted bg for "strengths"
- *     was replaced with a tinted block (bg-emerald-50/60 with
- *     emerald-700 dark text) so it stays semantic but readable.
- *     "Weaknesses" mirrors with amber.
- *   - per-brand cards now use a stronger header (text-base
- *     font-semibold gold) so the brand name actually frames
- *     the section instead of disappearing.
+ *   "dividi i topics in box divisi tra loro da una riga in
+ *    modo che si eviti questo effetto di movimento tra una
+ *    colonna e l'altra che fa venire il mal di mare. La
+ *    parte punti di forza e di debolezza identificala meglio
+ *    e separala dalle altre sopra. Evita i colori accesi."
+ *
+ * v4 (this file):
+ *
+ *   • Topic-first grid. Each topic (tone, palette, ecc.)
+ *     becomes a self-contained row inside one big Card. Inside
+ *     the row, brands are columns. Reading left-to-right within
+ *     a row is one topic only — eliminates the column-shift
+ *     "seasickness" because every topic resets the baseline.
+ *   • Topics separated by a horizontal divider (divide-y on
+ *     the parent CardContent).
+ *   • Strengths + Weaknesses pulled out of the topical grid
+ *     into a dedicated section card below. Per-brand evaluation
+ *     in muted-bordered tiles, with a small icon dot in soft
+ *     emerald/amber (no bright borders, no full bg tints).
+ *   • Brand column headers in muted-gold uppercase eyebrow,
+ *     not full gold cards.
  */
+
+type EvalBrand = { name: string; strengths: unknown; weaknesses: unknown };
+
+type TopicCell =
+  | { kind: "text"; value: string }
+  | { kind: "tags"; tags: string[] };
+
+interface TopicRow {
+  icon: LucideIcon;
+  label: string;
+  cells: TopicCell[];
+}
 
 export function AnalysisReport({
   result,
@@ -70,70 +86,51 @@ export function AnalysisReport({
     if (report.brandAnalyses.length === 0) {
       return <SkippedAnalysisCard message={String(report.comparison ?? "")} />;
     }
+
+    const brandsArr = report.brandAnalyses;
+    const brandNames = brandsArr.map((b) => b.brandName);
+
+    const topics: TopicRow[] = [
+      {
+        icon: Mic2,
+        label: t("creativeAnalysis", "toneOfVoice"),
+        cells: brandsArr.map((b) => ({ kind: "text", value: coerce(b.toneOfVoice) })),
+      },
+      {
+        icon: PenLine,
+        label: t("creativeAnalysis", "copyStyle"),
+        cells: brandsArr.map((b) => ({ kind: "text", value: coerce(b.copyStyle) })),
+      },
+      {
+        icon: Heart,
+        label: t("creativeAnalysis", "emotionalTriggers"),
+        cells: brandsArr.map((b) => ({
+          kind: "tags",
+          tags: Array.isArray(b.emotionalTriggers) ? b.emotionalTriggers : [],
+        })),
+      },
+      {
+        icon: MousePointerClick,
+        label: t("creativeAnalysis", "ctaPatterns"),
+        cells: brandsArr.map((b) => ({ kind: "text", value: coerce(b.ctaPatterns) })),
+      },
+    ];
+
+    const evalBrands: EvalBrand[] = brandsArr.map((b) => ({
+      name: b.brandName,
+      strengths: b.strengths,
+      weaknesses: b.weaknesses,
+    }));
+
     return (
-      <div className="space-y-5">
-        <div
-          className={cn(
-            "grid gap-4",
-            report.brandAnalyses.length === 2
-              ? "grid-cols-1 md:grid-cols-2"
-              : "grid-cols-1 md:grid-cols-3",
-          )}
-        >
-          {report.brandAnalyses.map((brand) => (
-            <Card key={brand.brandName} className="bg-card">
-              <CardHeader className="pb-3 border-b border-border">
-                <CardTitle className="text-base font-semibold text-gold">
-                  {brand.brandName}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4 space-y-4">
-                <Field
-                  icon={Mic2}
-                  label={t("creativeAnalysis", "toneOfVoice")}
-                  value={brand.toneOfVoice}
-                />
-                <Field
-                  icon={PenLine}
-                  label={t("creativeAnalysis", "copyStyle")}
-                  value={brand.copyStyle}
-                />
-                {brand.emotionalTriggers?.length > 0 && (
-                  <div className="space-y-1.5">
-                    <FieldLabel
-                      icon={Heart}
-                      label={t("creativeAnalysis", "emotionalTriggers")}
-                    />
-                    <div className="flex flex-wrap gap-1.5">
-                      {brand.emotionalTriggers.map((trigger) => (
-                        <Badge key={trigger} variant="gold">
-                          {trigger}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <Field
-                  icon={MousePointerClick}
-                  label={t("creativeAnalysis", "ctaPatterns")}
-                  value={brand.ctaPatterns}
-                />
-                <Field
-                  icon={Sparkles}
-                  label={t("creativeAnalysis", "strengths")}
-                  value={brand.strengths}
-                  highlight="positive"
-                />
-                <Field
-                  icon={ShieldAlert}
-                  label={t("creativeAnalysis", "weaknesses")}
-                  value={brand.weaknesses}
-                  highlight="negative"
-                />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+      <div className="space-y-6">
+        <TopicGrid brandNames={brandNames} topics={topics} />
+        <StrengthsWeaknessesSection
+          brands={evalBrands}
+          tStrengths={t("creativeAnalysis", "strengths")}
+          tWeaknesses={t("creativeAnalysis", "weaknesses")}
+          tHeading={t("creativeAnalysis", "evaluationHeading")}
+        />
         <HighlightCard
           icon={Scale}
           label={t("creativeAnalysis", "comparison")}
@@ -159,65 +156,53 @@ export function AnalysisReport({
   if (report.brandAnalyses.length === 0) {
     return <SkippedAnalysisCard message={String(report.comparison ?? "")} />;
   }
+
+  const brandsArr = report.brandAnalyses;
+  const brandNames = brandsArr.map((b) => b.brandName);
+
+  const topics: TopicRow[] = [
+    {
+      icon: Palette,
+      label: t("creativeAnalysis", "visualStyle"),
+      cells: brandsArr.map((b) => ({ kind: "text", value: coerce(b.visualStyle) })),
+    },
+    {
+      icon: Palette,
+      label: t("creativeAnalysis", "colorPalette"),
+      cells: brandsArr.map((b) => ({ kind: "text", value: coerce(b.colorPalette) })),
+    },
+    {
+      icon: Camera,
+      label: t("creativeAnalysis", "photographyStyle"),
+      cells: brandsArr.map((b) => ({ kind: "text", value: coerce(b.photographyStyle) })),
+    },
+    {
+      icon: Compass,
+      label: t("creativeAnalysis", "brandConsistency"),
+      cells: brandsArr.map((b) => ({ kind: "text", value: coerce(b.brandConsistency) })),
+    },
+    {
+      icon: Shapes,
+      label: t("creativeAnalysis", "formatPreferences"),
+      cells: brandsArr.map((b) => ({ kind: "text", value: coerce(b.formatPreferences) })),
+    },
+  ];
+
+  const evalBrands: EvalBrand[] = brandsArr.map((b) => ({
+    name: b.brandName,
+    strengths: b.strengths,
+    weaknesses: b.weaknesses,
+  }));
+
   return (
-    <div className="space-y-5">
-      <div
-        className={cn(
-          "grid gap-4",
-          report.brandAnalyses.length === 2
-            ? "grid-cols-1 md:grid-cols-2"
-            : "grid-cols-1 md:grid-cols-3",
-        )}
-      >
-        {report.brandAnalyses.map((brand) => (
-          <Card key={brand.brandName} className="bg-card">
-            <CardHeader className="pb-3 border-b border-border">
-              <CardTitle className="text-base font-semibold text-gold">
-                {brand.brandName}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-4">
-              <Field
-                icon={Palette}
-                label={t("creativeAnalysis", "visualStyle")}
-                value={brand.visualStyle}
-              />
-              <Field
-                icon={Palette}
-                label={t("creativeAnalysis", "colorPalette")}
-                value={brand.colorPalette}
-              />
-              <Field
-                icon={Camera}
-                label={t("creativeAnalysis", "photographyStyle")}
-                value={brand.photographyStyle}
-              />
-              <Field
-                icon={Compass}
-                label={t("creativeAnalysis", "brandConsistency")}
-                value={brand.brandConsistency}
-              />
-              <Field
-                icon={Shapes}
-                label={t("creativeAnalysis", "formatPreferences")}
-                value={brand.formatPreferences}
-              />
-              <Field
-                icon={Sparkles}
-                label={t("creativeAnalysis", "strengths")}
-                value={brand.strengths}
-                highlight="positive"
-              />
-              <Field
-                icon={ShieldAlert}
-                label={t("creativeAnalysis", "weaknesses")}
-                value={brand.weaknesses}
-                highlight="negative"
-              />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+    <div className="space-y-6">
+      <TopicGrid brandNames={brandNames} topics={topics} />
+      <StrengthsWeaknessesSection
+        brands={evalBrands}
+        tStrengths={t("creativeAnalysis", "strengths")}
+        tWeaknesses={t("creativeAnalysis", "weaknesses")}
+        tHeading={t("creativeAnalysis", "evaluationHeading")}
+      />
       <HighlightCard
         icon={Scale}
         label={t("creativeAnalysis", "comparison")}
@@ -233,89 +218,177 @@ export function AnalysisReport({
 }
 
 /**
- * Per-field block. The `highlight` prop turns the field into a
- * left-bordered callout — emerald for strengths, amber for
- * weaknesses. Earlier iterations used a tinted background with
- * coloured text, which the user flagged twice as unreadable
- * (light pastel green on a card bg that turned grey-ish in some
- * themes, with a similarly-toned label sitting on top). The
- * current version drops the tinted bg entirely: full-contrast
- * foreground body text on the card background, with the only
- * coloured surface being a 4px left border + the icon + the
- * label. Readable on light AND dark themes without juggling
- * dark-variant colours.
+ * One topic = one row inside a single Card; rows are
+ * separated by `divide-y` so the visual rhythm is "topic
+ * stripe → divider → next topic stripe". Inside each row,
+ * brand columns sit side-by-side under a small uppercase
+ * brand label.
  */
-function Field({
-  icon,
+function TopicGrid({
+  brandNames,
+  topics,
+}: {
+  brandNames: string[];
+  topics: TopicRow[];
+}) {
+  const cols =
+    brandNames.length === 2
+      ? "grid-cols-1 md:grid-cols-2"
+      : "grid-cols-1 md:grid-cols-3";
+  return (
+    <Card>
+      <CardContent className="p-0 divide-y divide-border">
+        {topics.map((topic) => {
+          const Icon = topic.icon;
+          return (
+            <div key={topic.label} className="p-5 space-y-3">
+              <div className="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Icon className="size-4 text-muted-foreground" />
+                <span>{topic.label}</span>
+              </div>
+              <div className={cn("grid gap-x-6 gap-y-4", cols)}>
+                {brandNames.map((name, idx) => {
+                  const cell = topic.cells[idx];
+                  return (
+                    <div key={name} className="space-y-1.5">
+                      <p className="text-[11px] uppercase tracking-wider font-semibold text-gold/90">
+                        {name}
+                      </p>
+                      {cell?.kind === "tags" ? (
+                        cell.tags.length === 0 ? (
+                          <p className="text-sm text-muted-foreground italic">—</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5">
+                            {cell.tags.map((tag) => (
+                              <Badge
+                                key={tag}
+                                variant="muted"
+                                className="text-[11px]"
+                              >
+                                {tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        )
+                      ) : cell?.value ? (
+                        <p className="text-sm leading-relaxed text-foreground">
+                          {cell.value}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">—</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Punti di forza + deboli — dedicated section under the
+ * topical grid. Per-brand tile with a `bg-muted/20` border
+ * (NO bright emerald/amber borders or pastel bg tints — user
+ * flagged those twice). Each evaluation has a small circular
+ * icon badge in soft emerald-100 / amber-100 carrying the
+ * semantic; the body text is plain text-foreground for full
+ * readability across themes.
+ */
+function StrengthsWeaknessesSection({
+  brands,
+  tStrengths,
+  tWeaknesses,
+  tHeading,
+}: {
+  brands: EvalBrand[];
+  tStrengths: string;
+  tWeaknesses: string;
+  tHeading: string;
+}) {
+  const cols =
+    brands.length === 2
+      ? "grid-cols-1 md:grid-cols-2"
+      : "grid-cols-1 md:grid-cols-3";
+  return (
+    <Card>
+      <CardHeader className="pb-3 border-b border-border">
+        <CardTitle className="text-sm inline-flex items-center gap-2">
+          <Scale className="size-4 text-muted-foreground" />
+          {tHeading}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-5">
+        <div className={cn("grid gap-5", cols)}>
+          {brands.map((b) => (
+            <div
+              key={b.name}
+              className="space-y-4 border border-border rounded-md p-4 bg-muted/20"
+            >
+              <p className="text-[11px] uppercase tracking-wider font-semibold text-gold/90">
+                {b.name}
+              </p>
+              <EvalBlock
+                icon={Sparkles}
+                label={tStrengths}
+                tone="up"
+                value={b.strengths}
+              />
+              <div className="h-px bg-border" />
+              <EvalBlock
+                icon={ShieldAlert}
+                label={tWeaknesses}
+                tone="down"
+                value={b.weaknesses}
+              />
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function EvalBlock({
+  icon: Icon,
   label,
+  tone,
   value,
-  highlight,
 }: {
   icon: LucideIcon;
   label: string;
+  tone: "up" | "down";
   value: unknown;
-  highlight?: "positive" | "negative";
 }) {
-  let text: string;
-  if (typeof value === "string") {
-    text = value;
-  } else if (value == null) {
-    text = "";
-  } else {
-    text = JSON.stringify(value).slice(0, 400);
-  }
+  const text = coerce(value);
   if (!text) return null;
-  if (highlight) {
-    return (
-      <div
-        className={cn(
-          "rounded-md border-l-4 pl-3 py-1 space-y-1.5",
-          highlight === "positive" ? "border-emerald-500" : "border-amber-500",
-        )}
-      >
-        <FieldLabel
-          icon={icon}
-          label={label}
-          tone={highlight === "positive" ? "emerald" : "amber"}
-        />
-        <p className="text-sm leading-relaxed text-foreground">{text}</p>
-      </div>
-    );
-  }
   return (
-    <div className="space-y-1">
-      <FieldLabel icon={icon} label={label} />
+    <div className="space-y-1.5">
+      <p className="inline-flex items-center gap-2 text-xs font-semibold text-foreground">
+        <span
+          className={cn(
+            "inline-flex items-center justify-center size-5 rounded-full shrink-0",
+            tone === "up"
+              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+              : "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300",
+          )}
+        >
+          <Icon className="size-3" />
+        </span>
+        {label}
+      </p>
       <p className="text-sm leading-relaxed text-foreground">{text}</p>
     </div>
   );
 }
 
-function FieldLabel({
-  icon: Icon,
-  label,
-  tone,
-}: {
-  icon: LucideIcon;
-  label: string;
-  tone?: "emerald" | "amber";
-}) {
-  return (
-    <p
-      className={cn(
-        "inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide",
-        // Tone shades chosen for AAA contrast on the card bg in
-        // light mode AND on the dark variant. emerald-700 / amber-700
-        // sit at ~5.5:1 contrast on white; their dark-mode siblings
-        // (emerald-300 / amber-300) hit ~9:1 on the dark card bg.
-        tone === "emerald" && "text-emerald-700 dark:text-emerald-300",
-        tone === "amber" && "text-amber-700 dark:text-amber-300",
-        !tone && "text-foreground",
-      )}
-    >
-      <Icon className="size-3.5" />
-      {label}
-    </p>
-  );
+function coerce(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value == null) return "";
+  return JSON.stringify(value).slice(0, 400);
 }
 
 function HighlightCard({
@@ -335,15 +408,19 @@ function HighlightCard({
         : JSON.stringify(text).slice(0, 800);
   if (!safe) return null;
   return (
-    <div className="rounded-lg border border-gold/30 bg-gold/5 p-5 space-y-2.5">
-      <p className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-gold">
-        <Icon className="size-4" />
-        {label}
-      </p>
-      <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
-        {safe}
-      </p>
-    </div>
+    <Card>
+      <CardHeader className="pb-3 border-b border-border">
+        <CardTitle className="text-sm inline-flex items-center gap-2">
+          <Icon className="size-4 text-muted-foreground" />
+          {label}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-5">
+        <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
+          {safe}
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 

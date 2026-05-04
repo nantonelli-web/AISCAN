@@ -2130,6 +2130,7 @@ const translations = {
     close: { it: "Chiudi", en: "Close" },
     copywriterFailed: { it: "L'analisi del copywriter non \u00E8 disponibile. Il modello AI potrebbe essere temporaneamente offline.", en: "Copywriter analysis is not available. The AI model may be temporarily offline." },
     creativeDirectorFailed: { it: "L'analisi del direttore creativo non \u00E8 disponibile. Il modello AI potrebbe essere temporaneamente offline.", en: "Creative director analysis is not available. The AI model may be temporarily offline." },
+    evaluationHeading: { it: "Punti di forza e di debolezza", en: "Strengths & weaknesses" },
   },
 
   // ─── Credits Page ──────────────────────────────────────────
