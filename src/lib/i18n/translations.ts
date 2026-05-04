@@ -1669,8 +1669,8 @@ const translations = {
   // ─── Ad Card ───────────────────────────────────────────────
   adCard: {
     viewOnMeta: {
-      it: "Vedi creativo su Meta Ad Library",
-      en: "View creative on Meta Ad Library",
+      it: "Vedi su Meta Ad Library",
+      en: "View on Meta Ad Library",
     },
     viewOnGoogle: {
       it: "Vedi su Google Ads Transparency",
