@@ -127,6 +127,94 @@ function stripMarkdownFences(text: string): string {
 }
 
 /**
+ * Salvage attempt for truncated LLM JSON. The visual analyzer
+ * (Gemini 2.5 Flash) has been observed cutting off mid-string
+ * deep inside a brandAnalyses entry when it runs past the
+ * max_tokens budget — JSON.parse(...) hard-fails on the half
+ * string, throwing away the entire payload even though the
+ * earlier brand entries were complete.
+ *
+ * Strategy: walk the text from the start, tracking brace
+ * depth and string state. Stop at the position right BEFORE
+ * the parser failure (or just walk to end), then close any
+ * remaining structure: open string → close it; unbalanced
+ * objects/arrays → close in reverse-stack order; trailing
+ * comma → drop. Also drop whatever incomplete value sits
+ * before the trailing structural close (a half-quoted
+ * string field is the typical truncation shape).
+ *
+ * Returns null if the salvage cannot reach a parseable JSON.
+ * The caller should treat that as a hard failure (bubble up
+ * the original parse error to the user).
+ */
+function salvageTruncatedJson(text: string): unknown | null {
+  // Walk and remember the deepest position where everything
+  // was structurally sound (no open string, no half-key).
+  let inString = false;
+  let escape = false;
+  // Stack tracks opening tokens so we can close them in
+  // reverse. "{": object, "[": array, ":": pending value
+  // after a key (we treat as needing a value or comma close).
+  const stack: ("{" | "[")[] = [];
+  // Last index where a comma or struct close was the most
+  // recent meaningful char — this is where it's safe to
+  // trim because we have a complete preceding value.
+  let lastSafe = -1;
+  // Track whether we're inside a key-or-value position; the
+  // simplest invariant is: "after every value, before a
+  // comma or close, we're safe."
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inString) {
+      if (escape) {
+        escape = false;
+      } else if (ch === "\\") {
+        escape = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === "{" || ch === "[") {
+      stack.push(ch);
+      continue;
+    }
+    if (ch === "}" || ch === "]") {
+      stack.pop();
+      lastSafe = i; // a complete close = safe trim point
+      continue;
+    }
+    if (ch === ",") {
+      lastSafe = i - 1; // safe to trim before the comma
+    }
+  }
+  // If we never made it past the first opening, can't salvage.
+  if (lastSafe < 0 || stack.length === 0) return null;
+  // Trim the dangling tail. Walk back over whitespace/quotes
+  // until we hit the safe index.
+  let head = text.slice(0, lastSafe + 1);
+  // Drop trailing comma if any — it would cause a parse fail
+  // when we close the array/object below.
+  head = head.replace(/,\s*$/, "");
+  // Close the remaining open structures in reverse.
+  const closes = stack
+    .slice()
+    .reverse()
+    .map((s) => (s === "{" ? "}" : "]"))
+    .join("");
+  const candidate = head + closes;
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Coerce an AI-returned value into a single string, even if the model
  * occasionally answers a per-brand field with a comparative object
  * keyed by brand name (e.g. `{ "Marina Rinaldi": "...", "Ulla Popken": "..." }`).
@@ -394,6 +482,7 @@ Important:
 - Be specific, reference actual ad examples when possible
 - Include Italian marketing terminology where it adds value
 - emotionalTriggers should be 3-5 specific triggers per brand
+- LENGTH BUDGET: keep each text field under ~600 characters (~100 words). The "comparison" and "recommendations" can be up to ~800 characters each. The total response MUST fit in 6000 tokens; if you start running long, prioritise concise insight over exhaustive description.
 - ${locale === "it" ? "Write ALL descriptions, comparisons, and recommendations in Italian" : "Write all in English"}`;
 
   try {
@@ -411,7 +500,14 @@ Important:
       },
       body: JSON.stringify({
         model: modelsFor(tier).copywriter,
-        max_tokens: 4000,
+        // Bumped from 4000 → 6000 after a Gemini truncation
+        // incident on the visual analyzer (2026-05-04): the
+        // model was emitting verbose descriptions that ran
+        // past the 4000-token cap mid-string, leaving the
+        // JSON unparseable. 6000 leaves headroom even for
+        // 3-brand comparisons; the prompt now also includes
+        // a length budget to keep the model honest.
+        max_tokens: 6000,
         messages: [{ role: "user", content: prompt }],
       }),
       signal: controller.signal,
@@ -445,6 +541,16 @@ Important:
       const parsed = JSON.parse(clean);
       return normalizeCopywriterReport(parsed);
     } catch (parseErr) {
+      // Try to salvage a truncated payload (model hit max_tokens
+      // mid-string). If the prefix has a complete brandAnalyses
+      // array, we can still hand the user something useful.
+      const salvaged = salvageTruncatedJson(clean);
+      if (salvaged) {
+        console.warn(
+          `[analyzeCopy] JSON parse failed but salvage succeeded (model=${modelsFor(tier).copywriter})`,
+        );
+        return normalizeCopywriterReport(salvaged);
+      }
       console.error(
         `[analyzeCopy] JSON parse failed (model=${modelsFor(tier).copywriter}, err=${parseErr instanceof Error ? parseErr.message : "unknown"}): ${clean.slice(0, 500)}`,
       );
@@ -665,6 +771,7 @@ Important:
 - Provide one entry in brandAnalyses for each brand, in the same order as listed above
 - Be specific about colors (use names or approximate hex values), compositions, and styles
 - Reference fashion/luxury advertising benchmarks where relevant
+- LENGTH BUDGET: keep each text field under ~600 characters (~100 words). The "comparison" and "recommendations" can be up to ~800 characters each. The total response MUST fit in 6000 tokens; if you start running long, prioritise concise insight over exhaustive description. A truncated JSON breaks downstream parsing — concise + complete is mandatory.
 - ${locale === "it" ? "Write ALL descriptions, comparisons, and recommendations in Italian" : "Write all in English"}`,
   };
 
@@ -690,7 +797,13 @@ Important:
       },
       body: JSON.stringify({
         model: modelsFor(tier).creativeDirector,
-        max_tokens: 4000,
+        // Bumped from 4000 → 6000. Gemini 2.5 Flash on the
+        // multimodal visual prompt was emitting >4000 tokens
+        // and the JSON tail was being truncated mid-string,
+        // crashing the downstream parser. The prompt now also
+        // carries an explicit length budget so the model
+        // self-paces.
+        max_tokens: 6000,
         messages: [{ role: "user", content }],
       }),
       signal: controller.signal,
@@ -720,6 +833,13 @@ Important:
       const parsed = JSON.parse(clean);
       return normalizeCreativeDirectorReport(parsed);
     } catch (parseErr) {
+      const salvaged = salvageTruncatedJson(clean);
+      if (salvaged) {
+        console.warn(
+          `[analyzeVisuals] JSON parse failed but salvage succeeded (model=${modelsFor(tier).creativeDirector})`,
+        );
+        return normalizeCreativeDirectorReport(salvaged);
+      }
       console.error(
         `[analyzeVisuals] JSON parse failed (model=${modelsFor(tier).creativeDirector}, err=${parseErr instanceof Error ? parseErr.message : "unknown"}): ${clean.slice(0, 500)}`,
       );
