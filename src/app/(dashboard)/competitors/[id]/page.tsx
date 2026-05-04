@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Pencil, Radar } from "lucide-react";
+import { ArrowLeft, ExternalLink, Pencil, Radar } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -282,10 +282,12 @@ export default async function CompetitorDetailPage({
     c.profile_picture_url ??
     heroLatestAd?.page_profile_picture_url ??
     null;
-  const pageLikeCount =
-    typeof heroLatestAd?.page_like_count === "number"
-      ? heroLatestAd.page_like_count
-      : null;
+  // pageLikeCount used to render in the hero metadata row but
+  // was removed alongside the country list (user feedback
+  // 2026-05-04). The single-row JSON projection still pulls
+  // page_like_count from raw_data because future reports may
+  // surface it; the local variable is gone since nothing
+  // consumes it.
 
   const frequency = ((c.monitor_config as { frequency?: string })?.frequency ??
     "manual") as "manual" | "daily" | "weekly";
@@ -349,22 +351,30 @@ export default async function CompetitorDetailPage({
               <p className="eyebrow">{t("competitors", "title")}</p>
               <h1 className="text-3xl font-serif tracking-tight">{c.page_name}</h1>
             </div>
-            <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-xs text-muted-foreground">
-              {c.page_url && (
-                <a
-                  href={c.page_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-gold hover:underline truncate max-w-[280px]"
-                >
-                  {c.page_url.replace(/^https?:\/\/(www\.)?/, "")}
-                </a>
-              )}
-              {pageLikeCount != null && pageLikeCount > 0 && (
-                <span>{formatCompactNumber(pageLikeCount)} {t("competitors", "likes")}</span>
-              )}
-              {c.country && <span>· {c.country}</span>}
-            </div>
+            {/* Brand identity row: website link only.
+                Removed 2026-05-04 from this row:
+                - the country list (AE,BH,SA,KW,QA,OM): that data
+                  drives the SCAN target selection, not the brand
+                  identity, and showing it label-less here was
+                  confusing.
+                - the Facebook page URL: technical config for the
+                  Meta scraper, not a user-facing identifier.
+                - pageLikeCount: ephemeral metric from the most
+                  recent ad row, not a stable brand attribute.
+                The website (google_domain) is the one durable,
+                user-facing identifier — link it with an external-
+                link icon so the user can jump to the source. */}
+            {c.google_domain && (
+              <a
+                href={`https://${c.google_domain}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm text-gold hover:underline group"
+              >
+                <span>{c.google_domain}</span>
+                <ExternalLink className="size-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
+              </a>
+            )}
           </div>
         </div>
 
