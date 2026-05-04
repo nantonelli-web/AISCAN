@@ -7,6 +7,7 @@ import { X, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FieldWithVerifyLink } from "@/components/ui/field-with-verify-link";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import type { MaitCompetitor } from "@/types";
@@ -180,11 +181,13 @@ export function EditCompetitorForm({
               <Label htmlFor="url">
                 {t("newCompetitor", "pageUrlLabel")}
               </Label>
-              <Input
+              <FieldWithVerifyLink
                 id="url"
                 type="url"
                 value={pageUrl ?? ""}
-                onChange={(e) => setPageUrl(e.target.value)}
+                onChange={(v) => setPageUrl(v)}
+                verifyHref={pageUrl?.trim() || null}
+                verifyLabel={t("newCompetitor", "verifyOnSite")}
               />
               <p className="text-[11px] text-muted-foreground leading-snug">
                 {t("newCompetitor", "pageUrlHint")}
@@ -192,20 +195,32 @@ export function EditCompetitorForm({
             </div>
             <div className="space-y-2">
               <Label htmlFor="instagram">{t("newCompetitor", "instagramLabel")}</Label>
-              <Input
+              <FieldWithVerifyLink
                 id="instagram"
                 value={instagramUsername}
-                onChange={(e) => setInstagramUsername(e.target.value)}
+                onChange={(v) => setInstagramUsername(v)}
                 placeholder={t("newCompetitor", "instagramPlaceholder")}
+                verifyHref={
+                  instagramUsername.trim()
+                    ? `https://www.instagram.com/${instagramUsername.replace(/^@/, "").trim()}/`
+                    : null
+                }
+                verifyLabel={t("newCompetitor", "verifyOnSite")}
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="tiktok">{t("newCompetitor", "tiktokLabel")}</Label>
-              <Input
+              <FieldWithVerifyLink
                 id="tiktok"
                 value={tiktokUsername}
-                onChange={(e) => setTiktokUsername(e.target.value)}
+                onChange={(v) => setTiktokUsername(v)}
                 placeholder={t("newCompetitor", "tiktokPlaceholder")}
+                verifyHref={
+                  tiktokUsername.trim()
+                    ? `https://www.tiktok.com/@${tiktokUsername.replace(/^@/, "").trim()}`
+                    : null
+                }
+                verifyLabel={t("newCompetitor", "verifyOnSite")}
               />
             </div>
             <div className="space-y-2">
@@ -227,20 +242,28 @@ export function EditCompetitorForm({
             </div>
             <div className="space-y-2">
               <Label htmlFor="snapchat">{t("newCompetitor", "snapchatLabel")}</Label>
-              <Input
+              <FieldWithVerifyLink
                 id="snapchat"
                 value={snapchatHandle}
-                onChange={(e) => setSnapchatHandle(e.target.value)}
+                onChange={(v) => setSnapchatHandle(v)}
                 placeholder={t("newCompetitor", "snapchatPlaceholder")}
+                verifyHref={
+                  snapchatHandle.trim()
+                    ? `https://www.snapchat.com/add/${snapchatHandle.replace(/^@/, "").trim()}`
+                    : null
+                }
+                verifyLabel={t("newCompetitor", "verifyOnSite")}
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="youtube">{t("newCompetitor", "youtubeLabel")}</Label>
-              <Input
+              <FieldWithVerifyLink
                 id="youtube"
                 value={youtubeChannelUrl}
-                onChange={(e) => setYoutubeChannelUrl(e.target.value)}
+                onChange={(v) => setYoutubeChannelUrl(v)}
                 placeholder={t("newCompetitor", "youtubePlaceholder")}
+                verifyHref={youtubeChannelUrl.trim() || null}
+                verifyLabel={t("newCompetitor", "verifyOnSite")}
               />
             </div>
 
@@ -252,11 +275,17 @@ export function EditCompetitorForm({
               <div className="space-y-3">
                 <div className="space-y-2">
                   <Label htmlFor="googleDomain">{t("newCompetitor", "googleDomainLabel")}</Label>
-                  <Input
+                  <FieldWithVerifyLink
                     id="googleDomain"
                     value={googleDomain}
-                    onChange={(e) => setGoogleDomain(e.target.value)}
+                    onChange={(v) => setGoogleDomain(v)}
                     placeholder={t("newCompetitor", "googleDomainPlaceholder")}
+                    verifyHref={
+                      googleDomain.trim()
+                        ? `https://${googleDomain.replace(/^https?:\/\//i, "").replace(/\/.*$/, "").trim()}`
+                        : null
+                    }
+                    verifyLabel={t("newCompetitor", "verifyOnSite")}
                   />
                 </div>
                 <div className="space-y-2">
