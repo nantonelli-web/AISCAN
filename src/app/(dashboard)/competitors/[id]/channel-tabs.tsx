@@ -12,6 +12,7 @@ import { SnapchatProfileCard } from "@/components/organic/snapchat-profile-card"
 import { YoutubeChannelCard } from "@/components/organic/youtube-channel-card";
 import { YoutubeVideoCard } from "@/components/organic/youtube-video-card";
 import { BrandSerpRankCard } from "@/components/serp/brand-serp-rank-card";
+import { ChannelCoverBand } from "@/components/organic/channel-cover-band";
 import { TagButton } from "@/components/ads/tag-button";
 import { AI_TAGS_ENABLED } from "@/config/features";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
@@ -23,7 +24,7 @@ import { Download, Layers, Loader2, Search as SearchIcon } from "lucide-react";
 import { cn, formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { CountryFilterDropdown } from "./country-filter-dropdown";
-import type { BrandSerpQueryRank } from "./brand-channels-section";
+import type { BrandSerpQueryRank, BrandIdentity } from "./brand-channels-section";
 import type {
   MaitAdExternal,
   MaitOrganicPost,
@@ -57,6 +58,10 @@ interface Props {
    *  row. Drives the SERP-tab visibility gate together with the
    *  channelTotals.serpQueries count. */
   googleDomain: string | null;
+  /** Brand identity used for the per-channel cover bands (avatar,
+   *  name, channel handle). Pre-computed in the parent so this client
+   *  component does not need to issue a brand query. */
+  brand: BrandIdentity;
   ads: MaitAdExternal[];
   organicPosts: MaitOrganicPost[];
   tiktokPosts: MaitTikTokPost[];
@@ -132,6 +137,7 @@ interface Props {
 export function ChannelTabs({
   competitorId,
   googleDomain,
+  brand,
   ads,
   organicPosts,
   tiktokPosts,
@@ -609,6 +615,23 @@ export function ChannelTabs({
           {/* Filtered: single channel */}
           {(channel === "meta" || channel === "google") && visibleAds.length > 0 && (
             <div className="space-y-4">
+              {/* Channel cover band — gradient with the channel's
+                  brand colour + the brand identity overlaid. Same
+                  visual treatment as the YouTube banner so every
+                  channel section opens with a recognisable header. */}
+              <div className="rounded-xl overflow-hidden border border-border">
+                <ChannelCoverBand
+                  channel={channel}
+                  brandName={brand.name}
+                  brandAvatar={brand.avatar}
+                  brandHandle={
+                    channel === "google"
+                      ? brand.googleDomain ?? undefined
+                      : undefined
+                  }
+                  caption={`${(channel === "meta" ? filteredTotals.meta : filteredTotals.google).toLocaleString()} ads`}
+                />
+              </div>
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm text-muted-foreground">
                   {visibleAds.length}
@@ -681,6 +704,20 @@ export function ChannelTabs({
       {/* ─── Instagram section ─── */}
       {showInstagram && (
         <div className="space-y-4">
+          {/* Channel cover band — only on the focused IG view, not on
+              "all" (where the inline channel divider already does the
+              section break). */}
+          {channel === "instagram" && (
+            <div className="rounded-xl overflow-hidden border border-border">
+              <ChannelCoverBand
+                channel="instagram"
+                brandName={brand.name}
+                brandAvatar={brand.avatar}
+                brandHandle={brand.instagramUsername ? `@${brand.instagramUsername}` : undefined}
+                caption={`${channelTotals.instagram.toLocaleString()} ${t("organic", "totalPosts")}`}
+              />
+            </div>
+          )}
           {/* Engagement stats */}
           {organicStats.count > 0 && channel === "instagram" && (
             <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
@@ -766,6 +803,17 @@ export function ChannelTabs({
       {/* ─── TikTok section ─── */}
       {showTiktok && (
         <div className="space-y-4">
+          {channel === "tiktok" && (
+            <div className="rounded-xl overflow-hidden border border-border">
+              <ChannelCoverBand
+                channel="tiktok"
+                brandName={brand.name}
+                brandAvatar={brand.avatar}
+                brandHandle={brand.tiktokUsername ? `@${brand.tiktokUsername}` : undefined}
+                caption={`${channelTotals.tiktok.toLocaleString()} ${t("organic", "totalPosts")}`}
+              />
+            </div>
+          )}
           {tiktokStats.count > 0 && channel === "tiktok" && (
             <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
               <Card>
@@ -1018,6 +1066,14 @@ export function ChannelTabs({
       {/* ─── SERP brand-rank section ──────────────────────── */}
       {showSerp && (
         <div className="space-y-4">
+          <div className="rounded-xl overflow-hidden border border-border">
+            <ChannelCoverBand
+              channel="serp"
+              brandName={brand.name}
+              brandHandle={brand.googleDomain ?? undefined}
+              caption={`${visibleSerpQueries.length} ${visibleSerpQueries.length === 1 ? t("brandSerp", "querySingular") : t("brandSerp", "queryPlural")}`}
+            />
+          </div>
           <div className="flex items-baseline justify-between gap-3">
             <p className="text-sm text-muted-foreground">
               {visibleSerpQueries.length}{" "}

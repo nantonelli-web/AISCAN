@@ -465,6 +465,19 @@ export default async function CompetitorDetailPage({
           tab={tab}
           statusFilter={statusFilter}
           countriesFilter={countriesFilter}
+          // Brand identity overlay used in the per-channel cover
+          // bands: name + best-available avatar + channel-specific
+          // handle. Pre-computed here so the deep child does not
+          // need a separate query.
+          brand={{
+            name: c.page_name,
+            avatar: pageProfilePicture,
+            instagramUsername: c.instagram_username,
+            tiktokUsername: c.tiktok_username,
+            snapchatHandle: c.snapchat_handle,
+            youtubeUrl: c.youtube_channel_url,
+            googleDomain: c.google_domain,
+          }}
         />
       </Suspense>
 

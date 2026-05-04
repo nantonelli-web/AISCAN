@@ -70,6 +70,16 @@ export interface BrandSerpQueryRank {
  * Same query shape as the previous in-line fetch — no behaviour
  * change beyond when it lands.
  */
+export interface BrandIdentity {
+  name: string;
+  avatar: string | null;
+  instagramUsername: string | null;
+  tiktokUsername: string | null;
+  snapchatHandle: string | null;
+  youtubeUrl: string | null;
+  googleDomain: string | null;
+}
+
 export async function BrandChannelsSection({
   competitorId,
   googleDomain,
@@ -79,8 +89,10 @@ export async function BrandChannelsSection({
   tab,
   statusFilter,
   countriesFilter,
+  brand,
 }: {
   competitorId: string;
+  brand: BrandIdentity;
   /** Brand's normalized google_domain (eTLD+1) — drives the SERP rank
    *  match. null when the brand has no Google domain configured; the
    *  SERP tab is hidden in that case. */
@@ -444,6 +456,7 @@ export async function BrandChannelsSection({
     <ChannelTabs
       competitorId={competitorId}
       googleDomain={googleDomain}
+      brand={brand}
       ads={adsList}
       organicPosts={organicList}
       tiktokPosts={tiktokList}

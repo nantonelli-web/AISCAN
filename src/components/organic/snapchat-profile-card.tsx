@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { ChannelCoverBand } from "./channel-cover-band";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import type { MaitSnapchatProfile } from "@/types";
@@ -47,7 +48,15 @@ export function SnapchatProfileCard({ profile }: { profile: MaitSnapchatProfile 
   ];
 
   return (
-    <Card className="channel-rail" data-channel="snapchat">
+    <Card className="channel-rail overflow-hidden" data-channel="snapchat">
+      {/* Channel cover band — yellow Snapchat gradient, parallels
+          the YouTube banner-then-identity pattern the user liked. */}
+      <ChannelCoverBand
+        channel="snapchat"
+        brandName={profile.display_name ?? profile.username}
+        brandHandle={`@${profile.username}`}
+        brandAvatar={profile.profile_picture_url}
+      />
       <CardContent className="p-6 space-y-5">
         {/* Header — avatar + identity + verified */}
         <div className="flex items-start gap-4">
