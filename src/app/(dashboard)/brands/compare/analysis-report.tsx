@@ -234,10 +234,16 @@ export function AnalysisReport({
 
 /**
  * Per-field block. The `highlight` prop turns the field into a
- * tinted callout block — used for strengths (emerald) and
- * weaknesses (amber). Without the tint, both blended into the
- * surrounding paragraphs and the previous emerald-600-on-muted
- * was so low-contrast the user flagged it as unreadable.
+ * left-bordered callout — emerald for strengths, amber for
+ * weaknesses. Earlier iterations used a tinted background with
+ * coloured text, which the user flagged twice as unreadable
+ * (light pastel green on a card bg that turned grey-ish in some
+ * themes, with a similarly-toned label sitting on top). The
+ * current version drops the tinted bg entirely: full-contrast
+ * foreground body text on the card background, with the only
+ * coloured surface being a 4px left border + the icon + the
+ * label. Readable on light AND dark themes without juggling
+ * dark-variant colours.
  */
 function Field({
   icon,
@@ -263,10 +269,8 @@ function Field({
     return (
       <div
         className={cn(
-          "rounded-md border p-3 space-y-1.5",
-          highlight === "positive"
-            ? "border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/50 dark:bg-emerald-950/40"
-            : "border-amber-200 bg-amber-50/60 dark:border-amber-900/50 dark:bg-amber-950/40",
+          "rounded-md border-l-4 pl-3 py-1 space-y-1.5",
+          highlight === "positive" ? "border-emerald-500" : "border-amber-500",
         )}
       >
         <FieldLabel
@@ -274,16 +278,7 @@ function Field({
           label={label}
           tone={highlight === "positive" ? "emerald" : "amber"}
         />
-        <p
-          className={cn(
-            "text-sm leading-relaxed",
-            highlight === "positive"
-              ? "text-emerald-900 dark:text-emerald-100"
-              : "text-amber-900 dark:text-amber-100",
-          )}
-        >
-          {text}
-        </p>
+        <p className="text-sm leading-relaxed text-foreground">{text}</p>
       </div>
     );
   }
@@ -308,8 +303,12 @@ function FieldLabel({
     <p
       className={cn(
         "inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide",
-        tone === "emerald" && "text-emerald-700 dark:text-emerald-400",
-        tone === "amber" && "text-amber-700 dark:text-amber-400",
+        // Tone shades chosen for AAA contrast on the card bg in
+        // light mode AND on the dark variant. emerald-700 / amber-700
+        // sit at ~5.5:1 contrast on white; their dark-mode siblings
+        // (emerald-300 / amber-300) hit ~9:1 on the dark card bg.
+        tone === "emerald" && "text-emerald-700 dark:text-emerald-300",
+        tone === "amber" && "text-amber-700 dark:text-amber-300",
         !tone && "text-foreground",
       )}
     >
