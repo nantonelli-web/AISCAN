@@ -751,8 +751,18 @@ export function CompareView({
     })
       .then(async (res) => {
         if (!res.ok) {
+          // Server returns 502 with `{ error, details, refunded }`
+          // when both analyzers come back null — credits are
+          // refunded server-side and the picker should reappear
+          // with the failure message instead of silently. Append
+          // the upstream detail (e.g. "Copywriter: 401 model not
+          // found") when present so the user can pick the right
+          // tier to retry with.
           const data = await res.json().catch(() => ({}));
-          setAiError(data.error ?? t("creativeAnalysis", "analysisFailed"));
+          const detail = Array.isArray(data.details) && data.details.length > 0
+            ? ` (${data.details.join("; ")})`
+            : "";
+          setAiError((data.error ?? t("creativeAnalysis", "analysisFailed")) + detail);
           return;
         }
         const data = await res.json();

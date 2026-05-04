@@ -420,8 +420,13 @@ Important:
     clearTimeout(timeout);
 
     if (!res.ok) {
+      // Always slurp the body — OpenRouter returns helpful JSON
+      // ({error: {code, message}}) even on 4xx/5xx, and silent
+      // fail with status alone makes diagnosis a pain. Cap the
+      // length to avoid runaway logs on a misbehaving upstream.
+      const errBody = await res.text().catch(() => "<no body>");
       console.error(
-        `Copywriter agent error: ${res.status} ${res.statusText}`
+        `[analyzeCopy] OpenRouter ${res.status} ${res.statusText} (model=${modelsFor(tier).copywriter}): ${errBody.slice(0, 500)}`,
       );
       return null;
     }
@@ -429,15 +434,27 @@ Important:
     const body = await res.json();
     const text = body.choices?.[0]?.message?.content ?? null;
     if (!text) {
-      console.error("Copywriter agent returned no content");
+      console.error(
+        `[analyzeCopy] OpenRouter returned no content (model=${modelsFor(tier).copywriter}): ${JSON.stringify(body).slice(0, 500)}`,
+      );
       return null;
     }
 
     const clean = stripMarkdownFences(text);
-    const parsed = JSON.parse(clean);
-    return normalizeCopywriterReport(parsed);
+    try {
+      const parsed = JSON.parse(clean);
+      return normalizeCopywriterReport(parsed);
+    } catch (parseErr) {
+      console.error(
+        `[analyzeCopy] JSON parse failed (model=${modelsFor(tier).copywriter}, err=${parseErr instanceof Error ? parseErr.message : "unknown"}): ${clean.slice(0, 500)}`,
+      );
+      return null;
+    }
   } catch (e) {
-    console.error("Copywriter agent failed:", e);
+    console.error(
+      `[analyzeCopy] threw (model=${modelsFor(tier).copywriter}):`,
+      e,
+    );
     return null;
   }
 }
@@ -682,9 +699,9 @@ Important:
     clearTimeout(timeout);
 
     if (!res.ok) {
-      const errText = await res.text().catch(() => "");
+      const errText = await res.text().catch(() => "<no body>");
       console.error(
-        `Creative Director agent error: ${res.status} ${res.statusText} — ${errText.slice(0, 500)}`
+        `[analyzeVisuals] OpenRouter ${res.status} ${res.statusText} (model=${modelsFor(tier).creativeDirector}): ${errText.slice(0, 500)}`,
       );
       return null;
     }
@@ -692,15 +709,27 @@ Important:
     const body = await res.json();
     const text = body.choices?.[0]?.message?.content ?? null;
     if (!text) {
-      console.error("Creative Director agent returned no content");
+      console.error(
+        `[analyzeVisuals] OpenRouter returned no content (model=${modelsFor(tier).creativeDirector}): ${JSON.stringify(body).slice(0, 500)}`,
+      );
       return null;
     }
 
     const clean = stripMarkdownFences(text);
-    const parsed = JSON.parse(clean);
-    return normalizeCreativeDirectorReport(parsed);
+    try {
+      const parsed = JSON.parse(clean);
+      return normalizeCreativeDirectorReport(parsed);
+    } catch (parseErr) {
+      console.error(
+        `[analyzeVisuals] JSON parse failed (model=${modelsFor(tier).creativeDirector}, err=${parseErr instanceof Error ? parseErr.message : "unknown"}): ${clean.slice(0, 500)}`,
+      );
+      return null;
+    }
   } catch (e) {
-    console.error("Creative Director agent failed:", e);
+    console.error(
+      `[analyzeVisuals] threw (model=${modelsFor(tier).creativeDirector}):`,
+      e,
+    );
     return null;
   }
 }

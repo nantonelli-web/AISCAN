@@ -1103,12 +1103,19 @@ export async function POST(req: Request) {
     const aiLocale = locale as "it" | "en";
 
     const aiTasks: Promise<void>[] = [];
+    // Capture the throw reasons so we can surface them in the
+    // response when both analyzers fail. Without this the client
+    // saw an empty 200 with copy_analysis = null and silently
+    // re-rendered the picker — the user had no clue WHY their
+    // 3 credits seemed to vanish.
+    const aiErrors: string[] = [];
 
     if (sections.includes("copy")) {
       aiTasks.push(
         analyzeCopy(brands, aiLocale, aiSource, workspaceId, tier)
           .then((result) => {
             payload.copy_analysis = result;
+            if (result == null) aiErrors.push("Copywriter agent returned null");
           })
           .catch((err) => {
             // Never let an analyzer error 500 the whole route — the
@@ -1118,6 +1125,11 @@ export async function POST(req: Request) {
             // can render a clean "analysis failed" state.
             console.error("[api/comparisons] analyzeCopy threw:", err);
             payload.copy_analysis = null;
+            aiErrors.push(
+              err instanceof Error
+                ? `Copywriter: ${err.message}`
+                : "Copywriter threw",
+            );
           }),
       );
     }
@@ -1127,18 +1139,26 @@ export async function POST(req: Request) {
         analyzeVisuals(brands, aiLocale, aiSource, workspaceId, tier)
           .then((result) => {
             payload.visual_analysis = result;
+            if (result == null) aiErrors.push("Creative Director agent returned null");
           })
           .catch((err) => {
             console.error("[api/comparisons] analyzeVisuals threw:", err);
             payload.visual_analysis = null;
+            aiErrors.push(
+              err instanceof Error
+                ? `Creative Director: ${err.message}`
+                : "Creative Director threw",
+            );
           }),
       );
     }
 
     await Promise.all(aiTasks);
 
-    // Total-failure refund: both analyzers requested but both
-    // returned null. The user got nothing, so put the credits back.
+    // Total-failure refund: ALL requested analyzers came back
+    // null. The user got nothing, so put the credits back AND
+    // bubble up a 502 so the client can render a real error
+    // banner instead of the picker silently reappearing.
     const askedCopy = sections.includes("copy");
     const askedVisual = sections.includes("visual");
     const copyFailed = askedCopy && payload.copy_analysis == null;
@@ -1149,6 +1169,16 @@ export async function POST(req: Request) {
       (!askedCopy && askedVisual && visualFailed);
     if (allFailed) {
       await refundCredits(userId, action, `AI Compare refund (${tier})`);
+      return NextResponse.json(
+        {
+          error:
+            "AI analysis failed — credits refunded. Try a different model tier or check OpenRouter availability.",
+          tier,
+          details: aiErrors.length > 0 ? aiErrors : undefined,
+          refunded: true,
+        },
+        { status: 502 },
+      );
     }
   }
 
