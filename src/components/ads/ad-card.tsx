@@ -121,7 +121,36 @@ export function AdCard({
   const ytThumb = ytId
     ? `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg`
     : null;
-  const hasPlayableVideo = isPlayableVideoUrl(ad.video_url);
+  // Meta CDN video URLs (video.fbcdn.net / scontent.fbcdn.net /
+  // *.cdninstagram.com) gate cross-origin <video> reads on the
+  // Referer header — the scrape gives us a URL that is "playable"
+  // structurally but 403s the moment the browser fetches it,
+  // leaving a blank grey area inside the card. Until a Meta
+  // proxy lands (mirroring /api/proxy/tiktok-video), we skip the
+  // VideoPreview branch entirely for those URLs and route through
+  // the VideoUnavailable placeholder via isVideo below — the user
+  // explicitly flagged the grey square as looking broken.
+  const isMetaCdnVideo = !!ad.video_url && /(video\.fbcdn\.net|scontent\.fbcdn\.net|cdninstagram\.com)/i.test(ad.video_url);
+  const hasPlayableVideo = isPlayableVideoUrl(ad.video_url) && !isMetaCdnVideo;
+  // Local error gate — when the <video> element fires onError
+  // (network / decode / CORS) we flip this and the conditional
+  // chain re-renders into the VideoUnavailable branch. Belt-and-
+  // suspenders: even if the URL passes the heuristic above, any
+  // playback failure cleanly degrades to the placeholder.
+  const [videoFailed, setVideoFailed] = useState(false);
+
+  // Snapshot URL is "rendered as image" only when it actually
+  // looks like one. Meta scrapes occasionally store a video
+  // CDN URL (mp4/webm) or an /render_ad/ HTML page in
+  // image_url — both display as blank/grey when fed to <img>.
+  // The user reported these as "the same grey square as before"
+  // because the chain saw a snapshotUrl, rendered <img>, and
+  // never fell through to the VideoUnavailable branch.
+  const snapshotIsRenderable =
+    !!snapshotUrl &&
+    !isSnapshotHtml &&
+    !imgFailed &&
+    !/(video\.fbcdn\.net|\.(mp4|webm|mov|m3u8)(\?|$))/i.test(snapshotUrl);
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col hover:border-gold/40 hover:shadow-md transition-all">
@@ -139,10 +168,11 @@ export function AdCard({
             : "aspect-[4/3] bg-muted relative overflow-hidden block cursor-pointer"
         }
       >
-        {hasPlayableVideo && ad.video_url ? (
+        {hasPlayableVideo && ad.video_url && !videoFailed ? (
           <VideoPreview
             src={ad.video_url}
             poster={snapshotUrl && !isSnapshotHtml ? snapshotUrl : undefined}
+            onError={() => setVideoFailed(true)}
           />
         ) : ytThumb && !imgFailed ? (
           <>
@@ -171,7 +201,7 @@ export function AdCard({
               </div>
             </div>
           </>
-        ) : snapshotUrl && !isSnapshotHtml && !imgFailed ? (
+        ) : snapshotIsRenderable ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={snapshotUrl}

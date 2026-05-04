@@ -20,7 +20,11 @@ import type {
 
 export const dynamic = "force-dynamic";
 
-const PAGE_SIZE = 60;
+// Initial page size restored to 120 (was briefly 60 during the
+// Load More refactor — the user reported the count drop as
+// confusing). 120 matches the historical default; subsequent
+// Load More calls fetch +120 each.
+const PAGE_SIZE = 120;
 
 interface SearchParams {
   q?: string;
