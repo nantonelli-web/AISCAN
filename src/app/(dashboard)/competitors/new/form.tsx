@@ -3,12 +3,13 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { X, Plus } from "lucide-react";
+import { X, Plus, Sparkles, Loader2, Check, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
+import type { DiscoveryResult } from "@/lib/discovery/website-scraper";
 
 import { getCountries } from "@/config/countries";
 
@@ -58,6 +59,97 @@ export function NewCompetitorForm() {
   const [newClientName, setNewClientName] = useState("");
   const [loading, setLoading] = useState(false);
   const [countrySearch, setCountrySearch] = useState("");
+
+  // ── Brand auto-discovery (Strategy A) ────────────────────────
+  // The discovery flow: user types a domain in the dedicated input,
+  // hits "Auto-fill", we hit /api/brand-discovery, then show a
+  // confirmation dialog with every found field pre-checked. Only
+  // the user-confirmed fields get applied to the form, so a wrong-
+  // positive on (e.g.) Snapchat doesn't pollute the saved record.
+  const [discoveryDomain, setDiscoveryDomain] = useState("");
+  const [discoveryRunning, setDiscoveryRunning] = useState(false);
+  const [discovery, setDiscovery] = useState<DiscoveryResult | null>(null);
+  const [discoveryPicked, setDiscoveryPicked] = useState<Record<string, boolean>>({});
+
+  async function runDiscovery() {
+    if (!discoveryDomain.trim()) return;
+    setDiscoveryRunning(true);
+    setDiscovery(null);
+    try {
+      const res = await fetch("/api/brand-discovery", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ domain: discoveryDomain.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error ?? "Discovery failed");
+        return;
+      }
+      const d = json as DiscoveryResult;
+      setDiscovery(d);
+      // Pre-check every field whose confidence ≥ 50 — those are
+      // strong matches the user will almost always accept. Lower-
+      // confidence fields show in the dialog but unchecked, so the
+      // user opts in actively.
+      setDiscoveryPicked({
+        page_name: d.page_name.confidence >= 50,
+        page_url: d.page_url.confidence >= 50,
+        instagram_username: d.instagram_username.confidence >= 50,
+        tiktok_username: d.tiktok_username.confidence >= 50,
+        youtube_channel_url: d.youtube_channel_url.confidence >= 50,
+        snapchat_handle: d.snapchat_handle.confidence >= 50,
+        google_domain: d.google_domain.confidence >= 50,
+        category: d.category.confidence >= 50,
+        country: d.country.confidence >= 50,
+      });
+      if (!d.fetched) {
+        toast.warning(t("newCompetitor", "discoveryNoFetch"));
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Discovery failed");
+    } finally {
+      setDiscoveryRunning(false);
+    }
+  }
+
+  function applyDiscovery() {
+    if (!discovery) return;
+    const d = discovery;
+    if (discoveryPicked.page_name && d.page_name.value) {
+      setPageName(d.page_name.value);
+    }
+    if (discoveryPicked.page_url && d.page_url.value) {
+      setPageUrl(d.page_url.value);
+    }
+    if (discoveryPicked.instagram_username && d.instagram_username.value) {
+      setInstagramUsername(d.instagram_username.value);
+    }
+    if (discoveryPicked.tiktok_username && d.tiktok_username.value) {
+      setTiktokUsername(d.tiktok_username.value);
+    }
+    if (discoveryPicked.youtube_channel_url && d.youtube_channel_url.value) {
+      setYoutubeChannelUrl(d.youtube_channel_url.value);
+    }
+    if (discoveryPicked.snapchat_handle && d.snapchat_handle.value) {
+      setSnapchatHandle(d.snapchat_handle.value);
+    }
+    if (discoveryPicked.google_domain && d.google_domain.value) {
+      setGoogleDomain(d.google_domain.value);
+    }
+    if (discoveryPicked.category && d.category.value) {
+      setCategory(d.category.value);
+    }
+    if (discoveryPicked.country && d.country.value) {
+      setSelectedCountries((prev) => {
+        const next = new Set(prev);
+        next.add(d.country.value!);
+        return [...next];
+      });
+    }
+    setDiscovery(null);
+    toast.success(t("newCompetitor", "discoveryApplied"));
+  }
 
   useEffect(() => {
     fetch("/api/clients")
@@ -140,6 +232,75 @@ export function NewCompetitorForm() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-5">
+      {/* ─── Auto-discovery shortcut ──────────────────────────
+          Sits ABOVE the manual form so the user sees it first.
+          One domain in → all the public fields out, with a
+          confirmation step before applying. */}
+      <div className="rounded-xl border border-gold/40 bg-gold-soft/30 px-4 py-3.5">
+        <div className="flex items-start gap-3">
+          <div className="size-9 rounded-lg bg-gold text-gold-foreground grid place-items-center shrink-0 shadow-sm">
+            <Sparkles className="size-5" />
+          </div>
+          <div className="min-w-0 flex-1 space-y-2">
+            <div>
+              <h3 className="text-sm font-semibold leading-tight">
+                {t("newCompetitor", "discoveryTitle")}
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                {t("newCompetitor", "discoverySubtitle")}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative flex-1 min-w-[220px]">
+                <Globe className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Input
+                  type="text"
+                  value={discoveryDomain}
+                  onChange={(e) => setDiscoveryDomain(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      runDiscovery();
+                    }
+                  }}
+                  placeholder={t("newCompetitor", "discoveryPlaceholder")}
+                  className="pl-9 h-9"
+                  disabled={discoveryRunning}
+                />
+              </div>
+              <Button
+                type="button"
+                onClick={runDiscovery}
+                disabled={discoveryRunning || !discoveryDomain.trim()}
+                size="sm"
+                className="h-9 cursor-pointer gap-1.5"
+              >
+                {discoveryRunning ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Sparkles className="size-4" />
+                )}
+                {discoveryRunning ? t("newCompetitor", "discoveryRunning") : t("newCompetitor", "discoveryRun")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Discovery confirmation dialog */}
+      {discovery && (
+        <DiscoveryConfirmDialog
+          discovery={discovery}
+          picked={discoveryPicked}
+          onTogglePicked={(key) =>
+            setDiscoveryPicked((p) => ({ ...p, [key]: !p[key] }))
+          }
+          onApply={applyDiscovery}
+          onClose={() => setDiscovery(null)}
+          t={t}
+        />
+      )}
+
       <div className="grid gap-5 lg:grid-cols-2">
         {/* Left column */}
         <div className="space-y-4">
@@ -375,5 +536,153 @@ export function NewCompetitorForm() {
           : t("newCompetitor", "createSubmit")}
       </Button>
     </form>
+  );
+}
+
+/* ─── Discovery confirmation dialog ───────────────────────────
+   Modal that lists every field the discovery returned plus a
+   checkbox per row. Checked rows get applied to the form on
+   "Apply"; unchecked stay as the user originally had them.
+   Confidence shown as a small bar so the user can prioritise
+   reviewing the lower-confidence guesses. */
+function DiscoveryConfirmDialog({
+  discovery,
+  picked,
+  onTogglePicked,
+  onApply,
+  onClose,
+  t,
+}: {
+  discovery: DiscoveryResult;
+  picked: Record<string, boolean>;
+  onTogglePicked: (key: string) => void;
+  onApply: () => void;
+  onClose: () => void;
+  t: (s: string, k: string) => string;
+}) {
+  const rows: { key: string; label: string; field: { value: string | null; confidence: number; source: string } }[] = [
+    { key: "page_name", label: t("newCompetitor", "pageNameLabel"), field: discovery.page_name },
+    { key: "category", label: t("newCompetitor", "categoryLabel"), field: discovery.category },
+    { key: "country", label: t("newCompetitor", "countryLabel"), field: discovery.country },
+    { key: "instagram_username", label: t("newCompetitor", "instagramLabel"), field: discovery.instagram_username },
+    { key: "tiktok_username", label: t("newCompetitor", "tiktokLabel"), field: discovery.tiktok_username },
+    { key: "youtube_channel_url", label: t("newCompetitor", "youtubeLabel"), field: discovery.youtube_channel_url },
+    { key: "snapchat_handle", label: t("newCompetitor", "snapchatLabel"), field: discovery.snapchat_handle },
+    { key: "page_url", label: t("newCompetitor", "pageUrlLabel"), field: discovery.page_url },
+    { key: "google_domain", label: t("newCompetitor", "googleDomainLabel"), field: discovery.google_domain },
+  ];
+  const found = rows.filter((r) => r.field.value).length;
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4 print:hidden"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-xl border border-border bg-card shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <Sparkles className="size-4 text-gold" />
+              <h2 className="text-base font-semibold">
+                {t("newCompetitor", "discoveryDialogTitle")}
+              </h2>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {t("newCompetitor", "discoveryDialogSubtitle").replace("{n}", String(found))}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="size-8 rounded-md grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-3 divide-y divide-border">
+          {rows.map((r) => {
+            const isFound = !!r.field.value;
+            const checked = picked[r.key] ?? false;
+            return (
+              <div key={r.key} className="flex items-center gap-3 py-2.5">
+                <button
+                  type="button"
+                  onClick={() => isFound && onTogglePicked(r.key)}
+                  disabled={!isFound}
+                  className={cn(
+                    "size-5 rounded border grid place-items-center shrink-0 transition-colors",
+                    !isFound && "border-border bg-muted/30 cursor-not-allowed",
+                    isFound && checked && "border-gold bg-gold cursor-pointer",
+                    isFound && !checked && "border-border hover:border-gold/40 cursor-pointer",
+                  )}
+                >
+                  {checked && isFound && (
+                    <Check className="size-3 text-gold-foreground" strokeWidth={3} />
+                  )}
+                </button>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      {r.label}
+                    </span>
+                    {isFound && (
+                      <span className="text-[10px] text-muted-foreground/70">
+                        {r.field.source}
+                      </span>
+                    )}
+                  </div>
+                  <p
+                    className={cn(
+                      "text-sm mt-0.5 truncate",
+                      isFound ? "text-foreground" : "text-muted-foreground/60 italic",
+                    )}
+                  >
+                    {r.field.value ?? t("newCompetitor", "discoveryNotFound")}
+                  </p>
+                </div>
+                {isFound && (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="h-1 w-12 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={cn(
+                          "h-full rounded-full",
+                          r.field.confidence >= 70 && "bg-success",
+                          r.field.confidence >= 40 && r.field.confidence < 70 && "bg-warning",
+                          r.field.confidence < 40 && "bg-muted-foreground/40",
+                        )}
+                        style={{ width: `${r.field.confidence}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-muted-foreground tabular-nums w-7 text-right">
+                      {r.field.confidence}%
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3.5 border-t border-border flex items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            {t("newCompetitor", "discoveryDialogHint")}
+          </p>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button type="button" variant="outline" size="sm" onClick={onClose}>
+              {t("newCompetitor", "discoveryDialogCancel")}
+            </Button>
+            <Button type="button" size="sm" onClick={onApply}>
+              {t("newCompetitor", "discoveryDialogApply")}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

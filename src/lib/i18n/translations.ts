@@ -378,6 +378,44 @@ const translations = {
       it: "Necessario solo per scansionare le ads Meta. Lascia vuoto se il brand non è su Facebook.",
       en: "Only required to scan Meta ads. Leave empty if the brand isn't on Facebook.",
     },
+    // ── Brand auto-discovery (Strategy A, free HTML scrape) ──
+    discoveryTitle: {
+      it: "Compilazione automatica dal dominio",
+      en: "Auto-fill from domain",
+    },
+    discoverySubtitle: {
+      it: "Inserisci il sito web del brand: troviamo Instagram, TikTok, YouTube, categoria e paese pubblicati nel sito. Tu confermi prima di salvare.",
+      en: "Enter the brand's website: we find Instagram, TikTok, YouTube, category and country published on the site. You confirm before saving.",
+    },
+    discoveryPlaceholder: {
+      it: "es. fiorellarubino.com",
+      en: "e.g. fiorellarubino.com",
+    },
+    discoveryRun: { it: "Auto-fill", en: "Auto-fill" },
+    discoveryRunning: { it: "Cerco…", en: "Searching…" },
+    discoveryNoFetch: {
+      it: "Sito non raggiungibile (timeout o blocco). Riprova o compila a mano.",
+      en: "Site unreachable (timeout or block). Try again or fill manually.",
+    },
+    discoveryApplied: {
+      it: "Campi applicati. Verifica e completa, poi clicca Crea.",
+      en: "Fields applied. Verify and complete, then click Create.",
+    },
+    discoveryDialogTitle: {
+      it: "Conferma i campi trovati",
+      en: "Confirm discovered fields",
+    },
+    discoveryDialogSubtitle: {
+      it: "{n} campi trovati. Spunta solo quelli corretti — non confermati restano vuoti nel form.",
+      en: "{n} fields found. Check only the correct ones — unchecked stay empty in the form.",
+    },
+    discoveryDialogHint: {
+      it: "Le percentuali indicano la confidenza dell'estrazione.",
+      en: "Percentages show extraction confidence.",
+    },
+    discoveryDialogApply: { it: "Applica selezionati", en: "Apply selected" },
+    discoveryDialogCancel: { it: "Annulla", en: "Cancel" },
+    discoveryNotFound: { it: "(non trovato)", en: "(not found)" },
     snapchatLabel: { it: "Username Snapchat", en: "Snapchat username" },
     snapchatPlaceholder: { it: "es. nike (senza @)", en: "e.g. nike (without @)" },
     youtubeLabel: { it: "Canale YouTube", en: "YouTube channel" },
