@@ -184,10 +184,17 @@ export default async function LibraryPage({
           referrer when same-origin and falls through to /brands
           (the most common origin) otherwise. */}
       <DynamicBackLink fallbackHref="/brands" label={t("library", "backLabel")} />
+      {/* Page header — promoted to a 3xl serif title with a real
+          eyebrow so the section is unmissable. Prior version used
+          text-2xl flush against the filters and the user couldn't
+          tell where the page header ended and the filters began. */}
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-serif tracking-tight">{t("library", "title")}</h1>
-          <p className="text-sm text-muted-foreground">
+        <div className="space-y-1">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+            {t("library", "title").toUpperCase()}
+          </p>
+          <h1 className="text-3xl font-serif tracking-tight">{t("library", "title")}</h1>
+          <p className="text-sm text-muted-foreground max-w-2xl">
             {t("library", "subtitle")}
           </p>
         </div>
@@ -209,8 +216,13 @@ export default async function LibraryPage({
         </Card>
       ) : (
         <>
-          <p className="text-sm text-muted-foreground">
-            {totalResults} {t("library", "resultsMax")}
+          {/* Result count line — promoted from text-sm muted to
+              text-base with the count in font-semibold so the user
+              has a clear "how much did the filter return" anchor
+              between the controls and the grid. */}
+          <p className="text-base text-foreground flex items-baseline gap-2">
+            <span className="font-semibold tabular-nums">{totalResults}</span>
+            <span className="text-muted-foreground">{t("library", "resultsMax")}</span>
           </p>
           {isInstagram ? (
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

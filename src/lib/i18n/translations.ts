@@ -1055,7 +1055,11 @@ const translations = {
     filterBrand: { it: "Brand", en: "Brand" },
     allBrands: { it: "Tutti i brand", en: "All brands" },
     allChannels: { it: "Tutti", en: "All" },
-    moreFilters: { it: "Filtri", en: "Filters" },
+    moreFilters: { it: "Filtri avanzati", en: "Advanced filters" },
+    channelHeading: { it: "Canale", en: "Channel" },
+    refinementsHeading: { it: "Filtri", en: "Filters" },
+    resetFilters: { it: "Reset", en: "Reset" },
+    activeFilters: { it: "Filtri attivi", en: "Active filters" },
   },
 
   // ─── TikTok Ads (paid) ─────────────────────────────────────
@@ -1097,7 +1101,12 @@ const translations = {
       it: "Analisi comparativa basata sulle ads scrappate.",
       en: "Comparative analysis based on scraped ads.",
     },
-    filterByProject: { it: "Progetto:", en: "Project:" },
+    // Card titles for the new filter sections (2026-05-04
+    // redesign — see feedback_ui_hierarchy_guidelines.md).
+    channelHeading: { it: "Canale", en: "Channel" },
+    filtersHeading: { it: "Filtri", en: "Filters" },
+    filterByDate: { it: "Periodo", en: "Date range" },
+    filterByProject: { it: "Progetto", en: "Project" },
     allProjects: { it: "Tutti i progetti", en: "All projects" },
     filterByStatus: { it: "Stato", en: "Status" },
     statusAll: { it: "Tutte", en: "All" },

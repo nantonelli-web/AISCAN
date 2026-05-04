@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { getSessionUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PrintButton } from "@/components/ui/print-button";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { MetaIcon } from "@/components/ui/meta-icon";
@@ -278,155 +278,188 @@ export default async function BenchmarksPage({
 
   const suspenseKey = `${channel}|${activeClient ?? "all"}|${activeCountryCodes.join(",")}|${activeBrandIds.join(",")}|${dateFrom}|${dateTo}|${status ?? "all"}`;
 
+  // Big pill — solid gold for active so it stands out. Used for
+  // every primary filter row (channel, project, status). Replaces
+  // the previous low-contrast bg-gold/15 text-gold style which the
+  // user kept flagging as "non si vede".
   const chipClass = (selected: boolean) =>
     selected
-      ? "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-gold/15 text-gold border border-gold/30 transition-colors"
-      : "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors";
+      ? "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-gold text-gold-foreground border border-gold font-medium transition-colors"
+      : "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-border text-foreground hover:text-foreground hover:bg-muted transition-colors";
+  const sectionLabel =
+    "inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold shrink-0";
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <DynamicBackLink fallbackHref="/dashboard" label={t("common", "backToDashboard")} />
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
-          <p className="eyebrow">{t("benchmarks", "title").toUpperCase()}</p>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+            {t("benchmarks", "title").toUpperCase()}
+          </p>
           <h1 className="text-3xl font-serif tracking-tight">{t("benchmarks", "title")}</h1>
           <p className="text-sm text-muted-foreground max-w-2xl text-pretty">{t("benchmarks", "subtitle")}</p>
         </div>
         <PrintButton label={t("common", "print")} variant="outline" />
       </div>
 
-      {/* ─── Channel pivot ─────────────────────────────────────
-          Channel selector lives in its own tinted card so it reads
-          as the PRIMARY pivot. All other filters (project, country,
-          brand, status, dates) are modifiers and sit underneath. */}
-      <div className="rounded-lg border border-border bg-muted/20 px-4 py-3 print:hidden">
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="eyebrow shrink-0">{t("benchmarks", "paidChannels")}</span>
-            {paidChannels.map((ch) => (
-              <Link key={ch.key} href={hrefForProject(ch.key, activeClient)} className={chipClass(channel === ch.key)}>
-                {ch.icon}
-                {ch.label}
-              </Link>
-            ))}
+      {/* ─── Channel pivot — primary filter ─────────────────
+          Wrapped in a Card with a real title so it reads as the
+          dominant pivot. Paid / Organic / Monitoring stay split
+          but inside one card with vertical dividers between
+          groups. Big solid-gold active pills, generous gap-2. */}
+      <Card className="print:hidden">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">{t("benchmarks", "channelHeading")}</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={sectionLabel}>{t("benchmarks", "paidChannels")}</span>
+              {paidChannels.map((ch) => (
+                <Link key={ch.key} href={hrefForProject(ch.key, activeClient)} className={chipClass(channel === ch.key)}>
+                  {ch.icon}
+                  {ch.label}
+                </Link>
+              ))}
+            </div>
+            <div className="hidden lg:block h-6 w-px bg-border" />
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={sectionLabel}>{t("benchmarks", "organicChannels")}</span>
+              {organicChannels.map((ch) => (
+                <Link key={ch.key} href={hrefForProject(ch.key, activeClient)} className={chipClass(channel === ch.key)}>
+                  {ch.icon}
+                  {ch.label}
+                </Link>
+              ))}
+            </div>
+            <div className="hidden lg:block h-6 w-px bg-border" />
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={sectionLabel}>{t("benchmarks", "monitoringChannels")}</span>
+              {monitoringChannels.map((ch) => (
+                <Link key={ch.key} href={hrefForProject(ch.key, activeClient)} className={chipClass(channel === ch.key)}>
+                  {ch.icon}
+                  {ch.label}
+                </Link>
+              ))}
+            </div>
           </div>
-          <div className="h-5 w-px bg-border" />
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="eyebrow shrink-0">{t("benchmarks", "organicChannels")}</span>
-            {organicChannels.map((ch) => (
-              <Link key={ch.key} href={hrefForProject(ch.key, activeClient)} className={chipClass(channel === ch.key)}>
-                {ch.icon}
-                {ch.label}
-              </Link>
-            ))}
-          </div>
-          <div className="h-5 w-px bg-border" />
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="eyebrow shrink-0">{t("benchmarks", "monitoringChannels")}</span>
-            {monitoringChannels.map((ch) => (
-              <Link key={ch.key} href={hrefForProject(ch.key, activeClient)} className={chipClass(channel === ch.key)}>
-                {ch.icon}
-                {ch.label}
-              </Link>
-            ))}
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
-      {/* Status pills — only on paid channels. Sit on their own
-          subtle row so the user reads them as a refinement of the
-          channel above. Active uses a green dot, inactive grey. */}
+      {/* ─── Status — paid channels only ────────────────────
+          Status is a one-row refinement that only makes sense on
+          paid surfaces; embedded as its own Card so the user
+          reads "stato della creativita'" as distinct from
+          channel and project narrowing. */}
       {(channel === "meta" || channel === "google") && (
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 print:hidden">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="eyebrow">{t("benchmarks", "filterByStatus")}</span>
-            <Link href={hrefForStatus(null)} className={chipClass(status === null)}>
-              {t("benchmarks", "statusAll")}
-            </Link>
-            <Link href={hrefForStatus("active")} className={chipClass(status === "active")}>
-              <span className="size-1.5 rounded-full tone-success bg-current shrink-0" />
-              {t("benchmarks", "statusActive")}
-            </Link>
-            <Link href={hrefForStatus("inactive")} className={chipClass(status === "inactive")}>
-              <span className="size-1.5 rounded-full tone-neutral bg-current shrink-0" />
-              {t("benchmarks", "statusInactive")}
-            </Link>
-          </div>
-        </div>
+        <Card className="print:hidden">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">{t("benchmarks", "filterByStatus")}</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <Link href={hrefForStatus(null)} className={chipClass(status === null)}>
+                {t("benchmarks", "statusAll")}
+              </Link>
+              <Link href={hrefForStatus("active")} className={chipClass(status === "active")}>
+                <span className="size-1.5 rounded-full tone-success bg-current shrink-0" />
+                {t("benchmarks", "statusActive")}
+              </Link>
+              <Link href={hrefForStatus("inactive")} className={chipClass(status === "inactive")}>
+                <span className="size-1.5 rounded-full tone-neutral bg-current shrink-0" />
+                {t("benchmarks", "statusInactive")}
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* ─── Project row ─── */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-3 print:hidden">
-        <span className="text-[10px] uppercase tracking-wider text-foreground font-bold mr-1">
-          {t("benchmarks", "filterByProject")}
-        </span>
-        <Link href={hrefForProject(channel, null)} className={chipClass(activeClient === null)}>
-          {t("benchmarks", "allProjects")}
-        </Link>
-        {clients.map((c) => (
-          <Link key={c.id} href={hrefForProject(channel, c.id)} className={chipClass(activeClient === c.id)}>
-            <span className="size-2.5 rounded-sm" style={{ backgroundColor: c.color }} />
-            {c.name}
-          </Link>
-        ))}
-        {hasUnassigned && (
-          <Link href={hrefForProject(channel, "unassigned")} className={chipClass(activeClient === "unassigned")}>
-            {t("clients", "unassigned")}
-          </Link>
-        )}
-      </div>
+      {/* ─── Project + Country + Brand + Date — refinements ──
+          All grouped under one "Filtri" card with sub-rows.
+          Each sub-row gets its own eyebrow label. The visual
+          weight differential is: card title (text-sm semibold) >
+          sub-row eyebrow (text-[10px] uppercase) > pill content. */}
+      <Card className="print:hidden">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">{t("benchmarks", "filtersHeading")}</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0 space-y-4">
+          {/* Project row */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className={sectionLabel}>{t("benchmarks", "filterByProject")}</span>
+            <Link href={hrefForProject(channel, null)} className={chipClass(activeClient === null)}>
+              {t("benchmarks", "allProjects")}
+            </Link>
+            {clients.map((c) => (
+              <Link key={c.id} href={hrefForProject(channel, c.id)} className={chipClass(activeClient === c.id)}>
+                <span className="size-2.5 rounded-sm" style={{ backgroundColor: c.color }} />
+                {c.name}
+              </Link>
+            ))}
+            {hasUnassigned && (
+              <Link href={hrefForProject(channel, "unassigned")} className={chipClass(activeClient === "unassigned")}>
+                {t("clients", "unassigned")}
+              </Link>
+            )}
+          </div>
 
-      {/* ─── Country + Brand — country drives the brand list ─── */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 print:hidden">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wider text-foreground font-bold">
-            {t("benchmarks", "filterByCountry")}
-          </span>
-          {availableCountries.length > 0 ? (
-            <CountryFilter
-              availableCountries={availableCountries}
-              activeCountryCodes={activeCountryCodes}
-              channel={channel}
-              client={activeClient}
+          <div className="h-px bg-border" />
+
+          {/* Country + Brand row */}
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+            <div className="flex items-center gap-2">
+              <span className={sectionLabel}>{t("benchmarks", "filterByCountry")}</span>
+              {availableCountries.length > 0 ? (
+                <CountryFilter
+                  availableCountries={availableCountries}
+                  activeCountryCodes={activeCountryCodes}
+                  channel={channel}
+                  client={activeClient}
+                  dateFrom={dateFrom}
+                  dateTo={dateTo}
+                  status={status}
+                />
+              ) : (
+                <span className="text-xs text-muted-foreground italic">—</span>
+              )}
+            </div>
+            <div className="hidden md:block h-6 w-px bg-border" />
+            <div className="flex items-center gap-2">
+              <span className={sectionLabel}>{t("benchmarks", "filterByBrand")}</span>
+              <BrandFilter
+                availableBrands={brandsInCountries.map((b) => ({ id: b.id, name: b.page_name }))}
+                activeBrandIds={activeBrandIds}
+                channel={channel}
+                client={activeClient}
+                countries={activeCountryCodes}
+                totalCountries={availableCountries.length}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                status={status}
+              />
+            </div>
+          </div>
+
+          <div className="h-px bg-border" />
+
+          {/* Date range row */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className={sectionLabel}>{t("benchmarks", "filterByDate")}</span>
+            <DateRangeFilter
               dateFrom={dateFrom}
               dateTo={dateTo}
+              channel={channel}
+              client={activeClient}
+              activeBrandIds={activeBrandIds}
+              totalBrands={brandsInCountries.length}
+              countries={activeCountryCodes}
+              totalCountries={availableCountries.length}
               status={status}
             />
-          ) : (
-            <span className="text-xs text-muted-foreground italic">—</span>
-          )}
-        </div>
-        <div className="h-5 w-px bg-border" />
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wider text-foreground font-bold">
-            {t("benchmarks", "filterByBrand")}
-          </span>
-          <BrandFilter
-            availableBrands={brandsInCountries.map((b) => ({ id: b.id, name: b.page_name }))}
-            activeBrandIds={activeBrandIds}
-            channel={channel}
-            client={activeClient}
-            countries={activeCountryCodes}
-            totalCountries={availableCountries.length}
-            dateFrom={dateFrom}
-            dateTo={dateTo}
-            status={status}
-          />
-        </div>
-      </div>
-
-      {/* ─── Date range last before the data ─── */}
-      <DateRangeFilter
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        channel={channel}
-        client={activeClient}
-        activeBrandIds={activeBrandIds}
-        totalBrands={brandsInCountries.length}
-        countries={activeCountryCodes}
-        totalCountries={availableCountries.length}
-        status={status}
-      />
+          </div>
+        </CardContent>
+      </Card>
 
       <Suspense key={suspenseKey} fallback={<ContentSkeleton />}>
         {isBenchmarkImplemented(channel) ? (
