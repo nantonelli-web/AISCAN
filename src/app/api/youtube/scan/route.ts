@@ -15,6 +15,11 @@ export const maxDuration = 300; // seconds
 const schema = z.object({
   competitor_id: z.string().uuid(),
   max_videos: z.number().int().min(1).max(200).optional(),
+  // Date range — YouTube actor doesn't filter server-side, so we
+  // apply the window post-fetch and persist date_from/to on the
+  // job row for consistency with the paid + Instagram chips.
+  date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 export async function POST(req: Request) {
@@ -129,6 +134,8 @@ export async function POST(req: Request) {
       competitor_id: competitor.id,
       status: "running",
       source: "youtube",
+      date_from: parsed.data.date_from ?? null,
+      date_to: parsed.data.date_to ?? null,
     })
     .select("id")
     .single();
@@ -236,10 +243,31 @@ export async function POST(req: Request) {
       `[YouTube route] Scrape done: ${result.videos.length} videos, runId=${result.runId}`,
     );
 
-    if (result.videos.length > 0) {
+    // Apply user-requested date window AFTER fetch (YouTube actor
+    // has no server-side date filter — same approach as TikTok).
+    // Drops videos with `posted_at` outside [date_from, date_to];
+    // videos with no resolvable date are dropped only when a window
+    // is requested (otherwise they pass through).
+    const fromMs = parsed.data.date_from
+      ? Date.parse(`${parsed.data.date_from}T00:00:00Z`)
+      : null;
+    const toMs = parsed.data.date_to
+      ? Date.parse(`${parsed.data.date_to}T23:59:59Z`)
+      : null;
+    const filteredVideos = result.videos.filter((v) => {
+      if (!fromMs && !toMs) return true;
+      if (!v.posted_at) return false;
+      const t = Date.parse(v.posted_at);
+      if (Number.isNaN(t)) return false;
+      if (fromMs && t < fromMs) return false;
+      if (toMs && t > toMs) return false;
+      return true;
+    });
+
+    if (filteredVideos.length > 0) {
       // Persist video thumbnails so the brand grid does not break
       // even if Google rotates the URL (it does, occasionally).
-      const mediaRows = result.videos.map((v) => ({
+      const mediaRows = filteredVideos.map((v) => ({
         ad_archive_id: v.video_id,
         image_url: v.thumbnail_url ?? "",
       }));
@@ -256,7 +284,7 @@ export async function POST(req: Request) {
       const storedUrls = new Map(
         mediaRows.map((m) => [m.ad_archive_id, m.image_url]),
       );
-      const rows = result.videos.map((v) => ({
+      const rows = filteredVideos.map((v) => ({
         ...v,
         thumbnail_url: storedUrls.get(v.video_id) ?? v.thumbnail_url,
         workspace_id: competitor.workspace_id,
@@ -300,7 +328,7 @@ export async function POST(req: Request) {
       .update({
         status: "succeeded",
         completed_at: new Date().toISOString(),
-        records_count: result.videos.length,
+        records_count: filteredVideos.length,
         cost_cu: result.costCu ?? 0,
         apify_run_id: result.runId ?? null,
         key_used: result.credentials?.keyRecordId ?? null,
@@ -313,19 +341,19 @@ export async function POST(req: Request) {
       .update({ last_scraped_at: new Date().toISOString() })
       .eq("id", competitor.id);
 
-    if (result.videos.length > 0) {
+    if (filteredVideos.length > 0) {
       await admin.from("mait_alerts").insert({
         workspace_id: competitor.workspace_id,
         competitor_id: competitor.id,
         type: "new_ads",
-        message: `${result.videos.length} video YouTube sincronizzati per ${competitor.page_name}.`,
+        message: `${filteredVideos.length} video YouTube sincronizzati per ${competitor.page_name}.`,
       });
     }
 
     return NextResponse.json({
       ok: true,
       job_id: job.id,
-      records: result.videos.length,
+      records: filteredVideos.length,
       channel_url: channelUrl,
     });
   } catch (e: unknown) {

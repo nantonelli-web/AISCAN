@@ -347,9 +347,11 @@ export function ScanDropdown({
     }
   }
 
-  // The YouTube actor returns the most recent N videos plus a channel
-  // snapshot — no date filter to forward, so we ignore the date
-  // range inputs above (same as TikTok).
+  // YouTube: actor pulls latest N videos with no server-side
+  // date filter, but we forward date_from/date_to so the route
+  // can apply the window post-fetch and persist it on the job
+  // row (chip in scan history then renders DD/MM → DD/MM, same
+  // as the paid + Instagram scans). User feedback 2026-05-04.
   async function scanYoutube() {
     const controller = new AbortController();
     abortRef.current = controller;
@@ -362,6 +364,8 @@ export function ScanDropdown({
         body: JSON.stringify({
           competitor_id: competitorId,
           max_videos: 30,
+          date_from: effectiveFrom,
+          date_to: effectiveTo,
         }),
         signal: controller.signal,
       });
@@ -423,9 +427,11 @@ export function ScanDropdown({
     }
   }
 
-  // The TikTok actor pulls "most recent N videos" — there is no date
-  // filter to forward, so we ignore dateFrom/dateTo (and the range
-  // validation) for this channel.
+  // TikTok: actor pulls latest N posts with no server-side filter,
+  // but we forward the date range so the route can drop posts
+  // outside [date_from, date_to] before insertion + persist the
+  // window on the job row. Behaviour matches the YouTube scan
+  // and the rest of the channel chips in the scan history.
   async function scanTikTok() {
     const controller = new AbortController();
     abortRef.current = controller;
@@ -438,6 +444,8 @@ export function ScanDropdown({
         body: JSON.stringify({
           competitor_id: competitorId,
           max_posts: 50,
+          date_from: effectiveFrom,
+          date_to: effectiveTo,
         }),
         signal: controller.signal,
       });

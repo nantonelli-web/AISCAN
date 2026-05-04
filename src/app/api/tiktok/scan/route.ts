@@ -15,6 +15,14 @@ export const maxDuration = 300; // seconds
 const schema = z.object({
   competitor_id: z.string().uuid(),
   max_posts: z.number().int().min(1).max(200).optional(),
+  // Date range — actor doesn't expose a server-side filter, so
+  // we apply it post-fetch (drop posts whose `posted_at` falls
+  // outside [date_from, date_to]). Persisted on the job row so
+  // the brand-detail history shows the same DD/MM → DD/MM chip
+  // as Meta / Google / Instagram (user feedback 2026-05-04 —
+  // wanted consistent scope display across channels).
+  date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 export async function POST(req: Request) {
@@ -124,9 +132,10 @@ export async function POST(req: Request) {
     );
   }
 
-  // Create job row (same pattern as Meta/Google/Instagram). Date range
-  // is recorded as null because the TikTok actor pulls the most recent
-  // N posts without a date filter — the scan window is implicit.
+  // Create job row. Date range is persisted when supplied so the
+  // history chip can render DD/MM → DD/MM (same as the paid +
+  // Instagram scans). Records get filtered by posted_at below
+  // before persistence.
   const { data: job, error: jobErr } = await admin
     .from("mait_scrape_jobs")
     .insert({
@@ -134,6 +143,8 @@ export async function POST(req: Request) {
       competitor_id: competitor.id,
       status: "running",
       source: "tiktok",
+      date_from: parsed.data.date_from ?? null,
+      date_to: parsed.data.date_to ?? null,
     })
     .select("id")
     .single();
@@ -219,11 +230,32 @@ export async function POST(req: Request) {
       `[TikTok route] Scrape done: ${result.records.length} records, runId=${result.runId}`,
     );
 
-    if (result.records.length > 0) {
+    // Apply user-requested date window AFTER the actor returns —
+    // the TikTok scraper has no server-side filter, so we drop
+    // posts whose `posted_at` falls outside the range here. This
+    // keeps the persisted dataset honest with the chip displayed
+    // in the brand-detail scan history.
+    const fromMs = parsed.data.date_from
+      ? Date.parse(`${parsed.data.date_from}T00:00:00Z`)
+      : null;
+    const toMs = parsed.data.date_to
+      ? Date.parse(`${parsed.data.date_to}T23:59:59Z`)
+      : null;
+    const filtered = result.records.filter((r) => {
+      if (!fromMs && !toMs) return true;
+      if (!r.posted_at) return false; // drop undated posts when a window is requested
+      const t = Date.parse(r.posted_at);
+      if (Number.isNaN(t)) return false;
+      if (fromMs && t < fromMs) return false;
+      if (toMs && t > toMs) return false;
+      return true;
+    });
+
+    if (filtered.length > 0) {
       // Persist cover thumbnails to permanent storage. TikTok cover
       // URLs sit on tiktokcdn.com / .net with short signed TTLs, just
       // like fbcdn — without this the brand grid breaks within a day.
-      const mediaRows = result.records.map((r) => ({
+      const mediaRows = filtered.map((r) => ({
         ad_archive_id: r.post_id,
         image_url: r.cover_url,
       }));
@@ -241,7 +273,7 @@ export async function POST(req: Request) {
       const storedUrls = new Map(
         mediaRows.map((m) => [m.ad_archive_id, m.image_url]),
       );
-      const rows = result.records.map((r) => ({
+      const rows = filtered.map((r) => ({
         ...r,
         cover_url: storedUrls.get(r.post_id) ?? r.cover_url,
         workspace_id: competitor.workspace_id,
@@ -282,13 +314,16 @@ export async function POST(req: Request) {
       }
     }
 
-    // Update job as succeeded
+    // Update job as succeeded. records_count is the POST-filter
+    // count so the brand-detail history reflects what was actually
+    // persisted (not the raw actor return, which can be larger
+    // when the user picked a narrow window).
     await admin
       .from("mait_scrape_jobs")
       .update({
         status: "succeeded",
         completed_at: new Date().toISOString(),
-        records_count: result.records.length,
+        records_count: filtered.length,
         cost_cu: result.costCu ?? 0,
         apify_run_id: result.runId ?? null,
         key_used: result.credentials?.keyRecordId ?? null,
@@ -301,19 +336,19 @@ export async function POST(req: Request) {
       .update({ last_scraped_at: new Date().toISOString() })
       .eq("id", competitor.id);
 
-    if (result.records.length > 0) {
+    if (filtered.length > 0) {
       await admin.from("mait_alerts").insert({
         workspace_id: competitor.workspace_id,
         competitor_id: competitor.id,
         type: "new_ads",
-        message: `${result.records.length} post TikTok sincronizzati per ${competitor.page_name}.`,
+        message: `${filtered.length} post TikTok sincronizzati per ${competitor.page_name}.`,
       });
     }
 
     return NextResponse.json({
       ok: true,
       job_id: job.id,
-      records: result.records.length,
+      records: filtered.length,
       username: ttUsername,
     });
   } catch (e: unknown) {
