@@ -316,11 +316,17 @@ function BrandCard({
             is the durable user-facing identifier. */}
         <div className="flex items-center gap-2 flex-wrap">
           {c.google_domain && (
+            // pointer-events-auto + relative z above the absolute
+            // Link overlay so clicks open the brand website in a
+            // new tab instead of bubbling up to the wrapper Link
+            // (which would route to the brand detail). Server-
+            // component-safe — no onClick handler needed since
+            // the absolute Link sits BEHIND this element thanks
+            // to pointer-events-none on the CardContent.
             <a
               href={`https://${c.google_domain}`}
               target="_blank"
               rel="noreferrer"
-              onClick={(e) => e.stopPropagation()}
               className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-gold transition-colors pointer-events-auto truncate max-w-[180px]"
               title={c.google_domain}
             >
