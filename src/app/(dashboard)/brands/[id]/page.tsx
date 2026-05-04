@@ -93,7 +93,7 @@ export default async function CompetitorDetailPage({
     supabase
       .from("mait_competitors")
       .select(
-        "id, workspace_id, page_name, page_id, page_url, country, category, monitor_config, profile_picture_url, instagram_username, tiktok_username, tiktok_advertiser_id, snapchat_handle, snapchat_profile, youtube_channel_url, youtube_profile, google_advertiser_id, google_domain"
+        "id, workspace_id, page_name, page_id, page_url, country, category, monitor_config, profile_picture_url, instagram_username, tiktok_username, tiktok_advertiser_id, snapchat_handle, snapchat_profile, youtube_channel_url, youtube_profile, google_advertiser_id, google_domain, last_scraped_at"
       )
       .eq("id", id)
       .single(),
@@ -415,11 +415,36 @@ export default async function CompetitorDetailPage({
           value={`${channelsWithData} / ${channelCoverage.length}`}
           tone={channelsWithData >= 4 ? "success" : channelsWithData >= 2 ? "warning" : "neutral"}
         />
-        <MiniKpi
-          label={t("brandHero", "kpiLastScan")}
-          value={c.last_scraped_at ? formatRelativeShort(c.last_scraped_at) : "—"}
-          tone={c.last_scraped_at && Date.now() - new Date(c.last_scraped_at).getTime() < 14 * 86_400_000 ? "success" : "neutral"}
-        />
+        {(() => {
+          // Source of truth: take the more recent of
+          //   • mait_competitors.last_scraped_at (set by most scan
+          //     endpoints; some forget — TikTok / TikTok Ads / SERP
+          //     historically didn't write it back), and
+          //   • the most recent succeeded mait_scrape_jobs.started_at
+          //     for this competitor.
+          // The fallback prevents the previously-rendered "—" on
+          // brands that DID get scanned (e.g. House of Yamina) but
+          // whose scan endpoint skipped the last_scraped_at update.
+          const latestJobAt = jobsList.find((j) => j.status === "succeeded")?.started_at ?? null;
+          const colAt = c.last_scraped_at ?? null;
+          const lastScan =
+            colAt && latestJobAt
+              ? new Date(colAt) > new Date(latestJobAt)
+                ? colAt
+                : latestJobAt
+              : (colAt ?? latestJobAt);
+          return (
+            <MiniKpi
+              label={t("brandHero", "kpiLastScan")}
+              value={lastScan ? formatRelativeShort(lastScan) : "—"}
+              tone={
+                lastScan && Date.now() - new Date(lastScan).getTime() < 14 * 86_400_000
+                  ? "success"
+                  : "neutral"
+              }
+            />
+          );
+        })()}
       </div>
 
       {/* ─── Scan action — full width.
