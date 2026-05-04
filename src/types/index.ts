@@ -107,6 +107,15 @@ export interface MaitScrapeJob {
   records_count: number;
   cost_cu: number;
   error: string | null;
+  /** Channel that ran this scan: meta / google / instagram /
+   *  tiktok / tiktok_ads / tiktok_cc / snapchat / youtube /
+   *  serp / maps. NULL for legacy rows from before migration
+   *  0027 — UI shows them without a channel chip. */
+  source: string | null;
+  /** User-requested scan window. NULL for full-archive scans
+   *  (cron + manual scan without an explicit range). */
+  date_from: string | null;
+  date_to: string | null;
 }
 
 export interface MaitOrganicPost {

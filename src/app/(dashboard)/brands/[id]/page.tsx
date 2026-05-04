@@ -100,7 +100,7 @@ export default async function CompetitorDetailPage({
     supabase
       .from("mait_scrape_jobs")
       .select(
-        "id, workspace_id, competitor_id, apify_run_id, status, started_at, completed_at, records_count, cost_cu, error"
+        "id, workspace_id, competitor_id, apify_run_id, status, started_at, completed_at, records_count, cost_cu, error, source, date_from, date_to"
       )
       .eq("competitor_id", id)
       .order("started_at", { ascending: false })

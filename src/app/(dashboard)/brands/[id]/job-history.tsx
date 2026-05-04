@@ -57,6 +57,43 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
     return `${Math.round(diffH / 24)}${t("relativeTime", "daysAgo")}`;
   }
 
+  // Map the `source` column value (set by each scan API) to a
+  // human-readable channel label. Sources that don't match any
+  // known canal (legacy rows, future ones we forgot to update
+  // here) fall through and just render the raw token.
+  function channelLabel(source: string | null): string | null {
+    if (!source) return null;
+    const map: Record<string, string> = {
+      meta: "Meta",
+      google: "Google",
+      instagram: "Instagram",
+      tiktok: "TikTok",
+      tiktok_ads: "TikTok Ads",
+      tiktok_cc: "TikTok CC",
+      snapchat: "Snapchat",
+      youtube: "YouTube",
+      serp: "SERP",
+      maps: "Maps",
+    };
+    return map[source] ?? source;
+  }
+
+  // Compact ISO range for the chip \u2014 "DD/MM \u2192 DD/MM" if same year,
+  // "DD/MM/YY \u2192 DD/MM/YY" otherwise. Returns null when the scan was
+  // a full-archive run (date_from / date_to NULL on legacy rows or
+  // cron-triggered scans).
+  function formatRange(from: string | null, to: string | null): string | null {
+    if (!from || !to) return null;
+    const f = new Date(from);
+    const tt = new Date(to);
+    if (Number.isNaN(f.getTime()) || Number.isNaN(tt.getTime())) return null;
+    const sameYear = f.getFullYear() === tt.getFullYear();
+    const dd = (n: number) => n.toString().padStart(2, "0");
+    const fStr = `${dd(f.getDate())}/${dd(f.getMonth() + 1)}${sameYear ? "" : `/${String(f.getFullYear()).slice(-2)}`}`;
+    const tStr = `${dd(tt.getDate())}/${dd(tt.getMonth() + 1)}/${String(tt.getFullYear()).slice(-2)}`;
+    return `${fStr} \u2192 ${tStr}`;
+  }
+
   const allSelected = selected.size === jobs.length && jobs.length > 0;
   const someSelected = selected.size > 0 && !allSelected;
   const totalAdsSelected = jobs
@@ -233,7 +270,7 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0 flex-wrap">
                     <button
                       onClick={() => toggleOne(j.id)}
                       className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
@@ -248,6 +285,20 @@ export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {
                       {cfg.icon}
                       {j.status}
                     </Badge>
+                    {/* Channel chip (NULL on legacy rows from before
+                        migration 0027 — we just hide the chip then). */}
+                    {channelLabel(j.source) && (
+                      <span className="inline-flex items-center rounded-md bg-gold/10 text-gold border border-gold/30 px-2 py-0.5 text-[11px] font-medium">
+                        {channelLabel(j.source)}
+                      </span>
+                    )}
+                    {/* Window chip — only when the scan was windowed
+                        (full-archive runs leave date_from/to NULL). */}
+                    {formatRange(j.date_from, j.date_to) && (
+                      <span className="inline-flex items-center rounded-md bg-muted text-muted-foreground border border-border px-2 py-0.5 text-[11px] tabular-nums">
+                        {formatRange(j.date_from, j.date_to)}
+                      </span>
+                    )}
                     <span className="text-muted-foreground">
                       {formatRelative(j.started_at)}
                     </span>
