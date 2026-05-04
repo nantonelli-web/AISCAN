@@ -15,8 +15,10 @@
  *   - snapchat         handle from snapchat.com/add/<handle>
  *   - google_domain    derived directly from the input (eTLD+1)
  *   - category         heuristic from JSON-LD @type / og:type / meta keywords
- *   - country          best-effort from JSON-LD address.addressCountry,
- *                      content-language meta, lang attribute
+ *
+ * Country is NOT extracted — the user picks the scan target market
+ * explicitly per brand (often differs from where the company is
+ * legally based). Removed 2026-05-04 on user feedback.
  *
  * Each field comes back with a confidence score (0-100) so the UI
  * can pre-check high-confidence fields and let the user verify the
@@ -42,7 +44,6 @@ export interface DiscoveryResult {
   snapchat_handle: DiscoveryField;
   google_domain: DiscoveryField;
   category: DiscoveryField;
-  country: DiscoveryField;
   /** Logo / favicon best-effort. Used as profile_picture_url initial
    *  value so the brand card doesn't render a generic placeholder
    *  before the first scan. */
@@ -346,62 +347,6 @@ function extractCategory(
   return { value: null, confidence: 0, source: "—" };
 }
 
-function extractCountry(
-  jsonLd: unknown[],
-  meta: Map<string, string>,
-  html: string,
-): { value: string | null; confidence: number; source: string } {
-  // Best signal: JSON-LD addressCountry on Organization / LocalBusiness.
-  for (const block of jsonLd) {
-    if (!block || typeof block !== "object") continue;
-    const addr = (block as { address?: unknown }).address;
-    if (addr && typeof addr === "object") {
-      const ac = (addr as { addressCountry?: unknown }).addressCountry;
-      if (typeof ac === "string" && ac.trim()) {
-        return { value: ac.trim().toUpperCase().slice(0, 2), confidence: 80, source: "JSON-LD address" };
-      }
-      if (ac && typeof ac === "object") {
-        const name = (ac as { name?: unknown }).name;
-        if (typeof name === "string" && name.trim()) {
-          return { value: name.trim().slice(0, 2).toUpperCase(), confidence: 70, source: "JSON-LD address.country.name" };
-        }
-      }
-    }
-  }
-  // Next: content-language meta header.
-  const lang = meta.get("content-language") ?? meta.get("language");
-  if (lang) {
-    // Normalize "it-IT" → "IT", "fr_FR" → "FR".
-    const m = lang.match(/[-_]([A-Za-z]{2})$/);
-    if (m) return { value: m[1].toUpperCase(), confidence: 50, source: "meta content-language" };
-    if (/^[a-z]{2}$/i.test(lang)) {
-      // Bare "it" — language, not country, but a decent prior for
-      // the brand's primary market. Lower confidence so the user
-      // sees it as a guess.
-      const langToCountry: Record<string, string> = {
-        it: "IT",
-        en: "GB",
-        fr: "FR",
-        es: "ES",
-        de: "DE",
-        pt: "PT",
-        nl: "NL",
-        ja: "JP",
-        ar: "SA",
-      };
-      const guess = langToCountry[lang.toLowerCase()];
-      if (guess) return { value: guess, confidence: 35, source: "language-derived" };
-    }
-  }
-  // Last: <html lang="...">.
-  const htmlLangMatch = html.match(/<html[^>]+lang\s*=\s*["']([^"']+)["']/i);
-  if (htmlLangMatch) {
-    const m = htmlLangMatch[1].match(/[-_]([A-Za-z]{2})$/);
-    if (m) return { value: m[1].toUpperCase(), confidence: 50, source: "html lang attribute" };
-  }
-  return { value: null, confidence: 0, source: "—" };
-}
-
 function extractPageName(
   meta: Map<string, string>,
   jsonLd: unknown[],
@@ -491,7 +436,6 @@ export async function discoverBrandFromDomain(
       ? { value: bareDomain, confidence: 100, source: "input domain" }
       : empty(),
     category: empty(),
-    country: empty(),
     profile_picture_url: empty(),
     fetched: false,
   };
@@ -515,7 +459,6 @@ export async function discoverBrandFromDomain(
   result.youtube_channel_url = extractYoutubeChannelUrl(hrefs);
   result.snapchat_handle = extractSnapchatHandle(hrefs);
   result.category = extractCategory(jsonLd, meta);
-  result.country = extractCountry(jsonLd, meta, html);
   result.profile_picture_url = extractFavicon(html, fetchable.origin, meta);
 
   return result;

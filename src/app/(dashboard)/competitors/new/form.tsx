@@ -101,7 +101,6 @@ export function NewCompetitorForm() {
         snapchat_handle: d.snapchat_handle.confidence >= 50,
         google_domain: d.google_domain.confidence >= 50,
         category: d.category.confidence >= 50,
-        country: d.country.confidence >= 50,
       });
       if (!d.fetched) {
         toast.warning(t("newCompetitor", "discoveryNoFetch"));
@@ -139,13 +138,6 @@ export function NewCompetitorForm() {
     }
     if (discoveryPicked.category && d.category.value) {
       setCategory(d.category.value);
-    }
-    if (discoveryPicked.country && d.country.value) {
-      setSelectedCountries((prev) => {
-        const next = new Set(prev);
-        next.add(d.country.value!);
-        return [...next];
-      });
     }
     setDiscovery(null);
     toast.success(t("newCompetitor", "discoveryApplied"));
@@ -563,7 +555,6 @@ function DiscoveryConfirmDialog({
   const rows: { key: string; label: string; field: { value: string | null; confidence: number; source: string } }[] = [
     { key: "page_name", label: t("newCompetitor", "pageNameLabel"), field: discovery.page_name },
     { key: "category", label: t("newCompetitor", "categoryLabel"), field: discovery.category },
-    { key: "country", label: t("newCompetitor", "countryLabel"), field: discovery.country },
     { key: "instagram_username", label: t("newCompetitor", "instagramLabel"), field: discovery.instagram_username },
     { key: "tiktok_username", label: t("newCompetitor", "tiktokLabel"), field: discovery.tiktok_username },
     { key: "youtube_channel_url", label: t("newCompetitor", "youtubeLabel"), field: discovery.youtube_channel_url },
