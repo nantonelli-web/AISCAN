@@ -18,14 +18,21 @@ export function facetsTag(workspaceId: string) {
 
 async function fetchCompetitorsImpl(
   workspaceId: string
-): Promise<{ id: string; page_name: string }[]> {
+): Promise<{ id: string; page_name: string; client_id: string | null }[]> {
+  // client_id is included so the LibraryFilters component can
+  // resolve the project → brands relationship and offer the
+  // "filter by project" dropdown without a second round-trip.
   const admin = createAdminClient();
   const { data } = await admin
     .from("mait_competitors")
-    .select("id, page_name")
+    .select("id, page_name, client_id")
     .eq("workspace_id", workspaceId)
     .order("page_name");
-  return (data ?? []) as { id: string; page_name: string }[];
+  return (data ?? []) as {
+    id: string;
+    page_name: string;
+    client_id: string | null;
+  }[];
 }
 
 async function fetchFacetsImpl(workspaceId: string): Promise<Facets> {

@@ -6,6 +6,7 @@ import { ExternalLink, Eye, Sparkles, Play, ImageIcon, LayoutGrid, Bot, Type, Sh
 import { Badge } from "@/components/ui/badge";
 import { SaveToCollection } from "@/components/ads/save-to-collection";
 import { VideoPreview } from "@/components/ads/video-preview";
+import { VideoUnavailable } from "@/components/ui/video-unavailable";
 import { formatDate, isPlayableVideoUrl, youtubeIdFromUrl } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { AI_TAGS_ENABLED } from "@/config/features";
@@ -215,19 +216,35 @@ export function AdCard({
               </a>
             )}
           </div>
+        ) : isGoogle && formatLabel === "VIDEO" ? (
+          // Google VIDEO ad with neither a playable URL nor a
+          // poster image. Use the dedicated "video not delivered"
+          // placeholder (crossed-out play + explanation) instead
+          // of the generic icon-only box that the user flagged
+          // as looking like a UI malfunction.
+          <>
+            <VideoUnavailable />
+            {adLibraryUrl && (
+              <a
+                href={adLibraryUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="absolute bottom-2 right-2 inline-flex items-center gap-1 text-[10px] text-gold bg-background/90 backdrop-blur-sm rounded px-1.5 py-0.5 hover:bg-background"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Eye className="size-3" /> {t("adCard", "viewOnGoogle")}
+              </a>
+            )}
+          </>
         ) : isGoogle ? (
-          // Google ad without direct image AND without structured
-          // copy — centered placeholder explaining the format and
-          // pointing to Google Ads Transparency. Hide the advertiser
-          // name when the card is rendered inside the brand detail
-          // page (`competitorId` prop set by channel-tabs but NOT by
-          // Library / Collections / Dashboard where ads from many
-          // advertisers mix and attribution matters).
+          // Google IMAGE/TEXT ad without preview — keep the
+          // existing iconographic placeholder. Only VIDEO gets
+          // the dedicated unavailable block above; image/text
+          // missing previews legitimately read as "this format
+          // doesn't have a visual" rather than a delivery gap.
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted/50 p-4">
             <div className="size-10 rounded-full bg-muted grid place-items-center">
-              {formatLabel === "VIDEO" ? (
-                <Play className="size-5 text-muted-foreground" />
-              ) : formatLabel === "TEXT" ? (
+              {formatLabel === "TEXT" ? (
                 <Type className="size-5 text-muted-foreground" />
               ) : (
                 <ImageIcon className="size-5 text-muted-foreground" />

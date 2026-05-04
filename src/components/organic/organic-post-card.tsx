@@ -6,6 +6,7 @@ import { formatDate, formatNumber, isPlayableVideoUrl } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { AI_TAGS_ENABLED } from "@/config/features";
 import { VideoPreview } from "@/components/ads/video-preview";
+import { VideoUnavailable } from "@/components/ui/video-unavailable";
 import type { MaitOrganicPost } from "@/types";
 
 export function OrganicPostCard({ post }: { post: MaitOrganicPost }) {
@@ -41,6 +42,11 @@ export function OrganicPostCard({ post }: { post: MaitOrganicPost }) {
             className="absolute inset-0 w-full h-full object-cover"
             loading="lazy"
           />
+        ) : isVideo ? (
+          // Video / Reel with neither playable URL nor cover —
+          // explicit placeholder so the user knows the missing
+          // preview is a source-side issue, not a UI bug.
+          <VideoUnavailable />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
             <ImageIcon className="size-10" />

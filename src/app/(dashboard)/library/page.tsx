@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { AdCard } from "@/components/ads/ad-card";
 import { OrganicPostCard } from "@/components/organic/organic-post-card";
 import { TikTokPostCard } from "@/components/organic/tiktok-post-card";
@@ -17,6 +18,7 @@ import type {
   MaitTikTokPost,
   MaitSnapchatProfile,
   MaitYoutubeVideo,
+  MaitClient,
 } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +31,7 @@ interface SearchParams {
   format?: string;
   channel?: string;
   brand?: string;
+  client?: string;
 }
 
 export default async function LibraryPage({
@@ -48,12 +51,64 @@ export default async function LibraryPage({
   const isYoutube = sp.channel === "youtube";
   const isOrganic = isInstagram || isTiktok || isSnapchat || isYoutube;
   const workspaceId = profile.workspace_id!;
+  const admin = createAdminClient();
+  // Clients (projects) are needed both for the filter dropdown
+  // and for resolving the project → brand list when the user
+  // narrows by project. Loaded in parallel with everything else.
+  const clientsPromise = admin
+    .from("mait_clients")
+    .select("id, name, color, workspace_id")
+    .eq("workspace_id", workspaceId)
+    .order("name");
+
+  // Fetch competitors + clients first (both are small and cached
+  // when possible) so the project → brand resolution can run
+  // before the content query is built. This adds at most one
+  // round-trip vs the previous parallel layout but lets the
+  // ads query bake in the project filter as a server-side
+  // `.in("competitor_id", projectBrandIds)` instead of a JS
+  // post-filter that would have to fetch a wider page first.
+  const [competitors, { data: clientsData }] = await Promise.all([
+    getCompetitors(workspaceId),
+    clientsPromise,
+  ]);
+
+  const clients = (clientsData ?? []) as MaitClient[];
+  // Project (client) filter resolution. When sp.client is set,
+  // resolve to the array of competitor_ids belonging to that
+  // project. "unassigned" is a sentinel for brands without a
+  // client_id. When NO brands match the project (empty workspace
+  // for that client), we still emit the filter so the query
+  // returns 0 rows — better than silently widening to all brands.
+  const projectBrandIds: string[] | null = sp.client
+    ? competitors
+        .filter((c) =>
+          sp.client === "unassigned"
+            ? c.client_id === null
+            : c.client_id === sp.client,
+        )
+        .map((c) => c.id)
+    : null;
 
   // Build the main content query. Branches by channel because each
   // organic surface lives in its own table; ads live in
   // mait_ads_external (split by source). The "Monitoring → channel"
   // entry path lands here with sp.channel set, so every channel
   // must have a workspace-level branch.
+  const applyProject = <T extends { in: (col: string, vals: string[]) => T; eq: (col: string, val: string) => T }>(q: T): T => {
+    // Brand-level filter takes precedence — when the user has
+    // picked a single brand, the project filter is implied.
+    if (sp.brand) return q.eq("competitor_id", sp.brand);
+    if (projectBrandIds) {
+      // Empty array → return query that matches nothing; using
+      // .in() with [] is illegal in PostgREST so we substitute
+      // a sentinel UUID that can't exist.
+      const ids = projectBrandIds.length > 0 ? projectBrandIds : ["00000000-0000-0000-0000-000000000000"];
+      return q.in("competitor_id", ids);
+    }
+    return q;
+  };
+
   const buildContentQuery = () => {
     if (isInstagram) {
       let igQuery = supabase
@@ -62,7 +117,7 @@ export default async function LibraryPage({
         .eq("workspace_id", workspaceId)
         .order("posted_at", { ascending: false })
         .limit(120);
-      if (sp.brand) igQuery = igQuery.eq("competitor_id", sp.brand);
+      igQuery = applyProject(igQuery);
       if (sp.q && sp.q.trim().length > 0) {
         igQuery = igQuery.ilike("caption", `%${sp.q.trim()}%`);
       }
@@ -76,7 +131,7 @@ export default async function LibraryPage({
         .eq("workspace_id", workspaceId)
         .order("posted_at", { ascending: false, nullsFirst: false })
         .limit(120);
-      if (sp.brand) ttQuery = ttQuery.eq("competitor_id", sp.brand);
+      ttQuery = applyProject(ttQuery);
       if (sp.q && sp.q.trim().length > 0) {
         ttQuery = ttQuery.ilike("caption", `%${sp.q.trim()}%`);
       }
@@ -84,16 +139,13 @@ export default async function LibraryPage({
     }
 
     if (isSnapchat) {
-      // Snapshot history: every scan creates a row. For workspace
-      // monitoring we list every snapshot ordered by scraped_at —
-      // user filters by brand to focus on a single profile.
       let scQuery = supabase
         .from("mait_snapchat_profiles")
         .select("*")
         .eq("workspace_id", workspaceId)
         .order("scraped_at", { ascending: false })
         .limit(60);
-      if (sp.brand) scQuery = scQuery.eq("competitor_id", sp.brand);
+      scQuery = applyProject(scQuery);
       return scQuery;
     }
 
@@ -104,7 +156,7 @@ export default async function LibraryPage({
         .eq("workspace_id", workspaceId)
         .order("posted_at", { ascending: false, nullsFirst: false })
         .limit(120);
-      if (sp.brand) ytQuery = ytQuery.eq("competitor_id", sp.brand);
+      ytQuery = applyProject(ytQuery);
       if (sp.q && sp.q.trim().length > 0) {
         ytQuery = ytQuery.or(
           `title.ilike.%${sp.q.trim()}%,description.ilike.%${sp.q.trim()}%`,
@@ -128,7 +180,7 @@ export default async function LibraryPage({
     }
     if (sp.channel === "meta") query = query.eq("source", "meta");
     if (sp.channel === "google") query = query.eq("source", "google");
-    if (sp.brand) query = query.eq("competitor_id", sp.brand);
+    query = applyProject(query);
     if (sp.platform) query = query.contains("platforms", [sp.platform]);
     if (sp.cta) query = query.eq("cta", sp.cta);
     if (sp.status) query = query.eq("status", sp.status);
@@ -138,13 +190,7 @@ export default async function LibraryPage({
     return query;
   };
 
-  // Competitors list is cached (revalidated on brand CRUD via tags).
-  // Main content query runs in parallel. Facets are fetched lazily by the
-  // client only when the advanced-filters panel opens.
-  const [competitors, { data: contentData }] = await Promise.all([
-    getCompetitors(workspaceId),
-    buildContentQuery(),
-  ]);
+  const { data: contentData } = await buildContentQuery();
 
   const ads: MaitAdExternal[] = isOrganic ? [] : ((contentData ?? []) as MaitAdExternal[]);
   const organicPosts: MaitOrganicPost[] = isInstagram ? ((contentData ?? []) as MaitOrganicPost[]) : [];
@@ -205,6 +251,7 @@ export default async function LibraryPage({
         <LibraryFilters
           initial={sp}
           competitors={competitors}
+          clients={clients}
         />
       </div>
 
@@ -216,13 +263,11 @@ export default async function LibraryPage({
         </Card>
       ) : (
         <>
-          {/* Result count line — promoted from text-sm muted to
-              text-base with the count in font-semibold so the user
-              has a clear "how much did the filter return" anchor
-              between the controls and the grid. */}
+          {/* Result count — bare "{N} risultati" without the
+              "(max 120)" qualifier the user flagged as noise. */}
           <p className="text-base text-foreground flex items-baseline gap-2">
             <span className="font-semibold tabular-nums">{totalResults}</span>
-            <span className="text-muted-foreground">{t("library", "resultsMax")}</span>
+            <span className="text-muted-foreground">{t("library", "resultsLabel")}</span>
           </p>
           {isInstagram ? (
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

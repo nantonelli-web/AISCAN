@@ -5,16 +5,11 @@ import { useTransition, useState, useEffect } from "react";
 import {
   Search,
   X,
-  SlidersHorizontal,
-  ChevronDown,
   Check,
   Tv2,
-  Building2,
   Filter as FilterIcon,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { MetaIcon } from "@/components/ui/meta-icon";
@@ -22,6 +17,7 @@ import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { TikTokIcon } from "@/components/ui/tiktok-icon";
 import { SnapchatIcon } from "@/components/ui/snapchat-icon";
 import { YouTubeIcon } from "@/components/ui/youtube-icon";
+import type { MaitClient } from "@/types";
 
 interface Initial {
   q?: string;
@@ -31,6 +27,7 @@ interface Initial {
   format?: string;
   channel?: string;
   brand?: string;
+  client?: string;
 }
 
 function GoogleIcon({ className }: { className?: string }) {
@@ -56,35 +53,41 @@ function isOrganicChannel(channel: string | undefined): boolean {
 }
 
 /**
- * Library filters — redesigned 2026-05-04 after the user
- * flagged the previous compressed-row layout for the third
- * time. The new structure follows the UI hierarchy memo
- * (`feedback_ui_hierarchy_guidelines.md`):
+ * Library filters — 2026-05-04 second iteration. User feedback:
+ *   1) add a "Progetto" filter alongside Brand
+ *   2) drop the "Filtri avanzati" toggle, show advanced fields
+ *      always open
+ *   3) add a "Tutti" pill in the Organic group too
+ *   4) result count drops the "(max 120)" qualifier
+ *   5) (cards) crossed-out play placeholder for missing video
+ *   6) clearing the search input must restore the unfiltered list
+ *      (current bug: empty input keeps the URL param)
+ *   7) search box must NOT take a top-level Card; demote it
+ *      inside the Filtri row
  *
- *   • Search lives in its own card so it reads as a top-level
- *     action, not as one option among many in a filter strip.
- *   • Channel picker is a card with a clear "Canale" heading
- *     and a paid/organic split inside a single visually
- *     distinct row, big pills, gold-solid active state.
- *   • Brand + advanced filters card frames the secondary
- *     refinements; the advanced panel slides open inside the
- *     same card instead of expanding into a sibling row.
- *   • Active filter chips (the recap row) sit above all of
- *     this with a subtle "Filtri attivi:" eyebrow so the user
- *     understands what the chips represent.
+ * Layout now:
+ *   • Channel card with Paid + Organic groups, both featuring
+ *     a "Tutti" pill.
+ *   • Filtri card containing — on one row:
+ *       Progetto select, Brand select (cascades on project),
+ *       a small inline search input with X clear button.
+ *     Then below the row, the format / platform / cta / status
+ *     selects always visible (no collapse). Reset link top-right.
+ *   • Active-filter chips below.
  */
 export function LibraryFilters({
   initial,
   competitors,
+  clients,
 }: {
   initial: Initial;
-  competitors: { id: string; page_name: string }[];
+  competitors: { id: string; page_name: string; client_id: string | null }[];
+  clients: MaitClient[];
 }) {
   const router = useRouter();
   const params = useSearchParams();
   const [, startTransition] = useTransition();
   const [q, setQ] = useState(initial.q ?? "");
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [facets, setFacets] = useState<Facets | null>(null);
   const [facetsLoading, setFacetsLoading] = useState(false);
   const { t } = useT();
@@ -98,6 +101,7 @@ export function LibraryFilters({
     initial.q,
     initial.channel,
     initial.brand,
+    initial.client,
     initial.format,
     initial.platform,
     initial.cta,
@@ -118,9 +122,41 @@ export function LibraryFilters({
     navigate(next);
   }
 
+  // Project change cascades on Brand: if the chosen brand is no
+  // longer inside the new project, clear the brand filter.
+  function selectClient(clientId: string | null) {
+    const nextBrandStillValid =
+      !filters.brand ||
+      (clientId === null
+        ? true
+        : clientId === "unassigned"
+          ? competitors.find((c) => c.id === filters.brand)?.client_id === null
+          : competitors.find((c) => c.id === filters.brand)?.client_id === clientId);
+    setFilters((s) => ({
+      ...s,
+      client: clientId ?? undefined,
+      brand: nextBrandStillValid ? s.brand : undefined,
+    }));
+    const next = new URLSearchParams(params.toString());
+    if (clientId) next.set("client", clientId);
+    else next.delete("client");
+    if (!nextBrandStillValid) next.delete("brand");
+    navigate(next);
+  }
+
   function onSearch(e: React.FormEvent) {
     e.preventDefault();
     update("q", q.trim() || null);
+  }
+
+  // X-button clear: empties the input AND fires the search so
+  // the URL param disappears immediately. Without this the user
+  // had to clear the input + hit Enter to see all results back
+  // (bug flagged 2026-05-04: "una volta pulito il campo non si
+  // visualizza più alcun contenuto" — fixed here).
+  function clearSearch() {
+    setQ("");
+    update("q", null);
   }
 
   function clearAll() {
@@ -133,11 +169,13 @@ export function LibraryFilters({
     setFilters({
       channel: ch,
       brand: filters.brand,
+      client: filters.client,
       q: filters.q,
     });
     const next = new URLSearchParams();
     if (ch) next.set("channel", ch);
     if (filters.brand) next.set("brand", filters.brand);
+    if (filters.client) next.set("client", filters.client);
     if (filters.q) next.set("q", filters.q);
     navigate(next);
   }
@@ -149,28 +187,32 @@ export function LibraryFilters({
       filters.status ||
       filters.format ||
       filters.channel ||
-      filters.brand,
+      filters.brand ||
+      filters.client,
   );
-  const advancedCount = [
-    filters.format,
-    filters.platform,
-    filters.cta,
-    filters.status,
-  ].filter(Boolean).length;
 
+  // Facets are always shown now — fetch eagerly. The /library/facets
+  // route is small (CTAs + platforms + statuses, capped at 500 rows)
+  // and almost always cached, so eager fetch is fine.
   useEffect(() => {
-    if (advancedCount > 0) setShowAdvanced(true);
-  }, [advancedCount]);
-
-  useEffect(() => {
-    if (!showAdvanced || facets || facetsLoading) return;
+    if (facets || facetsLoading) return;
     setFacetsLoading(true);
     fetch("/api/library/facets")
       .then((r) => (r.ok ? r.json() : { ctas: [], platforms: [], statuses: [] }))
       .then((data: Facets) => setFacets(data))
       .catch(() => setFacets({ ctas: [], platforms: [], statuses: [] }))
       .finally(() => setFacetsLoading(false));
-  }, [showAdvanced, facets, facetsLoading]);
+  }, [facets, facetsLoading]);
+
+  // Brands cascading on project: when a project is selected,
+  // restrict the brand dropdown to that project's brands.
+  const brandOptions = filters.client
+    ? competitors.filter((c) =>
+        filters.client === "unassigned"
+          ? c.client_id === null
+          : c.client_id === filters.client,
+      )
+    : competitors;
 
   const channelLabels: Record<string, string> = {
     meta: "Meta Ads",
@@ -180,39 +222,18 @@ export function LibraryFilters({
     snapchat: "Snapchat",
     youtube: "YouTube",
   };
+  const clientNameById = new Map(clients.map((c) => [c.id, c.name]));
+
+  const hasUnassigned = competitors.some((c) => c.client_id === null);
 
   return (
     <div className="space-y-4">
-      {/* ─── Search card ──────────────────────────────────
-          Promoted to its own card with a real heading so the
-          input doesn't compete visually with the smaller filter
-          pills below. */}
-      <Card>
-        <CardContent className="p-4">
-          <form onSubmit={onSearch} className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <Input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder={t("library", "searchPlaceholder")}
-                className="pl-9 h-10 text-sm"
-              />
-            </div>
-            <Button type="submit" size="default">
-              <Search className="size-4 mr-1" />
-              {t("library", "searchBtn")}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
       {/* ─── Channel card — primary pivot ─────────────────
-          Channel determines the entire shape of the page
-          (which table is queried, which card component
-          renders) so it gets the most prominent block. Big
-          pills, gold-solid active state, paid/organic split
-          with a clear vertical divider. */}
+          Paid + Organic groups, BOTH featuring a "Tutti" pill
+          (user request 2026-05-04). The two "Tutti" pills both
+          clear the channel filter — they're synonymous, just
+          ergonomic shortcuts that match where the user's mouse
+          already is when scanning either group. */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="inline-flex items-center gap-2 text-sm">
@@ -250,6 +271,15 @@ export function LibraryFilters({
               <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
                 Organic
               </span>
+              {/* Same "Tutti" affordance duplicated in the Organic
+                  group per user request — clears the channel filter,
+                  identical behaviour to the Paid-side "Tutti". */}
+              <BigPill
+                active={!filters.channel}
+                onClick={() => selectChannel()}
+              >
+                {t("library", "allChannels")}
+              </BigPill>
               <BigPill
                 active={filters.channel === "instagram"}
                 onClick={() => selectChannel("instagram")}
@@ -279,11 +309,8 @@ export function LibraryFilters({
         </CardContent>
       </Card>
 
-      {/* ─── Refinements card — brand + advanced ──────────
-          Brand selector is the primary refinement (covers all
-          channels). Advanced filters apply only to paid
-          surfaces, so the toggle is hidden when an organic
-          channel is selected. */}
+      {/* ─── Refinements card — Project + Brand + inline Search
+          + always-visible advanced filters ─────────────── */}
       <Card>
         <CardHeader className="pb-3 flex flex-row items-center justify-between gap-3 space-y-0">
           <CardTitle className="inline-flex items-center gap-2 text-sm">
@@ -302,10 +329,39 @@ export function LibraryFilters({
           )}
         </CardHeader>
         <CardContent className="pt-0 space-y-3">
+          {/* Top row: Progetto, Brand, inline Search */}
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
-                <Building2 className="size-3" /> Brand
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                {t("library", "filterByProject")}
+              </span>
+              <select
+                value={filters.client ?? ""}
+                onChange={(e) => selectClient(e.target.value || null)}
+                className={cn(
+                  "rounded-md border px-3 py-1.5 text-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-gold/30 bg-background min-w-[170px]",
+                  filters.client
+                    ? "border-gold text-gold font-medium"
+                    : "border-border text-foreground",
+                )}
+              >
+                <option value="">{t("library", "allProjects")}</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+                {hasUnassigned && (
+                  <option value="unassigned">
+                    {t("clients", "unassigned")}
+                  </option>
+                )}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                Brand
               </span>
               <select
                 value={filters.brand ?? ""}
@@ -318,7 +374,7 @@ export function LibraryFilters({
                 )}
               >
                 <option value="">{t("library", "allBrands")}</option>
-                {competitors.map((c) => (
+                {brandOptions.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.page_name}
                   </option>
@@ -326,35 +382,39 @@ export function LibraryFilters({
               </select>
             </div>
 
-            {!isOrganicChannel(filters.channel) && (
-              <button
-                type="button"
-                onClick={() => setShowAdvanced(!showAdvanced)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border transition-colors cursor-pointer",
-                  showAdvanced
-                    ? "border-gold/40 bg-gold/5 text-gold"
-                    : "border-border text-muted-foreground hover:text-foreground hover:bg-muted",
-                )}
-              >
-                <SlidersHorizontal className="size-3.5" />
-                {t("library", "moreFilters")}
-                {advancedCount > 0 && (
-                  <span className="bg-gold text-gold-foreground text-[10px] font-semibold rounded-full px-1.5 min-w-[18px] text-center tabular-nums">
-                    {advancedCount}
-                  </span>
-                )}
-                <ChevronDown
-                  className={cn(
-                    "size-3.5 transition-transform",
-                    showAdvanced && "rotate-180",
-                  )}
-                />
-              </button>
-            )}
+            {/* Inline search — demoted from a top-level card to a
+                small auxiliary input inside the Filtri card. The
+                X button clears value + URL in one click so the bug
+                where an emptied input still kept the q param is
+                impossible to hit. */}
+            <form onSubmit={onSearch} className="relative flex-1 min-w-[220px]">
+              <Search className="size-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="search"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={t("library", "searchPlaceholder")}
+                aria-label={t("library", "searchPlaceholder")}
+                className="w-full h-8 rounded-md border border-border bg-background pl-8 pr-7 text-xs focus:outline-none focus:ring-2 focus:ring-gold/30"
+              />
+              {q && (
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                  aria-label={t("library", "clearSearch")}
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </form>
           </div>
 
-          {showAdvanced && !isOrganicChannel(filters.channel) && (
+          {/* Advanced filters — always visible (toggle removed
+              2026-05-04 per user request). Hidden only when the
+              selected channel is organic (those tables don't
+              carry these facets). */}
+          {!isOrganicChannel(filters.channel) && (
             <div className="pt-3 border-t border-border flex flex-wrap gap-x-6 gap-y-3">
               <FilterSelect
                 label={t("library", "formatLabel")}
@@ -410,9 +470,6 @@ export function LibraryFilters({
         </CardContent>
       </Card>
 
-      {/* Active filters recap — shows what's currently applied
-          so the user can dismiss individual filters without
-          having to remember which control they came from. */}
       {hasFilters && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
@@ -421,16 +478,23 @@ export function LibraryFilters({
           {filters.q && (
             <Tag
               label={`"${filters.q}"`}
-              onRemove={() => {
-                setQ("");
-                update("q", null);
-              }}
+              onRemove={clearSearch}
             />
           )}
           {filters.channel && (
             <Tag
               label={channelLabels[filters.channel] ?? filters.channel}
               onRemove={() => selectChannel()}
+            />
+          )}
+          {filters.client && (
+            <Tag
+              label={
+                filters.client === "unassigned"
+                  ? t("clients", "unassigned")
+                  : clientNameById.get(filters.client) ?? "Project"
+              }
+              onRemove={() => selectClient(null)}
             />
           )}
           {filters.brand && (
@@ -469,10 +533,6 @@ export function LibraryFilters({
   );
 }
 
-/** Pill button — bumped from the cramped px-2.5/py-1 size to
- *  px-3/py-1.5 for genuine clickability + readability. Selected
- *  state is solid gold (was gold-soft) so the active-vs-idle
- *  distinction is unmissable on bg-card. */
 function BigPill({
   active,
   onClick,

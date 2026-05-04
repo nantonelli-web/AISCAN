@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatDate, formatNumber, isPlayableVideoUrl } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { VideoPreview } from "@/components/ads/video-preview";
+import { VideoUnavailable } from "@/components/ui/video-unavailable";
 import type { MaitTikTokPost } from "@/types";
 
 function formatDuration(s: number | null): string | null {
@@ -50,10 +51,18 @@ export function TikTokPostCard({ post }: { post: MaitTikTokPost }) {
             className="absolute inset-0 w-full h-full object-cover"
             loading="lazy"
           />
-        ) : (
+        ) : post.is_slideshow ? (
+          // Slideshow with no cover — this is rare and there's
+          // no equivalent of a video to fall back to. Use the
+          // generic empty-image branch.
           <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-            <Play className="size-10" />
+            <ImageIcon className="size-10" />
           </div>
+        ) : (
+          // Video post but neither a playable URL nor a cover
+          // — typical when the actor scraped metadata only.
+          // Show the dedicated "video not delivered" placeholder.
+          <VideoUnavailable />
         )}
 
         {/* Top-left: type badge */}

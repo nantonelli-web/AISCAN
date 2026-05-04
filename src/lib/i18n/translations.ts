@@ -1040,6 +1040,7 @@ const translations = {
       en: "No ads found with these filters.",
     },
     resultsMax: { it: "risultati (max 120)", en: "results (max 120)" },
+    resultsLabel: { it: "risultati", en: "results" },
     searchPlaceholder: {
       it: "Cerca in headline, copy, description\u2026",
       en: "Search in headline, copy, description\u2026",
@@ -1060,6 +1061,9 @@ const translations = {
     refinementsHeading: { it: "Filtri", en: "Filters" },
     resetFilters: { it: "Reset", en: "Reset" },
     activeFilters: { it: "Filtri attivi", en: "Active filters" },
+    filterByProject: { it: "Progetto", en: "Project" },
+    allProjects: { it: "Tutti i progetti", en: "All projects" },
+    clearSearch: { it: "Pulisci ricerca", en: "Clear search" },
   },
 
   // ─── TikTok Ads (paid) ─────────────────────────────────────
