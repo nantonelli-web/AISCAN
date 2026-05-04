@@ -18,21 +18,28 @@ function formatDuration(s: number | null): string | null {
 export function TikTokPostCard({ post }: { post: MaitTikTokPost }) {
   const { t } = useT();
   const duration = formatDuration(post.duration_seconds);
-  // TikTok CDN URLs play directly through <video> — same pattern as the
-  // ad-card hover preview. URLs are signed and short-lived, so a 404
-  // is normal for old scans; the poster (cover_url) stays visible
-  // until a successful load. Slideshows have no video_url, so they
-  // fall through to the static-cover branch.
+  // TikTok CDN gates cross-origin <video> reads on Referer headers
+  // and 403s when the request comes straight from aiscan.io —
+  // hence the same-origin proxy at /api/proxy/tiktok-video. Once
+  // the upstream playAddr token expires (~24h after scan) the
+  // proxy returns 502 and the <video> element fires onError, at
+  // which point we transparently fall back to the static cover.
+  // Instagram/Meta CDNs don't gate cross-origin reads so their
+  // cards point at the direct URL; this special case is TikTok's
+  // alone. Slideshows have no video_url, so they skip the branch.
   const hasPlayableVideo = !post.is_slideshow && isPlayableVideoUrl(post.video_url);
+  const proxiedVideoUrl = hasPlayableVideo
+    ? `/api/proxy/tiktok-video?postId=${encodeURIComponent(post.post_id)}`
+    : null;
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col hover:border-gold/40 hover:shadow-md transition-all">
       {/* Preview area — portrait 4/5 to hint at TikTok's vertical native
           format without breaking the grid rhythm too much. */}
       <div className="aspect-[4/5] bg-muted relative overflow-hidden group">
-        {hasPlayableVideo && post.video_url ? (
+        {hasPlayableVideo && proxiedVideoUrl ? (
           <VideoPreview
-            src={post.video_url}
+            src={proxiedVideoUrl}
             poster={post.cover_url ?? undefined}
           />
         ) : post.cover_url ? (
