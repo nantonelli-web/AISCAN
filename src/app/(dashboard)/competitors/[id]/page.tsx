@@ -460,6 +460,7 @@ export default async function CompetitorDetailPage({
             hasTiktokConfig={!!c.tiktok_username}
             hasSnapchatConfig={!!c.snapchat_handle}
             hasYoutubeConfig={!!c.youtube_channel_url}
+            scanCountries={c.country}
             hasRunningJob={hasRunningJob}
           />
         </CardContent>

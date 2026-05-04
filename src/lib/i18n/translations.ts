@@ -470,6 +470,7 @@ const translations = {
   // ─── Scan Button ───────────────────────────────────────────
   scan: {
     scanNow: { it: "Scan now", en: "Scan now" },
+    scanMarkets: { it: "Mercati", en: "Markets" },
     scanNowSubtitle: {
       it: "Lancia una scansione su uno o più canali per aggiornare i dati del brand.",
       en: "Launch a scan on one or more channels to refresh this brand's data.",

@@ -48,7 +48,7 @@ export function SnapchatProfileCard({ profile }: { profile: MaitSnapchatProfile 
   ];
 
   return (
-    <Card className="channel-rail overflow-hidden" data-channel="snapchat">
+    <Card className="overflow-hidden">
       {/* Channel cover band — yellow Snapchat gradient, parallels
           the YouTube banner-then-identity pattern the user liked. */}
       <ChannelCoverBand

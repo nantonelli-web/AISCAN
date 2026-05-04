@@ -272,7 +272,6 @@ export default async function LibraryPage({
                   count={metaAds.length}
                   ads={metaAds}
                   brandNameById={showBrandLabel ? brandNameById : null}
-                  channelKey="meta"
                 />
               )}
               {googleAds.length > 0 && (
@@ -281,7 +280,6 @@ export default async function LibraryPage({
                   count={googleAds.length}
                   ads={googleAds}
                   brandNameById={showBrandLabel ? brandNameById : null}
-                  channelKey="google"
                 />
               )}
             </div>
@@ -314,7 +312,6 @@ function AdSection({
   count,
   ads,
   brandNameById,
-  channelKey,
 }: {
   title: string;
   count: number;
@@ -323,16 +320,14 @@ function AdSection({
    *  Null means brand filter is active so the label would just be
    *  noise. */
   brandNameById: Map<string, string> | null;
-  /** Drives the channel-rail accent on the section header so Meta
-   *  vs Google sections are immediately distinguishable. */
-  channelKey?: "meta" | "google";
 }) {
   return (
     <section className="space-y-4">
-      {/* Section header with channel-coded left rail. Bigger title
-          weight than the previous text-sm uppercase row so the
-          section break is unmissable. */}
-      <header className="channel-rail rounded-md bg-muted/20 pl-4 pr-3 py-2.5 flex items-center justify-between" data-channel={channelKey}>
+      {/* Section header — bigger title weight than the previous
+          text-sm uppercase row so the section break is unmissable.
+          Channel-coded rail accent removed; the explicit "Meta Ads"
+          / "Google Ads" h2 already names the channel. */}
+      <header className="rounded-md bg-muted/20 px-4 py-2.5 flex items-center justify-between">
         <div className="flex items-baseline gap-3">
           <h2 className="text-base font-semibold tracking-tight">{title}</h2>
           <span className="text-xs text-muted-foreground tabular-nums">

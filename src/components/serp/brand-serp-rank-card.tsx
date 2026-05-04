@@ -53,8 +53,7 @@ export function BrandSerpRankCard({ rank }: { rank: BrandSerpQueryRank }) {
 
   return (
     <Card
-      className={`channel-rail ${noMatch ? "opacity-70" : "hover:border-gold/40 transition-colors"}`}
-      data-channel="serp"
+      className={noMatch ? "opacity-70" : "hover:border-gold/40 transition-colors"}
     >
       <CardContent className="p-5 space-y-3">
         <div className="flex items-start gap-4">

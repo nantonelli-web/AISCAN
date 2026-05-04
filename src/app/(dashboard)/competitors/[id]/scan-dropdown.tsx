@@ -61,6 +61,12 @@ interface Props {
   hasTiktokConfig: boolean;
   hasSnapchatConfig: boolean;
   hasYoutubeConfig: boolean;
+  /** Comma-separated ISO-2 country codes from the brand row
+   *  (`mait_competitors.country`). Drives the per-ad
+   *  scan_countries array on the Meta scrape and is shown as a
+   *  read-only chip strip in the Scan now card so the user sees
+   *  which markets the next scan will target. */
+  scanCountries: string | null;
   /** DB-confirmed running job; shows Stop even after a page reload. */
   hasRunningJob?: boolean;
 }
@@ -79,6 +85,7 @@ export function ScanDropdown({
   hasMetaConfig,
   hasGoogleConfig,
   hasInstagramConfig,
+  scanCountries,
   hasTiktokConfig,
   hasSnapchatConfig,
   hasYoutubeConfig,
@@ -527,6 +534,40 @@ export function ScanDropdown({
           <span className="text-xs tone-danger">{rangeError}</span>
         )}
       </div>
+
+      {/* ─── 1b. Scan markets — read-only chip strip.
+              Country codes belong to the SCAN concept (which
+              markets the user wants to monitor), not to the brand
+              identity, so they live here next to the period inputs.
+              Displayed only when the brand has scan_countries
+              configured; clicking 'Edit brand' is the way to
+              change them, not inline. */}
+      {scanCountries && scanCountries.trim() && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pb-4 border-b border-border/60">
+          <div className="inline-flex items-center gap-2 shrink-0">
+            <div className="size-7 rounded-md bg-info-soft tone-info grid place-items-center">
+              <MapPin className="size-4" />
+            </div>
+            <span className="text-sm font-medium text-foreground">
+              {t("scan", "scanMarkets")}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {scanCountries
+              .split(",")
+              .map((c) => c.trim().toUpperCase())
+              .filter(Boolean)
+              .map((code) => (
+                <span
+                  key={code}
+                  className="inline-flex items-center rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground tabular-nums"
+                >
+                  {code}
+                </span>
+              ))}
+          </div>
+        </div>
+      )}
 
       {/* ─── 2. Stop button + scanning banner — visible whenever a
               scan is in flight on the client OR already running in

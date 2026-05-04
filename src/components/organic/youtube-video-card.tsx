@@ -26,10 +26,7 @@ export function YoutubeVideoCard({ video }: { video: MaitYoutubeVideo }) {
   const typeLabel = isStream ? "LIVE" : isShort ? "SHORT" : "VIDEO";
 
   return (
-    <div
-      className="rounded-xl border border-border bg-card overflow-hidden flex flex-col hover:border-gold/40 hover:shadow-md transition-all channel-rail"
-      data-channel="youtube"
-    >
+    <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col hover:border-gold/40 hover:shadow-md transition-all">
       {/* Preview area — 16:9 for normal videos, 9:16 for shorts */}
       <div
         className={

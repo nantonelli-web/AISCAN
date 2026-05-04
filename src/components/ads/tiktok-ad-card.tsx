@@ -14,10 +14,10 @@ import type { MaitTiktokAd } from "@/types/tiktok-ads";
  * budget level on CC), so we type-narrow on `source` and pull the
  * relevant block from each.
  *
- * Channel-rail accent and basic hover treatment come from
- * `globals.css` (.channel-rail[data-channel="tiktok"]) so the card
- * sits visually next to the existing TikTokPostCard from the
- * organic side without retraining the eye.
+ * The card uses the same hover-shadow + border-gold treatment of
+ * the other ad/post cards. The coloured channel-rail accent that
+ * was here in the first cut was removed 2026-05-04 on user
+ * feedback (the pink left-edge line was visually too aggressive).
  */
 export function TiktokAdCard({ ad }: { ad: MaitTiktokAd }) {
   const { t } = useT();
@@ -26,10 +26,7 @@ export function TiktokAdCard({ ad }: { ad: MaitTiktokAd }) {
   const playable = !!ad.video_url;
 
   return (
-    <div
-      className="rounded-xl border border-border bg-card overflow-hidden flex flex-col hover:border-gold/40 hover:shadow-md transition-all channel-rail"
-      data-channel="tiktok"
-    >
+    <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col hover:border-gold/40 hover:shadow-md transition-all">
       {/* Preview area — TikTok video covers are 9:16 portrait so the
           aspect-[4/5] keeps the proportions while fitting the grid. */}
       <div className="aspect-[4/5] bg-muted relative overflow-hidden">
