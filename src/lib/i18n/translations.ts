@@ -1776,6 +1776,9 @@ const translations = {
       it: "Accesso per canale a tutti i dati del workspace. La stessa vista è disponibile anche dalla pagina di un brand.",
       en: "Channel-first access to all workspace data. The same view is also reachable from a brand detail page.",
     },
+    groupPaid: { it: "Paid", en: "Paid" },
+    groupOrganic: { it: "Organic", en: "Organic" },
+    groupMonitoring: { it: "Monitoring", en: "Monitoring" },
     metaTitle: { it: "Meta Ads", en: "Meta Ads" },
     metaDescription: {
       it: "Tutti gli annunci Meta scansionati nel workspace, filtrabili per brand.",

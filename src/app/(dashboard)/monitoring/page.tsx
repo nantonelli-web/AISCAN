@@ -89,7 +89,20 @@ export default async function MonitoringLandingPage() {
       .select("id", { count: "exact", head: true }),
   ]);
 
-  const tools = [
+  // Tools grouped by category — colour-coded via .channel-rail in
+  // globals.css. The user explicitly requested grouped colours
+  // (paid / organic / monitoring) instead of per-platform native
+  // colours, so the visual category dominates the read.
+  type Tool = {
+    key: string;
+    href: string;
+    title: string;
+    description: string;
+    iconNode: React.ReactNode;
+    count: number;
+    countLabel: string;
+  };
+  const paidTools: Tool[] = [
     {
       key: "meta",
       href: "/library?channel=meta",
@@ -108,6 +121,8 @@ export default async function MonitoringLandingPage() {
       count: googleCount ?? 0,
       countLabel: t("monitoring", "adsCountLabel"),
     },
+  ];
+  const organicTools: Tool[] = [
     {
       key: "instagram",
       href: "/library?channel=instagram",
@@ -144,6 +159,8 @@ export default async function MonitoringLandingPage() {
       count: youtubeCount ?? 0,
       countLabel: t("monitoring", "videosCountLabel"),
     },
+  ];
+  const monitoringTools: Tool[] = [
     {
       key: "serp",
       href: "/serp",
@@ -164,24 +181,8 @@ export default async function MonitoringLandingPage() {
     },
   ];
 
-  return (
-    <div className="space-y-8">
-      <DynamicBackLink fallbackHref="/dashboard" label={t("common", "backToDashboard")} />
-      <header className="space-y-1">
-        <p className="eyebrow">{t("monitoring", "title").toUpperCase()}</p>
-        <h1 className="text-3xl font-serif tracking-tight">
-          {t("monitoring", "title")}
-        </h1>
-        <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl text-pretty">
-          {t("monitoring", "subtitle")}
-        </p>
-      </header>
-
-      {/* Channel cards now wear a coloured left rail (.channel-rail)
-          so the user can scan the 8-up grid by colour first, label
-          second. The big number is the dataset size for that channel
-          — a stronger pulse than the previous text-[11px] muted
-          line that read like a footnote. */}
+  function CardGrid({ tools }: { tools: Tool[] }) {
+    return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {tools.map((tool) => (
           <Link key={tool.key} href={tool.href} className="block group">
@@ -217,6 +218,80 @@ export default async function MonitoringLandingPage() {
           </Link>
         ))}
       </div>
+    );
+  }
+
+  // Section header for each category — the dot picks up the
+  // channel-rail accent colour so the grouping logic is also
+  // visible without scanning the card edges.
+  function GroupHeading({
+    label,
+    tone,
+  }: {
+    label: string;
+    tone: "paid" | "organic" | "monitoring";
+  }) {
+    const dotClass =
+      tone === "paid"
+        ? "bg-[#4f46e5]"
+        : tone === "organic"
+          ? "bg-[#10b981]"
+          : "bg-[#8b5cf6]";
+    return (
+      <div className="flex items-center gap-2">
+        <span className={`size-2.5 rounded-full ${dotClass}`} />
+        <h2 className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
+          {label}
+        </h2>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <DynamicBackLink fallbackHref="/dashboard" label={t("common", "backToDashboard")} />
+      {/* Subtitle width un-capped — the previous max-w-2xl cap
+          truncated the line at ~50% of the page on wide screens
+          even though the prose was fine. User feedback 2026-05-04
+          flagged this for the second time across pages, so we
+          remove the cap here (and elsewhere on the audit pass). */}
+      <header className="space-y-1">
+        <p className="eyebrow">{t("monitoring", "title").toUpperCase()}</p>
+        <h1 className="text-3xl font-serif tracking-tight">
+          {t("monitoring", "title")}
+        </h1>
+        <p className="text-sm text-muted-foreground leading-relaxed text-pretty">
+          {t("monitoring", "subtitle")}
+        </p>
+      </header>
+
+      {/* Three groups, each preceded by an eyebrow heading
+          carrying the same accent dot used on the card rails.
+          Reading flow: PAID first (revenue impact), then
+          ORGANIC (audience), then MONITORING (presence). */}
+      <section className="space-y-3">
+        <GroupHeading
+          label={t("monitoring", "groupPaid")}
+          tone="paid"
+        />
+        <CardGrid tools={paidTools} />
+      </section>
+
+      <section className="space-y-3">
+        <GroupHeading
+          label={t("monitoring", "groupOrganic")}
+          tone="organic"
+        />
+        <CardGrid tools={organicTools} />
+      </section>
+
+      <section className="space-y-3">
+        <GroupHeading
+          label={t("monitoring", "groupMonitoring")}
+          tone="monitoring"
+        />
+        <CardGrid tools={monitoringTools} />
+      </section>
     </div>
   );
 }

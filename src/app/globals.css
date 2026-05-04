@@ -127,8 +127,22 @@
 
 /* ─── Channel accent strips ─────────────────────────────────────
    Apply via `data-channel="meta"` etc. on a card — we render a
-   2px coloured rail on the left edge so the user can identify the
-   channel at a glance without us colour-flooding the entire card. */
+   3px coloured rail on the left edge so the user can identify the
+   channel category at a glance.
+
+   Colour scheme (revised 2026-05-04 after user feedback "i colori
+   sono distribuiti a caso"):
+     • PAID       — indigo. Performance / spend mental model.
+     • ORGANIC    — emerald. Audience / growth mental model.
+     • MONITORING — violet. Observe / search mental model.
+
+   We deliberately drop the per-platform brand colours (Meta blue,
+   Google red, Snapchat yellow, ecc.) because the page is grouped
+   by category, not by brand identity. The user reads the
+   category from the colour first, the platform from the icon
+   second. Inside Library / brand-detail where the page is FILTERED
+   to a single platform we still let the platform icon carry its
+   native colour separately — those surfaces don't use this rail. */
 .channel-rail { position: relative; overflow: hidden; }
 .channel-rail::before {
   content: "";
@@ -137,14 +151,17 @@
   width: 3px;
   background: var(--accent, var(--gold));
 }
-.channel-rail[data-channel="meta"]      { --accent: var(--channel-meta); }
-.channel-rail[data-channel="google"]    { --accent: var(--channel-google); }
-.channel-rail[data-channel="instagram"] { --accent: var(--channel-instagram); }
-.channel-rail[data-channel="tiktok"]    { --accent: #14b8a6; /* tiktok-ish but readable on white */ }
-.channel-rail[data-channel="snapchat"]  { --accent: #eab308; /* snapchat yellow @ AAA-friendly */ }
-.channel-rail[data-channel="youtube"]   { --accent: var(--channel-youtube); }
-.channel-rail[data-channel="serp"]      { --accent: var(--channel-serp); }
-.channel-rail[data-channel="maps"]      { --accent: var(--channel-maps); }
+/* PAID — indigo */
+.channel-rail[data-channel="meta"],
+.channel-rail[data-channel="google"]    { --accent: #4f46e5; }
+/* ORGANIC — emerald */
+.channel-rail[data-channel="instagram"],
+.channel-rail[data-channel="tiktok"],
+.channel-rail[data-channel="snapchat"],
+.channel-rail[data-channel="youtube"]   { --accent: #10b981; }
+/* MONITORING — violet */
+.channel-rail[data-channel="serp"],
+.channel-rail[data-channel="maps"]      { --accent: #8b5cf6; }
 
 /* ─── Section header rule ───────────────────────────────────────
    Marks the boundary between two visually-equal cards/sections.
