@@ -280,7 +280,17 @@ export async function scrapeSerpQuery(
     `[SERP] Starting: actor=${ACTOR_ID} query="${query}" country=${country} lang=${language} mobile=${mobileResults}`,
   );
 
-  const actorPath = `/acts/${encodeURIComponent(ACTOR_ID)}/runs?maxItems=10`;
+  // Cost cap — pay-per-result actor priced at $1.80 / 1000 pages.
+  // We request a single page (maxPagesPerQuery: 1 above), so the
+  // real cost is always ~$0.0018 per run. We still must declare a
+  // run-level cost ceiling because Apify rejects pay-per-result
+  // runs whose `maxTotalChargeUsd` falls below $0.50 (the platform
+  // minimum, error: `max-total-charge-usd-below-minimum`).
+  // The previous `?maxItems=10` was an implicit cap derived from
+  // pricePerItem × maxItems = $0.018 which triggered the rejection.
+  // We replace it with an explicit $0.50 ceiling — same safety
+  // semantics, accepted by the platform.
+  const actorPath = `/acts/${encodeURIComponent(ACTOR_ID)}/runs?maxTotalChargeUsd=0.5`;
   const run = await apifyFetch(actorPath, {
     method: "POST",
     body: JSON.stringify(input),
