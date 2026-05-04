@@ -188,6 +188,109 @@
 .kpi-trend.is-down { color: var(--danger); }
 .kpi-trend.is-flat { color: var(--neutral); }
 
+/* ─── Toast (sonner) — AISCAN polish ────────────────────────────
+   Sonner exposes data-attributes on every toast we can target with
+   plain CSS so the look matches the product without us having to
+   hard-code Tailwind in the React tree. Touched bits:
+     - bigger box (420px wide, 14-16px padding)
+     - 12px border-radius matching our cards
+     - product-grade shadow
+     - icon ~20px sits left of the title
+     - close button always visible (sonner hides on idle by default)
+*/
+[data-sonner-toaster] {
+  /* Override sonner's default 356px width — the user-flagged
+     "tiny black box" was hard to scan; 420 gives full sentences. */
+  --width: 420px;
+}
+[data-sonner-toast].aiscan-toast {
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  line-height: 1.4;
+  box-shadow:
+    0 12px 32px -8px rgba(15, 23, 42, 0.18),
+    0 2px 6px -1px rgba(15, 23, 42, 0.08);
+  border-width: 1px;
+}
+[data-sonner-toast].aiscan-toast [data-title] {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.35;
+}
+[data-sonner-toast].aiscan-toast [data-description] {
+  font-size: 12.5px;
+  margin-top: 2px;
+}
+
+/* Icon container — sonner injects CircleCheck / CircleX / etc.
+   as an SVG. Bump to 20px and centre-align with the first line. */
+[data-sonner-toast].aiscan-toast [data-icon] {
+  width: 20px;
+  height: 20px;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+[data-sonner-toast].aiscan-toast [data-icon] > * {
+  width: 20px;
+  height: 20px;
+}
+
+/* Close button always visible (sonner fades it in on hover). */
+[data-sonner-toast].aiscan-toast [data-close-button] {
+  opacity: 1 !important;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: transparent !important;
+  border: none !important;
+  color: currentColor !important;
+  transition: background-color 0.15s ease;
+}
+[data-sonner-toast].aiscan-toast [data-close-button]:hover {
+  background: rgba(0, 0, 0, 0.06) !important;
+}
+[data-sonner-toast].aiscan-toast [data-close-button] svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Per-type colour overrides — tinted toward the aiscan palette so
+   success/error/warning/info on this product look like they belong
+   here, not a generic web confirmation. */
+[data-sonner-toast].aiscan-toast[data-type="success"] {
+  background: var(--success-soft) !important;
+  border-color: color-mix(in srgb, var(--success) 30%, transparent) !important;
+  color: var(--success) !important;
+}
+[data-sonner-toast].aiscan-toast[data-type="error"] {
+  background: var(--danger-soft) !important;
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent) !important;
+  color: var(--danger) !important;
+}
+[data-sonner-toast].aiscan-toast[data-type="warning"] {
+  background: var(--warning-soft) !important;
+  border-color: color-mix(in srgb, var(--warning) 35%, transparent) !important;
+  color: var(--warning) !important;
+}
+[data-sonner-toast].aiscan-toast[data-type="info"] {
+  background: var(--info-soft) !important;
+  border-color: color-mix(in srgb, var(--info) 30%, transparent) !important;
+  color: var(--info) !important;
+}
+/* Default + loading toasts — gold-tinted (loading is usually a
+   scan in flight, so it gets the brand colour). */
+[data-sonner-toast].aiscan-toast[data-type="default"],
+[data-sonner-toast].aiscan-toast[data-type="loading"] {
+  background: var(--gold-soft) !important;
+  border-color: color-mix(in srgb, var(--gold) 30%, transparent) !important;
+  color: var(--gold) !important;
+}
+
 /* ─── Eyebrow ──────────────────────────────────────────────────
    Tiny uppercase label that sits ABOVE a heading. We use it on the
    brand detail hero (BRAND), on section breaks, on the report

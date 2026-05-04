@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { Toaster } from "sonner";
+import { AiscanToaster } from "@/components/ui/aiscan-toaster";
 import { I18nProvider } from "@/lib/i18n/context";
 import { getLocale } from "@/lib/i18n/server";
 
@@ -58,7 +58,7 @@ export default async function RootLayout({
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <I18nProvider initialLocale={locale}>
           {children}
-          <Toaster theme="dark" position="bottom-right" />
+          <AiscanToaster />
         </I18nProvider>
       </body>
     </html>
