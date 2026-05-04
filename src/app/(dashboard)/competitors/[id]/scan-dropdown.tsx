@@ -264,7 +264,7 @@ export function ScanDropdown({
     const controller = new AbortController();
     abortRef.current = controller;
     setLoading("youtube");
-    const toastId = toast.loading(t("organic", "scanning"));
+    const toastId = toast.loading(t("organic", "scanningYoutube"));
     try {
       const res = await fetch("/api/youtube/scan", {
         method: "POST",
@@ -304,7 +304,7 @@ export function ScanDropdown({
     const controller = new AbortController();
     abortRef.current = controller;
     setLoading("snapchat");
-    const toastId = toast.loading(t("organic", "scanning"));
+    const toastId = toast.loading(t("organic", "scanningSnapchat"));
     try {
       const res = await fetch("/api/snapchat/scan", {
         method: "POST",
@@ -340,7 +340,7 @@ export function ScanDropdown({
     const controller = new AbortController();
     abortRef.current = controller;
     setLoading("tiktok");
-    const toastId = toast.loading(t("organic", "scanning"));
+    const toastId = toast.loading(t("organic", "scanningTikTok"));
     try {
       const res = await fetch("/api/tiktok/scan", {
         method: "POST",

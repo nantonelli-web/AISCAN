@@ -1882,6 +1882,23 @@ const translations = {
       it: "Scraping Instagram\u2026 (pu\u00F2 richiedere 30-90s)",
       en: "Scraping Instagram\u2026 (may take 30-90s)",
     },
+    // Per-channel scrape toasts. The shared `scanning` key above
+    // hard-codes "Instagram", so previously clicking TikTok or
+    // YouTube fired a toast that lied \u2014 user-flagged 2026-05-04.
+    // Each channel now has its own message so the on-screen
+    // feedback always matches what was clicked.
+    scanningTikTok: {
+      it: "Scraping TikTok\u2026 (pu\u00F2 richiedere 30-90s)",
+      en: "Scraping TikTok\u2026 (may take 30-90s)",
+    },
+    scanningSnapchat: {
+      it: "Scraping Snapchat\u2026 (pu\u00F2 richiedere 30-90s)",
+      en: "Scraping Snapchat\u2026 (may take 30-90s)",
+    },
+    scanningYoutube: {
+      it: "Scraping YouTube\u2026 (pu\u00F2 richiedere 30-90s)",
+      en: "Scraping YouTube\u2026 (may take 30-90s)",
+    },
     postsSynced: { it: "post Instagram sincronizzati.", en: "Instagram posts synced." },
     likes: { it: "likes", en: "likes" },
     comments: { it: "commenti", en: "comments" },
