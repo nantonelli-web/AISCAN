@@ -467,6 +467,13 @@ const translations = {
       it: "Configurazione mancante. Completa la configurazione per abilitare la scansione su tutti i canali.",
       en: "Configuration missing. Complete the setup to enable scanning on all channels.",
     },
+    // Compact missing-config strip. Shown inline at the bottom of the
+    // Scan card instead of the previous full amber box — singular vs
+    // plural lets the message scale from "Canale da configurare:
+    // Snapchat" up to "3 canali da configurare: Snapchat, YouTube,
+    // TikTok".
+    configRequiredOne: { it: "Canale da configurare", en: "Channel to configure" },
+    configRequiredMany: { it: "canali da configurare", en: "channels to configure" },
     googleNotConfigured: {
       it: "Dominio o Advertiser ID Google non configurato",
       en: "Google domain or Advertiser ID not configured",

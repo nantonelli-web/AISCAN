@@ -375,37 +375,38 @@ export function ScanDropdown({
 
   // ─── Render ───
 
-  const bigCta = "h-12 px-5 text-base gap-2.5 cursor-pointer";
-  const bigCtaDisabled = "h-12 px-5 text-base gap-2.5 opacity-40 cursor-not-allowed";
-  const groupLabel = "text-[10px] uppercase tracking-wider text-muted-foreground font-medium";
+  // Compact channel buttons: 36px high vs the previous 48px so all
+  // 8 channels + date pickers + group dividers fit on one or two
+  // rows on a desktop, killing the "tall column of empty chrome"
+  // problem. Icons drop from size-6 to size-4 to match.
+  const bigCta = "h-9 px-3 text-sm gap-1.5 cursor-pointer";
+  const bigCtaDisabled = "h-9 px-3 text-sm gap-1.5 opacity-40 cursor-not-allowed";
+  const groupLabel = "text-[10px] uppercase tracking-[0.12em] text-muted-foreground font-semibold shrink-0";
 
   return (
-    <div className="space-y-4">
-      {/* ─── 1. Scan period — everything on one line ─── */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="flex items-center gap-2">
-          <CalendarRange className="size-4 text-foreground" />
-          <span className="text-sm font-medium text-foreground">{t("scan", "scanPeriod")}:</span>
+    <div className="space-y-3">
+      {/* ─── 1. Scan period — compact inline row ─── */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="inline-flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
+          <CalendarRange className="size-3.5" />
+          <span className="font-medium text-foreground">{t("scan", "scanPeriod")}</span>
         </div>
-        <label className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{t("scan", "dateFrom")}</span>
-          <Input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            placeholder={daysAgo(30)}
-            className="text-xs h-8 w-36"
-          />
-        </label>
-        <label className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{t("scan", "dateTo")}</span>
-          <Input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="text-xs h-8 w-36"
-          />
-        </label>
+        <Input
+          type="date"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+          placeholder={daysAgo(30)}
+          aria-label={t("scan", "dateFrom")}
+          className="text-xs h-8 w-36"
+        />
+        <span className="text-xs text-muted-foreground">→</span>
+        <Input
+          type="date"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+          aria-label={t("scan", "dateTo")}
+          className="text-xs h-8 w-36"
+        />
         {(dateFrom || dateTo) && (
           <button
             onClick={() => { setDateFrom(""); setDateTo(""); }}
@@ -415,7 +416,7 @@ export function ScanDropdown({
           </button>
         )}
         {rangeError && (
-          <span className="text-xs text-red-400">{rangeError}</span>
+          <span className="text-xs tone-danger">{rangeError}</span>
         )}
       </div>
 
@@ -453,116 +454,100 @@ export function ScanDropdown({
               it server-side, but client-side hiding makes the state
               visually unambiguous and removes the failure path). */}
       {!showStop && (
-      <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         {/* Paid group */}
-        <div className="space-y-2">
-          <p className={groupLabel}>{t("scan", "paid")}</p>
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* Meta Ads — active ads only, no ALL fallback. */}
-            <Button
-              onClick={scanMeta}
-              disabled={isLoading || rangeExceeded}
-              variant="outline"
-              size="lg"
-              className={bigCta}
-            >
-              {loading === "meta" ? (
-                <RefreshCw className="size-6 animate-spin" />
-              ) : (
-                <MetaIcon className="size-6" />
-              )}
-              {loading === "meta" ? t("scan", "scanning") : "Meta Ads"}
-            </Button>
+        <span className={groupLabel}>{t("scan", "paid")}</span>
+        <Button
+          onClick={scanMeta}
+          disabled={isLoading || rangeExceeded}
+          variant="outline"
+          size="sm"
+          className={bigCta}
+        >
+          {loading === "meta" ? (
+            <RefreshCw className="size-4 animate-spin" />
+          ) : (
+            <MetaIcon className="size-4" />
+          )}
+          {loading === "meta" ? t("scan", "scanning") : "Meta"}
+        </Button>
+        <Button
+          onClick={hasGoogleConfig ? scanGoogle : undefined}
+          disabled={!hasGoogleConfig || isLoading || rangeExceeded}
+          variant="outline"
+          size="sm"
+          className={hasGoogleConfig ? bigCta : bigCtaDisabled}
+        >
+          {loading === "google" ? (
+            <RefreshCw className="size-4 animate-spin" />
+          ) : (
+            <GoogleLogo className="size-4" />
+          )}
+          {loading === "google" ? t("scan", "scanningGoogle") : "Google"}
+        </Button>
 
-            {/* Google Ads */}
-            <Button
-              onClick={hasGoogleConfig ? scanGoogle : undefined}
-              disabled={!hasGoogleConfig || isLoading || rangeExceeded}
-              variant="outline"
-              size="lg"
-              className={hasGoogleConfig ? bigCta : bigCtaDisabled}
-            >
-              {loading === "google" ? (
-                <RefreshCw className="size-6 animate-spin" />
-              ) : (
-                <GoogleLogo className="size-6" />
-              )}
-              {loading === "google" ? t("scan", "scanningGoogle") : "Google Ads"}
-            </Button>
-          </div>
-        </div>
-
-        {/* Divider between groups */}
-        <div className="hidden sm:block w-px self-stretch bg-border mt-6" />
+        <div className="h-5 w-px bg-border mx-1" />
 
         {/* Organic group */}
-        <div className="space-y-2">
-          <p className={groupLabel}>{t("scan", "organic")}</p>
-          <div className="flex items-center gap-3 flex-wrap">
-            <Button
-              onClick={hasInstagramConfig ? scanInstagram : undefined}
-              disabled={!hasInstagramConfig || isLoading || rangeExceeded}
-              variant="outline"
-              size="lg"
-              className={hasInstagramConfig ? bigCta : bigCtaDisabled}
-            >
-              {loading === "instagram" ? (
-                <RefreshCw className="size-6 animate-spin" />
-              ) : (
-                <InstagramIcon className="size-6" />
-              )}
-              {loading === "instagram" ? t("organic", "scanning") : "Instagram"}
-            </Button>
+        <span className={groupLabel}>{t("scan", "organic")}</span>
+        <Button
+          onClick={hasInstagramConfig ? scanInstagram : undefined}
+          disabled={!hasInstagramConfig || isLoading || rangeExceeded}
+          variant="outline"
+          size="sm"
+          className={hasInstagramConfig ? bigCta : bigCtaDisabled}
+        >
+          {loading === "instagram" ? (
+            <RefreshCw className="size-4 animate-spin" />
+          ) : (
+            <InstagramIcon className="size-4" />
+          )}
+          IG
+        </Button>
+        <Button
+          onClick={hasTiktokConfig ? scanTikTok : undefined}
+          disabled={!hasTiktokConfig || isLoading}
+          variant="outline"
+          size="sm"
+          className={hasTiktokConfig ? bigCta : bigCtaDisabled}
+        >
+          {loading === "tiktok" ? (
+            <RefreshCw className="size-4 animate-spin" />
+          ) : (
+            <TikTokIcon className="size-4" />
+          )}
+          TikTok
+        </Button>
+        <Button
+          onClick={hasSnapchatConfig ? scanSnapchat : undefined}
+          disabled={!hasSnapchatConfig || isLoading}
+          variant="outline"
+          size="sm"
+          className={hasSnapchatConfig ? bigCta : bigCtaDisabled}
+        >
+          {loading === "snapchat" ? (
+            <RefreshCw className="size-4 animate-spin" />
+          ) : (
+            <SnapchatIcon className="size-4" />
+          )}
+          Snap
+        </Button>
+        <Button
+          onClick={hasYoutubeConfig ? scanYoutube : undefined}
+          disabled={!hasYoutubeConfig || isLoading}
+          variant="outline"
+          size="sm"
+          className={hasYoutubeConfig ? bigCta : bigCtaDisabled}
+        >
+          {loading === "youtube" ? (
+            <RefreshCw className="size-4 animate-spin" />
+          ) : (
+            <YouTubeIcon className="size-4" />
+          )}
+          YT
+        </Button>
 
-            <Button
-              onClick={hasTiktokConfig ? scanTikTok : undefined}
-              disabled={!hasTiktokConfig || isLoading}
-              variant="outline"
-              size="lg"
-              className={hasTiktokConfig ? bigCta : bigCtaDisabled}
-            >
-              {loading === "tiktok" ? (
-                <RefreshCw className="size-6 animate-spin" />
-              ) : (
-                <TikTokIcon className="size-6" />
-              )}
-              {loading === "tiktok" ? t("organic", "scanning") : "TikTok"}
-            </Button>
-
-            <Button
-              onClick={hasSnapchatConfig ? scanSnapchat : undefined}
-              disabled={!hasSnapchatConfig || isLoading}
-              variant="outline"
-              size="lg"
-              className={hasSnapchatConfig ? bigCta : bigCtaDisabled}
-            >
-              {loading === "snapchat" ? (
-                <RefreshCw className="size-6 animate-spin" />
-              ) : (
-                <SnapchatIcon className="size-6" />
-              )}
-              {loading === "snapchat" ? t("organic", "scanning") : "Snapchat"}
-            </Button>
-
-            <Button
-              onClick={hasYoutubeConfig ? scanYoutube : undefined}
-              disabled={!hasYoutubeConfig || isLoading}
-              variant="outline"
-              size="lg"
-              className={hasYoutubeConfig ? bigCta : bigCtaDisabled}
-            >
-              {loading === "youtube" ? (
-                <RefreshCw className="size-6 animate-spin" />
-              ) : (
-                <YouTubeIcon className="size-6" />
-              )}
-              {loading === "youtube" ? t("organic", "scanning") : "YouTube"}
-            </Button>
-          </div>
-        </div>
-
-        {/* Divider between groups */}
-        <div className="hidden sm:block w-px self-stretch bg-border mt-6" />
+        <div className="h-5 w-px bg-border mx-1" />
 
         {/* Monitoring group — workspace-level tools surfaced on the
             brand page so the user can launch a SERP query / Maps
@@ -570,94 +555,60 @@ export function ScanDropdown({
             through the sidebar. SERP and Maps don't have a "scan"
             action per se — clicking opens the create flow on the
             workspace page with brand context preserved. */}
-        <div className="space-y-2">
-          <p className={groupLabel}>{t("scan", "monitoringGroup")}</p>
-          <div className="flex items-center gap-3 flex-wrap">
-            <Link
-              href={`/serp?brandId=${competitorId}&new=1`}
-              className={cn(
-                bigCta,
-                "inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-              )}
-            >
-              <Search className="size-6" /> Google SERP
-            </Link>
-            <Link
-              href="/maps"
-              className={cn(
-                bigCta,
-                "inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-              )}
-            >
-              <MapPin className="size-6" /> Google Maps
-            </Link>
-          </div>
-        </div>
+        <span className={groupLabel}>{t("scan", "monitoringGroup")}</span>
+        <Link
+          href={`/serp?brandId=${competitorId}&new=1`}
+          className={cn(
+            bigCta,
+            "inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+          )}
+        >
+          <Search className="size-4" /> SERP
+        </Link>
+        <Link
+          href="/maps"
+          className={cn(
+            bigCta,
+            "inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+          )}
+        >
+          <MapPin className="size-4" /> Maps
+        </Link>
       </div>
       )}
 
-      {/* ─── 4. Missing config details (amber box). Also hidden while
-              a scan is running — keeps the running state focused on
-              the Stop CTA and removes secondary visual noise. */}
-      {!showStop && (!hasGoogleConfig ||
-        !hasInstagramConfig ||
-        !hasTiktokConfig ||
-        !hasSnapchatConfig ||
-        !hasYoutubeConfig) && (
-        <div className="rounded-md border border-gold/30 bg-gold/5 p-3 space-y-1.5">
-          <p className="text-xs font-medium text-gold">{t("scan", "configRequiredBrand")}</p>
-          {!hasGoogleConfig && (
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-muted-foreground">Google Ads: {t("scan", "googleNotConfigured")}</span>
-              <a href={`/competitors/${competitorId}/edit?from=brand`} className="ml-auto shrink-0">
-                <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer">
-                  {t("compare", "goToEdit")}
-                </Button>
-              </a>
-            </div>
-          )}
-          {!hasInstagramConfig && (
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-muted-foreground">Instagram: {t("scan", "instagramNotConfigured")}</span>
-              <a href={`/competitors/${competitorId}/edit?from=brand`} className="ml-auto shrink-0">
-                <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer">
-                  {t("compare", "goToEdit")}
-                </Button>
-              </a>
-            </div>
-          )}
-          {!hasTiktokConfig && (
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-muted-foreground">TikTok: {t("scan", "tiktokNotConfigured")}</span>
-              <a href={`/competitors/${competitorId}/edit?from=brand`} className="ml-auto shrink-0">
-                <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer">
-                  {t("compare", "goToEdit")}
-                </Button>
-              </a>
-            </div>
-          )}
-          {!hasSnapchatConfig && (
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-muted-foreground">Snapchat: {t("scan", "snapchatNotConfigured")}</span>
-              <a href={`/competitors/${competitorId}/edit?from=brand`} className="ml-auto shrink-0">
-                <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer">
-                  {t("compare", "goToEdit")}
-                </Button>
-              </a>
-            </div>
-          )}
-          {!hasYoutubeConfig && (
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-muted-foreground">YouTube: {t("scan", "youtubeNotConfigured")}</span>
-              <a href={`/competitors/${competitorId}/edit?from=brand`} className="ml-auto shrink-0">
-                <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer">
-                  {t("compare", "goToEdit")}
-                </Button>
-              </a>
-            </div>
-          )}
-        </div>
-      )}
+      {/* ─── 4. Missing config — collapsed into a single inline row.
+              The previous amber box stacked one row per missing channel
+              and ate ~120px on a typical brand. The icon-only chips
+              with a single "Configura" link convey the same info in
+              ~32px and keep the Scan card compact. */}
+      {!showStop && (() => {
+        const missing = [
+          !hasGoogleConfig && "Google",
+          !hasInstagramConfig && "Instagram",
+          !hasTiktokConfig && "TikTok",
+          !hasSnapchatConfig && "Snapchat",
+          !hasYoutubeConfig && "YouTube",
+        ].filter(Boolean) as string[];
+        if (missing.length === 0) return null;
+        return (
+          <div className="flex items-center gap-2 flex-wrap text-xs tone-warning bg-warning-soft rounded-md px-3 py-2">
+            <span className="font-medium">
+              {missing.length === 1
+                ? t("scan", "configRequiredOne")
+                : `${missing.length} ${t("scan", "configRequiredMany")}`}
+              :
+            </span>
+            <span className="text-foreground/80">{missing.join(", ")}</span>
+            <a
+              href={`/competitors/${competitorId}/edit?from=brand`}
+              className="ml-auto text-xs underline tone-warning hover:opacity-80"
+            >
+              {t("compare", "goToEdit")}
+            </a>
+          </div>
+        );
+      })()}
     </div>
   );
 }
