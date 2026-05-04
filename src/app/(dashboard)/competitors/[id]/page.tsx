@@ -363,7 +363,6 @@ export default async function CompetitorDetailPage({
               {pageLikeCount != null && pageLikeCount > 0 && (
                 <span>{formatCompactNumber(pageLikeCount)} {t("competitors", "likes")}</span>
               )}
-              {c.category && <span>· {c.category}</span>}
               {c.country && <span>· {c.country}</span>}
             </div>
           </div>

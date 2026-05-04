@@ -298,18 +298,15 @@ function BrandCard({
     <Card className="h-full relative group hover:border-gold/40 hover:shadow-md transition-all">
       <Link href={`/competitors/${c.id}`} className="absolute inset-0 z-0" />
       <CardContent className="p-5 space-y-3.5 relative z-10 pointer-events-none">
-        {/* Title row — brand identity dominates. Category badge pushed
-            to the right edge keeps the Kanban grammar (subject left,
-            tag right). */}
-        <div className="flex items-start justify-between gap-2">
+        {/* Title row — brand identity dominates. Category badge
+            removed 2026-05-04 alongside hiding the field in the
+            new/edit forms; legacy brands had their value still
+            rendered as a "Fashion" pill on the right which the
+            user no longer wanted to see anywhere. */}
+        <div className="flex items-start gap-2">
           <h3 className="font-semibold text-base leading-snug truncate min-w-0">
             {c.page_name}
           </h3>
-          {c.category && (
-            <Badge variant="muted" className="shrink-0 text-[10px]">
-              {c.category}
-            </Badge>
-          )}
         </div>
 
         {/* Secondary metadata — country chip + freshness pill.
