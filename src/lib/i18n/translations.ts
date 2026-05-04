@@ -867,6 +867,16 @@ const translations = {
     generatingAi: { it: "Analisi AI in corso...", en: "AI analysis in progress..." },
     staleShort: { it: "da aggiornare", en: "outdated" },
     savedComparisons: { it: "Confronti salvati", en: "Saved comparisons" },
+    // Filter pills on top of the saved comparisons list. 'paid'
+    // matches meta + google + all (where 'all' implies paid
+    // surfaces); 'organic' matches the instagram-channel rows.
+    savedFilterAll: { it: "Tutti", en: "All" },
+    savedFilterPaid: { it: "Paid", en: "Paid" },
+    savedFilterOrganic: { it: "Organic", en: "Organic" },
+    savedFilterEmpty: {
+      it: "Nessun confronto salvato in questa categoria.",
+      en: "No saved comparisons in this category.",
+    },
     channel: { it: "Canale", en: "Channel" },
     channelPaid: { it: "Paid", en: "Paid" },
     channelOrganic: { it: "Organic", en: "Organic" },

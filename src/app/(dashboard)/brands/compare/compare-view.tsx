@@ -352,6 +352,46 @@ export function CompareView({
   const [scanning, setScanning] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const [savedList, setSavedList] = useState(savedComparisons);
+  // Filter for the "Saved comparisons" panel — Paid (meta/google),
+  // Organic (instagram) or All. User feedback 2026-05-04: as the
+  // saved list grew it was hard to find a specific channel, and
+  // the visual mix made paid + organic confronti indistinguibili.
+  const [savedFilter, setSavedFilter] = useState<"all" | "paid" | "organic">("all");
+
+  /**
+   * Merge a freshly-saved comparison into the local saved list so
+   * the "Saved comparisons" panel updates instantly without a
+   * page refresh. The POST endpoint returns the full row shape we
+   * need (id, competitor_ids, locale, channel, countries,
+   * date_from, date_to, stale, created_at, updated_at) — we just
+   * pluck those fields and prepend or replace by id.
+   *
+   * Without this, the user-flagged 2026-05-04 bug surfaced as
+   * "Instagram non salva il confronto" — the row WAS saved server-
+   * side but the panel showed only the snapshot from page-load,
+   * making the new entry invisible until manual refresh.
+   */
+  function mergeSavedRow(row: Record<string, unknown> | null | undefined) {
+    if (!row || typeof row !== "object") return;
+    const r = row as Partial<SavedComparison>;
+    if (!r.id || !Array.isArray(r.competitor_ids)) return;
+    const merged: SavedComparison = {
+      id: String(r.id),
+      competitor_ids: r.competitor_ids as string[],
+      locale: typeof r.locale === "string" ? r.locale : "it",
+      countries: Array.isArray(r.countries) ? (r.countries as string[]) : null,
+      channel: typeof r.channel === "string" ? r.channel : null,
+      date_from: typeof r.date_from === "string" ? r.date_from : null,
+      date_to: typeof r.date_to === "string" ? r.date_to : null,
+      stale: r.stale === true,
+      created_at: typeof r.created_at === "string" ? r.created_at : new Date().toISOString(),
+      updated_at: typeof r.updated_at === "string" ? r.updated_at : new Date().toISOString(),
+    };
+    setSavedList((prev) => {
+      const without = prev.filter((s) => s.id !== merged.id);
+      return [merged, ...without];
+    });
+  }
 
   // Benchmark tab state — may be ads or organic depending on channel
   type BenchmarkPayload =
@@ -583,6 +623,12 @@ export function CompareView({
               creativeDirectorReport: data.visual_analysis ?? null,
             });
           }
+          // Reflect the just-saved row in the local saved list
+          // so the panel updates immediately. Same call repeated
+          // after every other POST that mutates the row (AI tabs,
+          // regenerate) so the list stays in sync without a
+          // page refresh.
+          mergeSavedRow(data);
         }
       } catch {
         // Silently fail — user sees no data
@@ -665,6 +711,9 @@ export function CompareView({
           created_at: data.updated_at ?? data.created_at,
           stale: data.stale ?? false,
         }));
+        // Saved-list panel sync — same merge as the technical-data
+        // POST so the user sees AI generations reflected too.
+        mergeSavedRow(data);
         // Update AI result
         setAiResult((prev) => ({
           copywriterReport:
@@ -764,6 +813,7 @@ export function CompareView({
           copywriterReport: data.copy_analysis ?? null,
           creativeDirectorReport: data.visual_analysis ?? null,
         });
+        mergeSavedRow(data);
       }
     } catch {
       // Silently fail
@@ -1620,14 +1670,68 @@ export function CompareView({
             {t("compare", "selectAtLeast2")}
           </p>
 
-          {/* Saved comparisons */}
-          {savedList.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">{t("compare", "savedComparisons")}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {savedList.map((sc) => {
+          {/* Saved comparisons — with Paid / Organic filter on top.
+              Filter classifies each saved row by its channel field:
+              meta + google + all → paid (where 'all' implicitly
+              includes paid surfaces); instagram → organic. The
+              count badge per pill is computed against the full
+              savedList so the user sees how many entries each
+              filter would show before clicking. */}
+          {savedList.length > 0 && (() => {
+            const paidCount = savedList.filter(
+              (s) => s.channel === "meta" || s.channel === "google" || s.channel === "all",
+            ).length;
+            const organicCount = savedList.filter((s) => s.channel === "instagram").length;
+            const filteredList =
+              savedFilter === "paid"
+                ? savedList.filter(
+                    (s) => s.channel === "meta" || s.channel === "google" || s.channel === "all",
+                  )
+                : savedFilter === "organic"
+                  ? savedList.filter((s) => s.channel === "instagram")
+                  : savedList;
+            const pillClass = (active: boolean) =>
+              cn(
+                "inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs cursor-pointer transition-colors",
+                active
+                  ? "bg-gold text-gold-foreground font-medium"
+                  : "border border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+              );
+            return (
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+                  <CardTitle className="text-sm">{t("compare", "savedComparisons")}</CardTitle>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setSavedFilter("all")}
+                      className={pillClass(savedFilter === "all")}
+                    >
+                      {t("compare", "savedFilterAll")} <span className="opacity-60 tabular-nums">({savedList.length})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSavedFilter("paid")}
+                      className={pillClass(savedFilter === "paid")}
+                    >
+                      {t("compare", "savedFilterPaid")} <span className="opacity-60 tabular-nums">({paidCount})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSavedFilter("organic")}
+                      className={pillClass(savedFilter === "organic")}
+                    >
+                      {t("compare", "savedFilterOrganic")} <span className="opacity-60 tabular-nums">({organicCount})</span>
+                    </button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {filteredList.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-3">
+                      {t("compare", "savedFilterEmpty")}
+                    </p>
+                  )}
+                  {filteredList.map((sc) => {
                   const brandNames = sc.competitor_ids
                     .map((cid) => competitors.find((c) => c.id === cid)?.page_name ?? cid.slice(0, 8))
                     .join(" vs ");
@@ -1695,9 +1799,10 @@ export function CompareView({
                     </div>
                   );
                 })}
-              </CardContent>
-            </Card>
-          )}
+                </CardContent>
+              </Card>
+            );
+          })()}
         </div>
       )}
 
