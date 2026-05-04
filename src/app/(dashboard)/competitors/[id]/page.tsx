@@ -350,14 +350,16 @@ export default async function CompetitorDetailPage({
               <h1 className="text-3xl font-serif tracking-tight">{c.page_name}</h1>
             </div>
             <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-xs text-muted-foreground">
-              <a
-                href={c.page_url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-gold hover:underline truncate max-w-[280px]"
-              >
-                {c.page_url.replace(/^https?:\/\/(www\.)?/, "")}
-              </a>
+              {c.page_url && (
+                <a
+                  href={c.page_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-gold hover:underline truncate max-w-[280px]"
+                >
+                  {c.page_url.replace(/^https?:\/\/(www\.)?/, "")}
+                </a>
+              )}
               {pageLikeCount != null && pageLikeCount > 0 && (
                 <span>{formatCompactNumber(pageLikeCount)} {t("competitors", "likes")}</span>
               )}

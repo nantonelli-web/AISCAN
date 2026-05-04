@@ -45,16 +45,21 @@ export async function GET(req: Request) {
     workspace_id: string;
     page_id: string | null;
     page_name: string | null;
-    page_url: string;
+    page_url: string | null;
     country: string | null;
     google_advertiser_id: string | null;
     google_domain: string | null;
     monitor_config: { frequency?: string; max_items?: number } | null;
   };
 
-  const due = ((competitors ?? []) as CompRow[]).filter(
-    (c) => (c.monitor_config?.frequency ?? "manual") === frequency
-  );
+  // Cron only runs Meta scans (legacy). Brands with no Facebook
+  // page (page_url + page_id both null since 0036) cannot be Meta-
+  // scraped, so we drop them before the loop instead of failing
+  // each insert. Multi-channel-only brands stay in the workspace
+  // but skip cron until per-channel cron entries are added.
+  const due = ((competitors ?? []) as CompRow[])
+    .filter((c) => (c.monitor_config?.frequency ?? "manual") === frequency)
+    .filter((c) => !!c.page_url || !!c.page_id);
 
   const results: Array<{
     competitor_id: string;
@@ -84,7 +89,7 @@ export async function GET(req: Request) {
       const result = await scrapeMetaAds({
         pageId: c.page_id ?? undefined,
         pageName: (c as { page_name?: string }).page_name ?? undefined,
-        pageUrl: c.page_url,
+        pageUrl: c.page_url ?? undefined,
         country: c.country ?? undefined,
         maxItems: c.monitor_config?.max_items ?? 500,
         active: true,

@@ -14,7 +14,18 @@ import { coerceCountryForStorage } from "@/lib/meta/country-codes";
 
 const schema = z.object({
   page_name: z.string().min(1).max(160),
-  page_url: z.string().url(),
+  // page_url (Facebook) is OPTIONAL since migration 0036 — the
+  // platform is multi-channel; Meta page URL is only needed if
+  // the user wants to scan Meta ads. Empty string also accepted
+  // so a form submit with the field cleared doesn't blow up the
+  // z.string().url() validator.
+  page_url: z
+    .string()
+    .url()
+    .nullable()
+    .optional()
+    .or(z.literal("").transform(() => null)),
+  tiktok_advertiser_id: z.string().max(80).nullable().optional(),
   country: z.string().max(200).nullable().optional(),
   category: z.string().max(80).nullable().optional(),
   client_id: z.string().uuid().nullable().optional(),
@@ -53,21 +64,30 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  let { pageId } = extractPageIdentifier(parsed.data.page_url);
-
-  // If URL is a username (not numeric), resolve to page ID via Apify
-  if (!pageId) {
-    const resolved = await resolvePageId(parsed.data.page_url, parsed.data.page_name);
-    if (resolved) pageId = resolved;
+  // Page-ID resolution only when a Facebook URL is provided. Brands
+  // without it (multi-channel-only) just save page_id = NULL and
+  // skip Meta-specific lookups; the Meta scan path will refuse later.
+  let pageId: string | null = null;
+  const pageUrl = parsed.data.page_url ?? null;
+  if (pageUrl) {
+    pageId = extractPageIdentifier(pageUrl).pageId ?? null;
+    if (!pageId) {
+      const resolved = await resolvePageId(pageUrl, parsed.data.page_name);
+      if (resolved) pageId = resolved;
+    }
   }
+
+  const cleanedTtAdvId = parsed.data.tiktok_advertiser_id
+    ? parsed.data.tiktok_advertiser_id.replace(/\D/g, "")
+    : null;
 
   const { data, error } = await supabase
     .from("mait_competitors")
     .insert({
       workspace_id: profile.workspace_id,
       page_name: parsed.data.page_name,
-      page_url: parsed.data.page_url,
-      page_id: pageId ?? null,
+      page_url: pageUrl,
+      page_id: pageId,
       country: coerceCountryForStorage(parsed.data.country ?? null),
       category: parsed.data.category ?? null,
       client_id: parsed.data.client_id ?? null,
@@ -77,6 +97,7 @@ export async function POST(req: Request) {
       tiktok_username: parsed.data.tiktok_username
         ? cleanTikTokUsername(parsed.data.tiktok_username)
         : null,
+      tiktok_advertiser_id: cleanedTtAdvId && cleanedTtAdvId.length > 0 ? cleanedTtAdvId : null,
       snapchat_handle: parsed.data.snapchat_handle
         ? cleanSnapchatHandle(parsed.data.snapchat_handle)
         : null,

@@ -374,6 +374,10 @@ const translations = {
       en: "Only needed to disambiguate same-name brands in the TikTok Ads Library DSA. Leave empty — the scan finds the brand by name.",
     },
     optionalLabel: { it: "(opzionale)", en: "(optional)" },
+    pageUrlHint: {
+      it: "Necessario solo per scansionare le ads Meta. Lascia vuoto se il brand non è su Facebook.",
+      en: "Only required to scan Meta ads. Leave empty if the brand isn't on Facebook.",
+    },
     snapchatLabel: { it: "Username Snapchat", en: "Snapchat username" },
     snapchatPlaceholder: { it: "es. nike (senza @)", en: "e.g. nike (without @)" },
     youtubeLabel: { it: "Canale YouTube", en: "YouTube channel" },

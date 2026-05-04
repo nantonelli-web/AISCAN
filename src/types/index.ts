@@ -35,7 +35,10 @@ export interface MaitCompetitor {
   client_id: string | null;
   page_name: string;
   page_id: string | null;
-  page_url: string;
+  /** Facebook page URL — nullable since 0036 migration: optional
+   *  when the brand is tracked on non-Meta channels only. The
+   *  Meta scan path refuses to run without it. */
+  page_url: string | null;
   category: string | null;
   country: string | null;
   instagram_username: string | null;

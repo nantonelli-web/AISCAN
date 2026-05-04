@@ -77,6 +77,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Competitor not found" }, { status: 404 });
   }
 
+  // page_url is optional since 0036 — the brand might be a multi-
+  // channel record with no Facebook page configured. The Meta
+  // scrape needs the URL (or a page_id) so we refuse upfront with
+  // a clear copy and link the user back to the brand edit form.
+  if (!competitor.page_url && !competitor.page_id) {
+    return NextResponse.json(
+      {
+        error:
+          "Per scansionare le Meta Ads serve l'URL della Pagina Facebook del brand. Aggiungilo dalle impostazioni del brand e riprova.",
+      },
+      { status: 400 },
+    );
+  }
+
   const admin = createAdminClient();
 
   // Cleanup stale jobs: any "running" job older than 10 min → mark failed
@@ -102,9 +116,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Insufficient credits", balance: credits.balance, cost: 5 }, { status: 402 });
   }
 
-  // If page_id was never resolved, try again now
+  // If page_id was never resolved, try again now. We already
+  // refused above when both page_url and page_id are null, so by
+  // this point at least one of the two is set.
   let pageId = competitor.page_id;
-  if (!pageId) {
+  if (!pageId && competitor.page_url) {
     const resolved = await resolvePageId(
       competitor.page_url,
       competitor.page_name ?? undefined
@@ -150,7 +166,7 @@ export async function POST(req: Request) {
     const result = await scrapeMetaAds({
       pageId: pageId ?? undefined,
       pageName: competitor.page_name ?? undefined,
-      pageUrl: competitor.page_url,
+      pageUrl: competitor.page_url ?? undefined,
       country: competitor.country ?? undefined,
       maxItems: parsed.data.max_items ?? 500,
       // Product rule: only scan active ads. Inactive / stopped creatives are

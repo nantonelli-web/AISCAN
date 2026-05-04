@@ -61,7 +61,7 @@ export function EditCompetitorForm({
 }) {
   const router = useRouter();
   const [pageName, setPageName] = useState(competitor.page_name);
-  const [pageUrl, setPageUrl] = useState(competitor.page_url);
+  const [pageUrl, setPageUrl] = useState<string | null>(competitor.page_url);
   const [selectedCountries, setSelectedCountries] = useState<string[]>(
     parseCountries(competitor.country)
   );
@@ -123,7 +123,7 @@ export function EditCompetitorForm({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         page_name: pageName,
-        page_url: pageUrl,
+        page_url: pageUrl?.trim() || null,
         country: selectedCountries.length > 0 ? selectedCountries.join(", ") : null,
         category: category || null,
         client_id: clientId || null,
@@ -177,14 +177,21 @@ export function EditCompetitorForm({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="url">{t("newCompetitor", "pageUrlLabel")}</Label>
+              <Label htmlFor="url">
+                {t("newCompetitor", "pageUrlLabel")}
+                <span className="text-[10px] text-muted-foreground ml-2 font-normal">
+                  {t("newCompetitor", "optionalLabel")}
+                </span>
+              </Label>
               <Input
                 id="url"
-                required
                 type="url"
-                value={pageUrl}
+                value={pageUrl ?? ""}
                 onChange={(e) => setPageUrl(e.target.value)}
               />
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                {t("newCompetitor", "pageUrlHint")}
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="instagram">{t("newCompetitor", "instagramLabel")}</Label>

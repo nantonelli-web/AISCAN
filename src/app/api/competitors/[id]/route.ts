@@ -17,7 +17,15 @@ const patchSchema = z.object({
   max_items: z.number().int().min(10).max(1000).optional(),
   // Editable competitor fields
   page_name: z.string().min(1).max(160).optional(),
-  page_url: z.string().url().optional(),
+  // Optional + nullable since 0036 — multi-channel brands can save
+  // a NULL Facebook URL. Empty string from a cleared form input
+  // gets coerced to null.
+  page_url: z
+    .string()
+    .url()
+    .nullable()
+    .optional()
+    .or(z.literal("").transform(() => null)),
   country: z.string().max(200).nullable().optional(),
   category: z.string().max(80).nullable().optional(),
   client_id: z.string().uuid().nullable().optional(),
