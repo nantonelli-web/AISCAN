@@ -93,7 +93,7 @@ export default async function CompetitorDetailPage({
     supabase
       .from("mait_competitors")
       .select(
-        "id, workspace_id, page_name, page_url, country, category, monitor_config, profile_picture_url, instagram_username, tiktok_username, tiktok_advertiser_id, snapchat_handle, snapchat_profile, youtube_channel_url, youtube_profile, google_advertiser_id, google_domain"
+        "id, workspace_id, page_name, page_id, page_url, country, category, monitor_config, profile_picture_url, instagram_username, tiktok_username, tiktok_advertiser_id, snapchat_handle, snapchat_profile, youtube_channel_url, youtube_profile, google_advertiser_id, google_domain"
       )
       .eq("id", id)
       .single(),
@@ -439,6 +439,13 @@ export default async function CompetitorDetailPage({
         <CardContent>
           <ScanDropdown
             competitorId={c.id}
+            // Meta scrape needs either a Facebook page URL OR a
+            // pre-resolved page_id. Brands created without the FB
+            // URL (since the field went optional in 0036) can't
+            // run Meta scans until the user fills it in — disable
+            // the button visibly instead of letting the click
+            // surface a 400 from the API.
+            hasMetaConfig={!!(c.page_url || c.page_id)}
             hasGoogleConfig={!!(c.google_advertiser_id || c.google_domain)}
             hasInstagramConfig={!!c.instagram_username}
             hasTiktokConfig={!!c.tiktok_username}

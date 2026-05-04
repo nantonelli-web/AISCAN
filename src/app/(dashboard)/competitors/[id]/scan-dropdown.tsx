@@ -50,6 +50,12 @@ const MAX_RANGE_DAYS = 90;
 
 interface Props {
   competitorId: string;
+  /** True iff the brand has a Facebook page URL (or pre-resolved
+   *  page_id) configured. Required for the Meta scan path: without
+   *  one the Apify Meta actor has nothing to query. Mirrors the
+   *  hasGoogleConfig / hasInstagramConfig pattern so the button
+   *  disables visually + the missing-config strip can name the gap. */
+  hasMetaConfig: boolean;
   hasGoogleConfig: boolean;
   hasInstagramConfig: boolean;
   hasTiktokConfig: boolean;
@@ -70,6 +76,7 @@ type ScanTarget =
 
 export function ScanDropdown({
   competitorId,
+  hasMetaConfig,
   hasGoogleConfig,
   hasInstagramConfig,
   hasTiktokConfig,
@@ -439,7 +446,15 @@ export function ScanDropdown({
   // h-9 + abbreviated labels (IG / YT / Snap) were the user-flagged
   // illegibility — full names are back.
   const btn = "h-10 px-3 text-sm gap-2 cursor-pointer w-full justify-start";
-  const btnDisabled = "h-10 px-3 text-sm gap-2 w-full justify-start opacity-40 cursor-not-allowed";
+  // Disabled buttons need to be visually subtler than the active
+  // ones — user feedback 2026-05-04: opacity-40 was still legible
+  // and indistinguishable from active at a glance. We now combine
+  // a stronger opacity drop, a dashed border (signals "not yet
+  // configured"), and a lighter background so the eye reads them
+  // as ghost states, not as primary CTAs.
+  const btnDisabled =
+    "h-10 px-3 text-sm gap-2 w-full justify-start opacity-50 cursor-not-allowed " +
+    "!bg-muted/30 !border-dashed !border-border/60 !text-muted-foreground/60";
 
   return (
     <div className="space-y-5">
@@ -543,11 +558,11 @@ export function ScanDropdown({
             </div>
             <div className="space-y-2">
               <Button
-                onClick={scanMeta}
-                disabled={isLoading || rangeExceeded}
+                onClick={hasMetaConfig ? scanMeta : undefined}
+                disabled={!hasMetaConfig || isLoading || rangeExceeded}
                 variant="outline"
                 size="sm"
-                className={btn}
+                className={hasMetaConfig ? btn : btnDisabled}
               >
                 {loading === "meta" ? (
                   <RefreshCw className="size-4 animate-spin" />
@@ -702,6 +717,7 @@ export function ScanDropdown({
               ~32px and keep the Scan card compact. */}
       {!showStop && (() => {
         const missing = [
+          !hasMetaConfig && "Meta",
           !hasGoogleConfig && "Google",
           !hasInstagramConfig && "Instagram",
           !hasTiktokConfig && "TikTok",
