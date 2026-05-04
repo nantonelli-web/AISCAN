@@ -436,7 +436,7 @@ export default async function CompetitorDetailPage({
           return (
             <MiniKpi
               label={t("brandHero", "kpiLastScan")}
-              value={lastScan ? formatRelativeShort(lastScan) : "—"}
+              value={lastScan ? formatScanDate(lastScan) : "—"}
               tone={
                 lastScan && Date.now() - new Date(lastScan).getTime() < 14 * 86_400_000
                   ? "success"
@@ -562,16 +562,17 @@ function MiniKpi({
   );
 }
 
-/** Compact relative-time formatter. "3d", "2w", "5mo". Falls back
- *  to the absolute date for anything older than a year so the user
- *  is not staring at "84w" on a long-dormant brand. */
-function formatRelativeShort(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime();
-  if (ms < 0) return "now";
-  const d = Math.floor(ms / 86_400_000);
-  if (d === 0) return "today";
-  if (d < 7) return `${d}d`;
-  if (d < 30) return `${Math.floor(d / 7)}w`;
-  if (d < 365) return `${Math.floor(d / 30)}mo`;
-  return new Date(iso).toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+/** Absolute date formatter for the "Ultimo scan" KPI tile. User
+ *  feedback 2026-05-04: the previous compact relative form ("3d",
+ *  "2w") gave a vague sense but not the actual day — they wanted
+ *  the date. DD/MM/YY in en-GB so day-month order matches the
+ *  Italian convention without re-localising on every locale. */
+function formatScanDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  });
 }
