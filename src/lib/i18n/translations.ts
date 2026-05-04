@@ -505,6 +505,14 @@ const translations = {
     scanAllPartial: { it: "brand completati", en: "brands completed" },
     last30days: { it: "Ultimi 30 giorni", en: "Last 30 days" },
     scanPeriod: { it: "Periodo di scansione", en: "Scan period" },
+    tiktokYoutubeNoteTitle: {
+      it: "Nota su TikTok e YouTube:",
+      en: "Note on TikTok and YouTube:",
+    },
+    tiktokYoutubeNoteBody: {
+      it: "questi due canali non supportano un filtro per data lato sorgente. La scansione recupera gli ultimi 50 post (TikTok) / 30 video (YouTube) e poi applica la finestra che hai scelto. Per profili molto attivi o finestre molto vecchie il risultato potrebbe essere parziale.",
+      en: "These two channels don't support a server-side date filter. The scan fetches the latest 50 posts (TikTok) / 30 videos (YouTube) and then applies your window. For very active profiles or older windows the result may be partial.",
+    },
     paid: { it: "Paid", en: "Paid" },
     organic: { it: "Organic", en: "Organic" },
     monitoringGroup: { it: "Monitoring", en: "Monitoring" },

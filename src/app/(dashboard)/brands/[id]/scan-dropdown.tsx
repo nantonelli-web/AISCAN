@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
-import { RefreshCw, CalendarRange, Square, Search, MapPin } from "lucide-react";
+import { RefreshCw, CalendarRange, Square, Search, MapPin, Info } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
 import { TikTokIcon } from "@/components/ui/tiktok-icon";
@@ -541,6 +541,25 @@ export function ScanDropdown({
         {rangeError && (
           <span className="text-xs tone-danger">{rangeError}</span>
         )}
+      </div>
+
+      {/* Helper note — TikTok / YouTube actor limitation.
+          Both clockworks/tiktok-scraper and streamers/youtube-
+          channel-scraper expose only "fetch latest N items" — no
+          server-side date filter. We apply the user's range
+          post-fetch (drop items whose posted_at falls outside),
+          which works for typical 30-90d windows but cannot
+          retrieve content older than the latest-N cap. The note
+          stays inline so the user sees it BEFORE clicking the
+          TikTok or YouTube button. Snapchat is excluded because
+          its actor returns a single profile snapshot, not a
+          posts list — date range simply doesn't apply. */}
+      <div className="flex items-start gap-2.5 rounded-md border border-info/20 bg-info-soft/40 px-3 py-2.5 text-xs text-foreground/80 leading-relaxed">
+        <Info className="size-3.5 tone-info shrink-0 mt-0.5" />
+        <p>
+          <span className="font-medium text-foreground">{t("scan", "tiktokYoutubeNoteTitle")}</span>{" "}
+          {t("scan", "tiktokYoutubeNoteBody")}
+        </p>
       </div>
 
       {/* ─── 1b. Scan markets — read-only chip strip.
