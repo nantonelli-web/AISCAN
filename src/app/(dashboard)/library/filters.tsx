@@ -8,6 +8,10 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { MetaIcon } from "@/components/ui/meta-icon";
+import { InstagramIcon } from "@/components/ui/instagram-icon";
+import { TikTokIcon } from "@/components/ui/tiktok-icon";
+import { SnapchatIcon } from "@/components/ui/snapchat-icon";
+import { YouTubeIcon } from "@/components/ui/youtube-icon";
 
 interface Initial {
   q?: string;
@@ -31,6 +35,19 @@ function GoogleIcon({ className }: { className?: string }) {
 }
 
 type Facets = { ctas: string[]; platforms: string[]; statuses: string[] };
+
+/** Channels backed by organic post tables (no ad-style format /
+ *  CTA / platform / status filters apply). Used to gate the
+ *  Advanced filters panel — those facets only make sense on the
+ *  paid `mait_ads_external` rows. */
+function isOrganicChannel(channel: string | undefined): boolean {
+  return (
+    channel === "instagram" ||
+    channel === "tiktok" ||
+    channel === "snapchat" ||
+    channel === "youtube"
+  );
+}
 
 export function LibraryFilters({
   initial,
@@ -130,6 +147,9 @@ export function LibraryFilters({
     meta: "Meta Ads",
     google: "Google Ads",
     instagram: "Instagram",
+    tiktok: "TikTok",
+    snapchat: "Snapchat",
+    youtube: "YouTube",
   };
 
   return (
@@ -150,35 +170,48 @@ export function LibraryFilters({
         </Button>
       </form>
 
-      {/* ─── Row 2: Primary filters ─── */}
-      <div className="rounded-lg border border-border bg-card p-3">
-        <div className="flex flex-wrap items-center gap-6">
+      {/* ─── Row 2: Primary filters ───
+          Channels split into two visually-distinct group cards
+          (Paid / Organic). The original inline divider was a single
+          5px hairline that the user couldn't see; framing each
+          group with its own bordered/tinted box makes the boundary
+          unmistakable. Brand filter and Reset stay on a third row
+          so the channel cards keep breathing room. */}
+      <div className="rounded-lg border border-border bg-card p-3 space-y-3">
+        <div className="flex flex-wrap items-stretch gap-2">
           {/* Channel — Paid */}
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Paid</span>
-            <div className="flex items-center gap-1">
-              <Pill active={(filters.channel ?? "") === ""} onClick={() => selectChannel()}>{t("library", "allChannels")}</Pill>
-              <Pill active={filters.channel === "meta"} onClick={() => selectChannel("meta")}>
-                <MetaIcon className="size-3" /> Meta
-              </Pill>
-              <Pill active={filters.channel === "google"} onClick={() => selectChannel("google")}>
-                <GoogleIcon className="size-3" /> Google
-              </Pill>
-            </div>
-          </div>
-
-          <div className="h-5 w-px bg-border" />
-
-          {/* Channel — Organic */}
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Organic</span>
-            <Pill active={filters.channel === "instagram"} onClick={() => selectChannel("instagram")}>
-              Instagram
+          <div className="flex items-center gap-2 rounded-md border border-border/80 bg-muted/30 px-3 py-1.5">
+            <span className="text-[10px] uppercase tracking-wider text-foreground/70 font-bold">Paid</span>
+            <Pill active={(filters.channel ?? "") === ""} onClick={() => selectChannel()}>{t("library", "allChannels")}</Pill>
+            <Pill active={filters.channel === "meta"} onClick={() => selectChannel("meta")}>
+              <MetaIcon className="size-3" /> Meta
+            </Pill>
+            <Pill active={filters.channel === "google"} onClick={() => selectChannel("google")}>
+              <GoogleIcon className="size-3" /> Google
             </Pill>
           </div>
 
-          <div className="h-5 w-px bg-border" />
+          {/* Channel — Organic. Each surface lives in its own data
+              table; the /library page branches per channel and
+              renders the dedicated card component. */}
+          <div className="flex items-center gap-2 rounded-md border border-border/80 bg-muted/30 px-3 py-1.5">
+            <span className="text-[10px] uppercase tracking-wider text-foreground/70 font-bold">Organic</span>
+            <Pill active={filters.channel === "instagram"} onClick={() => selectChannel("instagram")}>
+              <InstagramIcon className="size-3" /> Instagram
+            </Pill>
+            <Pill active={filters.channel === "tiktok"} onClick={() => selectChannel("tiktok")}>
+              <TikTokIcon className="size-3" /> TikTok
+            </Pill>
+            <Pill active={filters.channel === "snapchat"} onClick={() => selectChannel("snapchat")}>
+              <SnapchatIcon className="size-3" /> Snapchat
+            </Pill>
+            <Pill active={filters.channel === "youtube"} onClick={() => selectChannel("youtube")}>
+              <YouTubeIcon className="size-3" /> YouTube
+            </Pill>
+          </div>
+        </div>
 
+        <div className="flex flex-wrap items-center gap-6">
           {/* Brand */}
           <div className="flex items-center gap-2">
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Brand</span>
@@ -200,7 +233,7 @@ export function LibraryFilters({
           </div>
 
           {/* Advanced toggle — hidden for Instagram (no ads filters) */}
-          {filters.channel !== "instagram" && (
+          {!isOrganicChannel(filters.channel) && (
             <>
               <div className="h-5 w-px bg-border" />
               <button
@@ -230,7 +263,7 @@ export function LibraryFilters({
         </div>
 
         {/* ─── Advanced filters (expandable, hidden for Instagram) ─── */}
-        {showAdvanced && filters.channel !== "instagram" && (
+        {showAdvanced && !isOrganicChannel(filters.channel) && (
           <div className="mt-3 pt-3 border-t border-border flex flex-wrap gap-6">
             <FilterSelect
               label={t("library", "formatLabel")}

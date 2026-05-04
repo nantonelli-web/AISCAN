@@ -48,6 +48,9 @@ export function NewCompetitorForm() {
   const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
   const [category, setCategory] = useState("");
   const [instagramUsername, setInstagramUsername] = useState("");
+  const [tiktokUsername, setTiktokUsername] = useState("");
+  const [snapchatHandle, setSnapchatHandle] = useState("");
+  const [youtubeChannelUrl, setYoutubeChannelUrl] = useState("");
   const [googleAdvertiserId, setGoogleAdvertiserId] = useState("");
   const [googleDomain, setGoogleDomain] = useState("");
   const [clientId, setClientId] = useState("");
@@ -110,6 +113,9 @@ export function NewCompetitorForm() {
         category: category || null,
         client_id: clientId || null,
         instagram_username: instagramUsername.replace(/^@/, "").trim() || null,
+        tiktok_username: tiktokUsername.replace(/^@/, "").trim() || null,
+        snapchat_handle: snapchatHandle.replace(/^@/, "").trim() || null,
+        youtube_channel_url: youtubeChannelUrl.trim() || null,
         google_advertiser_id: googleAdvertiserId.trim() || null,
         google_domain: googleDomain.trim() || null,
       }),
@@ -163,6 +169,33 @@ export function NewCompetitorForm() {
               value={instagramUsername}
               onChange={(e) => setInstagramUsername(e.target.value)}
               placeholder={t("newCompetitor", "instagramPlaceholder")}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="tiktok">{t("newCompetitor", "tiktokLabel")}</Label>
+            <Input
+              id="tiktok"
+              value={tiktokUsername}
+              onChange={(e) => setTiktokUsername(e.target.value)}
+              placeholder={t("newCompetitor", "tiktokPlaceholder")}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="snapchat">{t("newCompetitor", "snapchatLabel")}</Label>
+            <Input
+              id="snapchat"
+              value={snapchatHandle}
+              onChange={(e) => setSnapchatHandle(e.target.value)}
+              placeholder={t("newCompetitor", "snapchatPlaceholder")}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="youtube">{t("newCompetitor", "youtubeLabel")}</Label>
+            <Input
+              id="youtube"
+              value={youtubeChannelUrl}
+              onChange={(e) => setYoutubeChannelUrl(e.target.value)}
+              placeholder={t("newCompetitor", "youtubePlaceholder")}
             />
           </div>
 

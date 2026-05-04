@@ -1,15 +1,19 @@
 "use client";
 
 import { useState, useRef } from "react";
+import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
-import { RefreshCw, CalendarRange, Square } from "lucide-react";
+import { RefreshCw, CalendarRange, Square, Search, MapPin } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
+import { TikTokIcon } from "@/components/ui/tiktok-icon";
+import { SnapchatIcon } from "@/components/ui/snapchat-icon";
+import { YouTubeIcon } from "@/components/ui/youtube-icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useT } from "@/lib/i18n/context";
-import { cn, jumpToDateInput } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 /* ─── Platform SVG logos ─────────────────────────────────── */
 
@@ -47,16 +51,22 @@ interface Props {
   competitorId: string;
   hasGoogleConfig: boolean;
   hasInstagramConfig: boolean;
+  hasTiktokConfig: boolean;
+  hasSnapchatConfig: boolean;
+  hasYoutubeConfig: boolean;
   /** DB-confirmed running job; shows Stop even after a page reload. */
   hasRunningJob?: boolean;
 }
 
-type ScanTarget = "meta" | "google" | "instagram";
+type ScanTarget = "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube";
 
 export function ScanDropdown({
   competitorId,
   hasGoogleConfig,
   hasInstagramConfig,
+  hasTiktokConfig,
+  hasSnapchatConfig,
+  hasYoutubeConfig,
   hasRunningJob = false,
 }: Props) {
   const router = useRouter();
@@ -65,7 +75,9 @@ export function ScanDropdown({
   // page lands on the just-imported channel instead of leaving the
   // user on the previous tab. router.replace + router.refresh keeps
   // the back-stack clean and re-runs the server component.
-  function focusChannel(tab: "meta" | "google" | "instagram") {
+  function focusChannel(
+    tab: "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube",
+  ) {
     router.replace(`${pathname}?tab=${tab}`);
     router.refresh();
   }
@@ -76,7 +88,11 @@ export function ScanDropdown({
   // Shared date range
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const dateToRef = useRef<HTMLInputElement | null>(null);
+  // Removed jumpToDateInput auto-jump from From → To: showPicker()
+  // inside a setTimeout loses the user-activation gesture, leaving
+  // the To picker in a frozen state where clicks/keys do not register
+  // and click-outside does not close it. User can click To manually
+  // — minor UX regression, much better than a stuck calendar.
 
   const isLoading = loading !== null;
   const showStop = isLoading || hasRunningJob;
@@ -241,43 +257,164 @@ export function ScanDropdown({
     }
   }
 
+  // The YouTube actor returns the most recent N videos plus a channel
+  // snapshot — no date filter to forward, so we ignore the date
+  // range inputs above (same as TikTok).
+  async function scanYoutube() {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setLoading("youtube");
+    const toastId = toast.loading(t("organic", "scanningYoutube"));
+    try {
+      const res = await fetch("/api/youtube/scan", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          competitor_id: competitorId,
+          max_videos: 30,
+        }),
+        signal: controller.signal,
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error ?? "YouTube scrape failed", { id: toastId });
+      } else {
+        toast.success(
+          `${json.records} ${t("organic", "postsSynced")}`,
+          { id: toastId },
+        );
+        focusChannel("youtube");
+      }
+    } catch (e) {
+      if ((e as Error).name === "AbortError") {
+        toast.dismiss(toastId);
+      } else {
+        toast.error(e instanceof Error ? e.message : "Network error", { id: toastId });
+      }
+    } finally {
+      abortRef.current = null;
+      setLoading(null);
+    }
+  }
+
+  // The Snapchat actor returns one profile snapshot per scan (no per-
+  // post entity to filter, no date range). Always-on, regardless of
+  // the date inputs above.
+  async function scanSnapchat() {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setLoading("snapchat");
+    const toastId = toast.loading(t("organic", "scanningSnapchat"));
+    try {
+      const res = await fetch("/api/snapchat/scan", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          competitor_id: competitorId,
+        }),
+        signal: controller.signal,
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error ?? "Snapchat scrape failed", { id: toastId });
+      } else {
+        toast.success(t("scan", "snapshotSynced"), { id: toastId });
+        focusChannel("snapchat");
+      }
+    } catch (e) {
+      if ((e as Error).name === "AbortError") {
+        toast.dismiss(toastId);
+      } else {
+        toast.error(e instanceof Error ? e.message : "Network error", { id: toastId });
+      }
+    } finally {
+      abortRef.current = null;
+      setLoading(null);
+    }
+  }
+
+  // The TikTok actor pulls "most recent N videos" — there is no date
+  // filter to forward, so we ignore dateFrom/dateTo (and the range
+  // validation) for this channel.
+  async function scanTikTok() {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setLoading("tiktok");
+    const toastId = toast.loading(t("organic", "scanningTikTok"));
+    try {
+      const res = await fetch("/api/tiktok/scan", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          competitor_id: competitorId,
+          max_posts: 50,
+        }),
+        signal: controller.signal,
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error ?? "TikTok scrape failed", { id: toastId });
+      } else {
+        toast.success(
+          `${json.records} ${t("organic", "postsSynced")}`,
+          { id: toastId }
+        );
+        focusChannel("tiktok");
+      }
+    } catch (e) {
+      if ((e as Error).name === "AbortError") {
+        toast.dismiss(toastId);
+      } else {
+        toast.error(e instanceof Error ? e.message : "Network error", { id: toastId });
+      }
+    } finally {
+      abortRef.current = null;
+      setLoading(null);
+    }
+  }
+
   // ─── Render ───
 
-  const bigCta = "h-12 px-5 text-base gap-2.5 cursor-pointer";
-  const bigCtaDisabled = "h-12 px-5 text-base gap-2.5 opacity-40 cursor-not-allowed";
-  const groupLabel = "text-[10px] uppercase tracking-wider text-muted-foreground font-medium";
+  // Channel buttons: h-10 / text-sm / size-4 icons. Big enough to
+  // read from a normal viewing distance, small enough that 4 fit
+  // comfortably in an Organic column on a wide screen. The previous
+  // h-9 + abbreviated labels (IG / YT / Snap) were the user-flagged
+  // illegibility — full names are back.
+  const btn = "h-10 px-3 text-sm gap-2 cursor-pointer w-full justify-start";
+  const btnDisabled = "h-10 px-3 text-sm gap-2 w-full justify-start opacity-40 cursor-not-allowed";
 
   return (
-    <div className="space-y-4">
-      {/* ─── 1. Scan period — everything on one line ─── */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="flex items-center gap-2">
-          <CalendarRange className="size-4 text-foreground" />
-          <span className="text-sm font-medium text-foreground">{t("scan", "scanPeriod")}:</span>
+    <div className="space-y-5">
+      {/* ─── 1. Scan period — its own row with proper label.
+              The user reads it as a config setting, not as a sibling
+              of the channel buttons. */}
+      <div className="flex flex-wrap items-center gap-3 pb-4 border-b border-border/60">
+        <div className="inline-flex items-center gap-2 shrink-0">
+          <div className="size-7 rounded-md bg-info-soft tone-info grid place-items-center">
+            <CalendarRange className="size-4" />
+          </div>
+          <span className="text-sm font-medium text-foreground">
+            {t("scan", "scanPeriod")}
+          </span>
         </div>
-        <label className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{t("scan", "dateFrom")}</span>
+        <div className="flex items-center gap-2">
           <Input
             type="date"
             value={dateFrom}
-            onChange={(e) => {
-              setDateFrom(e.target.value);
-              if (e.target.value) jumpToDateInput(dateToRef.current);
-            }}
+            onChange={(e) => setDateFrom(e.target.value)}
             placeholder={daysAgo(30)}
-            className="text-xs h-8 w-36"
+            aria-label={t("scan", "dateFrom")}
+            className="text-sm h-9 w-40"
           />
-        </label>
-        <label className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{t("scan", "dateTo")}</span>
+          <span className="text-sm text-muted-foreground">→</span>
           <Input
-            ref={dateToRef}
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            className="text-xs h-8 w-36"
+            aria-label={t("scan", "dateTo")}
+            className="text-sm h-9 w-40"
           />
-        </label>
+        </div>
         {(dateFrom || dateTo) && (
           <button
             onClick={() => { setDateFrom(""); setDateTo(""); }}
@@ -287,7 +424,7 @@ export function ScanDropdown({
           </button>
         )}
         {rangeError && (
-          <span className="text-xs text-red-400">{rangeError}</span>
+          <span className="text-xs tone-danger">{rangeError}</span>
         )}
       </div>
 
@@ -311,7 +448,7 @@ export function ScanDropdown({
             disabled={stopping}
             variant="outline"
             size="lg"
-            className={cn(bigCta, "border-red-400/40 text-red-400 hover:bg-red-400/15 hover:border-red-400 shrink-0")}
+            className={cn("h-10 px-4 gap-2 cursor-pointer border-red-400/40 text-red-400 hover:bg-red-400/15 hover:border-red-400 shrink-0")}
           >
             <Square className="size-5 fill-current" />
             {stopping ? t("scan", "stopping") : "Stop"}
@@ -319,105 +456,193 @@ export function ScanDropdown({
         </div>
       )}
 
-      {/* ─── 3. Channels — grouped by Paid / Organic. Hidden while a
-              scan is running so the user cannot fire a second scan
-              from the same brand (the rate-limit gate would reject
-              it server-side, but client-side hiding makes the state
-              visually unambiguous and removes the failure path). */}
+      {/* ─── 3. Channels — 3-column grid, each column is one
+              category (Paid / Organic / Monitoring). Each column
+              has a clear group header (eyebrow + thin colour rule)
+              and stacks its buttons vertically so the full channel
+              name fits and the touch target is large.
+              On narrow widths the grid collapses to a single column
+              so nothing gets cramped. */}
       {!showStop && (
-      <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
-        {/* Paid group */}
-        <div className="space-y-2">
-          <p className={groupLabel}>{t("scan", "paid")}</p>
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* Meta Ads — active ads only, no ALL fallback. */}
-            <Button
-              onClick={scanMeta}
-              disabled={isLoading || rangeExceeded}
-              variant="outline"
-              size="lg"
-              className={bigCta}
-            >
-              {loading === "meta" ? (
-                <RefreshCw className="size-6 animate-spin" />
-              ) : (
-                <MetaIcon className="size-6" />
-              )}
-              {loading === "meta" ? t("scan", "scanning") : "Meta Ads"}
-            </Button>
+        <div className="grid gap-x-6 gap-y-5 sm:grid-cols-3">
+          {/* PAID column — gold rail (matches the channel-rail
+              token system used on cards elsewhere). */}
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-2">
+              <span className="size-1.5 rounded-full bg-[color:var(--channel-meta)]" />
+              <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-foreground">
+                {t("scan", "paid")}
+              </span>
+            </div>
+            <div className="space-y-2">
+              <Button
+                onClick={scanMeta}
+                disabled={isLoading || rangeExceeded}
+                variant="outline"
+                size="sm"
+                className={btn}
+              >
+                {loading === "meta" ? (
+                  <RefreshCw className="size-4 animate-spin" />
+                ) : (
+                  <MetaIcon className="size-4" />
+                )}
+                {loading === "meta" ? t("scan", "scanning") : "Meta Ads"}
+              </Button>
+              <Button
+                onClick={hasGoogleConfig ? scanGoogle : undefined}
+                disabled={!hasGoogleConfig || isLoading || rangeExceeded}
+                variant="outline"
+                size="sm"
+                className={hasGoogleConfig ? btn : btnDisabled}
+              >
+                {loading === "google" ? (
+                  <RefreshCw className="size-4 animate-spin" />
+                ) : (
+                  <GoogleLogo className="size-4" />
+                )}
+                {loading === "google" ? t("scan", "scanningGoogle") : "Google Ads"}
+              </Button>
+            </div>
+          </div>
 
-            {/* Google Ads */}
-            <Button
-              onClick={hasGoogleConfig ? scanGoogle : undefined}
-              disabled={!hasGoogleConfig || isLoading || rangeExceeded}
-              variant="outline"
-              size="lg"
-              className={hasGoogleConfig ? bigCta : bigCtaDisabled}
-            >
-              {loading === "google" ? (
-                <RefreshCw className="size-6 animate-spin" />
-              ) : (
-                <GoogleLogo className="size-6" />
-              )}
-              {loading === "google" ? t("scan", "scanningGoogle") : "Google Ads"}
-            </Button>
+          {/* ORGANIC column — 4 channels stacked in 2x2 mini-grid
+              so the column doesn't get tall and uneven against
+              the 2-button Paid column. */}
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-2">
+              <span className="size-1.5 rounded-full bg-[color:var(--channel-instagram)]" />
+              <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-foreground">
+                {t("scan", "organic")}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                onClick={hasInstagramConfig ? scanInstagram : undefined}
+                disabled={!hasInstagramConfig || isLoading || rangeExceeded}
+                variant="outline"
+                size="sm"
+                className={hasInstagramConfig ? btn : btnDisabled}
+              >
+                {loading === "instagram" ? (
+                  <RefreshCw className="size-4 animate-spin" />
+                ) : (
+                  <InstagramIcon className="size-4" />
+                )}
+                Instagram
+              </Button>
+              <Button
+                onClick={hasTiktokConfig ? scanTikTok : undefined}
+                disabled={!hasTiktokConfig || isLoading}
+                variant="outline"
+                size="sm"
+                className={hasTiktokConfig ? btn : btnDisabled}
+              >
+                {loading === "tiktok" ? (
+                  <RefreshCw className="size-4 animate-spin" />
+                ) : (
+                  <TikTokIcon className="size-4" />
+                )}
+                TikTok
+              </Button>
+              <Button
+                onClick={hasSnapchatConfig ? scanSnapchat : undefined}
+                disabled={!hasSnapchatConfig || isLoading}
+                variant="outline"
+                size="sm"
+                className={hasSnapchatConfig ? btn : btnDisabled}
+              >
+                {loading === "snapchat" ? (
+                  <RefreshCw className="size-4 animate-spin" />
+                ) : (
+                  <SnapchatIcon className="size-4" />
+                )}
+                Snapchat
+              </Button>
+              <Button
+                onClick={hasYoutubeConfig ? scanYoutube : undefined}
+                disabled={!hasYoutubeConfig || isLoading}
+                variant="outline"
+                size="sm"
+                className={hasYoutubeConfig ? btn : btnDisabled}
+              >
+                {loading === "youtube" ? (
+                  <RefreshCw className="size-4 animate-spin" />
+                ) : (
+                  <YouTubeIcon className="size-4" />
+                )}
+                YouTube
+              </Button>
+            </div>
+          </div>
+
+          {/* MONITORING column — workspace-level tools (SERP / Maps)
+              don't have a "scan" action per se — clicking opens the
+              create flow on the workspace page with brand context
+              preserved. */}
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-2">
+              <span className="size-1.5 rounded-full bg-[color:var(--channel-serp)]" />
+              <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-foreground">
+                {t("scan", "monitoringGroup")}
+              </span>
+            </div>
+            <div className="space-y-2">
+              <Link
+                href={`/serp?brandId=${competitorId}&new=1`}
+                className={cn(
+                  btn,
+                  "inline-flex items-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+                )}
+              >
+                <Search className="size-4" /> Google SERP
+              </Link>
+              <Link
+                href="/maps"
+                className={cn(
+                  btn,
+                  "inline-flex items-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+                )}
+              >
+                <MapPin className="size-4" /> Google Maps
+              </Link>
+            </div>
           </div>
         </div>
+      )}
 
-        {/* Divider between groups */}
-        <div className="hidden sm:block w-px self-stretch bg-border mt-6" />
-
-        {/* Organic group */}
-        <div className="space-y-2">
-          <p className={groupLabel}>{t("scan", "organic")}</p>
-          <div className="flex items-center gap-3 flex-wrap">
-            <Button
-              onClick={hasInstagramConfig ? scanInstagram : undefined}
-              disabled={!hasInstagramConfig || isLoading || rangeExceeded}
-              variant="outline"
-              size="lg"
-              className={hasInstagramConfig ? bigCta : bigCtaDisabled}
+      {/* ─── 4. Missing config — collapsed into a single inline row.
+              The previous amber box stacked one row per missing channel
+              and ate ~120px on a typical brand. The icon-only chips
+              with a single "Configura" link convey the same info in
+              ~32px and keep the Scan card compact. */}
+      {!showStop && (() => {
+        const missing = [
+          !hasGoogleConfig && "Google",
+          !hasInstagramConfig && "Instagram",
+          !hasTiktokConfig && "TikTok",
+          !hasSnapchatConfig && "Snapchat",
+          !hasYoutubeConfig && "YouTube",
+        ].filter(Boolean) as string[];
+        if (missing.length === 0) return null;
+        return (
+          <div className="flex items-center gap-2 flex-wrap text-xs tone-warning bg-warning-soft rounded-md px-3 py-2">
+            <span className="font-medium">
+              {missing.length === 1
+                ? t("scan", "configRequiredOne")
+                : `${missing.length} ${t("scan", "configRequiredMany")}`}
+              :
+            </span>
+            <span className="text-foreground/80">{missing.join(", ")}</span>
+            <a
+              href={`/competitors/${competitorId}/edit?from=brand`}
+              className="ml-auto text-xs underline tone-warning hover:opacity-80"
             >
-              {loading === "instagram" ? (
-                <RefreshCw className="size-6 animate-spin" />
-              ) : (
-                <InstagramIcon className="size-6" />
-              )}
-              {loading === "instagram" ? t("organic", "scanning") : "Instagram"}
-            </Button>
+              {t("compare", "goToEdit")}
+            </a>
           </div>
-        </div>
-      </div>
-      )}
-
-      {/* ─── 4. Missing config details (amber box). Also hidden while
-              a scan is running — keeps the running state focused on
-              the Stop CTA and removes secondary visual noise. */}
-      {!showStop && (!hasGoogleConfig || !hasInstagramConfig) && (
-        <div className="rounded-md border border-gold/30 bg-gold/5 p-3 space-y-1.5">
-          <p className="text-xs font-medium text-gold">{t("scan", "configRequiredBrand")}</p>
-          {!hasGoogleConfig && (
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-muted-foreground">Google Ads: {t("scan", "googleNotConfigured")}</span>
-              <a href={`/competitors/${competitorId}/edit?from=brand`} className="ml-auto shrink-0">
-                <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer">
-                  {t("compare", "goToEdit")}
-                </Button>
-              </a>
-            </div>
-          )}
-          {!hasInstagramConfig && (
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-muted-foreground">Instagram: {t("scan", "instagramNotConfigured")}</span>
-              <a href={`/competitors/${competitorId}/edit?from=brand`} className="ml-auto shrink-0">
-                <Button variant="outline" size="sm" className="text-xs h-6 px-2 cursor-pointer">
-                  {t("compare", "goToEdit")}
-                </Button>
-              </a>
-            </div>
-          )}
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

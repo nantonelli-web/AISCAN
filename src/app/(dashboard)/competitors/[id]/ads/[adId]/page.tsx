@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, Calendar, Clock, Globe, Tag, Bot, Zap, LayoutGrid, MapPin, Users, UsersRound, Play } from "lucide-react";
+import { ExternalLink, Calendar, Clock, Globe, Tag, Bot, Zap, LayoutGrid, MapPin, Users, UsersRound, Play } from "lucide-react";
+import { BackLink } from "./back-link";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
@@ -168,16 +168,15 @@ export default async function AdDetailPage({
 
   return (
     <div className="space-y-6 max-w-5xl">
-      {/* Back arrow — return to the brand-detail tab matching this
-          ad's source, so navigating Google ads doesn't bounce the
-          user to the Meta tab on return. Brand detail's tab state
-          is URL-driven (?tab=...). */}
-      <Link
-        href={`/competitors/${competitorId}?tab=${isGoogle ? "google" : "meta"}`}
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" /> {t("adDetail", "backToCompetitor")}
-      </Link>
+      {/* Back arrow — uses browser history when the user came from
+          inside the app (Library, brand detail, Compare). Falls back
+          to the brand-detail tab matching this ad's source when the
+          page was loaded via a deep link with no referrer, so the
+          user is never stranded. */}
+      <BackLink
+        fallbackHref={`/competitors/${competitorId}?tab=${isGoogle ? "google" : "meta"}`}
+        label={t("adDetail", "backToCompetitor")}
+      />
 
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
@@ -601,8 +600,16 @@ export default async function AdDetailPage({
                 )}
                 {isAaaEligible && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Advantage+</span>
-                    <Badge variant="gold">{t("adDetail", "enabled")}</Badge>
+                    {/* `isAaaEligible` reports whether the ad is
+                        compatible with Meta Advantage+ (audience or
+                        creative), NOT whether the advertiser actually
+                        enabled it. Meta does not expose the latter
+                        on the public Ad Library. Label accordingly
+                        so the user does not over-interpret the badge. */}
+                    <span className="text-muted-foreground">
+                      {t("adDetail", "advantageEligible")}
+                    </span>
+                    <Badge variant="muted">{t("adDetail", "yes")}</Badge>
                   </div>
                 )}
                 {isAiGenerated && (

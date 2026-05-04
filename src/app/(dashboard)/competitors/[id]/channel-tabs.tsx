@@ -7,17 +7,33 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AdCard } from "@/components/ads/ad-card";
 import { OrganicPostCard } from "@/components/organic/organic-post-card";
+import { TikTokPostCard } from "@/components/organic/tiktok-post-card";
+import { SnapchatProfileCard } from "@/components/organic/snapchat-profile-card";
+import { YoutubeChannelCard } from "@/components/organic/youtube-channel-card";
+import { YoutubeVideoCard } from "@/components/organic/youtube-video-card";
+import { BrandSerpRankCard } from "@/components/serp/brand-serp-rank-card";
 import { TagButton } from "@/components/ads/tag-button";
 import { AI_TAGS_ENABLED } from "@/config/features";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
-import { Download, Loader2 } from "lucide-react";
-import { formatNumber } from "@/lib/utils";
+import { TikTokIcon } from "@/components/ui/tiktok-icon";
+import { SnapchatIcon } from "@/components/ui/snapchat-icon";
+import { YouTubeIcon } from "@/components/ui/youtube-icon";
+import { Download, Layers, Loader2, Search as SearchIcon } from "lucide-react";
+import { cn, formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { CountryFilterDropdown } from "./country-filter-dropdown";
-import type { MaitAdExternal, MaitOrganicPost } from "@/types";
+import type { BrandSerpQueryRank } from "./brand-channels-section";
+import type {
+  MaitAdExternal,
+  MaitOrganicPost,
+  MaitTikTokPost,
+  MaitSnapchatProfile,
+  MaitYoutubeChannel,
+  MaitYoutubeVideo,
+} from "@/types";
 
-type Channel = "all" | "meta" | "google" | "instagram";
+type Channel = "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube" | "serp";
 type Status = "all" | "active" | "inactive";
 
 /* ─── Platform icons (small, inline) ─── */
@@ -37,12 +53,41 @@ function GoogleIcon({ className }: { className?: string }) {
 
 interface Props {
   competitorId: string;
+  /** Brand's google_domain (eTLD+1 already), pulled from the brand
+   *  row. Drives the SERP-tab visibility gate together with the
+   *  channelTotals.serpQueries count. */
+  googleDomain: string | null;
   ads: MaitAdExternal[];
   organicPosts: MaitOrganicPost[];
+  tiktokPosts: MaitTikTokPost[];
+  /** Snapshot history for this competitor, ordered most-recent-first.
+   *  [0] is the latest profile snapshot rendered as the SnapchatProfileCard;
+   *  the rest feed the trend list. */
+  snapchatProfiles: MaitSnapchatProfile[];
+  /** YouTube channel snapshots, most-recent-first. [0] is the latest
+   *  rendered as the YoutubeChannelCard; older rows feed a small
+   *  trend block (subscriber/video/view delta between scans). */
+  youtubeChannels: MaitYoutubeChannel[];
+  /** YouTube videos, most-recent-first. */
+  youtubeVideos: MaitYoutubeVideo[];
+  /** SERP queries linked to this brand via the M:N junction, with
+   *  the brand's rank in the latest run already folded in. Empty
+   *  when the brand has no linked queries — the tab is hidden in
+   *  that case. */
+  serpQueries: BrandSerpQueryRank[];
   /** DB-wide totals per channel — drive the filter chip badges so the
    *  user sees the real count for the brand, not the lazy-loaded
    *  array length (which is capped at 30 for performance). */
-  channelTotals: { meta: number; google: number; instagram: number };
+  channelTotals: {
+    meta: number;
+    google: number;
+    instagram: number;
+    tiktok: number;
+    snapchat: number;
+    youtube: number;
+    youtubeChannelSnaps: number;
+    serpQueries: number;
+  };
   /** DB-wide active-only counts per source — fed to the Status pill
    *  so the Active badge matches the brand reality, not the loaded
    *  sample. Inactive = total − active. */
@@ -54,7 +99,7 @@ interface Props {
   /** URL-driven filter state. Pills navigate the URL; the server
    *  re-runs the ads query with these applied so the 30-row cap
    *  operates AFTER filtering. */
-  tab: "all" | "meta" | "google" | "instagram";
+  tab: "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube" | "serp";
   statusFilter: "active" | "inactive" | null;
   countriesFilter: string[];
   /** Brand-wide country list (from page shell, not the loaded
@@ -70,12 +115,30 @@ interface Props {
     avgComments: number | null;
     totalViews: number;
   };
+  tiktokStats: {
+    count: number;
+    avgLikes: number | null;
+    avgComments: number | null;
+    totalViews: number;
+  };
+  youtubeStats: {
+    count: number;
+    avgLikes: number | null;
+    avgComments: number | null;
+    totalViews: number;
+  };
 }
 
 export function ChannelTabs({
   competitorId,
+  googleDomain,
   ads,
   organicPosts,
+  tiktokPosts,
+  snapchatProfiles,
+  youtubeChannels,
+  youtubeVideos,
+  serpQueries,
   channelTotals,
   activeTotals,
   filteredTotals,
@@ -84,6 +147,8 @@ export function ChannelTabs({
   statusFilter,
   countriesFilter,
   organicStats,
+  tiktokStats,
+  youtubeStats,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -131,6 +196,9 @@ export function ChannelTabs({
     return src === "google";
   });
 
+  // Country filter only narrows Meta ads (Google rows have NULL
+  // scan_countries; Instagram and TikTok do not carry the column).
+  // Showing it on those tabs would imply a filter that does nothing.
   const showCountryFilter =
     availableCountries.length > 0 &&
     (channel === "all" || channel === "meta");
@@ -207,39 +275,99 @@ export function ChannelTabs({
         ? activeTotals.google
         : Math.max(0, channelTotals.google - activeTotals.google);
   const instagramCount = channelTotals.instagram;
+  const tiktokCount = channelTotals.tiktok;
+  const snapchatCount = channelTotals.snapchat;
+  const youtubeCount = channelTotals.youtube;
+  const serpCount = channelTotals.serpQueries;
+  // SERP tab: show whenever the brand has a googleDomain, even with
+  // zero queries linked. The tab content provides the entry point
+  // to create a brand-attached query — without this gate the
+  // bidirectional flow (brand → SERP) would be inaccessible until
+  // the user manually navigated to /serp first.
+
+  // SERP tab visibility gate (project memory): show only when the
+  // brand has a google_domain configured AND at least one query is
+  // linked via the M:N junction. Without google_domain there is
+  // nothing to match SERP results against; without linked queries
+  // there is nothing to render.
+  const serpTabVisible = !!googleDomain;
 
   const tabs: { key: Channel; label: string; count: number; icon?: React.ReactNode }[] = [
     {
       key: "all",
       label: t("competitors", "channelAll"),
-      count: metaCount + googleCount + instagramCount,
+      count:
+        metaCount +
+        googleCount +
+        instagramCount +
+        tiktokCount +
+        snapchatCount +
+        youtubeCount,
     },
     { key: "meta", label: "Meta Ads", count: metaCount, icon: <MetaIcon className="size-3.5" /> },
     { key: "google", label: "Google Ads", count: googleCount, icon: <GoogleIcon className="size-3.5" /> },
     { key: "instagram", label: "Instagram", count: instagramCount, icon: <InstagramIcon className="size-3.5" /> },
+    { key: "tiktok", label: "TikTok", count: tiktokCount, icon: <TikTokIcon className="size-3.5" /> },
+    { key: "snapchat", label: "Snapchat", count: snapchatCount, icon: <SnapchatIcon className="size-3.5" /> },
+    { key: "youtube", label: "YouTube", count: youtubeCount, icon: <YouTubeIcon className="size-3.5" /> },
+    ...(serpTabVisible
+      ? [
+          {
+            key: "serp" as Channel,
+            label: t("brandSerp", "tabLabel"),
+            count: serpCount,
+            icon: <SearchIcon className="size-3.5" />,
+          },
+        ]
+      : []),
   ];
 
-  // Status pills — paid channels only (Instagram organic posts have
-  // no ACTIVE/INACTIVE concept). Counts come from the head+exact
-  // queries done in the parent page; we drop them from the pill UI
-  // itself to mirror Benchmarks but keep the structure here in case
-  // we want them back as e.g. tooltips or sidebar copy.
-  const showStatusFilter = channel !== "instagram";
+  // Status pills — paid channels only. Instagram, TikTok, Snapchat,
+  // YouTube and SERP are organic-style/standalone channels with no
+  // ACTIVE/INACTIVE concept.
+  const showStatusFilter =
+    channel !== "instagram" &&
+    channel !== "tiktok" &&
+    channel !== "snapchat" &&
+    channel !== "youtube" &&
+    channel !== "serp";
   const statusPills: { key: Status; label: string }[] = [
     { key: "all", label: t("competitors", "channelAll") },
     { key: "active", label: t("competitors", "statusActive") },
     { key: "inactive", label: t("competitors", "statusInactive") },
   ];
 
-  // Filter out channels with 0 items (except "all")
-  const visibleTabs = tabs.filter((entry) => entry.key === "all" || entry.count > 0);
+  // Filter out channels with 0 items (except "all"). SERP is the
+  // exception: when serpTabVisible is true (brand has googleDomain
+  // set) we show the tab even with zero queries — the tab content
+  // hosts the "Create query" entry point that bootstraps the first
+  // linked query, so hiding it would break the flow.
+  const visibleTabs = tabs.filter(
+    (entry) =>
+      entry.key === "all" ||
+      entry.count > 0 ||
+      (entry.key === "serp" && serpTabVisible),
+  );
 
   const showMeta = channel === "all" || channel === "meta";
   const showGoogle = channel === "all" || channel === "google";
   const showInstagram = channel === "all" || channel === "instagram";
+  const showTiktok = channel === "all" || channel === "tiktok";
+  const showSnapchat = channel === "all" || channel === "snapchat";
+  const showYoutube = channel === "all" || channel === "youtube";
+  // SERP only renders on the dedicated tab — never on "all". The
+  // brand-detail "all" view is for media/posts, not for ranking
+  // tables, so we keep the surfaces separate.
+  const showSerp = channel === "serp" && serpTabVisible;
 
   const visibleAds = channel === "meta" ? metaAds : channel === "google" ? googleAds : channel === "all" ? ads : [];
   const visibleOrganic = showInstagram ? organicPosts : [];
+  const visibleTiktok = showTiktok ? tiktokPosts : [];
+  const visibleSnapchat = showSnapchat ? snapchatProfiles : [];
+  const latestSnapchat = visibleSnapchat[0] ?? null;
+  const visibleYoutubeVideos = showYoutube ? youtubeVideos : [];
+  const latestYoutubeChannel = showYoutube ? youtubeChannels[0] ?? null : null;
+  const visibleSerpQueries = showSerp ? serpQueries : [];
 
   // Identical chip class to Benchmarks: flat pill, gold/15 selected,
   // neutral border otherwise. No count badge — counts are already
@@ -251,45 +379,81 @@ export function ChannelTabs({
       : "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer";
 
   return (
-    <div className="space-y-6">
-      {/* ─── Channel · Country · Status — all on one row ──────
-          Same grammar as the Benchmarks filter strip: inline label
-          (uppercase 10px bold), pills without count badges, vertical
-          divider between groups. Country dropdown sits in the middle
-          (Meta-only, hidden on Instagram/Google) so the row reads
-          left-to-right as "narrow the channel, then the market,
-          then the status". */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 print:hidden">
+    <div className="space-y-5">
+      {/* ─── Section header — "Creatività" with icon ─────────
+          The page transitions here from "configure & scan" (above) to
+          "explore the data" (below). User feedback: text-only section
+          breaks were invisible. The Layers icon + h2 + subtitle set
+          the change of context unambiguously. */}
+      <header className="flex items-center gap-3 print:hidden">
+        <div className="size-9 rounded-lg bg-info-soft tone-info grid place-items-center shrink-0">
+          <Layers className="size-5" />
+        </div>
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold tracking-tight leading-tight">
+            {t("brandHero", "creativesHeader")}
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {t("brandHero", "creativesSubtitle")}
+          </p>
+        </div>
+      </header>
+
+      {/* ─── Channel tabs ──────────────────────────────────────
+          Channel selector now lives inside its own card on a tinted
+          surface so it reads as the PRIMARY pivot (the user picks
+          a channel first, then narrows). Status + Country are
+          secondary — they sit on a flatter row underneath, marked
+          as "modificatori" by the smaller eyebrow label. */}
+      <div className="rounded-lg border border-border bg-muted/20 px-4 py-3 print:hidden">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] uppercase tracking-wider text-foreground font-bold">
+          <span className="eyebrow shrink-0">
             {t("competitors", "filterByChannel")}
           </span>
-          {visibleTabs.map((p) => (
-            <Link
-              key={p.key}
-              href={buildHref({
-                tab: p.key === "all" ? null : p.key,
-                // Switching to Instagram or Google disables the
-                // country filter (no scan_countries on those rows).
-                // Drop the selection rather than carrying an
-                // invisible filter forward.
-                ...(p.key === "instagram" || p.key === "google"
-                  ? { countries: null }
-                  : {}),
-              })}
-              className={chipClass(channel === p.key)}
-            >
-              {p.icon}
-              {p.label}
-            </Link>
-          ))}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {visibleTabs.map((p) => (
+              <Link
+                key={p.key}
+                href={buildHref({
+                  tab: p.key === "all" ? null : p.key,
+                  // Switching to Instagram or Google disables the
+                  // country filter (no scan_countries on those rows).
+                  // Drop the selection rather than carrying an
+                  // invisible filter forward.
+                  ...(p.key === "instagram" || p.key === "google"
+                    ? { countries: null }
+                    : {}),
+                })}
+                className={chipClass(channel === p.key)}
+              >
+                {p.icon}
+                <span>{p.label}</span>
+                {/* Show count next to the channel — quick way to
+                    see at-a-glance which channels have data. Hidden
+                    on "all" because that's the sum and it'd just
+                    duplicate the breakdown to its right. */}
+                {p.key !== "all" && p.count > 0 && (
+                  <span className={cn(
+                    "text-[10px] tabular-nums ml-0.5",
+                    channel === p.key ? "text-gold/80" : "text-muted-foreground/70",
+                  )}>
+                    {p.count}
+                  </span>
+                )}
+              </Link>
+            ))}
+          </div>
         </div>
+      </div>
 
-        {showCountryFilter && (
-          <>
-            <div className="h-5 w-px bg-border" />
+      {/* Secondary filters — Country + Status. Only render the row
+          if at least one of them applies on the current channel,
+          otherwise we'd leave an empty bar that adds noise. */}
+      {(showCountryFilter || showStatusFilter) && (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 print:hidden">
+          {showCountryFilter && (
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] uppercase tracking-wider text-foreground font-bold">
+              <span className="eyebrow">
                 {t("competitors", "filterByCountry")}
               </span>
               <CountryFilterDropdown
@@ -305,14 +469,11 @@ export function ChannelTabs({
                 }}
               />
             </div>
-          </>
-        )}
+          )}
 
-        {showStatusFilter && (
-          <>
-            <div className="h-5 w-px bg-border" />
+          {showStatusFilter && (
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] uppercase tracking-wider text-foreground font-bold">
+              <span className="eyebrow">
                 {t("competitors", "filterByStatus")}
               </span>
               {statusPills.map((p) => (
@@ -321,15 +482,27 @@ export function ChannelTabs({
                   href={buildHref({
                     status: p.key === "all" ? null : p.key,
                   })}
-                  className={chipClass(status === p.key)}
+                  className={cn(
+                    chipClass(status === p.key),
+                    // Color-code active vs inactive so the eye
+                    // can distinguish them without reading.
+                    status !== p.key && p.key === "active" && "hover:tone-success",
+                    status !== p.key && p.key === "inactive" && "hover:tone-neutral",
+                  )}
                 >
+                  {p.key === "active" && (
+                    <span className="size-1.5 rounded-full bg-current shrink-0 tone-success" />
+                  )}
+                  {p.key === "inactive" && (
+                    <span className="size-1.5 rounded-full bg-current shrink-0 tone-neutral" />
+                  )}
                   {p.label}
                 </Link>
               ))}
             </div>
-          </>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* ─── Ads section ─── */}
       {channel === "all" ? (
@@ -590,14 +763,318 @@ export function ChannelTabs({
         </div>
       )}
 
-      {/* Empty state for "all" when nothing exists */}
-      {channel === "all" && ads.length === 0 && organicPosts.length === 0 && (
-        <Card>
-          <CardContent className="py-16 text-center text-muted-foreground">
-            {t("competitors", "noAdsCollected")}
-          </CardContent>
-        </Card>
+      {/* ─── TikTok section ─── */}
+      {showTiktok && (
+        <div className="space-y-4">
+          {tiktokStats.count > 0 && channel === "tiktok" && (
+            <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+              <Card>
+                <CardContent className="py-4 text-center">
+                  <p className="text-2xl font-semibold">
+                    {channelTotals.tiktok}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{t("organic", "totalPosts")}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="py-4 text-center">
+                  <p className="text-2xl font-semibold">
+                    {tiktokStats.avgLikes != null ? formatNumber(tiktokStats.avgLikes) : "—"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{t("organic", "avgLikes")}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="py-4 text-center">
+                  <p className="text-2xl font-semibold">
+                    {tiktokStats.avgComments != null ? formatNumber(tiktokStats.avgComments) : "—"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{t("organic", "avgComments")}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="py-4 text-center">
+                  <p className="text-2xl font-semibold">{formatNumber(tiktokStats.totalViews)}</p>
+                  <p className="text-xs text-muted-foreground">{t("organic", "totalViews")}</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {visibleTiktok.length === 0 ? (
+            channel === "tiktok" && (
+              <Card>
+                <CardContent className="py-12 text-center text-muted-foreground text-sm">
+                  {t("organic", "noPostsYet")}
+                </CardContent>
+              </Card>
+            )
+          ) : (
+            <>
+              {channel === "all" && (
+                <div className="flex items-center gap-2 pt-4 border-t border-border">
+                  <TikTokIcon className="size-4 text-gold" />
+                  <p className="text-sm font-medium">TikTok</p>
+                  <span className="text-xs text-muted-foreground">
+                    ({visibleTiktok.length}
+                    {channelTotals.tiktok > visibleTiktok.length
+                      ? ` ${t("competitors", "ofTotal")} ${channelTotals.tiktok}`
+                      : ""}
+                    )
+                  </span>
+                </div>
+              )}
+              {channel === "tiktok" && (
+                <p className="text-sm text-muted-foreground">
+                  {visibleTiktok.length}
+                  {channelTotals.tiktok > visibleTiktok.length
+                    ? ` ${t("competitors", "ofTotal")} ${channelTotals.tiktok}`
+                    : ""}
+                  {" "}{t("organic", "postsCount")}
+                </p>
+              )}
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {visibleTiktok.map((post) => (
+                  <TikTokPostCard key={post.id} post={post} />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       )}
+
+      {/* ─── Snapchat section ─── */}
+      {showSnapchat && (
+        <div className="space-y-4">
+          {latestSnapchat ? (
+            <>
+              {channel === "all" && (
+                <div className="flex items-center gap-2 pt-4 border-t border-border">
+                  <SnapchatIcon className="size-4 text-gold" />
+                  <p className="text-sm font-medium">Snapchat</p>
+                  <span className="text-xs text-muted-foreground">
+                    ({t("snapchat", "latestSnapshot")})
+                  </span>
+                </div>
+              )}
+              {channel === "snapchat" && (
+                <p className="text-sm text-muted-foreground">
+                  {t("snapchat", "latestSnapshot")}
+                </p>
+              )}
+              <SnapchatProfileCard profile={latestSnapchat} />
+
+              {/* Trend list — snapshots #2..N. Compact rows, just the
+                  date + spotlight/highlight/lens deltas, so the user
+                  can see how the brand grew across scans. Hidden in
+                  the all-tab to keep the surface small. */}
+              {channel === "snapchat" && visibleSnapchat.length > 1 && (
+                <div className="space-y-2">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground font-bold">
+                    {t("snapchat", "snapshotHistory")}
+                  </p>
+                  <div className="rounded-lg border border-border bg-muted/20 divide-y divide-border">
+                    {visibleSnapchat.slice(1).map((s, i) => {
+                      const next = visibleSnapchat[i]; // newer one
+                      const dSpot = s.spotlight_count - next.spotlight_count;
+                      const dHl = s.highlight_count - next.highlight_count;
+                      const dLens = s.lens_count - next.lens_count;
+                      const fmt = (n: number) =>
+                        n === 0 ? "·" : n > 0 ? `+${formatNumber(n)}` : formatNumber(n);
+                      return (
+                        <div
+                          key={s.id}
+                          className="flex items-center justify-between gap-4 px-4 py-2 text-xs"
+                        >
+                          <span className="text-muted-foreground tabular-nums">
+                            {new Date(s.scraped_at).toLocaleDateString("en-GB", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </span>
+                          <div className="flex items-center gap-4 tabular-nums">
+                            <span>
+                              {t("snapchat", "spotlightCount")}: <b>{formatNumber(s.spotlight_count)}</b>{" "}
+                              <span className="text-muted-foreground">({fmt(-dSpot)})</span>
+                            </span>
+                            <span>
+                              {t("snapchat", "highlightCount")}: <b>{formatNumber(s.highlight_count)}</b>{" "}
+                              <span className="text-muted-foreground">({fmt(-dHl)})</span>
+                            </span>
+                            <span>
+                              {t("snapchat", "lensCount")}: <b>{formatNumber(s.lens_count)}</b>{" "}
+                              <span className="text-muted-foreground">({fmt(-dLens)})</span>
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {channel === "snapchat" && visibleSnapchat.length === 1 && (
+                <p className="text-xs text-muted-foreground italic">
+                  {t("snapchat", "trendNoteSingle")}
+                </p>
+              )}
+            </>
+          ) : (
+            channel === "snapchat" && (
+              <Card>
+                <CardContent className="py-12 text-center text-muted-foreground text-sm">
+                  {t("snapchat", "noSnapshotYet")}
+                </CardContent>
+              </Card>
+            )
+          )}
+        </div>
+      )}
+
+      {/* ─── YouTube section ─── */}
+      {showYoutube && (
+        <div className="space-y-4">
+          {latestYoutubeChannel ? (
+            <>
+              {channel === "all" && (
+                <div className="flex items-center gap-2 pt-4 border-t border-border">
+                  <YouTubeIcon className="size-4 text-gold" />
+                  <p className="text-sm font-medium">YouTube</p>
+                  <span className="text-xs text-muted-foreground">
+                    ({t("youtube", "latestSnapshot")})
+                  </span>
+                </div>
+              )}
+
+              <YoutubeChannelCard channel={latestYoutubeChannel} />
+
+              {channel === "youtube" && youtubeStats.count > 0 && (
+                <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+                  <Card>
+                    <CardContent className="py-4 text-center">
+                      <p className="text-2xl font-semibold">
+                        {channelTotals.youtube}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{t("organic", "totalPosts")}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="py-4 text-center">
+                      <p className="text-2xl font-semibold">
+                        {youtubeStats.avgLikes != null ? formatNumber(youtubeStats.avgLikes) : "—"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{t("organic", "avgLikes")}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="py-4 text-center">
+                      <p className="text-2xl font-semibold">
+                        {youtubeStats.avgComments != null ? formatNumber(youtubeStats.avgComments) : "—"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{t("organic", "avgComments")}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="py-4 text-center">
+                      <p className="text-2xl font-semibold">{formatNumber(youtubeStats.totalViews)}</p>
+                      <p className="text-xs text-muted-foreground">{t("organic", "totalViews")}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {visibleYoutubeVideos.length > 0 && (
+                <>
+                  {channel === "youtube" && (
+                    <p className="text-sm text-muted-foreground">
+                      {visibleYoutubeVideos.length}
+                      {channelTotals.youtube > visibleYoutubeVideos.length
+                        ? ` ${t("competitors", "ofTotal")} ${channelTotals.youtube}`
+                        : ""}
+                      {" "}{t("organic", "postsCount")}
+                    </p>
+                  )}
+                  <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {visibleYoutubeVideos.map((v) => (
+                      <YoutubeVideoCard key={v.id} video={v} />
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          ) : (
+            channel === "youtube" && (
+              <Card>
+                <CardContent className="py-12 text-center text-muted-foreground text-sm">
+                  {t("youtube", "noVideosYet")}
+                </CardContent>
+              </Card>
+            )
+          )}
+        </div>
+      )}
+
+      {/* ─── SERP brand-rank section ──────────────────────── */}
+      {showSerp && (
+        <div className="space-y-4">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              {visibleSerpQueries.length}{" "}
+              {visibleSerpQueries.length === 1
+                ? t("brandSerp", "querySingular")
+                : t("brandSerp", "queryPlural")}
+              {googleDomain && (
+                <>
+                  {" — "}
+                  <span className="text-foreground/80">
+                    {t("brandSerp", "matchingDomain")} {googleDomain}
+                  </span>
+                </>
+              )}
+            </p>
+            {/* New-query CTA — navigates to the workspace SERP page
+                with brandId + new=1 so the create form opens with
+                this brand pre-attached. Same data model on both
+                surfaces, single create flow to maintain. */}
+            <Link
+              href={`/serp?brandId=${competitorId}&new=1`}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 h-8 text-xs hover:border-gold/40 hover:text-gold transition-colors"
+            >
+              <SearchIcon className="size-3.5" />
+              {t("brandSerp", "createForBrand")}
+            </Link>
+          </div>
+          {visibleSerpQueries.length > 0 ? (
+            <div className="space-y-3">
+              {visibleSerpQueries.map((q) => (
+                <BrandSerpRankCard key={q.query_id} rank={q} />
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground text-sm">
+                {t("brandSerp", "noLinkedYet")}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* Empty state for "all" when nothing exists */}
+      {channel === "all" &&
+        ads.length === 0 &&
+        organicPosts.length === 0 &&
+        tiktokPosts.length === 0 &&
+        snapchatProfiles.length === 0 &&
+        youtubeChannels.length === 0 &&
+        youtubeVideos.length === 0 && (
+          <Card>
+            <CardContent className="py-16 text-center text-muted-foreground">
+              {t("competitors", "noAdsCollected")}
+            </CardContent>
+          </Card>
+        )}
     </div>
   );
 }

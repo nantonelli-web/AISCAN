@@ -1,9 +1,5 @@
-import { Loader2 } from "lucide-react";
+import { PageLoader } from "@/components/ui/page-loader";
 
 export default function DashboardLoading() {
-  return (
-    <div className="flex items-center justify-center py-24">
-      <Loader2 className="size-6 animate-spin text-gold" />
-    </div>
-  );
+  return <PageLoader />;
 }

@@ -1,15 +1,17 @@
 import Link from "next/link";
-import { Plus, ExternalLink, Pencil } from "lucide-react";
+import { Plus, Pencil, Users } from "lucide-react";
 import { getSessionUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { SectionHeader } from "@/components/ui/kpi";
 import { formatDate } from "@/lib/utils";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { CollapsibleClientSection } from "./collapsible-client-section";
 import { PrintButton } from "@/components/ui/print-button";
+import { BrandCardDeleteButton } from "./brand-card-delete-button";
 import type { MaitCompetitor, MaitClient } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -95,23 +97,58 @@ export default async function CompetitorsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-serif tracking-tight">{t("competitors", "title")}</h1>
-          <p className="text-sm text-muted-foreground">
-            {t("competitors", "subtitle")}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <PrintButton label={t("common", "print")} variant="outline" />
-          <Button asChild className="print:hidden">
-            <Link href="/competitors/new">
-              <Plus className="size-4" /> {t("competitors", "addCompetitor")}
-            </Link>
-          </Button>
-        </div>
-      </div>
+    <div className="space-y-8">
+      <SectionHeader
+        size="page"
+        icon={<Users className="size-5" />}
+        title={t("competitors", "title")}
+        description={t("competitors", "subtitle")}
+        action={
+          <div className="flex items-center gap-3">
+            <PrintButton label={t("common", "print")} variant="outline" />
+            <Button asChild>
+              <Link href="/competitors/new">
+                <Plus className="size-4" /> {t("competitors", "addCompetitor")}
+              </Link>
+            </Button>
+          </div>
+        }
+      />
+
+      {/* Top-level metrics — quickly answer "how big is my workspace?".
+          Three KPIs at a glance: brands tracked, clients (projects), and
+          a pulse number (brands without a recent scan) that surfaces
+          maintenance work the user should not lose track of. */}
+      {list.length > 0 && (() => {
+        const FRESHNESS_DAYS = 14;
+        const cutoff = Date.now() - FRESHNESS_DAYS * 86_400_000;
+        const stale = list.filter(
+          (c) =>
+            !c.last_scraped_at ||
+            new Date(c.last_scraped_at).getTime() < cutoff,
+        ).length;
+        const projectCount = clients.length;
+        return (
+          <div className="grid gap-3 sm:grid-cols-3">
+            <MiniStat
+              label={t("competitors", "kpiBrandsLabel")}
+              value={String(list.length)}
+              tone="info"
+            />
+            <MiniStat
+              label={t("competitors", "kpiProjectsLabel")}
+              value={String(projectCount)}
+              tone="neutral"
+            />
+            <MiniStat
+              label={t("competitors", "kpiStaleLabel")}
+              value={String(stale)}
+              tone={stale === 0 ? "success" : stale > list.length / 3 ? "danger" : "warning"}
+              hint={t("competitors", "kpiStaleHint").replace("{n}", String(FRESHNESS_DAYS))}
+            />
+          </div>
+        );
+      })()}
 
       {list.length === 0 ? (
         <Card>
@@ -191,6 +228,35 @@ function channelLabel(source: string | null): string {
   }
 }
 
+function MiniStat({
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  tone: "neutral" | "info" | "success" | "warning" | "danger";
+}) {
+  const toneText: Record<typeof tone, string> = {
+    neutral: "text-foreground",
+    info: "text-gold",
+    success: "tone-success",
+    warning: "tone-warning",
+    danger: "tone-danger",
+  };
+  return (
+    <div className="rounded-xl border border-border bg-card px-5 py-4">
+      <div className="kpi-label">{label}</div>
+      <div className={`kpi-value mt-1 ${toneText[tone]}`}>{value}</div>
+      {hint && (
+        <p className="text-[11px] text-muted-foreground mt-1 leading-snug">{hint}</p>
+      )}
+    </div>
+  );
+}
+
 function BrandCard({
   brand: c,
   lastScan,
@@ -208,50 +274,90 @@ function BrandCard({
   t: (section: string, key: string) => string;
 }) {
   const hasPeriod = lastScan && lastScan.from && lastScan.to;
+
+  // Freshness signal — colour codes how stale the last scan is. Eyes
+  // catch the dot before the date string. Active = scanned in the
+  // last 14d, paused = 14-30d, inactive = older or never. Maps neatly
+  // to .status-pill from globals.css.
+  const lastScanMs = c.last_scraped_at ? new Date(c.last_scraped_at).getTime() : null;
+  const ageDays = lastScanMs ? Math.floor((Date.now() - lastScanMs) / 86_400_000) : null;
+  const freshTone =
+    ageDays === null ? "is-inactive"
+    : ageDays <= 14 ? "is-active"
+    : ageDays <= 30 ? "is-paused"
+    : "is-inactive";
+  const freshLabel =
+    ageDays === null ? t("competitors", "freshNever")
+    : ageDays === 0 ? t("competitors", "freshToday")
+    : ageDays === 1 ? `${ageDays} ${t("competitors", "freshDay")}`
+    : `${ageDays} ${t("competitors", "freshDays")}`;
+
   return (
-    <Card className="hover:border-gold/50 transition-colors h-full relative">
+    <Card className="h-full relative group hover:border-gold/40 hover:shadow-md transition-all">
       <Link href={`/competitors/${c.id}`} className="absolute inset-0 z-0" />
-      <CardContent className="p-5 space-y-3 relative z-10 pointer-events-none">
+      <CardContent className="p-5 space-y-3.5 relative z-10 pointer-events-none">
+        {/* Title row — brand identity dominates. Category badge pushed
+            to the right edge keeps the Kanban grammar (subject left,
+            tag right). */}
         <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <h3 className="font-semibold truncate">{c.page_name}</h3>
-            <p className="text-xs text-muted-foreground truncate">
-              {c.page_url}
-            </p>
-          </div>
-          <ExternalLink className="size-4 text-muted-foreground shrink-0" />
+          <h3 className="font-semibold text-base leading-snug truncate min-w-0">
+            {c.page_name}
+          </h3>
+          {c.category && (
+            <Badge variant="muted" className="shrink-0 text-[10px]">
+              {c.category}
+            </Badge>
+          )}
         </div>
+
+        {/* Secondary metadata — country chip + freshness pill. Both
+            visually small and subordinate to the brand name. */}
         <div className="flex items-center gap-2 flex-wrap">
-          {c.country && <Badge variant="muted">{c.country}</Badge>}
-          {c.category && <Badge variant="muted">{c.category}</Badge>}
+          {c.country && (
+            <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground">
+              {c.country}
+            </span>
+          )}
+          <span className={`status-pill ${freshTone}`}>{freshLabel}</span>
+          {lastScan?.source && (
+            <span className="text-[11px] text-muted-foreground">
+              · {channelLabel(lastScan.source)}
+            </span>
+          )}
         </div>
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">
-              {t("competitors", "lastScan")} {formatDate(c.last_scraped_at)}
-              {lastScan?.source && (
-                <>
-                  {" — "}
-                  <span className="text-foreground/80 font-medium">
-                    {channelLabel(lastScan.source)}
-                  </span>
-                </>
-              )}
-            </p>
-            {hasPeriod && (
-              <p className="text-[11px] text-muted-foreground/80 mt-0.5">
-                {t("competitors", "scanPeriod")}{" "}
-                {formatDate(lastScan.from)} → {formatDate(lastScan.to)}
-              </p>
-            )}
+
+        {/* Scan window — third-tier info, smaller still. Only renders
+            when both bounds are present (cron full-archive scans get
+            NULL for both). */}
+        {hasPeriod && (
+          <p className="text-[11px] text-muted-foreground/80">
+            {t("competitors", "scanPeriod")}{" "}
+            <span className="tabular-nums">
+              {formatDate(lastScan.from)} → {formatDate(lastScan.to)}
+            </span>
+          </p>
+        )}
+
+        {/* Action row — pinned to the bottom via mt-auto on the
+            card flexbox so cards in the same row align even when
+            their metadata height differs. */}
+        <div className="flex items-center justify-between gap-2 pt-2 section-rule">
+          <span className="text-[11px] text-muted-foreground">
+            {t("competitors", "lastScan")} {formatDate(c.last_scraped_at)}
+          </span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Link
+              href={`/competitors/${c.id}/edit?from=brands`}
+              className="size-7 rounded-md border border-border hover:bg-muted hover:border-gold/40 grid place-items-center text-muted-foreground hover:text-gold transition-colors pointer-events-auto"
+              title={t("editCompetitor", "title")}
+            >
+              <Pencil className="size-3.5" />
+            </Link>
+            <BrandCardDeleteButton
+              competitorId={c.id}
+              competitorName={c.page_name}
+            />
           </div>
-          <Link
-            href={`/competitors/${c.id}/edit?from=brands`}
-            className="size-7 rounded-md border border-border hover:bg-muted hover:border-gold/40 grid place-items-center text-muted-foreground hover:text-gold transition-colors pointer-events-auto"
-            title={t("editCompetitor", "title")}
-          >
-            <Pencil className="size-3.5" />
-          </Link>
         </div>
       </CardContent>
     </Card>

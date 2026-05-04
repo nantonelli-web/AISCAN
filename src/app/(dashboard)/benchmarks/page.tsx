@@ -7,6 +7,10 @@ import { PrintButton } from "@/components/ui/print-button";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { MetaIcon } from "@/components/ui/meta-icon";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
+import { TikTokIcon } from "@/components/ui/tiktok-icon";
+import { SnapchatIcon } from "@/components/ui/snapchat-icon";
+import { YouTubeIcon } from "@/components/ui/youtube-icon";
+import { Search as SearchIcon } from "lucide-react";
 import Link from "next/link";
 import { BenchmarkContent } from "./benchmark-content";
 import { BrandFilter } from "./brand-filter";
@@ -65,13 +69,45 @@ function isValidIsoDate(s: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(new Date(s).getTime());
 }
 
-type Channel = "meta" | "google" | "instagram";
+/**
+ * Benchmarks supports Meta / Google / Instagram with full charts. The
+ * newer channels (TikTok / Snapchat / YouTube / SERP) appear in the
+ * channel selector for visual parity with Library and brand-detail,
+ * but BenchmarkContent short-circuits to a "coming soon" card for
+ * them — the per-channel aggregator is the next backend milestone,
+ * and showing them here without the data would either crash the
+ * compute pipeline (different table shape) or render a blank chart.
+ */
+type Channel =
+  | "meta"
+  | "google"
+  | "instagram"
+  | "tiktok"
+  | "snapchat"
+  | "youtube"
+  | "serp";
 type StatusFilter = "active" | "inactive" | null;
 
 function parseChannel(raw: string | string[] | undefined): Channel {
   if (raw === "google") return "google";
   if (raw === "instagram") return "instagram";
+  if (raw === "tiktok") return "tiktok";
+  if (raw === "snapchat") return "snapchat";
+  if (raw === "youtube") return "youtube";
+  if (raw === "serp") return "serp";
   return "meta";
+}
+
+/** Channels for which BenchmarkContent has a real compute path. The
+ *  selector shows the rest as well so the user has visual parity
+ *  with the Library and brand-detail surfaces. Typed as a predicate
+ *  so the BenchmarkContent call site narrows `channel` to the
+ *  legacy "meta" | "google" | "instagram" union expected by the
+ *  compute pipeline. */
+function isBenchmarkImplemented(
+  ch: Channel,
+): ch is "meta" | "google" | "instagram" {
+  return ch === "meta" || ch === "google" || ch === "instagram";
 }
 
 function parseStatus(raw: string | string[] | undefined): StatusFilter {
@@ -193,8 +229,20 @@ export default async function BenchmarksPage({
     { key: "meta" as const, label: "Meta Ads", icon: <MetaIcon className="size-3.5" /> },
     { key: "google" as const, label: "Google Ads", icon: <GoogleIcon className="size-3.5" /> },
   ];
+  // Organic + monitoring group all the brand-level surfaces beyond
+  // paid ads. The compute backend currently only handles Instagram;
+  // the rest render the coming-soon placeholder. Listing them here
+  // mirrors the channel coverage of the Library and brand-detail
+  // surfaces so the user does not feel that the new channels
+  // disappear once they reach Benchmarks.
   const organicChannels = [
     { key: "instagram" as const, label: "Instagram", icon: <InstagramIcon className="size-3.5" /> },
+    { key: "tiktok" as const, label: "TikTok", icon: <TikTokIcon className="size-3.5" /> },
+    { key: "snapchat" as const, label: "Snapchat", icon: <SnapchatIcon className="size-3.5" /> },
+    { key: "youtube" as const, label: "YouTube", icon: <YouTubeIcon className="size-3.5" /> },
+  ];
+  const monitoringChannels = [
+    { key: "serp" as const, label: "Google SERP", icon: <SearchIcon className="size-3.5" /> },
   ];
 
   function hrefForProject(ch: string, cl: string | null): string {
@@ -235,26 +283,24 @@ export default async function BenchmarksPage({
       : "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-serif tracking-tight">{t("benchmarks", "title")}</h1>
-          <p className="text-sm text-muted-foreground">{t("benchmarks", "subtitle")}</p>
+        <div className="space-y-1">
+          <p className="eyebrow">{t("benchmarks", "title").toUpperCase()}</p>
+          <h1 className="text-3xl font-serif tracking-tight">{t("benchmarks", "title")}</h1>
+          <p className="text-sm text-muted-foreground max-w-2xl text-pretty">{t("benchmarks", "subtitle")}</p>
         </div>
         <PrintButton label={t("common", "print")} variant="outline" />
       </div>
 
-      {/* ─── Channels + Status ─────────────────────────────────
-          Status sits next to the channel groups because it is also
-          an attribute of the ad itself, not of the project / country
-          / brand selection. Hidden on Instagram — organic posts do
-          not carry an ACTIVE/INACTIVE concept. */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 print:hidden">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wider text-foreground font-bold">
-            {t("benchmarks", "paidChannels")}
-          </span>
-          <div className="flex items-center gap-2">
+      {/* ─── Channel pivot ─────────────────────────────────────
+          Channel selector lives in its own tinted card so it reads
+          as the PRIMARY pivot. All other filters (project, country,
+          brand, status, dates) are modifiers and sit underneath. */}
+      <div className="rounded-lg border border-border bg-muted/20 px-4 py-3 print:hidden">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="eyebrow shrink-0">{t("benchmarks", "paidChannels")}</span>
             {paidChannels.map((ch) => (
               <Link key={ch.key} href={hrefForProject(ch.key, activeClient)} className={chipClass(channel === ch.key)}>
                 {ch.icon}
@@ -262,13 +308,9 @@ export default async function BenchmarksPage({
               </Link>
             ))}
           </div>
-        </div>
-        <div className="h-5 w-px bg-border" />
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wider text-foreground font-bold">
-            {t("benchmarks", "organicChannels")}
-          </span>
-          <div className="flex items-center gap-2">
+          <div className="h-5 w-px bg-border" />
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="eyebrow shrink-0">{t("benchmarks", "organicChannels")}</span>
             {organicChannels.map((ch) => (
               <Link key={ch.key} href={hrefForProject(ch.key, activeClient)} className={chipClass(channel === ch.key)}>
                 {ch.icon}
@@ -276,27 +318,40 @@ export default async function BenchmarksPage({
               </Link>
             ))}
           </div>
+          <div className="h-5 w-px bg-border" />
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="eyebrow shrink-0">{t("benchmarks", "monitoringChannels")}</span>
+            {monitoringChannels.map((ch) => (
+              <Link key={ch.key} href={hrefForProject(ch.key, activeClient)} className={chipClass(channel === ch.key)}>
+                {ch.icon}
+                {ch.label}
+              </Link>
+            ))}
+          </div>
         </div>
-        {channel !== "instagram" && (
-          <>
-            <div className="h-5 w-px bg-border" />
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase tracking-wider text-foreground font-bold">
-                {t("benchmarks", "filterByStatus")}
-              </span>
-              <Link href={hrefForStatus(null)} className={chipClass(status === null)}>
-                {t("benchmarks", "statusAll")}
-              </Link>
-              <Link href={hrefForStatus("active")} className={chipClass(status === "active")}>
-                {t("benchmarks", "statusActive")}
-              </Link>
-              <Link href={hrefForStatus("inactive")} className={chipClass(status === "inactive")}>
-                {t("benchmarks", "statusInactive")}
-              </Link>
-            </div>
-          </>
-        )}
       </div>
+
+      {/* Status pills — only on paid channels. Sit on their own
+          subtle row so the user reads them as a refinement of the
+          channel above. Active uses a green dot, inactive grey. */}
+      {(channel === "meta" || channel === "google") && (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 print:hidden">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="eyebrow">{t("benchmarks", "filterByStatus")}</span>
+            <Link href={hrefForStatus(null)} className={chipClass(status === null)}>
+              {t("benchmarks", "statusAll")}
+            </Link>
+            <Link href={hrefForStatus("active")} className={chipClass(status === "active")}>
+              <span className="size-1.5 rounded-full tone-success bg-current shrink-0" />
+              {t("benchmarks", "statusActive")}
+            </Link>
+            <Link href={hrefForStatus("inactive")} className={chipClass(status === "inactive")}>
+              <span className="size-1.5 rounded-full tone-neutral bg-current shrink-0" />
+              {t("benchmarks", "statusInactive")}
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* ─── Project row ─── */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-3 print:hidden">
@@ -372,26 +427,44 @@ export default async function BenchmarksPage({
       />
 
       <Suspense key={suspenseKey} fallback={<ContentSkeleton />}>
-        <BenchmarkContent
-          workspaceId={profile.workspace_id!}
-          channel={channel}
-          competitorIdsFilter={activeBrandIds}
-          dateFrom={dateFrom}
-          dateTo={dateTo}
-          // Per-ad country filter only makes sense for Meta — Google
-          // and Instagram do not carry a per-ad country signal, so
-          // applying the filter would exclude all their ads. Also skip
-          // the filter when every available country is selected (the
-          // "no narrowing" case).
-          countries={
-            channel !== "meta" || ALL_COUNTRIES_SELECTED
-              ? undefined
-              : activeCountryCodes
-          }
-          statusFilter={
-            channel === "instagram" ? undefined : (status ?? undefined)
-          }
-        />
+        {isBenchmarkImplemented(channel) ? (
+          <BenchmarkContent
+            workspaceId={profile.workspace_id!}
+            channel={channel}
+            competitorIdsFilter={activeBrandIds}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            // Per-ad country filter only makes sense for Meta — Google
+            // and Instagram do not carry a per-ad country signal, so
+            // applying the filter would exclude all their ads. Also skip
+            // the filter when every available country is selected (the
+            // "no narrowing" case).
+            countries={
+              channel !== "meta" || ALL_COUNTRIES_SELECTED
+                ? undefined
+                : activeCountryCodes
+            }
+            statusFilter={
+              channel === "instagram" ? undefined : (status ?? undefined)
+            }
+          />
+        ) : (
+          <Card>
+            <CardContent className="py-16 text-center space-y-3">
+              <div className="size-12 rounded-full bg-gold/10 grid place-items-center mx-auto">
+                <span className="text-gold text-xl">★</span>
+              </div>
+              <div className="max-w-md mx-auto space-y-1">
+                <p className="text-sm font-medium">
+                  {t("benchmarks", "channelComingSoonTitle")}
+                </p>
+                <p className="text-xs text-muted-foreground text-pretty">
+                  {t("benchmarks", "channelComingSoonHelp")}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </Suspense>
 
       <div className="flex justify-center pt-2 print:hidden">

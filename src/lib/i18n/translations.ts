@@ -190,10 +190,23 @@ const translations = {
     library: { it: "Creative Library", en: "Creative Library" },
     collections: { it: "Collezioni", en: "Collections" },
     benchmarks: { it: "Benchmarks", en: "Benchmarks" },
+    monitoring: { it: "Monitoring", en: "Monitoring" },
+    // legacy keys, kept so any inline t("sidebar","serp") elsewhere
+    // still resolves rather than crashing on missing translation.
+    serp: { it: "Google SERP", en: "Google SERP" },
+    maps: { it: "Google Maps", en: "Google Maps" },
     report: { it: "Report", en: "Report" },
     alerts: { it: "Alerts", en: "Alerts" },
     settings: { it: "Settings", en: "Settings" },
     credits: { it: "Crediti", en: "Credits" },
+    // Sidebar group labels \u2014 the navigation is split into "what
+    // are you looking at?" (Source data) vs "what are you
+    // building?" (Output) so the user does not have to scan a
+    // flat 9-row list.
+    groupSetup: { it: "Setup", en: "Setup" },
+    groupAnalyze: { it: "Analizza", en: "Analyze" },
+    groupBuild: { it: "Output", en: "Output" },
+    groupAccount: { it: "Account", en: "Account" },
     footer: { it: "NIMA Digital \u00B7 v0.1", en: "NIMA Digital \u00B7 v0.1" },
   },
 
@@ -237,6 +250,7 @@ const translations = {
 
   // ─── Dashboard ─────────────────────────────────────────────
   dashboard: {
+    title: { it: "Dashboard", en: "Dashboard" },
     greeting: { it: "Buongiorno", en: "Good morning" },
     subtitle: {
       it: "Panoramica del tuo workspace AISCAN.",
@@ -276,6 +290,23 @@ const translations = {
     },
     lastScan: { it: "Ultimo scan:", en: "Last scan:" },
     scanPeriod: { it: "Periodo:", en: "Period:" },
+    // Brand-card freshness pill — colour-coded by the
+    // last_scraped_at age. Shown next to country / category as a
+    // status dot ("Today", "3 days", "Never") so the user can see
+    // at a glance which brands need a refresh without parsing dates.
+    freshNever: { it: "Mai scansionato", en: "Never scanned" },
+    freshToday: { it: "Oggi", en: "Today" },
+    freshDay: { it: "giorno fa", en: "day ago" },
+    freshDays: { it: "giorni fa", en: "days ago" },
+    // KPI strip at the top of the brands list. "Brand monitorati",
+    // "Progetti attivi", "Da aggiornare" (brands stale > 14d).
+    kpiBrandsLabel: { it: "Brand monitorati", en: "Brands tracked" },
+    kpiProjectsLabel: { it: "Progetti attivi", en: "Active projects" },
+    kpiStaleLabel: { it: "Da aggiornare", en: "Need refresh" },
+    kpiStaleHint: {
+      it: "Brand non scansionati negli ultimi {n} giorni.",
+      en: "Brands not scanned in the last {n} days.",
+    },
     allCompetitors: { it: "Tutti i brand", en: "All brands" },
     exportCsv: { it: "Export CSV", en: "Export CSV" },
     noAdsCollected: {
@@ -328,6 +359,15 @@ const translations = {
     selectCategory: { it: "Seleziona categoria", en: "Select category" },
     instagramLabel: { it: "Username Instagram", en: "Instagram username" },
     instagramPlaceholder: { it: "es. nike (senza @)", en: "e.g. nike (without @)" },
+    tiktokLabel: { it: "Username TikTok", en: "TikTok username" },
+    tiktokPlaceholder: { it: "es. nike (senza @)", en: "e.g. nike (without @)" },
+    snapchatLabel: { it: "Username Snapchat", en: "Snapchat username" },
+    snapchatPlaceholder: { it: "es. nike (senza @)", en: "e.g. nike (without @)" },
+    youtubeLabel: { it: "Canale YouTube", en: "YouTube channel" },
+    youtubePlaceholder: {
+      it: "URL canale o handle (es. @nike)",
+      en: "Channel URL or handle (e.g. @nike)",
+    },
     googleAdsSection: { it: "Google Ads", en: "Google Ads" },
     googleDomainLabel: { it: "Dominio del sito web dell'inserzionista", en: "Advertiser website domain" },
     googleDomainPlaceholder: { it: "es. nike.com", en: "e.g. nike.com" },
@@ -366,15 +406,36 @@ const translations = {
     backToBrand: { it: "Torna al brand", en: "Back to brand" },
   },
 
+  // ─── Brand detail hero ────────────────────────────────────
+  // KPI tiles that sit above the channel tabs. "Creatività" =
+  // total ads + organic posts collected; "Canali coperti" = how
+  // many of the 7 channels have at least one row; "Ultimo scan"
+  // = relative time since last successful job.
+  brandHero: {
+    kpiCreatives: { it: "Creatività raccolte", en: "Creatives collected" },
+    kpiChannels: { it: "Canali coperti", en: "Channels covered" },
+    kpiLastScan: { it: "Ultimo scan", en: "Last scan" },
+    creativesHeader: { it: "Creatività & insight", en: "Creatives & insight" },
+    creativesSubtitle: {
+      it: "Esplora ads, post organici e ranking SERP raccolti per questo brand.",
+      en: "Explore ads, organic posts, and SERP rankings collected for this brand.",
+    },
+  },
+
   // ─── Scan Button ───────────────────────────────────────────
   scan: {
     scanNow: { it: "Scan now", en: "Scan now" },
+    scanNowSubtitle: {
+      it: "Lancia una scansione su uno o più canali per aggiornare i dati del brand.",
+      en: "Launch a scan on one or more channels to refresh this brand's data.",
+    },
     scanning: { it: "Scanning\u2026", en: "Scanning\u2026" },
     scrapingInProgress: {
       it: "Scraping in corso\u2026 (pu\u00F2 richiedere 30-90s)",
       en: "Scraping in progress\u2026 (may take 30-90s)",
     },
     adsSynced: { it: "ads sincronizzate.", en: "ads synced." },
+    snapshotSynced: { it: "Snapshot Snapchat aggiornato.", en: "Snapchat snapshot updated." },
     scanOptions: { it: "Opzioni scan", en: "Scan options" },
     dateFrom: { it: "Da", en: "From" },
     dateTo: { it: "A", en: "To" },
@@ -393,6 +454,7 @@ const translations = {
     scanPeriod: { it: "Periodo di scansione", en: "Scan period" },
     paid: { it: "Paid", en: "Paid" },
     organic: { it: "Organic", en: "Organic" },
+    monitoringGroup: { it: "Monitoring", en: "Monitoring" },
     days: { it: "giorni", en: "days" },
     scanStopped: { it: "Scansione interrotta.", en: "Scan stopped." },
     stopping: { it: "Fermando…", en: "Stopping…" },
@@ -414,6 +476,13 @@ const translations = {
       it: "Configurazione mancante. Completa la configurazione per abilitare la scansione su tutti i canali.",
       en: "Configuration missing. Complete the setup to enable scanning on all channels.",
     },
+    // Compact missing-config strip. Shown inline at the bottom of the
+    // Scan card instead of the previous full amber box — singular vs
+    // plural lets the message scale from "Canale da configurare:
+    // Snapchat" up to "3 canali da configurare: Snapchat, YouTube,
+    // TikTok".
+    configRequiredOne: { it: "Canale da configurare", en: "Channel to configure" },
+    configRequiredMany: { it: "canali da configurare", en: "channels to configure" },
     googleNotConfigured: {
       it: "Dominio o Advertiser ID Google non configurato",
       en: "Google domain or Advertiser ID not configured",
@@ -421,6 +490,18 @@ const translations = {
     instagramNotConfigured: {
       it: "Username Instagram non configurato",
       en: "Instagram username not configured",
+    },
+    tiktokNotConfigured: {
+      it: "Username TikTok non configurato",
+      en: "TikTok username not configured",
+    },
+    snapchatNotConfigured: {
+      it: "Username Snapchat non configurato",
+      en: "Snapchat username not configured",
+    },
+    youtubeNotConfigured: {
+      it: "Canale YouTube non configurato",
+      en: "YouTube channel not configured",
     },
   },
 
@@ -542,6 +623,10 @@ const translations = {
     ctaType: { it: "Tipo CTA", en: "CTA type" },
     variantsCount: { it: "Varianti creative", en: "Creative variants" },
     enabled: { it: "Attivo", en: "Enabled" },
+    advantageEligible: {
+      it: "Compatibile con Advantage+",
+      en: "Advantage+ eligible",
+    },
     aiGenerated: { it: "Generato con AI", en: "AI generated" },
     reshared: { it: "Condiviso da altra pagina", en: "Reshared" },
     yes: { it: "S\u00EC", en: "Yes" },
@@ -735,7 +820,23 @@ const translations = {
     channel: { it: "Canale", en: "Channel" },
     channelPaid: { it: "Paid", en: "Paid" },
     channelOrganic: { it: "Organic", en: "Organic" },
+    channelMonitoring: { it: "Monitoring", en: "Monitoring" },
     allChannels: { it: "Tutti i canali", en: "All channels" },
+    // 4-step Compare flow indicator — labels for the stepper at the
+    // top of the page so the user knows where they are in the
+    // brands → countries → channel → results flow.
+    stepBrands: { it: "Brand", en: "Brands" },
+    stepCountries: { it: "Paesi", en: "Countries" },
+    stepChannel: { it: "Canale", en: "Channel" },
+    stepResults: { it: "Risultati", en: "Results" },
+    channelComingSoonTitle: {
+      it: "Confronto in arrivo per",
+      en: "Comparison coming soon for",
+    },
+    channelComingSoonHelp: {
+      it: "I dati sono già raccolti per ogni brand: il prossimo step è l'aggregatore lato server che li impagina nei tab tecnico, copy e visivo. Nel frattempo usa Meta, Google, Instagram o Tutti i canali.",
+      en: "Per-brand data is already collected; the next step is the server aggregator that powers the technical, copy and visual tabs. In the meantime, use Meta, Google, Instagram or All channels.",
+    },
     selectCountries: { it: "Paesi", en: "Countries" },
     selectCountriesHint: {
       it: "Seleziona i paesi su cui vuoi effettuare il confronto.",
@@ -834,6 +935,7 @@ const translations = {
       it: "Tutte le creativit\u00E0 raccolte nel workspace.",
       en: "All creatives collected in the workspace.",
     },
+    backLabel: { it: "Indietro", en: "Back" },
     noAdsFiltered: {
       it: "Nessuna ad trovata con questi filtri.",
       en: "No ads found with these filters.",
@@ -938,6 +1040,15 @@ const translations = {
     rangeInvalid: { it: "Range non valido", en: "Invalid range" },
     paidChannels: { it: "Paid", en: "Paid" },
     organicChannels: { it: "Organic", en: "Organic" },
+    monitoringChannels: { it: "Monitoring", en: "Monitoring" },
+    channelComingSoonTitle: {
+      it: "Benchmark in arrivo per questo canale",
+      en: "Benchmarks coming soon for this channel",
+    },
+    channelComingSoonHelp: {
+      it: "I dati per brand sono già raccolti — manca l'aggregatore lato server che alimenta i grafici. Nel frattempo, usa Meta Ads, Google Ads o Instagram per i benchmark completi.",
+      en: "Per-brand data is already collected — the missing piece is the server aggregator that feeds the charts. In the meantime, use Meta Ads, Google Ads or Instagram for full benchmarks.",
+    },
     noScanWarningTitle: {
       it: "Brand non visibili nei grafici {channel}",
       en: "Brands missing from {channel} charts",
@@ -1420,6 +1531,7 @@ const translations = {
       en: "View on Google Ads Transparency",
     },
     onPlatforms: { it: "Su", en: "On" },
+    active: { it: "Attiva", en: "Active" },
     saveToCollection: { it: "Salva in collezione", en: "Save to collection" },
     notAnalyzed: { it: "Non analizzata dall'AI", en: "Not analyzed by AI" },
     formatImage: { it: "IMAGE", en: "IMAGE" },
@@ -1517,7 +1629,248 @@ const translations = {
     emptyClient: { it: "Nessun brand in questo progetto.", en: "No brands in this project." },
   },
 
+  // ─── Monitoring landing ────────────────────────────────────
+  monitoring: {
+    title: { it: "Monitoring", en: "Monitoring" },
+    subtitle: {
+      it: "Accesso per canale a tutti i dati del workspace. La stessa vista è disponibile anche dalla pagina di un brand.",
+      en: "Channel-first access to all workspace data. The same view is also reachable from a brand detail page.",
+    },
+    metaTitle: { it: "Meta Ads", en: "Meta Ads" },
+    metaDescription: {
+      it: "Tutti gli annunci Meta scansionati nel workspace, filtrabili per brand.",
+      en: "All Meta ads scanned across the workspace, filterable by brand.",
+    },
+    googleAdsTitle: { it: "Google Ads", en: "Google Ads" },
+    googleAdsDescription: {
+      it: "Tutti gli annunci Google Ads scansionati nel workspace, filtrabili per brand.",
+      en: "All Google ads scanned across the workspace, filterable by brand.",
+    },
+    instagramTitle: { it: "Instagram", en: "Instagram" },
+    instagramDescription: {
+      it: "Post Instagram scansionati per i brand del workspace, ordinati per data.",
+      en: "Instagram posts scanned across the workspace, ordered by date.",
+    },
+    tiktokTitle: { it: "TikTok", en: "TikTok" },
+    tiktokDescription: {
+      it: "Post TikTok organici dei brand del workspace.",
+      en: "Organic TikTok posts from the workspace brands.",
+    },
+    snapchatTitle: { it: "Snapchat", en: "Snapchat" },
+    snapchatDescription: {
+      it: "Snapshot dei profili Snapchat dei brand del workspace, ordinati per data dello scan.",
+      en: "Snapchat profile snapshots for the workspace brands, ordered by scan date.",
+    },
+    youtubeTitle: { it: "YouTube", en: "YouTube" },
+    youtubeDescription: {
+      it: "Video YouTube dei canali brand del workspace.",
+      en: "YouTube videos from the workspace brand channels.",
+    },
+    serpTitle: { it: "Google SERP", en: "Google SERP" },
+    serpDescription: {
+      it: "Posizioni dei risultati Google per parole chiave. Ogni query può essere collegata a uno o più brand.",
+      en: "Google search result positions for keywords. Each query can be linked to one or more brands.",
+    },
+    mapsTitle: { it: "Google Maps", en: "Google Maps" },
+    mapsDescription: {
+      it: "Attività e recensioni Google Maps per termini di ricerca su un'area geografica.",
+      en: "Google Maps places and reviews for search terms over a geographic area.",
+    },
+    adsCountLabel: { it: "annunci nel workspace", en: "ads in workspace" },
+    postsCountLabel: { it: "post nel workspace", en: "posts in workspace" },
+    snapshotsCountLabel: { it: "snapshot nel workspace", en: "snapshots in workspace" },
+    videosCountLabel: { it: "video nel workspace", en: "videos in workspace" },
+    serpCountLabel: { it: "query monitorate", en: "monitored queries" },
+    mapsCountLabel: { it: "ricerche monitorate", en: "monitored searches" },
+    backLabel: { it: "Torna a Monitoring", en: "Back to Monitoring" },
+  },
+
   // ─── Organic Posts ─────────────────────────────────────────
+  maps: {
+    title: { it: "Google Maps", en: "Google Maps" },
+    subtitle: {
+      it: "Cerca place su Google Maps per termine + città. Estrai metadata locali (rating, recensioni, orari, prezzo, contatti) e le ultime recensioni in un solo scan. Perfetto per scouting, audit del local SEO e analisi della reputation.",
+      en: "Search places on Google Maps by term + city. Extract local metadata (rating, reviews, hours, price, contacts) and the latest reviews in one scan. Ideal for scouting, local SEO audits and reputation analysis.",
+    },
+    addSearch: { it: "Aggiungi ricerca", en: "Add search" },
+    closeForm: { it: "Chiudi", en: "Close" },
+    termLabel: { it: "Termine di ricerca", en: "Search term" },
+    termPlaceholder: { it: 'es. "ristoranti vegani"', en: 'e.g. "vegan restaurants"' },
+    locationLabel: { it: "Località", en: "Location" },
+    locationPlaceholder: { it: 'es. "Milano, Italy"', en: 'e.g. "Milan, Italy"' },
+    countryLabel: { it: "Paese", en: "Country" },
+    languageLabel: { it: "Lingua", en: "Language" },
+    maxPlacesLabel: { it: "Max place per scan", en: "Max places per scan" },
+    maxReviewsLabel: { it: "Max review per place", en: "Max reviews per place" },
+    labelLabel: { it: "Etichetta (opzionale)", en: "Label (optional)" },
+    labelPlaceholder: {
+      it: 'es. "Scouting vegan Milano"',
+      en: 'e.g. "Vegan scouting Milan"',
+    },
+    createSubmit: { it: "Crea ricerca", en: "Create search" },
+    creating: { it: "Creazione...", en: "Creating..." },
+    createOk: { it: "Ricerca creata.", en: "Search created." },
+    createError: { it: "Errore nella creazione.", en: "Error while creating." },
+    deleteConfirm: {
+      it: "Eliminare la ricerca? Verranno persi tutti i place + review storici.",
+      en: "Delete this search? All historic places + reviews will be lost.",
+    },
+    deleted: { it: "Ricerca eliminata.", en: "Search deleted." },
+    deleteError: { it: "Errore nell'eliminazione.", en: "Error while deleting." },
+    scanAction: { it: "Scan", en: "Scan" },
+    scanning: { it: "Scraping Google Maps...", en: "Scraping Google Maps..." },
+    scanningShort: { it: "...", en: "..." },
+    scanError: { it: "Errore nello scan.", en: "Scan failed." },
+    places: { it: "place", en: "places" },
+    reviews: { it: "review", en: "reviews" },
+    reviewsScanned: { it: "review caricate", en: "reviews scanned" },
+    avgScore: { it: "Score medio", en: "Avg. score" },
+    lifetimeReviews: { it: "Review totali", en: "Lifetime reviews" },
+    lastScraped: { it: "Aggiornato", en: "Updated" },
+    neverScraped: { it: "Mai scansionata.", en: "Never scanned." },
+    noSearchesYet: {
+      it: "Nessuna ricerca ancora. Aggiungine una per iniziare.",
+      en: "No searches yet. Add one to start.",
+    },
+    noScanYet: {
+      it: "Nessuno scan ancora. Lancia uno scan per vedere i place + review.",
+      en: "No scan yet. Run a scan to see places + reviews.",
+    },
+    searchSingular: { it: "ricerca", en: "search" },
+    searchPlural: { it: "ricerche", en: "searches" },
+    backToMaps: { it: "Tutte le ricerche", en: "All searches" },
+    permanentlyClosed: { it: "Chiuso definitivamente", en: "Permanently closed" },
+    temporarilyClosed: { it: "Chiuso temporaneamente", en: "Temporarily closed" },
+    viewOnMaps: { it: "Apri su Maps", en: "Open in Maps" },
+    ownerResponse: { it: "Risposta del titolare", en: "Owner response" },
+    moreReviewsHint: { it: "altre review non mostrate", en: "more reviews not shown" },
+  },
+
+  brandSerp: {
+    tabLabel: { it: "Google SERP", en: "Google SERP" },
+    organic: { it: "Organico", en: "Organic" },
+    paid: { it: "Ads", en: "Ads" },
+    lastScraped: { it: "Aggiornato", en: "Updated" },
+    neverScraped: { it: "Mai scansionata.", en: "Never scanned." },
+    openSerp: { it: "Apri detail SERP", en: "Open SERP detail" },
+    querySingular: { it: "query collegata", en: "linked query" },
+    queryPlural: { it: "query collegate", en: "linked queries" },
+    matchingDomain: { it: "match su", en: "matching" },
+    noLinkedYet: {
+      it: "Nessuna query SERP collegata a questo brand. Crea la prima dal pulsante qui sopra.",
+      en: "No SERP queries linked to this brand. Create the first one from the button above.",
+    },
+    createForBrand: {
+      it: "Nuova query per questo brand",
+      en: "New query for this brand",
+    },
+  },
+
+  serp: {
+    title: { it: "Google SERP", en: "Google SERP" },
+    subtitle: {
+      it: "Traccia query su Google: chi compete in organico, chi in ads, chi presidia il ranking dei tuoi brand.",
+      en: "Track Google queries: who competes organically, who competes in ads, who owns your brands' ranking.",
+    },
+    addQuery: { it: "Aggiungi query", en: "Add query" },
+    closeForm: { it: "Chiudi", en: "Close" },
+    queryLabel: { it: "Query", en: "Query" },
+    queryPlaceholder: {
+      it: 'es. "abito lino donna"',
+      en: 'e.g. "linen dress women"',
+    },
+    countryLabel: { it: "Paese", en: "Country" },
+    languageLabel: { it: "Lingua", en: "Language" },
+    deviceLabel: { it: "Device", en: "Device" },
+    deviceDesktop: { it: "Desktop", en: "Desktop" },
+    deviceMobile: { it: "Mobile", en: "Mobile" },
+    labelLabel: { it: "Etichetta (opzionale)", en: "Label (optional)" },
+    labelPlaceholder: {
+      it: 'es. "Branded — Sezane Italia"',
+      en: 'e.g. "Branded — Sezane Italy"',
+    },
+    linkBrandsLabel: { it: "Brand associati (opzionale)", en: "Linked brands (optional)" },
+    linkBrandsHint: {
+      it: "Una query può essere stand-alone oppure associata a uno o più brand per tracciare il loro ranking. Il match avviene sul dominio normalizzato.",
+      en: "A query can be stand-alone or linked to one or more brands to track their ranking. Match is on the normalised domain.",
+    },
+    createSubmit: { it: "Crea query", en: "Create query" },
+    creating: { it: "Creazione...", en: "Creating..." },
+    createOk: { it: "Query creata.", en: "Query created." },
+    createError: { it: "Errore nella creazione.", en: "Error while creating." },
+    deleteConfirm: {
+      it: "Eliminare la query? Verranno persi tutti gli scan storici.",
+      en: "Delete this query? All historic scans will be lost.",
+    },
+    deleted: { it: "Query eliminata.", en: "Query deleted." },
+    deleteError: { it: "Errore nell'eliminazione.", en: "Error while deleting." },
+    scanAction: { it: "Scan", en: "Scan" },
+    scanning: { it: "Scraping SERP...", en: "Scraping SERP..." },
+    scanningShort: { it: "...", en: "..." },
+    scanError: { it: "Errore nello scan.", en: "Scan failed." },
+    organicResults: { it: "organici", en: "organic" },
+    paidResults: { it: "ads", en: "ads" },
+    paidProducts: { it: "products", en: "products" },
+    aiOverview: { it: "AI Overview", en: "AI Overview" },
+    aiSources: { it: "Sorgenti AI Overview", en: "AI Overview sources" },
+    lastScraped: { it: "Aggiornato", en: "Updated" },
+    neverScraped: { it: "Mai scansionata.", en: "Never scanned." },
+    noQueriesYet: {
+      it: "Nessuna query ancora. Aggiungine una per iniziare.",
+      en: "No queries yet. Add one to start.",
+    },
+    noQueriesForBrand: {
+      it: "Nessuna query collegata a questo brand. Aggiungine una per iniziare a monitorare.",
+      en: "No queries linked to this brand. Add one to start monitoring.",
+    },
+    filteringBy: { it: "Filtrando per brand", en: "Filtering by brand" },
+    clearFilter: { it: "Rimuovi filtro", en: "Clear filter" },
+    noScanYet: {
+      it: "Nessuno scan ancora. Lancia uno scan per vedere i risultati.",
+      en: "No scan yet. Run a scan to see results.",
+    },
+    querySingular: { it: "query", en: "query" },
+    queryPlural: { it: "query", en: "queries" },
+    backToSerp: { it: "Tutte le query", en: "All queries" },
+  },
+
+  youtube: {
+    title: { it: "YouTube", en: "YouTube" },
+    latestSnapshot: { it: "Ultimo snapshot canale", en: "Latest channel snapshot" },
+    noVideosYet: {
+      it: "Nessun video YouTube ancora. Lancia uno scan per iniziare a tracciare il canale.",
+      en: "No YouTube videos yet. Run a scan to start tracking this channel.",
+    },
+    subscriberCount: { it: "Iscritti", en: "Subscribers" },
+    totalVideos: { it: "Video totali", en: "Total videos" },
+    totalViews: { it: "Visualizzazioni", en: "Total views" },
+    joinedAt: { it: "Iscritto a YouTube il", en: "Joined YouTube on" },
+    scrapedAt: { it: "Aggiornato il", en: "Updated on" },
+  },
+
+  snapchat: {
+    title: { it: "Snapchat", en: "Snapchat" },
+    latestSnapshot: { it: "Snapshot più recente", en: "Latest snapshot" },
+    snapshotHistory: { it: "Storico snapshot", en: "Snapshot history" },
+    noSnapshotYet: {
+      it: "Nessuno snapshot Snapchat ancora. Lancia uno scan per iniziare a tracciare il brand.",
+      en: "No Snapchat snapshot yet. Run a scan to start tracking this brand.",
+    },
+    hasStory: { it: "Storia attiva", en: "Live story" },
+    hasHighlights: { it: "Highlights", en: "Highlights" },
+    hasSpotlights: { it: "Spotlight", en: "Spotlights" },
+    spotlightCount: { it: "Spotlight", en: "Spotlights" },
+    highlightCount: { it: "Highlight", en: "Highlights" },
+    lensCount: { it: "Lenti", en: "Lenses" },
+    subscriberCount: { it: "Subscribers", en: "Subscribers" },
+    scrapedAt: { it: "Aggiornato il", en: "Updated on" },
+    trendTitle: { it: "Trend", en: "Trend" },
+    trendNoteSingle: {
+      it: "Esegui un secondo scan per vedere come crescono spotlight, highlight e lenti nel tempo.",
+      en: "Run a second scan to see how spotlights, highlights and lenses evolve over time.",
+    },
+  },
+
   organic: {
     title: { it: "Contenuti organici Instagram", en: "Instagram Organic Content" },
     subtitle: {
@@ -1528,6 +1881,23 @@ const translations = {
     scanning: {
       it: "Scraping Instagram\u2026 (pu\u00F2 richiedere 30-90s)",
       en: "Scraping Instagram\u2026 (may take 30-90s)",
+    },
+    // Per-channel scrape toasts. The shared `scanning` key above
+    // hard-codes "Instagram", so previously clicking TikTok or
+    // YouTube fired a toast that lied \u2014 user-flagged 2026-05-04.
+    // Each channel now has its own message so the on-screen
+    // feedback always matches what was clicked.
+    scanningTikTok: {
+      it: "Scraping TikTok\u2026 (pu\u00F2 richiedere 30-90s)",
+      en: "Scraping TikTok\u2026 (may take 30-90s)",
+    },
+    scanningSnapchat: {
+      it: "Scraping Snapchat\u2026 (pu\u00F2 richiedere 30-90s)",
+      en: "Scraping Snapchat\u2026 (may take 30-90s)",
+    },
+    scanningYoutube: {
+      it: "Scraping YouTube\u2026 (pu\u00F2 richiedere 30-90s)",
+      en: "Scraping YouTube\u2026 (may take 30-90s)",
     },
     postsSynced: { it: "post Instagram sincronizzati.", en: "Instagram posts synced." },
     likes: { it: "likes", en: "likes" },
@@ -1544,6 +1914,9 @@ const translations = {
     totalViews: { it: "Views totali", en: "Total views" },
     totalPosts: { it: "Post organici", en: "Organic posts" },
     viewOnInstagram: { it: "Instagram", en: "Instagram" },
+    viewOnTiktok: { it: "TikTok", en: "TikTok" },
+    viewOnSnapchat: { it: "Snapchat", en: "Snapchat" },
+    viewOnYoutube: { it: "YouTube", en: "YouTube" },
     posts: { it: "post", en: "posts" },
     postsLabel: { it: "Post", en: "Posts" },
     avgViews: { it: "Views medie", en: "Avg. views" },
