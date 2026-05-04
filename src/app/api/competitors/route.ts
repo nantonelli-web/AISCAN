@@ -114,7 +114,31 @@ export async function POST(req: Request) {
 
   if (error) {
     console.error("[api/competitors]", error);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    // Surface a useful message to the client. Generic "Server error"
+    // hid actionable causes — most often a NOT NULL violation on
+    // page_url (when the 0036 migration hasn't been applied yet)
+    // or a unique-key conflict on (workspace, page_id).
+    type PgErr = { code?: string; message?: string; details?: string; hint?: string };
+    const e = error as unknown as PgErr;
+    let userMessage = e.message ?? "Server error";
+    if (e.code === "23502") {
+      // NOT NULL violation — typically page_url before migration 0036.
+      userMessage = `Campo obbligatorio mancante sul DB (${e.details ?? "page_url"}). Applica la migration 0036 e riprova.`;
+    } else if (e.code === "23505") {
+      // Unique violation
+      userMessage = "Brand già presente nel workspace (duplicato page_id o page_name).";
+    } else if (e.code === "23503") {
+      userMessage = "Riferimento non valido (es. client_id inesistente).";
+    }
+    return NextResponse.json(
+      {
+        error: userMessage,
+        // dev-only: include the raw code so the client console can
+        // confirm the cause without grepping server logs.
+        debug: { code: e.code, details: e.details, hint: e.hint },
+      },
+      { status: 500 },
+    );
   }
   revalidateTag(competitorsTag(profile.workspace_id));
   return NextResponse.json({ id: data.id });
