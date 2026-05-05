@@ -1999,6 +1999,20 @@ const translations = {
     paidProducts: { it: "products", en: "products" },
     aiOverview: { it: "AI Overview", en: "AI Overview" },
     aiSources: { it: "Sorgenti AI Overview", en: "AI Overview sources" },
+    aiOverviewSourceSingular: { it: "fonte citata", en: "source cited" },
+    aiOverviewSourcePlural: { it: "fonti citate", en: "sources cited" },
+    aiOverviewAbsent: {
+      it: "non generato da Google",
+      en: "not shown by Google",
+    },
+    aiOverviewHelpTitle: {
+      it: "Cos'è l'AI Overview?",
+      en: "What is AI Overview?",
+    },
+    aiOverviewHelpBody: {
+      it: "È il riquadro generativo che Google mostra in cima ai risultati per molte ricerche dal 2024: una risposta sintetica creata dall'AI con citazioni alle fonti web. Tracciamo se Google lo ha generato per la tua query e quali siti ha citato — se un tuo brand è tra le fonti, ottiene visibilità AI-driven; se sono i competitor, perdi share-of-voice generativo. Google non lo mostra per query brand molto specifiche, in alcuni mercati (es. MENA) o per query con shopping intent dove preferisce il box prodotti.",
+      en: "Google's generative box at the top of SERPs since 2024: an AI-written summary with citations to web sources. We track whether Google generated one for your query and which sites it cited — if your brand is among the sources, you gain AI-driven visibility; if competitors are, you lose generative share-of-voice. Google omits it for very specific brand queries, in some markets (e.g. MENA), or shopping-intent queries where it prefers the products box.",
+    },
     lastScraped: { it: "Aggiornato", en: "Updated" },
     neverScraped: { it: "Mai scansionata.", en: "Never scanned." },
     noQueriesYet: {

@@ -8,6 +8,7 @@ import {
   Sparkles,
   Globe,
   ExternalLink,
+  HelpCircle,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth/session";
@@ -190,13 +191,52 @@ export default async function SerpQueryDetailPage({
               </p>
             </CardContent>
           </Card>
+          {/* AI Overview card — most opaque of the four because the
+              concept (Google's generative answer at the top of SERPs)
+              isn't universal yet. We surface:
+                • Big value: number of cited AI sources when an
+                  Overview exists, em-dash otherwise — keeps visual
+                  rhythm with the three numeric cards beside it.
+                • Subtitle: explicit state in human language so the
+                  user doesn't have to interpret a glyph.
+                • Help icon: native HTML title tooltip with the full
+                  "what is this and why it matters" explanation so
+                  curious users can learn without leaving the page. */}
           <Card>
-            <CardContent className="py-4 text-center">
-              <p className="text-2xl font-semibold">
-                {latestRun.has_ai_overview ? "✓" : "—"}
+            <CardContent className="py-4 text-center space-y-1">
+              <p
+                className={
+                  latestRun.has_ai_overview
+                    ? "text-2xl font-semibold tabular-nums tone-success"
+                    : "text-2xl font-semibold text-muted-foreground"
+                }
+              >
+                {latestRun.has_ai_overview ? aiSources.length : "—"}
               </p>
-              <p className="text-xs text-muted-foreground">
-                {t("serp", "aiOverview")}
+              <p className="text-xs text-muted-foreground inline-flex items-center justify-center gap-1.5">
+                <span>{t("serp", "aiOverview")}</span>
+                {/* Native HTML title on the wrapping span fires a
+                    browser tooltip on hover — zero JS, zero layout
+                    shift, screen-reader friendly. The Lucide icon
+                    itself doesn't accept a `title` prop directly. */}
+                <span
+                  title={`${t("serp", "aiOverviewHelpTitle")}\n\n${t("serp", "aiOverviewHelpBody")}`}
+                  aria-label={t("serp", "aiOverviewHelpTitle")}
+                  className="cursor-help inline-flex"
+                >
+                  <HelpCircle className="size-3.5 text-muted-foreground/70 hover:text-foreground" />
+                </span>
+              </p>
+              <p
+                className={
+                  latestRun.has_ai_overview
+                    ? "text-[11px] tone-success font-medium"
+                    : "text-[11px] text-muted-foreground italic"
+                }
+              >
+                {latestRun.has_ai_overview
+                  ? `${aiSources.length === 1 ? t("serp", "aiOverviewSourceSingular") : t("serp", "aiOverviewSourcePlural")}`
+                  : t("serp", "aiOverviewAbsent")}
               </p>
             </CardContent>
           </Card>
