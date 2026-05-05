@@ -16,14 +16,20 @@
 
 const SNAP_API_BASE = "https://adsapi.snapchat.com/v1/ads_library";
 
-/** Default EU country list when the caller doesn't specify. The Snap
- *  API requires `countries` to be non-empty; this matches the EU-27
- *  scope advertised in the DSA endpoint coverage line. */
-const DEFAULT_EU_COUNTRIES = [
+/** EU-27 country whitelist. Snap's Ads Library is a DSA endpoint —
+ *  the API rejects any non-EU code with HTTP 400 / E2002 ("Country
+ *  invalid: <code>"), so we MUST filter the caller's country list
+ *  before issuing the request. Codes are lowercase ISO-3166-1 alpha-2
+ *  except `el` (Greece) which Snap uses instead of `gr`. */
+const EU_COUNTRIES = new Set([
   "at", "be", "bg", "cy", "cz", "de", "dk", "ee", "el", "es", "fi",
   "fr", "hr", "hu", "ie", "it", "lt", "lu", "lv", "mt", "nl", "pl",
   "pt", "ro", "se", "si", "sk",
-];
+]);
+
+/** Default country list when the caller doesn't specify — matches the
+ *  full EU-27 scope advertised in Snap's DSA coverage. */
+const DEFAULT_EU_COUNTRIES = [...EU_COUNTRIES];
 
 export interface SnapchatAdsScrapeOptions {
   /** Brand search key. Sent verbatim as `paying_advertiser_name` —
@@ -157,10 +163,30 @@ export async function scrapeSnapchatAds(
     throw new Error("brandName is required for Snapchat Ads scrape.");
   }
 
-  const countries =
+  // Normalise + filter the caller's country list against the EU-27
+  // whitelist. Non-EU codes (e.g. `qa`, `us`, `ae`) are dropped here
+  // rather than at the call site — the API rejects them with HTTP 400,
+  // and brands often carry a mixed-market country list on
+  // `mait_competitors.country`. If after filtering nothing remains,
+  // fall back to the full EU-27 default so the brand still gets a
+  // meaningful scan instead of an empty-input error.
+  const requested =
     opts.countries && opts.countries.length > 0
       ? opts.countries.map((c) => c.toLowerCase())
-      : DEFAULT_EU_COUNTRIES;
+      : null;
+  const filteredEu = requested
+    ? requested.filter((c) => EU_COUNTRIES.has(c))
+    : null;
+  const dropped = requested
+    ? requested.filter((c) => !EU_COUNTRIES.has(c))
+    : [];
+  if (dropped.length > 0) {
+    console.log(
+      `[SnapchatAds] Dropping non-EU countries from request: ${dropped.join(", ")} (Snap DSA API is EU-only).`,
+    );
+  }
+  const countries =
+    filteredEu && filteredEu.length > 0 ? filteredEu : DEFAULT_EU_COUNTRIES;
 
   // 12-month window matches the API's own coverage limit. Going wider
   // returns the same data — we keep the cap explicit so the user-facing
