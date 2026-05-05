@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -427,18 +426,31 @@ export function SerpPageClient({ initialQueries, competitors }: Props) {
             return (
               <Card
                 key={q.id}
-                className="hover:border-gold/40 transition-colors"
+                role="link"
+                tabIndex={0}
+                aria-label={`${t("serp", "openDetailFor")}: ${q.query}`}
+                onClick={() => router.push(`/serp/${q.id}`)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    router.push(`/serp/${q.id}`);
+                  }
+                }}
+                className="hover:border-gold/40 hover:shadow-md transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-gold/40"
               >
                 <CardContent className="p-5 space-y-3">
                   <div className="flex items-start gap-4">
                     <Search className="size-5 text-gold shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1">
-                      <Link
-                        href={`/serp/${q.id}`}
-                        className="text-base font-medium hover:text-gold transition-colors break-words"
-                      >
+                      {/* Title kept styled as a hyperlink so the eye
+                          still reads it as the primary action, but the
+                          whole card is the actual target — Link
+                          replaced with a span to avoid nested
+                          interactive elements (the parent Card is
+                          role=link). */}
+                      <span className="text-base font-medium hover:text-gold transition-colors break-words">
                         {q.query}
-                      </Link>
+                      </span>
                       {q.label && (
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {q.label}
@@ -462,11 +474,19 @@ export function SerpPageClient({ initialQueries, competitors }: Props) {
                         ))}
                       </div>
                     </div>
+                    {/* stopPropagation on the action buttons keeps the
+                        whole-card navigation pattern from triggering
+                        when the user clicks Scan or Delete. Without
+                        it, Scan would fire AND the page would navigate
+                        away to the detail mid-scan. */}
                     <div className="flex items-center gap-1.5 shrink-0">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => scanQuery(q.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          scanQuery(q.id);
+                        }}
                         disabled={isScanning || isDeleting}
                         className="gap-1.5"
                       >
@@ -480,7 +500,10 @@ export function SerpPageClient({ initialQueries, competitors }: Props) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => deleteQuery(q.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteQuery(q.id);
+                        }}
                         disabled={isScanning || isDeleting}
                         className="size-8 p-0 text-muted-foreground hover:text-red-400"
                       >

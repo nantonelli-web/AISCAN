@@ -1959,6 +1959,7 @@ const translations = {
     },
     addQuery: { it: "Aggiungi query", en: "Add query" },
     closeForm: { it: "Chiudi", en: "Close" },
+    openDetailFor: { it: "Apri dettagli per", en: "Open details for" },
     queryLabel: { it: "Query", en: "Query" },
     queryPlaceholder: {
       it: 'es. "abito lino donna"',
