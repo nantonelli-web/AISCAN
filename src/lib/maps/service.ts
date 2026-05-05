@@ -400,7 +400,12 @@ export async function scrapeMapsPlaces(
     throw new Error(`Location non valida: "${opts.locationQuery}"`);
   }
   const language = (opts.language ?? "it").toLowerCase();
-  const countryCode = (opts.countryCode ?? "IT").toUpperCase();
+  // compass/crawler-google-places expects ISO-2 lowercase codes
+  // (the actor's enum is "us, af, al, dz, …"). Uppercase values are
+  // rejected with HTTP 400 invalid-input. Always normalise here so
+  // that legacy rows still in the DB with uppercase strings keep
+  // working without a backfill.
+  const countryCode = (opts.countryCode ?? "it").toLowerCase();
   const maxPlaces = Math.min(Math.max(opts.maxPlaces ?? 20, 1), 100);
   const maxReviewsPerPlace = Math.min(
     Math.max(opts.maxReviewsPerPlace ?? 10, 0),

@@ -121,7 +121,10 @@ export async function POST(req: Request) {
       search_term: term,
       location_query: loc,
       language: (parsed.data.language ?? "it").toLowerCase(),
-      country_code: (parsed.data.country_code ?? "IT").toUpperCase(),
+      // compass/crawler-google-places vuole il codice paese ISO-2
+      // minuscolo. Mantengo lowercase anche nel DB cosi le ricerche
+      // esistenti restano coerenti col formato richiesto dall actor.
+      country_code: (parsed.data.country_code ?? "it").toLowerCase(),
       max_places: parsed.data.max_places ?? 20,
       max_reviews_per_place: parsed.data.max_reviews_per_place ?? 10,
       label: parsed.data.label ?? null,
