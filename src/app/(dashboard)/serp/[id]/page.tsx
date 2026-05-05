@@ -215,16 +215,31 @@ export default async function SerpQueryDetailPage({
               </p>
               <p className="text-xs text-muted-foreground inline-flex items-center justify-center gap-1.5">
                 <span>{t("serp", "aiOverview")}</span>
-                {/* Native HTML title on the wrapping span fires a
-                    browser tooltip on hover — zero JS, zero layout
-                    shift, screen-reader friendly. The Lucide icon
-                    itself doesn't accept a `title` prop directly. */}
+                {/* CSS-only tooltip — no JS, no delay, zero layout
+                    shift. The native HTML title attribute on the
+                    parent span has a ~1.5s OS delay and renders the
+                    text inconsistently across browsers, so we render
+                    our own popover via the Tailwind `group-hover`
+                    pattern. The popover floats above the rest of the
+                    grid via z-50 and a wide max-width so the long
+                    explanation reads cleanly. */}
                 <span
-                  title={`${t("serp", "aiOverviewHelpTitle")}\n\n${t("serp", "aiOverviewHelpBody")}`}
+                  tabIndex={0}
                   aria-label={t("serp", "aiOverviewHelpTitle")}
-                  className="cursor-help inline-flex"
+                  className="relative group inline-flex outline-none"
                 >
-                  <HelpCircle className="size-3.5 text-muted-foreground/70 hover:text-foreground" />
+                  <HelpCircle className="size-3.5 text-muted-foreground/70 group-hover:text-foreground group-focus:text-foreground transition-colors" />
+                  <span
+                    role="tooltip"
+                    className="invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus:visible group-focus:opacity-100 transition-opacity pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 w-72 sm:w-80 rounded-md border border-border bg-popover text-popover-foreground shadow-lg p-3 text-left whitespace-normal"
+                  >
+                    <span className="block text-xs font-semibold mb-1.5 text-foreground">
+                      {t("serp", "aiOverviewHelpTitle")}
+                    </span>
+                    <span className="block text-[11px] leading-relaxed text-muted-foreground">
+                      {t("serp", "aiOverviewHelpBody")}
+                    </span>
+                  </span>
                 </span>
               </p>
               <p
