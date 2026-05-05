@@ -14,22 +14,13 @@
  * the scan indefinitely.
  */
 
-const SNAP_API_BASE = "https://adsapi.snapchat.com/v1/ads_library";
+import { SNAP_ADS_EU_COUNTRIES } from "@/lib/snapchat/eu-countries";
 
-/** EU-27 country whitelist. Snap's Ads Library is a DSA endpoint —
- *  the API rejects any non-EU code with HTTP 400 / E2002 ("Country
- *  invalid: <code>"), so we MUST filter the caller's country list
- *  before issuing the request. Codes are lowercase ISO-3166-1 alpha-2
- *  except `el` (Greece) which Snap uses instead of `gr`. */
-const EU_COUNTRIES = new Set([
-  "at", "be", "bg", "cy", "cz", "de", "dk", "ee", "el", "es", "fi",
-  "fr", "hr", "hu", "ie", "it", "lt", "lu", "lv", "mt", "nl", "pl",
-  "pt", "ro", "se", "si", "sk",
-]);
+const SNAP_API_BASE = "https://adsapi.snapchat.com/v1/ads_library";
 
 /** Default country list when the caller doesn't specify — matches the
  *  full EU-27 scope advertised in Snap's DSA coverage. */
-const DEFAULT_EU_COUNTRIES = [...EU_COUNTRIES];
+const DEFAULT_EU_COUNTRIES = [...SNAP_ADS_EU_COUNTRIES];
 
 export interface SnapchatAdsScrapeOptions {
   /** Brand search key. Sent verbatim as `paying_advertiser_name` —
@@ -170,15 +161,21 @@ export async function scrapeSnapchatAds(
   // `mait_competitors.country`. If after filtering nothing remains,
   // fall back to the full EU-27 default so the brand still gets a
   // meaningful scan instead of an empty-input error.
+  // Normalise + remap: Snap uses `el` for Greece, but brand records
+  // may carry the more common `gr` — translate before the whitelist
+  // check so the user's intent is preserved.
   const requested =
     opts.countries && opts.countries.length > 0
-      ? opts.countries.map((c) => c.toLowerCase())
+      ? opts.countries.map((c) => {
+          const lower = c.toLowerCase();
+          return lower === "gr" ? "el" : lower;
+        })
       : null;
   const filteredEu = requested
-    ? requested.filter((c) => EU_COUNTRIES.has(c))
+    ? requested.filter((c) => SNAP_ADS_EU_COUNTRIES.has(c))
     : null;
   const dropped = requested
-    ? requested.filter((c) => !EU_COUNTRIES.has(c))
+    ? requested.filter((c) => !SNAP_ADS_EU_COUNTRIES.has(c))
     : [];
   if (dropped.length > 0) {
     console.log(

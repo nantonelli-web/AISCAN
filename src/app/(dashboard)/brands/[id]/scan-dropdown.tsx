@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { DateRangeShortcuts, defaultPresets } from "@/components/ui/date-range-shortcuts";
 import { useT } from "@/lib/i18n/context";
 import { cn } from "@/lib/utils";
+import { hasSnapAdsCoverage } from "@/lib/snapchat/eu-countries";
 
 /* ─── Platform SVG logos ─────────────────────────────────── */
 
@@ -131,6 +132,19 @@ export function ScanDropdown({
   const isLoading = loading !== null;
   const showStop = isLoading || hasRunningJob;
   const abortRef = useRef<AbortController | null>(null);
+
+  // Snap's Ads Library is an EU-only DSA endpoint — non-EU codes
+  // return HTTP 400 from the API, so we gate the CTA when the brand
+  // has explicit markets configured AND none of them are EU. When the
+  // brand has no markets at all, the scan API falls back to all EU-27
+  // by default, so we leave the button enabled in that case.
+  const scanCountryList = (scanCountries ?? "")
+    .split(",")
+    .map((c) => c.trim())
+    .filter(Boolean);
+  const hasExplicitMarkets = scanCountryList.length > 0;
+  const snapchatAdsAvailable =
+    !hasExplicitMarkets || hasSnapAdsCoverage(scanCountryList);
 
   async function stopScan() {
     setStopping(true);
@@ -744,14 +758,24 @@ export function ScanDropdown({
                 {loading === "tiktok_ads" ? t("scan", "scanning") : "TikTok Ads"}
               </Button>
               {/* Snapchat Ads — Snap's official public DSA API. Free,
-                  no Apify, no token. EU-only, last 12 months — the
-                  inline note below the date range warns the user. */}
+                  no Apify, no token. EU-only by API design, so we
+                  also gate the CTA when the brand's configured markets
+                  contain zero EU country (the API returns 400 in that
+                  case). Tooltip + inline note below clarify the why
+                  so the user doesn't read it as a bug. */}
               <Button
-                onClick={scanSnapchatAds}
-                disabled={isLoading}
+                onClick={
+                  snapchatAdsAvailable ? scanSnapchatAds : undefined
+                }
+                disabled={isLoading || !snapchatAdsAvailable}
                 variant="outline"
                 size="sm"
-                className={btn}
+                className={snapchatAdsAvailable ? btn : btnDisabled}
+                title={
+                  !snapchatAdsAvailable
+                    ? t("scan", "snapchatAdsNoEuMarkets")
+                    : undefined
+                }
               >
                 {loading === "snapchat_ads" ? (
                   <RefreshCw className="size-4 animate-spin" />
@@ -761,6 +785,25 @@ export function ScanDropdown({
                 {loading === "snapchat_ads" ? t("scan", "scanning") : "Snapchat Ads"}
               </Button>
             </div>
+            {/* Visible explanation strip — shown only when the
+                Snapchat Ads button is gated. We surface this here
+                instead of in a tooltip alone so the user understands
+                the reason without having to hover the disabled
+                button. Same warning tone as the missing-config strip
+                at the bottom of the panel. */}
+            {!snapchatAdsAvailable && (
+              <div className="flex items-start gap-2.5 rounded-md border border-warning/30 bg-warning-soft px-3 py-2.5 text-xs leading-relaxed">
+                <Info className="size-3.5 tone-warning shrink-0 mt-0.5" />
+                <p className="tone-warning">
+                  <span className="font-medium">
+                    {t("scan", "snapchatAdsGatedTitle")}
+                  </span>{" "}
+                  <span className="text-foreground/80">
+                    {t("scan", "snapchatAdsGatedBody")}
+                  </span>
+                </p>
+              </div>
+            )}
           </div>
 
           {/* ORGANIC column — 4 channels stacked in 2x2 mini-grid

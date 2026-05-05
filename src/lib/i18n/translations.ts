@@ -505,6 +505,18 @@ const translations = {
     scanAllPartial: { it: "brand completati", en: "brands completed" },
     last30days: { it: "Ultimi 30 giorni", en: "Last 30 days" },
     scanPeriod: { it: "Periodo di scansione", en: "Scan period" },
+    snapchatAdsNoEuMarkets: {
+      it: "Snapchat Ads disponibile solo per brand con almeno un mercato UE.",
+      en: "Snapchat Ads is only available for brands with at least one EU market.",
+    },
+    snapchatAdsGatedTitle: {
+      it: "Snapchat Ads non disponibile per questo brand.",
+      en: "Snapchat Ads not available for this brand.",
+    },
+    snapchatAdsGatedBody: {
+      it: "L'API ufficiale di Snap espone solo gli ad serviti nei 27 paesi UE (compliance DSA). I mercati configurati per questo brand non includono nessun paese UE, quindi la scansione restituirebbe sempre zero risultati. Aggiungi un mercato UE dalle impostazioni del brand per abilitare la CTA.",
+      en: "Snap's official API only exposes ads served in the 27 EU countries (DSA compliance). The markets configured for this brand contain no EU country, so the scan would always return zero. Add an EU market from the brand settings to enable the CTA.",
+    },
     tiktokYoutubeNoteTitle: {
       it: "Limiti per canale:",
       en: "Channel limits:",
