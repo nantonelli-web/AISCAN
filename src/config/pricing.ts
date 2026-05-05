@@ -25,6 +25,7 @@ export type CreditAction =
   | 'scan_tiktok_ads'
   | 'scan_tiktok_cc'
   | 'scan_snapchat'
+  | 'scan_snapchat_ads'
   | 'scan_youtube'
   | 'scan_serp'
   | 'scan_maps'
@@ -131,6 +132,13 @@ export const creditCosts: Record<CreditAction, number> = {
   // honestly. If we ever ingest spotlights/highlights as separate
   // entities we'll need to revisit.
   scan_snapchat: 1,
+  // Snapchat Ads via Snap's official public REST API (no Apify, no
+  // OAuth, no rental). Egress-only — costs effectively $0. We charge
+  // 1 credit to keep the action visible in the credit ledger and to
+  // reserve room for future enrichment (per-ad detail fetch, sponsored
+  // content scrape). EU-only, last-12-months coverage. See project
+  // memory `project_snapchat_ads_api`.
+  scan_snapchat_ads: 1,
   // YouTube actor (streamers/youtube-channel-scraper) costs $0.50
   // per 1000 videos. A 30-video scan = $0.015 — about 3x cheaper
   // than TikTok at the same volume. 1 credit keeps the pricing

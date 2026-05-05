@@ -506,12 +506,12 @@ const translations = {
     last30days: { it: "Ultimi 30 giorni", en: "Last 30 days" },
     scanPeriod: { it: "Periodo di scansione", en: "Scan period" },
     tiktokYoutubeNoteTitle: {
-      it: "Nota su TikTok e YouTube:",
-      en: "Note on TikTok and YouTube:",
+      it: "Limiti per canale:",
+      en: "Channel limits:",
     },
     tiktokYoutubeNoteBody: {
-      it: "questi due canali non supportano un filtro per data lato sorgente. La scansione recupera gli ultimi 50 post (TikTok) / 30 video (YouTube) e poi applica la finestra che hai scelto. Per profili molto attivi o finestre molto vecchie il risultato potrebbe essere parziale.",
-      en: "These two channels don't support a server-side date filter. The scan fetches the latest 50 posts (TikTok) / 30 videos (YouTube) and then applies your window. For very active profiles or older windows the result may be partial.",
+      it: "TikTok e YouTube non supportano un filtro per data lato sorgente: la scansione recupera gli ultimi 50 post (TikTok) / 30 video (YouTube) e poi applica la finestra scelta. Snapchat Ads usa l'API ufficiale Snap (gratuita) ma copre solo il mercato UE negli ultimi 12 mesi. Per finestre più ampie o profili molto attivi il risultato potrebbe essere parziale.",
+      en: "TikTok and YouTube don't support a server-side date filter: the scan fetches the latest 50 posts (TikTok) / 30 videos (YouTube) then applies your window. Snapchat Ads uses Snap's official API (free) but covers only the EU market over the last 12 months. For wider windows or very active profiles the result may be partial.",
     },
     paid: { it: "Paid", en: "Paid" },
     organic: { it: "Organic", en: "Organic" },
@@ -1091,6 +1091,21 @@ const translations = {
     avgImpressions: { it: "Impression medie", en: "Avg impressions" },
     avgReach: { it: "Reach medio", en: "Avg reach" },
     avgCtr: { it: "CTR medio", en: "Avg CTR" },
+  },
+
+  // ─── Snapchat Ads (paid) ──────────────────────────────────
+  // Used by the brand-detail Snapchat Ads grid header. Distinct
+  // from `snapchat:` (organic profile snapshot strings).
+  snapchatAds: {
+    title: { it: "Snapchat Ads", en: "Snapchat Ads" },
+    coverageNote: {
+      it: "Copertura Snap Ads Library: solo mercato UE, ultimi 12 mesi.",
+      en: "Snap Ads Library coverage: EU market only, last 12 months.",
+    },
+    noAdsYet: {
+      it: "Nessuna ad Snapchat raccolta ancora. Lancia uno scan per iniziare.",
+      en: "No Snapchat ads collected yet. Run a scan to populate.",
+    },
   },
 
   // ─── Date-range shortcut chips ─────────────────────────────

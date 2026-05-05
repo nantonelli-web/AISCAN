@@ -35,6 +35,8 @@ import type {
   MaitYoutubeVideo,
 } from "@/types";
 import type { MaitTiktokAd } from "@/types/tiktok-ads";
+import type { MaitSnapchatAd } from "@/types/snapchat-ads";
+import { SnapchatAdCard } from "@/components/ads/snapchat-ad-card";
 
 type Channel = "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube" | "serp";
 type Status = "all" | "active" | "inactive";
@@ -75,6 +77,10 @@ interface Props {
    *  [0] is the latest profile snapshot rendered as the SnapchatProfileCard;
    *  the rest feed the trend list. */
   snapchatProfiles: MaitSnapchatProfile[];
+  /** Paid Snapchat ads scraped via Snap's official DSA REST API.
+   *  Rendered above the organic snapshot block on the Snapchat tab,
+   *  same pattern as TikTok Ads above TikTok organic posts. */
+  snapchatAds: MaitSnapchatAd[];
   /** YouTube channel snapshots, most-recent-first. [0] is the latest
    *  rendered as the YoutubeChannelCard; older rows feed a small
    *  trend block (subscriber/video/view delta between scans). */
@@ -95,6 +101,9 @@ interface Props {
     instagram: number;
     tiktok: number;
     snapchat: number;
+    /** Paid Snapchat ads count, surfaced alongside organic snapshots
+     *  so the Snapchat chip reflects both surfaces. */
+    snapchatAds: number;
     youtube: number;
     youtubeChannelSnaps: number;
     serpQueries: number;
@@ -149,6 +158,7 @@ export function ChannelTabs({
   tiktokPosts,
   tiktokAds,
   snapchatProfiles,
+  snapchatAds,
   youtubeChannels,
   youtubeVideos,
   serpQueries,
@@ -289,7 +299,9 @@ export function ChannelTabs({
         : Math.max(0, channelTotals.google - activeTotals.google);
   const instagramCount = channelTotals.instagram;
   const tiktokCount = channelTotals.tiktok;
-  const snapchatCount = channelTotals.snapchat;
+  // Snapchat chip count = organic snapshots + paid ads (the tab
+  // hosts both surfaces, so the badge must reflect both).
+  const snapchatCount = channelTotals.snapchat + channelTotals.snapchatAds;
   const youtubeCount = channelTotals.youtube;
   const serpCount = channelTotals.serpQueries;
   // SERP tab: show whenever the brand has a googleDomain, even with
@@ -924,6 +936,34 @@ export function ChannelTabs({
       {/* ─── Snapchat section ─── */}
       {showSnapchat && (
         <div className="space-y-4">
+          {/* Paid Snapchat ads block — sits ABOVE the organic snapshot
+              (same pattern as TikTok Ads above TikTok organic posts).
+              Hidden in the all-tab to keep that surface compact;
+              revealed only on the dedicated Snapchat tab. */}
+          {channel === "snapchat" && snapchatAds.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">
+                  {t("snapchatAds", "title")}
+                </p>
+                <span className="text-xs text-muted-foreground">
+                  {snapchatAds.length} ads
+                </span>
+              </div>
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {snapchatAds.map((a) => (
+                  <SnapchatAdCard key={a.id} ad={a} />
+                ))}
+              </div>
+              {/* Coverage notice — Snap's API exposes only EU ads from
+                  the last 12 months. Said upfront so a user scanning
+                  a US-focused brand doesn't read the empty result as
+                  a bug. */}
+              <p className="text-[11px] text-muted-foreground italic">
+                {t("snapchatAds", "coverageNote")}
+              </p>
+            </div>
+          )}
           {latestSnapchat ? (
             <>
               {channel === "all" && (
@@ -999,7 +1039,12 @@ export function ChannelTabs({
               )}
             </>
           ) : (
-            channel === "snapchat" && (
+            // Empty state only when BOTH organic and paid surfaces are
+            // empty — having paid ads but no profile snapshot is a
+            // legitimate state (the user ran Snapchat Ads scan but
+            // never the organic profile scan), so don't drown the
+            // ads block with a "no data" card on top.
+            channel === "snapchat" && snapchatAds.length === 0 && (
               <Card>
                 <CardContent className="py-12 text-center text-muted-foreground text-sm">
                   {t("snapchat", "noSnapshotYet")}
@@ -1153,6 +1198,7 @@ export function ChannelTabs({
         organicPosts.length === 0 &&
         tiktokPosts.length === 0 &&
         snapchatProfiles.length === 0 &&
+        snapchatAds.length === 0 &&
         youtubeChannels.length === 0 &&
         youtubeVideos.length === 0 && (
           <Card>

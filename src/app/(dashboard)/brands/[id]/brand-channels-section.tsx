@@ -9,6 +9,7 @@ import type {
   MaitYoutubeVideo,
 } from "@/types";
 import type { MaitTiktokAd } from "@/types/tiktok-ads";
+import type { MaitSnapchatAd } from "@/types/snapchat-ads";
 
 // ─── SERP brand-tab shapes (declared here, consumed by ChannelTabs) ──
 interface BrandSerpQueryMeta {
@@ -108,6 +109,9 @@ export async function BrandChannelsSection({
     instagram: number;
     tiktok: number;
     snapchat: number;
+    /** Paid Snapchat ads (from mait_snapchat_ads). Distinct from
+     *  snapchat above which counts organic profile snapshots. */
+    snapchatAds: number;
     youtube: number;
     youtubeChannelSnaps: number;
     serpQueries: number;
@@ -205,6 +209,7 @@ export async function BrandChannelsSection({
     { data: tiktokPosts },
     { data: tiktokAdsRows },
     { data: snapchatProfiles },
+    { data: snapchatAdsRows },
     { data: youtubeChannelSnaps },
     { data: youtubeVideos },
     { count: metaFiltered },
@@ -250,6 +255,17 @@ export async function BrandChannelsSection({
       .eq("competitor_id", competitorId)
       .order("scraped_at", { ascending: false })
       .limit(30),
+    // Paid Snapchat ads via Snap's official DSA API. Sorted by
+    // start_date desc so the most recent campaigns lead. 30-row cap
+    // mirrors the rest of this fetch — we'll add a Load more later
+    // if a brand has more than that and the user wants pagination.
+    supabase
+      .from("mait_snapchat_ads")
+      .select("*")
+      .eq("competitor_id", competitorId)
+      .order("start_date", { ascending: false, nullsFirst: false })
+      .order("scraped_at", { ascending: false })
+      .limit(30),
     // YouTube channel snapshots: same trend pattern as Snapchat.
     supabase
       .from("mait_youtube_channels")
@@ -278,6 +294,7 @@ export async function BrandChannelsSection({
   const tiktokList = (tiktokPosts ?? []) as MaitTikTokPost[];
   const tiktokAdsList = (tiktokAdsRows ?? []) as MaitTiktokAd[];
   const snapchatList = (snapchatProfiles ?? []) as MaitSnapchatProfile[];
+  const snapchatAdsList = (snapchatAdsRows ?? []) as MaitSnapchatAd[];
   const youtubeChannelList = (youtubeChannelSnaps ?? []) as MaitYoutubeChannel[];
   const youtubeVideoList = (youtubeVideos ?? []) as MaitYoutubeVideo[];
 
@@ -477,6 +494,7 @@ export async function BrandChannelsSection({
       tiktokPosts={tiktokList}
       tiktokAds={tiktokAdsList}
       snapchatProfiles={snapchatList}
+      snapchatAds={snapchatAdsList}
       youtubeChannels={youtubeChannelList}
       youtubeVideos={youtubeVideoList}
       serpQueries={serpQueries}

@@ -71,10 +71,15 @@ interface Props {
   hasRunningJob?: boolean;
 }
 
+// Loading-state discriminator. Paid+organic Snapchat live on the
+// same brand-detail tab ("snapchat"), but the spinner needs to know
+// which scan is in flight — so the paid scan keeps its own value
+// here even though it focuses the same tab when done.
 type ScanTarget =
   | "meta"
   | "google"
   | "tiktok_ads"
+  | "snapchat_ads"
   | "instagram"
   | "tiktok"
   | "snapchat"
@@ -233,6 +238,53 @@ export function ScanDropdown({
         if (json.debug) console.log("[AISCAN Google scan debug]", json.debug);
         toast.success(`${json.records} Google Ads ${t("scan", "adsSynced")} (${rangeLabel})`, { id: toastId });
         focusChannel("google");
+      }
+    } catch (e) {
+      if ((e as Error).name === "AbortError") {
+        toast.dismiss(toastId);
+      } else {
+        toast.error(e instanceof Error ? e.message : "Network error", { id: toastId });
+      }
+    } finally {
+      abortRef.current = null;
+      setLoading(null);
+    }
+  }
+
+  // Snapchat Ads — Snap's official public REST API
+  // (adsapi.snapchat.com), no Apify. Date range is forwarded; the
+  // server applies a 12-month cap that matches Snap's own coverage.
+  async function scanSnapchatAds() {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setLoading("snapchat_ads");
+    const toastId = toast.loading(t("scan", "scrapingInProgress"));
+    try {
+      const res = await fetch("/api/snapchat-ads/scan", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          competitor_id: competitorId,
+          date_from: effectiveFrom,
+          date_to: effectiveTo,
+          status: "ACTIVE",
+          max_results: 500,
+        }),
+        signal: controller.signal,
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error ?? "Snapchat Ads scrape failed", { id: toastId });
+      } else {
+        toast.success(
+          `${json.records} Snapchat Ads ${t("scan", "adsSynced")}`,
+          { id: toastId },
+        );
+        // Land on the Snapchat tab (paid + organic share it). There
+        // is no dedicated "snapchat_ads" tab on the brand page —
+        // mirror of the tiktok_ads handler which also routes to the
+        // unified TikTok tab.
+        focusChannel("snapchat");
       }
     } catch (e) {
       if ((e as Error).name === "AbortError") {
@@ -642,7 +694,10 @@ export function ScanDropdown({
                 {t("scan", "paid")}
               </span>
             </div>
-            <div className="space-y-2">
+            {/* PAID has 4 channels now (Meta / Google / TikTok Ads /
+                Snapchat Ads) — same 2x2 mini-grid as the ORGANIC
+                column so the heights line up. */}
+            <div className="grid grid-cols-2 gap-2">
               <Button
                 onClick={hasMetaConfig ? scanMeta : undefined}
                 disabled={!hasMetaConfig || isLoading || rangeExceeded}
@@ -687,6 +742,23 @@ export function ScanDropdown({
                   <TikTokIcon className="size-4" />
                 )}
                 {loading === "tiktok_ads" ? t("scan", "scanning") : "TikTok Ads"}
+              </Button>
+              {/* Snapchat Ads — Snap's official public DSA API. Free,
+                  no Apify, no token. EU-only, last 12 months — the
+                  inline note below the date range warns the user. */}
+              <Button
+                onClick={scanSnapchatAds}
+                disabled={isLoading}
+                variant="outline"
+                size="sm"
+                className={btn}
+              >
+                {loading === "snapchat_ads" ? (
+                  <RefreshCw className="size-4 animate-spin" />
+                ) : (
+                  <SnapchatIcon className="size-4" />
+                )}
+                {loading === "snapchat_ads" ? t("scan", "scanning") : "Snapchat Ads"}
               </Button>
             </div>
           </div>

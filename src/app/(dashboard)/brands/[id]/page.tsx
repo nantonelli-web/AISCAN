@@ -82,6 +82,7 @@ export default async function CompetitorDetailPage({
     { count: postCount },
     { count: tiktokPostCount },
     { count: snapchatSnapshotCount },
+    { count: snapchatAdsCount },
     { count: youtubeVideoCount },
     { count: youtubeChannelSnapCount },
     { count: serpQueryLinkCount },
@@ -145,6 +146,12 @@ export default async function CompetitorDetailPage({
       .from("mait_snapchat_profiles")
       .select("id", { count: "exact", head: true })
       .eq("competitor_id", id),
+    // Snapchat Ads count — paid ads via Snap's official DSA API,
+    // separate from organic profile snapshots above.
+    supabase
+      .from("mait_snapchat_ads")
+      .select("id", { count: "exact", head: true })
+      .eq("competitor_id", id),
     supabase
       .from("mait_youtube_videos")
       .select("id", { count: "exact", head: true })
@@ -204,7 +211,7 @@ export default async function CompetitorDetailPage({
   const googleTotal = googleAdCount ?? 0;
   const organicTotal = postCount ?? 0;
   const deleteCounts = {
-    ads: metaTotal + googleTotal,
+    ads: metaTotal + googleTotal + (snapchatAdsCount ?? 0),
     posts:
       organicTotal +
       (tiktokPostCount ?? 0) +
@@ -216,6 +223,7 @@ export default async function CompetitorDetailPage({
   };
   const tiktokTotal = tiktokPostCount ?? 0;
   const snapchatTotal = snapchatSnapshotCount ?? 0;
+  const snapchatAdsTotal = snapchatAdsCount ?? 0;
   const youtubeVideosTotal = youtubeVideoCount ?? 0;
   const youtubeChannelTotal = youtubeChannelSnapCount ?? 0;
   const serpQueriesTotal = serpQueryLinkCount ?? 0;
@@ -225,6 +233,11 @@ export default async function CompetitorDetailPage({
     instagram: organicTotal,
     tiktok: tiktokTotal,
     snapchat: snapchatTotal,
+    // Paid Snapchat ad count, surfaced alongside the organic snapshot
+    // count so the channel chip shows the real total (organic +
+    // paid). The ChannelTabs grid renders both blocks on the
+    // unified Snapchat tab.
+    snapchatAds: snapchatAdsTotal,
     youtube: youtubeVideosTotal,
     youtubeChannelSnaps: youtubeChannelTotal,
     serpQueries: serpQueriesTotal,
@@ -308,7 +321,10 @@ export default async function CompetitorDetailPage({
     { key: "google", count: googleTotal },
     { key: "instagram", count: organicTotal },
     { key: "tiktok", count: tiktokTotal },
-    { key: "snapchat", count: snapchatTotal },
+    // Snapchat coverage = organic snapshots + paid ads. Either source
+    // having data means the brand is "present on Snap" for the
+    // hero coverage row.
+    { key: "snapchat", count: snapchatTotal + snapchatAdsTotal },
     { key: "youtube", count: youtubeVideosTotal },
     { key: "serp", count: serpQueriesTotal },
   ];
