@@ -1943,6 +1943,25 @@ const translations = {
     previousRank: { it: "Posizione precedente", en: "Previous rank" },
     rankUnchanged: { it: "Posizione invariata", en: "Rank unchanged" },
     popularTimes: { it: "Orari di affluenza", en: "Popular times" },
+    auditTitle: { it: "Local SEO audit", en: "Local SEO audit" },
+  },
+
+  mapsAudit: {
+    phone: { it: "Telefono", en: "Phone" },
+    website: { it: "Sito web", en: "Website" },
+    address: { it: "Indirizzo", en: "Address" },
+    category: { it: "Categoria", en: "Category" },
+    image: { it: "Foto principale", en: "Cover photo" },
+    claimed: { it: "Profilo claimed", en: "Profile claimed" },
+    established: {
+      it: "Presenza consolidata (10+ review)",
+      en: "Established (10+ reviews)",
+    },
+    rating: { it: "Rating ≥ 4.0", en: "Rating ≥ 4.0" },
+    ownerResponse: {
+      it: "Owner risponde alle review",
+      en: "Owner replies to reviews",
+    },
   },
 
   brandSerp: {

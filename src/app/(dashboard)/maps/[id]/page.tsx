@@ -24,6 +24,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatNumber } from "@/lib/utils";
 import { PopularTimesHeatmap } from "@/components/maps/popular-times-heatmap";
+import { LocalSeoAudit } from "@/components/maps/local-seo-audit";
+import { computeLocalSeoAudit } from "@/lib/maps/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -500,6 +502,38 @@ export default async function MapsSearchDetailPage({
                           )}
                         </div>
                       </div>
+                    </div>
+
+                    {/* Local SEO audit — checklist completeness del
+                        Google Business Profile. Sempre presente: ogni
+                        place ha qualcosa da auditare. */}
+                    <div className="pt-3 border-t border-border">
+                      <LocalSeoAudit
+                        audit={computeLocalSeoAudit(
+                          {
+                            phone: p.phone,
+                            website: p.website,
+                            category_name: p.category_name,
+                            image_url: p.image_url,
+                            address: p.address,
+                            total_score: p.total_score,
+                            reviews_count: p.reviews_count,
+                          },
+                          reviews,
+                        )}
+                        title={t("maps", "auditTitle")}
+                        labels={{
+                          phone: t("mapsAudit", "phone"),
+                          website: t("mapsAudit", "website"),
+                          address: t("mapsAudit", "address"),
+                          category: t("mapsAudit", "category"),
+                          image: t("mapsAudit", "image"),
+                          claimed: t("mapsAudit", "claimed"),
+                          established: t("mapsAudit", "established"),
+                          rating: t("mapsAudit", "rating"),
+                          ownerResponse: t("mapsAudit", "ownerResponse"),
+                        }}
+                      />
                     </div>
 
                     {/* Popular times — heatmap settimanale. Component
