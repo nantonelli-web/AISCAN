@@ -11,6 +11,7 @@ import {
   HelpCircle,
   Compass,
   MessageCircleQuestion,
+  PieChart,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth/session";
@@ -128,6 +129,25 @@ export default async function SerpQueryDetailPage({
   const paidResults = results.filter((r) => r.result_type === "paid");
   const paidProducts = results.filter((r) => r.result_type === "paid_product");
   const aiSources = results.filter((r) => r.result_type === "ai_source");
+
+  // Share of SERP page 1: aggregato top N domini sui risultati
+  // organic (i piu' rappresentativi del "vero" ranking, esclusi
+  // ads e shopping). Top 7 + "altri" se servono.
+  const domainCounts = new Map<string, number>();
+  for (const r of organicResults) {
+    const d = r.normalized_domain?.toLowerCase();
+    if (!d) continue;
+    domainCounts.set(d, (domainCounts.get(d) ?? 0) + 1);
+  }
+  const sortedDomains = [...domainCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 7)
+    .map(([domain, count]) => ({
+      domain,
+      count,
+      share: organicResults.length > 0 ? (count / organicResults.length) * 100 : 0,
+      brand: brandDomains.get(domain) ?? null,
+    }));
 
   return (
     <div className="space-y-6">
@@ -286,6 +306,16 @@ export default async function SerpQueryDetailPage({
         </Card>
       )}
 
+      {/* ─── Share of SERP page 1 ─────────────────────────── */}
+      {sortedDomains.length > 0 && (
+        <ShareOfSerpPanel
+          domains={sortedDomains}
+          totalOrganic={organicResults.length}
+          title={t("serp", "shareOfSerp")}
+          description={t("serp", "shareOfSerpDescription")}
+        />
+      )}
+
       {/* ─── Paid results ─────────────────────────────────── */}
       {paidResults.length > 0 && (
         <ResultGroup
@@ -358,6 +388,82 @@ export default async function SerpQueryDetailPage({
           />
         )}
     </div>
+  );
+}
+
+/**
+ * Share of SERP page 1: top domini per share % dei risultati
+ * organic. Highlight col gold per i domini matched a un brand
+ * tracciato. Bar a larghezza proporzionale al share.
+ */
+function ShareOfSerpPanel({
+  domains,
+  totalOrganic,
+  title,
+  description,
+}: {
+  domains: Array<{
+    domain: string;
+    count: number;
+    share: number;
+    brand: BrandRef | null;
+  }>;
+  totalOrganic: number;
+  title: string;
+  description: string;
+}) {
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center gap-2">
+        <PieChart className="size-4 text-gold" />
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+          {title}
+        </h2>
+        <span className="text-xs text-muted-foreground">
+          ({totalOrganic} organic)
+        </span>
+      </div>
+      <p className="text-[11px] text-muted-foreground leading-snug max-w-3xl">
+        {description}
+      </p>
+      <Card>
+        <CardContent className="p-4 space-y-2">
+          {domains.map((d) => (
+            <div key={d.domain} className="space-y-1">
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="flex items-center gap-2 min-w-0">
+                  <span
+                    className={
+                      d.brand
+                        ? "font-semibold text-gold truncate"
+                        : "text-foreground truncate"
+                    }
+                  >
+                    {d.domain}
+                  </span>
+                  {d.brand && (
+                    <Badge variant="gold" className="text-[9px] py-0 px-1.5">
+                      {d.brand.page_name}
+                    </Badge>
+                  )}
+                </span>
+                <span className="tabular-nums text-muted-foreground shrink-0">
+                  {d.count} <span className="text-foreground font-medium">({d.share.toFixed(0)}%)</span>
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                <div
+                  className={
+                    d.brand ? "h-full bg-gold" : "h-full bg-muted-foreground/40"
+                  }
+                  style={{ width: `${Math.max(d.share, 2)}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    </section>
   );
 }
 

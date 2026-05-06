@@ -2020,6 +2020,11 @@ const translations = {
       it: 'es. "Branded — Sezane Italia"',
       en: 'e.g. "Branded — Sezane Italy"',
     },
+    shareOfSerp: { it: "Share of SERP page 1", en: "Share of SERP page 1" },
+    shareOfSerpDescription: {
+      it: "Top domini per quota di risultati organici nella pagina 1. Evidenziati in gold quelli matchati con un brand tracciato. Concentrazione alta = competizione duopolistica; bassa = pagina aperta.",
+      en: "Top domains by share of organic results on page 1. Highlighted gold are matched against a tracked brand. High concentration = duopoly; low = open page.",
+    },
     peopleAlsoAsk: { it: "People Also Ask", en: "People Also Ask" },
     peopleAlsoAskDescription: {
       it: "Domande che gli utenti pongono frequentemente intorno a questa query. Ogni domanda è un intento di ricerca: rispondere bene su blog/FAQ porta visite organiche.",
