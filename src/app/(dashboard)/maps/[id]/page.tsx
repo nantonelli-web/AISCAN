@@ -421,11 +421,6 @@ export default async function MapsSearchDetailPage({
                           <h3 className="text-base font-medium truncate">
                             {p.title ?? "—"}
                           </h3>
-                          {brand && (
-                            <Badge variant="gold" className="text-[10px]">
-                              {brand.page_name}
-                            </Badge>
-                          )}
                           {p.permanently_closed && (
                             <Badge
                               variant="outline"
