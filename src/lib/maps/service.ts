@@ -157,6 +157,79 @@ export interface MapsScrapeOptions {
   workspaceId?: string;
 }
 
+/* ── Geocoding ──────────────────────────────────────────────────
+ * Il crawler compass/crawler-google-places quando riceve solo
+ * `searchStringsArray + locationQuery` testuali ranka i risultati
+ * via Google Maps senza geo-bias forte: per query brand-specific
+ * tipo "Marina Rinaldi" + "Dubai" pesca SOLO la vecchia location
+ * del Burjuman Center marcata come chiusa, mentre la boutique
+ * attiva di Downtown Dubai non viene rilevata.
+ *
+ * Soluzione testata 2026-05-06 via API: passare un `startUrls`
+ * con un URL di ricerca Google Maps che porta lat/lng + zoom
+ * (es. `/maps/search/Marina+Rinaldi/@25.07,55.18,11z`) costringe
+ * il crawler a centrare la mappa sulla citta vera e a esporre i
+ * risultati visibili in quel viewport. Test sopra ha trovato la
+ * boutique attiva Downtown Dubai a rank 1.
+ *
+ * Nominatim (OpenStreetMap) e' free, no auth, soggetto a fair-
+ * use con User-Agent identificativo. Failure → fallback al
+ * vecchio metodo searchStringsArray.
+ */
+
+interface Geocoded {
+  lat: number;
+  lng: number;
+}
+
+async function geocodeLocation(
+  locationQuery: string,
+  countryCode: string,
+): Promise<Geocoded | null> {
+  const params = new URLSearchParams({
+    q: locationQuery,
+    format: "json",
+    limit: "1",
+  });
+  if (countryCode) {
+    params.set("countrycodes", countryCode.toLowerCase());
+  }
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?${params.toString()}`,
+      {
+        headers: {
+          // Nominatim fair-use policy: User-Agent identificativo.
+          "user-agent": "AISCAN/1.0 (maps geocoding)",
+          accept: "application/json",
+        },
+      },
+    );
+    if (!res.ok) {
+      console.warn(`[Maps] Nominatim ${res.status}, falling back to text search`);
+      return null;
+    }
+    const data = (await res.json()) as Array<{ lat: string; lon: string }>;
+    if (!Array.isArray(data) || data.length === 0) return null;
+    const lat = Number.parseFloat(data[0].lat);
+    const lng = Number.parseFloat(data[0].lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return { lat, lng };
+  } catch (err) {
+    console.warn(`[Maps] Nominatim error, falling back: ${(err as Error).message}`);
+    return null;
+  }
+}
+
+function buildMapsSearchUrl(
+  searchTerm: string,
+  geo: Geocoded,
+  zoom: number = 11,
+): string {
+  const encoded = encodeURIComponent(searchTerm).replace(/%20/g, "+");
+  return `https://www.google.com/maps/search/${encoded}/@${geo.lat},${geo.lng},${zoom}z`;
+}
+
 /* ── Cleaning ───────────────────────────────────────────────── */
 
 function clean(raw: string | null | undefined): string | null {
@@ -412,26 +485,19 @@ export async function scrapeMapsPlaces(
     50,
   );
 
-  // Strategia di input rivista 2026-05-06 dopo due test falliti:
+  // Strategia: geocode locationQuery → coords → startUrls con
+  // viewport centrato. Verificato live 2026-05-06: e' l'unico modo
+  // per cui questo actor trova la boutique Marina Rinaldi attiva
+  // a Downtown Dubai. Senza coords trovava solo la vecchia
+  // location chiusa del Burjuman Center perche' il ranking
+  // testuale di Google Maps su quel termine non surface'va la
+  // store live.
   //
-  // 1) original (term="Marina Rinaldi store" loc="Dubai", flag a
-  //    false/false): tornava SOLO 1 place chiuso (Burjuman). Fix
-  //    parziale ovvio = filtrare chiusi.
-  // 2) skipClosed=true + deeperCityScrape=true: 0 risultati. Su
-  //    questo actor deeperCityScrape grigliа la citta in sub-aree
-  //    e cerca il termine in ognuna — funziona per categorie
-  //    ("ristoranti") ma per brand singolo le sub-aree non
-  //    matchano nulla → empty.
-  //
-  // Soluzione: termine + location combinati in un'unica
-  // searchStringsArray (come uno digiterebbe nel box di Google
-  // Maps), niente deeperCityScrape, e skipClosedPlaces=false per
-  // non perdere risultati quando l'unico match e' chiuso (la UI
-  // mostra gia il badge "Chiuso definitivamente").
-  const combinedQuery = `${searchTerm} ${locationQuery}`.trim();
+  // Fallback al pattern searchStringsArray + locationQuery se il
+  // geocoding fallisce (Nominatim down, location ambigua, ecc.) —
+  // peggio che meno coverage, meglio che nessun risultato.
+  const geo = await geocodeLocation(locationQuery, countryCode);
   const input: Record<string, unknown> = {
-    searchStringsArray: [combinedQuery],
-    locationQuery,
     maxCrawledPlacesPerSearch: maxPlaces,
     language,
     countryCode,
@@ -442,6 +508,15 @@ export async function scrapeMapsPlaces(
     deeperCityScrape: false,
     onlyDataFromSearchPage: false,
   };
+  if (geo) {
+    const url = buildMapsSearchUrl(searchTerm, geo);
+    input.startUrls = [{ url }];
+    console.log(`[Maps] Geocoded "${locationQuery}" → ${geo.lat},${geo.lng}; startUrl=${url}`);
+  } else {
+    input.searchStringsArray = [searchTerm];
+    input.locationQuery = locationQuery;
+    console.log(`[Maps] Geocoding failed for "${locationQuery}", fallback to text search`);
+  }
 
   console.log(
     `[Maps] Starting: actor=${ACTOR_ID} term="${searchTerm}" loc="${locationQuery}" max=${maxPlaces} reviews=${maxReviewsPerPlace}`,
