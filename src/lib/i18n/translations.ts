@@ -1874,9 +1874,10 @@ const translations = {
   maps: {
     title: { it: "Google Maps", en: "Google Maps" },
     subtitle: {
-      it: "Cerca place su Google Maps per termine + città. Estrai metadata locali (rating, recensioni, orari, prezzo, contatti) e le ultime recensioni in un solo scan. Perfetto per scouting, audit del local SEO e analisi della reputation.",
-      en: "Search places on Google Maps by term + city. Extract local metadata (rating, reviews, hours, price, contacts) and the latest reviews in one scan. Ideal for scouting, local SEO audits and reputation analysis.",
+      it: "Cerca place su Google Maps per termine + città: estrai rating, recensioni, contatti e ultime review in un solo scan.",
+      en: "Search places on Google Maps by term + city: extract rating, reviews, contacts and latest reviews in one scan.",
     },
+    openDetailFor: { it: "Apri dettaglio per", en: "Open detail for" },
     addSearch: { it: "Aggiungi ricerca", en: "Add search" },
     closeForm: { it: "Chiudi", en: "Close" },
     termLabel: { it: "Termine di ricerca", en: "Search term" },

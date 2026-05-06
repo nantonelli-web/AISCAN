@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -330,21 +329,28 @@ export function MapsPageClient({ initialSearches }: Props) {
             return (
               <Card
                 key={s.id}
-                className="hover:border-gold/40 transition-colors"
+                role="link"
+                tabIndex={0}
+                aria-label={`${t("maps", "openDetailFor")}: ${s.search_term} @ ${s.location_query}`}
+                onClick={() => router.push(`/maps/${s.id}`)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    router.push(`/maps/${s.id}`);
+                  }
+                }}
+                className="hover:border-gold/40 hover:shadow-md transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-gold/40"
               >
                 <CardContent className="p-5 space-y-3">
                   <div className="flex items-start gap-4">
                     <MapPin className="size-5 text-gold shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1">
-                      <Link
-                        href={`/maps/${s.id}`}
-                        className="text-base font-medium hover:text-gold transition-colors break-words"
-                      >
+                      <span className="text-base font-medium hover:text-gold transition-colors break-words">
                         {s.search_term}{" "}
                         <span className="text-muted-foreground font-normal">
                           @ {s.location_query}
                         </span>
-                      </Link>
+                      </span>
                       {s.label && (
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {s.label}
@@ -370,7 +376,10 @@ export function MapsPageClient({ initialSearches }: Props) {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => scanSearch(s.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          scanSearch(s.id);
+                        }}
                         disabled={isScanning || isDeleting}
                         className="gap-1.5"
                       >
@@ -386,7 +395,10 @@ export function MapsPageClient({ initialSearches }: Props) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => deleteSearch(s.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteSearch(s.id);
+                        }}
                         disabled={isScanning || isDeleting}
                         className="size-8 p-0 text-muted-foreground hover:text-red-400"
                       >
