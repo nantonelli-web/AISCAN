@@ -12,6 +12,10 @@ import {
   CheckCircle2,
   Lock,
   AlertOctagon,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Target,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth/session";
@@ -78,27 +82,42 @@ export default async function MapsSearchDetailPage({
   const locale = await getLocale();
   const t = serverT(locale);
 
-  const [{ data: search, error }, { data: placesRaw }, { data: brandRows }] =
-    await Promise.all([
-      supabase
-        .from("mait_maps_searches")
-        .select(
-          "id, workspace_id, search_term, location_query, language, country_code, max_places, max_reviews_per_place, label, last_scraped_at, created_at",
-        )
-        .eq("id", id)
-        .single(),
-      supabase
-        .from("mait_maps_places")
-        .select(
-          "id, place_id, title, category_name, categories, address, city, country_code, website, normalized_domain, phone, total_score, reviews_count, price, rank, permanently_closed, temporarily_closed, image_url, url",
-        )
-        .eq("search_id", id)
-        .order("rank", { ascending: true, nullsFirst: false }),
-      supabase
-        .from("mait_competitors")
-        .select("id, page_name, google_domain")
-        .eq("workspace_id", profile.workspace_id!),
-    ]);
+  const [
+    { data: search, error },
+    { data: placesRaw },
+    { data: brandRows },
+    { data: snapshotRows },
+  ] = await Promise.all([
+    supabase
+      .from("mait_maps_searches")
+      .select(
+        "id, workspace_id, search_term, location_query, language, country_code, max_places, max_reviews_per_place, label, last_scraped_at, created_at",
+      )
+      .eq("id", id)
+      .single(),
+    supabase
+      .from("mait_maps_places")
+      .select(
+        "id, place_id, title, category_name, categories, address, city, country_code, website, normalized_domain, phone, total_score, reviews_count, price, rank, permanently_closed, temporarily_closed, image_url, url",
+      )
+      .eq("search_id", id)
+      .order("rank", { ascending: true, nullsFirst: false }),
+    supabase
+      .from("mait_competitors")
+      .select("id, page_name, google_domain")
+      .eq("workspace_id", profile.workspace_id!),
+    // Snapshot history (Migration 0038): pull last 200 rows ordered
+    // recente-first per calcolare delta rank vs lo scan precedente.
+    // Per place teniamo i due snapshot piu recenti — uno e lo scan
+    // attuale, l'altro il precedente. 200 e un cap generoso che
+    // copre 10 scan x 20 places.
+    supabase
+      .from("mait_maps_place_snapshots")
+      .select("place_id, rank, captured_at")
+      .eq("search_id", id)
+      .order("captured_at", { ascending: false })
+      .limit(200),
+  ]);
 
   if (error || !search) notFound();
 
@@ -131,6 +150,39 @@ export default async function MapsSearchDetailPage({
     if (b.google_domain) {
       brandDomains.set(b.google_domain.toLowerCase(), b);
     }
+  }
+
+  // Rank delta: per ogni Google place_id ricostruisco la sequenza di
+  // rank degli ultimi N scan (snapshotRows e' gia' ordinato desc per
+  // captured_at). Il primo snapshot di ogni place e' lo scan attuale,
+  // il secondo (se esiste) e' lo scan precedente. delta = prev - curr
+  // (positivo = e' salito di posizione, negativo = e' sceso).
+  const previousRankByPlaceId = new Map<string, number>();
+  const seenCurrentByPlaceId = new Set<string>();
+  for (const s of (snapshotRows ?? []) as {
+    place_id: string;
+    rank: number | null;
+  }[]) {
+    if (!seenCurrentByPlaceId.has(s.place_id)) {
+      // Questo e' lo snapshot piu recente (= scan attuale): skip.
+      seenCurrentByPlaceId.add(s.place_id);
+      continue;
+    }
+    if (!previousRankByPlaceId.has(s.place_id) && s.rank != null) {
+      previousRankByPlaceId.set(s.place_id, s.rank);
+    }
+  }
+
+  // Brand presence summary: quanti dei competitor tracciati appaiono
+  // in questo Local Pack (match per normalized_domain).
+  const trackedDomains = new Set<string>();
+  for (const b of (brandRows ?? []) as BrandRef[]) {
+    if (b.google_domain) trackedDomains.add(b.google_domain.toLowerCase());
+  }
+  const matchedDomains = new Set<string>();
+  for (const p of places) {
+    const d = p.normalized_domain?.toLowerCase();
+    if (d && trackedDomains.has(d)) matchedDomains.add(d);
   }
 
   // Aggregate stats for the search header.
@@ -244,6 +296,49 @@ export default async function MapsSearchDetailPage({
         </Card>
       )}
 
+      {/* ─── Local Pack overview ──────────────────────── */}
+      {places.length > 0 && trackedDomains.size > 0 && (
+        <Card>
+          <CardContent className="p-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <Target className="size-4 text-gold" />
+              <h2 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
+                {t("maps", "localPackOverview")}
+              </h2>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3 text-sm">
+              <div>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {matchedDomains.size}
+                  <span className="text-base text-muted-foreground font-normal">
+                    {" "}/{trackedDomains.size}
+                  </span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t("maps", "trackedInPack")}
+                </p>
+              </div>
+              <div>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {previousRankByPlaceId.size}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t("maps", "placesWithHistory")}
+                </p>
+              </div>
+              <div>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {places.filter((p) => p.rank != null && p.rank <= 3).length}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t("maps", "topThreeCount")}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* ─── Places list ──────────────────────────────── */}
       {places.length > 0 && (
         <section className="space-y-2">
@@ -262,6 +357,9 @@ export default async function MapsSearchDetailPage({
               const brand = p.normalized_domain
                 ? brandDomains.get(p.normalized_domain.toLowerCase())
                 : null;
+              const prevRank = previousRankByPlaceId.get(p.place_id);
+              const delta =
+                p.rank != null && prevRank != null ? prevRank - p.rank : null;
               return (
                 <Card
                   key={p.id}
@@ -287,6 +385,31 @@ export default async function MapsSearchDetailPage({
                           {p.rank && (
                             <span className="text-[11px] text-muted-foreground tabular-nums">
                               #{p.rank}
+                            </span>
+                          )}
+                          {delta != null && delta !== 0 && (
+                            <span
+                              className={`flex items-center gap-0.5 text-[10px] tabular-nums ${
+                                delta > 0
+                                  ? "text-emerald-400"
+                                  : "text-red-400"
+                              }`}
+                              title={`${t("maps", "previousRank")} #${prevRank}`}
+                            >
+                              {delta > 0 ? (
+                                <TrendingUp className="size-3" />
+                              ) : (
+                                <TrendingDown className="size-3" />
+                              )}
+                              {Math.abs(delta)}
+                            </span>
+                          )}
+                          {delta === 0 && (
+                            <span
+                              className="flex items-center text-[10px] text-muted-foreground"
+                              title={t("maps", "rankUnchanged")}
+                            >
+                              <Minus className="size-3" />
                             </span>
                           )}
                           <h3 className="text-base font-medium truncate">

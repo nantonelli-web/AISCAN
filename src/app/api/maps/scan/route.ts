@@ -217,6 +217,29 @@ export async function POST(req: Request) {
       }
     }
 
+    // Snapshot rank history: append-only, una riga per place per
+    // questo scan. Migration 0038. Ci serve per i delta "⬆3 / ⬇1"
+    // sul detail. Failure qui non rompe lo scan — log e continua.
+    const snapshotRows = result.places.map((p) => ({
+      workspace_id: searchRow.workspace_id,
+      search_id: searchRow.id,
+      place_id: p.place_id,
+      rank: p.rank,
+      total_score: p.total_score,
+      reviews_count: p.reviews_count,
+      permanently_closed: p.permanently_closed,
+      temporarily_closed: p.temporarily_closed,
+      is_advertisement: p.is_advertisement,
+    }));
+    if (snapshotRows.length > 0) {
+      const { error: snapErr } = await admin
+        .from("mait_maps_place_snapshots")
+        .insert(snapshotRows);
+      if (snapErr) {
+        console.error(`[Maps route] Snapshot insert error (non-fatal):`, snapErr);
+      }
+    }
+
     await admin
       .from("mait_maps_searches")
       .update({ last_scraped_at: new Date().toISOString() })

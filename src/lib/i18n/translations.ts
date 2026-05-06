@@ -1930,6 +1930,18 @@ const translations = {
     viewOnMaps: { it: "Apri su Maps", en: "Open in Maps" },
     ownerResponse: { it: "Risposta del titolare", en: "Owner response" },
     moreReviewsHint: { it: "altre review non mostrate", en: "more reviews not shown" },
+    localPackOverview: { it: "Local Pack overview", en: "Local Pack overview" },
+    trackedInPack: {
+      it: "competitor tracciati nel pack",
+      en: "tracked competitors in pack",
+    },
+    placesWithHistory: {
+      it: "place con cronologia rank",
+      en: "places with rank history",
+    },
+    topThreeCount: { it: "place nella Top 3", en: "places in Top 3" },
+    previousRank: { it: "Posizione precedente", en: "Previous rank" },
+    rankUnchanged: { it: "Posizione invariata", en: "Rank unchanged" },
   },
 
   brandSerp: {
