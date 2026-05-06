@@ -26,10 +26,10 @@ export function LocalSeoAudit({ audit, title, labels }: Props) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+        <p className="text-[10px] uppercase tracking-wider text-foreground font-semibold">
           {title}
         </p>
-        <p className={`text-xs tabular-nums font-medium ${tierClasses[tier]}`}>
+        <p className={`text-xs tabular-nums font-semibold ${tierClasses[tier]}`}>
           {audit.score}/{audit.max}
         </p>
       </div>

@@ -1943,6 +1943,10 @@ const translations = {
     previousRank: { it: "Posizione precedente", en: "Previous rank" },
     rankUnchanged: { it: "Posizione invariata", en: "Rank unchanged" },
     popularTimes: { it: "Orari di affluenza", en: "Popular times" },
+    ptQuiet: { it: "Tranquillo", en: "Quiet" },
+    ptModerate: { it: "Moderato", en: "Moderate" },
+    ptBusy: { it: "Affollato", en: "Busy" },
+    ptPeak: { it: "Picco", en: "Peak" },
     auditTitle: { it: "Local SEO audit", en: "Local SEO audit" },
   },
 

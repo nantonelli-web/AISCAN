@@ -308,7 +308,7 @@ export default async function MapsSearchDetailPage({
           <CardContent className="p-5 space-y-3">
             <div className="flex items-center gap-2">
               <Target className="size-4 text-gold" />
-              <h2 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
                 {t("maps", "localPackOverview")}
               </h2>
             </div>
@@ -350,7 +350,7 @@ export default async function MapsSearchDetailPage({
         <section className="space-y-2">
           <div className="flex items-center gap-2">
             <Building2 className="size-4 text-gold" />
-            <h2 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
               {t("maps", "places")}
             </h2>
             <span className="text-xs text-muted-foreground">
@@ -549,6 +549,12 @@ export default async function MapsSearchDetailPage({
                             livePercent={p.popular_times_live_percent}
                             locale={locale}
                             title={t("maps", "popularTimes")}
+                            legend={{
+                              quiet: t("maps", "ptQuiet"),
+                              moderate: t("maps", "ptModerate"),
+                              busy: t("maps", "ptBusy"),
+                              peak: t("maps", "ptPeak"),
+                            }}
                           />
                         </div>
                       )}
@@ -560,7 +566,7 @@ export default async function MapsSearchDetailPage({
                       <div className="space-y-2 pt-3 border-t border-border">
                         <div className="flex items-center gap-2">
                           <MessageSquare className="size-3.5 text-muted-foreground" />
-                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          <span className="text-[10px] uppercase tracking-wider text-foreground font-semibold">
                             {reviews.length} {t("maps", "reviews")}
                           </span>
                         </div>
@@ -622,7 +628,7 @@ export default async function MapsSearchDetailPage({
                               )}
                               {r.response_from_owner_text && (
                                 <div className="mt-2 pl-3 border-l-2 border-gold/40">
-                                  <p className="text-[10px] uppercase tracking-wider text-gold">
+                                  <p className="text-[10px] uppercase tracking-wider text-gold font-semibold">
                                     {t("maps", "ownerResponse")}
                                   </p>
                                   <p className="text-muted-foreground/90 leading-relaxed">

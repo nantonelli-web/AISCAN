@@ -36,12 +36,36 @@ const DAY_LABELS_EN: Record<(typeof DAYS_ORDER)[number], string> = {
   Su: "Sun",
 };
 
+interface LegendLabels {
+  quiet: string;
+  moderate: string;
+  busy: string;
+  peak: string;
+}
+
 interface Props {
   data: PopularTimesHistogram | null | undefined;
   liveText?: string | null;
   livePercent?: number | null;
   locale?: string;
   title: string;
+  legend: LegendLabels;
+}
+
+/**
+ * Mappa occupancyPercent (0..100) a colore della cella. Palette
+ * traffic-light a 4 fasce (verde / giallo / arancio / rosso) +
+ * fascia "vuoto" molto chiara: il monocolor gold dell'iterazione
+ * precedente non differenziava abbastanza le ore busy vs quiet
+ * (feedback utente 2026-05-06). Le tonalita sono Tailwind 400/500
+ * per saturazione decisa e contrasto su sfondo light/dark.
+ */
+function colorForOccupancy(pct: number): string {
+  if (pct <= 0) return "rgba(115, 115, 115, 0.10)"; // empty
+  if (pct < 25) return "rgb(74, 222, 128)"; // green-400
+  if (pct < 50) return "rgb(250, 204, 21)"; // yellow-400
+  if (pct < 75) return "rgb(251, 146, 60)"; // orange-400
+  return "rgb(239, 68, 68)"; // red-500
 }
 
 export function PopularTimesHeatmap({
@@ -50,6 +74,7 @@ export function PopularTimesHeatmap({
   livePercent,
   locale,
   title,
+  legend,
 }: Props) {
   if (!data || typeof data !== "object" || Object.keys(data).length === 0) {
     return null;
@@ -75,11 +100,11 @@ export function PopularTimesHeatmap({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+        <p className="text-[10px] uppercase tracking-wider text-foreground font-semibold">
           {title}
         </p>
         {liveText ? (
-          <p className="text-[10px] text-gold">
+          <p className="text-[10px] text-gold font-medium">
             {liveText}
             {typeof livePercent === "number" ? ` (${livePercent}%)` : ""}
           </p>
@@ -116,17 +141,12 @@ export function PopularTimesHeatmap({
                   </td>
                   {hours.map((h) => {
                     const pct = byHour.get(h) ?? 0;
-                    // Scala alpha del gold col gradiente di
-                    // occupancy. 0% = celletta vuota muted; 100%
-                    // = gold pieno. Background HSL mantiene il
-                    // tema senza hardcodare colori.
-                    const alpha = pct === 0 ? 0.06 : 0.15 + (pct / 100) * 0.85;
                     return (
                       <td key={h} className="p-px">
                         <div
                           className="size-3.5 rounded-sm"
                           style={{
-                            backgroundColor: `rgba(217, 168, 47, ${alpha})`,
+                            backgroundColor: colorForOccupancy(pct),
                           }}
                           title={`${labels[day]} ${h}:00 — ${pct}%`}
                         />
@@ -138,6 +158,38 @@ export function PopularTimesHeatmap({
             })}
           </tbody>
         </table>
+      </div>
+      {/* Legenda fasce colore — esplicita la mappa colore→livello,
+          altrimenti la heatmap multicolore non si interpreta. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] text-muted-foreground">
+        <span className="flex items-center gap-1">
+          <span
+            className="size-2.5 rounded-sm"
+            style={{ backgroundColor: "rgb(74, 222, 128)" }}
+          />
+          {legend.quiet}
+        </span>
+        <span className="flex items-center gap-1">
+          <span
+            className="size-2.5 rounded-sm"
+            style={{ backgroundColor: "rgb(250, 204, 21)" }}
+          />
+          {legend.moderate}
+        </span>
+        <span className="flex items-center gap-1">
+          <span
+            className="size-2.5 rounded-sm"
+            style={{ backgroundColor: "rgb(251, 146, 60)" }}
+          />
+          {legend.busy}
+        </span>
+        <span className="flex items-center gap-1">
+          <span
+            className="size-2.5 rounded-sm"
+            style={{ backgroundColor: "rgb(239, 68, 68)" }}
+          />
+          {legend.peak}
+        </span>
       </div>
     </div>
   );
