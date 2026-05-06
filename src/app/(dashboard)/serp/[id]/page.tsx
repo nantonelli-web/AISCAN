@@ -15,6 +15,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { LinkedBrandsEditor } from "@/components/serp/linked-brands-editor";
 
 export const dynamic = "force-dynamic";
 
@@ -30,34 +31,45 @@ export default async function SerpQueryDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  await getSessionUser();
+  const { profile } = await getSessionUser();
   const supabase = await createClient();
   const locale = await getLocale();
   const t = serverT(locale);
 
-  const [{ data: query, error }, { data: brands }, { data: latestRun }] =
-    await Promise.all([
-      supabase
-        .from("mait_serp_queries")
-        .select(
-          "id, workspace_id, query, country, language, device, label, last_scraped_at, created_at",
-        )
-        .eq("id", id)
-        .single(),
-      supabase
-        .from("mait_serp_query_brands")
-        .select("competitor_id, mait_competitors(id, page_name, google_domain)")
-        .eq("query_id", id),
-      supabase
-        .from("mait_serp_runs")
-        .select(
-          "id, scraped_at, organic_count, paid_count, paid_products_count, has_ai_overview, related_queries, people_also_ask",
-        )
-        .eq("query_id", id)
-        .order("scraped_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]);
+  const [
+    { data: query, error },
+    { data: brands },
+    { data: allCompetitors },
+    { data: latestRun },
+  ] = await Promise.all([
+    supabase
+      .from("mait_serp_queries")
+      .select(
+        "id, workspace_id, query, country, language, device, label, last_scraped_at, created_at",
+      )
+      .eq("id", id)
+      .single(),
+    supabase
+      .from("mait_serp_query_brands")
+      .select("competitor_id, mait_competitors(id, page_name, google_domain)")
+      .eq("query_id", id),
+    // Tutti i competitor del workspace per popolare il picker del
+    // LinkedBrandsEditor (Phase C 2026-05-06).
+    supabase
+      .from("mait_competitors")
+      .select("id, page_name, google_domain")
+      .eq("workspace_id", profile.workspace_id!)
+      .order("page_name", { ascending: true }),
+    supabase
+      .from("mait_serp_runs")
+      .select(
+        "id, scraped_at, organic_count, paid_count, paid_products_count, has_ai_overview, related_queries, people_also_ask",
+      )
+      .eq("query_id", id)
+      .order("scraped_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
   if (error || !query) notFound();
 
@@ -150,12 +162,20 @@ export default async function SerpQueryDetailPage({
           <Badge variant="outline" className="text-[10px]">
             {query.device}
           </Badge>
-          {brandList.map((b) => (
-            <Badge key={b.id} variant="gold" className="text-[10px]">
-              {b.page_name}
-            </Badge>
-          ))}
         </div>
+        <LinkedBrandsEditor
+          queryId={query.id}
+          initialLinkedIds={brandList.map((b) => b.id)}
+          allCompetitors={(allCompetitors ?? []) as BrandRef[]}
+          labels={{
+            title: t("serp", "linkedBrandsTitle"),
+            addBrand: t("serp", "addBrand"),
+            noneLinked: t("serp", "noneLinked"),
+            saveError: t("serp", "saveError"),
+            removed: t("serp", "brandRemoved"),
+            added: t("serp", "brandAdded"),
+          }}
+        />
       </section>
 
       {/* ─── Latest scan summary ───────────────────────────── */}

@@ -2020,6 +2020,12 @@ const translations = {
       it: 'es. "Branded — Sezane Italia"',
       en: 'e.g. "Branded — Sezane Italy"',
     },
+    linkedBrandsTitle: { it: "Brand collegati", en: "Linked brands" },
+    addBrand: { it: "Aggiungi", en: "Add" },
+    noneLinked: { it: "Nessun brand collegato", en: "No brands linked" },
+    saveError: { it: "Errore nel salvataggio", en: "Save error" },
+    brandRemoved: { it: "Brand rimosso", en: "Brand removed" },
+    brandAdded: { it: "Brand aggiunto", en: "Brand added" },
     linkBrandsLabel: { it: "Brand associati (opzionale)", en: "Linked brands (optional)" },
     linkBrandsHint: {
       it: "Una query può essere stand-alone oppure associata a uno o più brand per tracciare il loro ranking. Il match avviene sul dominio normalizzato.",
