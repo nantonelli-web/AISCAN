@@ -1942,6 +1942,7 @@ const translations = {
     topThreeCount: { it: "place nella Top 3", en: "places in Top 3" },
     previousRank: { it: "Posizione precedente", en: "Previous rank" },
     rankUnchanged: { it: "Posizione invariata", en: "Rank unchanged" },
+    popularTimes: { it: "Orari di affluenza", en: "Popular times" },
   },
 
   brandSerp: {

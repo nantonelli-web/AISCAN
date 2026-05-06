@@ -23,6 +23,7 @@ import { getLocale, serverT } from "@/lib/i18n/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatNumber } from "@/lib/utils";
+import { PopularTimesHeatmap } from "@/components/maps/popular-times-heatmap";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,9 @@ interface PlaceRow {
   temporarily_closed: boolean;
   image_url: string | null;
   url: string | null;
+  popular_times: Record<string, { hour: number; occupancyPercent: number }[]> | null;
+  popular_times_live_text: string | null;
+  popular_times_live_percent: number | null;
   reviews: ReviewRow[];
 }
 
@@ -98,7 +102,7 @@ export default async function MapsSearchDetailPage({
     supabase
       .from("mait_maps_places")
       .select(
-        "id, place_id, title, category_name, categories, address, city, country_code, website, normalized_domain, phone, total_score, reviews_count, price, rank, permanently_closed, temporarily_closed, image_url, url",
+        "id, place_id, title, category_name, categories, address, city, country_code, website, normalized_domain, phone, total_score, reviews_count, price, rank, permanently_closed, temporarily_closed, image_url, url, popular_times, popular_times_live_text, popular_times_live_percent",
       )
       .eq("search_id", id)
       .order("rank", { ascending: true, nullsFirst: false }),
@@ -497,6 +501,23 @@ export default async function MapsSearchDetailPage({
                         </div>
                       </div>
                     </div>
+
+                    {/* Popular times — heatmap settimanale. Component
+                        renderizza null se popular_times e' vuoto, quindi
+                        il border-t qui sotto si attiva solo per i place
+                        con dati. */}
+                    {p.popular_times &&
+                      Object.keys(p.popular_times).length > 0 && (
+                        <div className="pt-3 border-t border-border">
+                          <PopularTimesHeatmap
+                            data={p.popular_times}
+                            liveText={p.popular_times_live_text}
+                            livePercent={p.popular_times_live_percent}
+                            locale={locale}
+                            title={t("maps", "popularTimes")}
+                          />
+                        </div>
+                      )}
 
                     {/* Reviews — compact list, max 5 inline. The user
                         can re-scan to refresh; further reviews are
