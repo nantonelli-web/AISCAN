@@ -12,6 +12,7 @@ import {
   Compass,
   MessageCircleQuestion,
   PieChart,
+  Target,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth/session";
@@ -129,6 +130,31 @@ export default async function SerpQueryDetailPage({
   const paidResults = results.filter((r) => r.result_type === "paid");
   const paidProducts = results.filter((r) => r.result_type === "paid_product");
   const aiSources = results.filter((r) => r.result_type === "ai_source");
+
+  // Brand presence: per ogni competitor tracciato del workspace
+  // (non solo i linked) cerco il match domain nei risultati
+  // organic. Restituisce best position per ogni brand matchato.
+  const trackedDomains = (allCompetitors ?? []).filter(
+    (c): c is BrandRef => !!c.google_domain,
+  );
+  const brandBestPosition = new Map<string, { brand: BrandRef; pos: number }>();
+  for (const r of organicResults) {
+    if (!r.normalized_domain || r.position == null) continue;
+    const d = r.normalized_domain.toLowerCase();
+    const matched = trackedDomains.find(
+      (b) => b.google_domain?.toLowerCase() === d,
+    );
+    if (!matched) continue;
+    const existing = brandBestPosition.get(matched.id);
+    if (!existing || r.position < existing.pos) {
+      brandBestPosition.set(matched.id, { brand: matched, pos: r.position });
+    }
+  }
+  const matchedBrandsCount = brandBestPosition.size;
+  const trackedBrandsCount = trackedDomains.length;
+  const topBrandMatch = [...brandBestPosition.values()].sort(
+    (a, b) => a.pos - b.pos,
+  )[0];
 
   // Share of SERP page 1: aggregato top N domini sui risultati
   // organic (i piu' rappresentativi del "vero" ranking, esclusi
@@ -302,6 +328,77 @@ export default async function SerpQueryDetailPage({
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground text-sm">
             {t("serp", "noScanYet")}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ─── Brand presence summary ───────────────────────── */}
+      {trackedBrandsCount > 0 && organicResults.length > 0 && (
+        <Card>
+          <CardContent className="p-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <Target className="size-4 text-gold" />
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+                {t("serp", "brandPresence")}
+              </h2>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-snug max-w-3xl">
+              {t("serp", "brandPresenceDescription")}
+            </p>
+            <div className="grid gap-3 sm:grid-cols-3 text-sm">
+              <div>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {matchedBrandsCount}
+                  <span className="text-base text-muted-foreground font-normal">
+                    {" "}
+                    /{trackedBrandsCount}
+                  </span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t("serp", "matchedBrands")}
+                </p>
+              </div>
+              <div>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {topBrandMatch ? `#${topBrandMatch.pos}` : "—"}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {topBrandMatch
+                    ? topBrandMatch.brand.page_name
+                    : t("serp", "noBrandMatch")}
+                </p>
+              </div>
+              <div>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {brandBestPosition.size > 0
+                    ? Math.round(
+                        [...brandBestPosition.values()].reduce(
+                          (s, x) => s + x.pos,
+                          0,
+                        ) / brandBestPosition.size,
+                      )
+                    : "—"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t("serp", "avgBrandPosition")}
+                </p>
+              </div>
+            </div>
+            {brandBestPosition.size > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {[...brandBestPosition.values()]
+                  .sort((a, b) => a.pos - b.pos)
+                  .map(({ brand, pos }) => (
+                    <Badge
+                      key={brand.id}
+                      variant="gold"
+                      className="text-[10px]"
+                    >
+                      #{pos} {brand.page_name}
+                    </Badge>
+                  ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

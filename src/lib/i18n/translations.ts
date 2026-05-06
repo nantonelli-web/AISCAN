@@ -2020,6 +2020,23 @@ const translations = {
       it: 'es. "Branded — Sezane Italia"',
       en: 'e.g. "Branded — Sezane Italy"',
     },
+    brandPresence: { it: "Brand presence", en: "Brand presence" },
+    brandPresenceDescription: {
+      it: "Quanti dei competitor tracciati del workspace appaiono in pagina 1 organic, e a che posizione. Il match e' sul dominio normalizzato (eTLD+1).",
+      en: "How many of your workspace's tracked competitors appear on page 1 organic, and at what position. Match is on the normalised domain (eTLD+1).",
+    },
+    matchedBrands: {
+      it: "Brand presenti / tracciati",
+      en: "Brands present / tracked",
+    },
+    avgBrandPosition: {
+      it: "Posizione media dei brand",
+      en: "Average brand position",
+    },
+    noBrandMatch: {
+      it: "Nessun brand in pagina 1",
+      en: "No brand on page 1",
+    },
     shareOfSerp: { it: "Share of SERP page 1", en: "Share of SERP page 1" },
     shareOfSerpDescription: {
       it: "Top domini per quota di risultati organici nella pagina 1. Evidenziati in gold quelli matchati con un brand tracciato. Concentrazione alta = competizione duopolistica; bassa = pagina aperta.",
