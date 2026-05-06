@@ -412,28 +412,34 @@ export async function scrapeMapsPlaces(
     50,
   );
 
-  // skipClosedPlaces=true: di default scartiamo i place chiusi
-  // (l'utente vuole brand attivi, non audit storici). Test reale
-  // 2026-05-06: una scan "Marina Rinaldi store Dubai" tornava SOLO
-  // la vecchia location del Burjuman Center marcata come chiusa,
-  // mentre la boutique attiva in Dubai Mall era a rank piu basso e
-  // veniva tagliata dal cap maxPlaces.
-  // deeperCityScrape=true: forza il crawler a esplorare la citta
-  // oltre i top-N che Google Maps mostra di default. Costa di piu
-  // in tempo run ma il cap maxCrawledPlacesPerSearch protegge il
-  // budget — preferiamo coverage > velocita per uno strumento di
-  // monitoring.
+  // Strategia di input rivista 2026-05-06 dopo due test falliti:
+  //
+  // 1) original (term="Marina Rinaldi store" loc="Dubai", flag a
+  //    false/false): tornava SOLO 1 place chiuso (Burjuman). Fix
+  //    parziale ovvio = filtrare chiusi.
+  // 2) skipClosed=true + deeperCityScrape=true: 0 risultati. Su
+  //    questo actor deeperCityScrape grigliа la citta in sub-aree
+  //    e cerca il termine in ognuna — funziona per categorie
+  //    ("ristoranti") ma per brand singolo le sub-aree non
+  //    matchano nulla → empty.
+  //
+  // Soluzione: termine + location combinati in un'unica
+  // searchStringsArray (come uno digiterebbe nel box di Google
+  // Maps), niente deeperCityScrape, e skipClosedPlaces=false per
+  // non perdere risultati quando l'unico match e' chiuso (la UI
+  // mostra gia il badge "Chiuso definitivamente").
+  const combinedQuery = `${searchTerm} ${locationQuery}`.trim();
   const input: Record<string, unknown> = {
-    searchStringsArray: [searchTerm],
+    searchStringsArray: [combinedQuery],
     locationQuery,
     maxCrawledPlacesPerSearch: maxPlaces,
     language,
     countryCode,
-    skipClosedPlaces: true,
+    skipClosedPlaces: false,
     maxReviews: maxReviewsPerPlace,
     reviewsSort: "newest",
     scrapeReviewsPersonalData: false,
-    deeperCityScrape: true,
+    deeperCityScrape: false,
     onlyDataFromSearchPage: false,
   };
 

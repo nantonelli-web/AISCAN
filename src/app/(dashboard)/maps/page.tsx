@@ -75,7 +75,7 @@ export default async function MapsPage() {
       <header className="space-y-1">
         <p className="eyebrow">{t("monitoring", "title").toUpperCase()}</p>
         <h1 className="text-3xl font-serif tracking-tight">{t("maps", "title")}</h1>
-        <p className="text-sm text-muted-foreground max-w-2xl text-pretty">
+        <p className="text-sm text-muted-foreground text-pretty">
           {t("maps", "subtitle")}
         </p>
       </header>
