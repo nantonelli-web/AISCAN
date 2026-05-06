@@ -13,6 +13,9 @@ import {
   MessageCircleQuestion,
   PieChart,
   Target,
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth/session";
@@ -45,6 +48,7 @@ export default async function SerpQueryDetailPage({
     { data: brands },
     { data: allCompetitors },
     { data: latestRun },
+    { data: snapshotRows },
   ] = await Promise.all([
     supabase
       .from("mait_serp_queries")
@@ -73,6 +77,15 @@ export default async function SerpQueryDetailPage({
       .order("scraped_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    // Rank history (Migration 0039): ultimi 200 snapshot ordinati
+    // recente-first per calcolare delta best_position vs scan
+    // precedente. 200 ≈ 10 scan x 20 domini → cap generoso.
+    supabase
+      .from("mait_serp_result_snapshots")
+      .select("normalized_domain, result_type, best_position, captured_at")
+      .eq("query_id", id)
+      .order("captured_at", { ascending: false })
+      .limit(200),
   ]);
 
   if (error || !query) notFound();
@@ -165,15 +178,56 @@ export default async function SerpQueryDetailPage({
     if (!d) continue;
     domainCounts.set(d, (domainCounts.get(d) ?? 0) + 1);
   }
+  // Delta rank: per ogni dominio organic ricostruisco la
+  // best_position dello snapshot precedente. snapshotRows e' gia
+  // ordinato desc per captured_at; il primo per (domain, type) e'
+  // lo scan attuale (skip), il secondo e' il precedente.
+  const seenDomain = new Set<string>();
+  const previousBestByDomain = new Map<string, number>();
+  for (const s of (snapshotRows ?? []) as {
+    normalized_domain: string;
+    result_type: string;
+    best_position: number | null;
+  }[]) {
+    if (s.result_type !== "organic") continue;
+    const key = s.normalized_domain.toLowerCase();
+    if (!seenDomain.has(key)) {
+      seenDomain.add(key);
+      continue; // questo e' lo snapshot del scan attuale
+    }
+    if (!previousBestByDomain.has(key) && s.best_position != null) {
+      previousBestByDomain.set(key, s.best_position);
+    }
+  }
+
+  // Per dominio aggrega anche la best_position attuale (per calcolare
+  // il delta vs previousBestByDomain).
+  const currentBestByDomain = new Map<string, number>();
+  for (const r of organicResults) {
+    if (!r.normalized_domain || r.position == null) continue;
+    const d = r.normalized_domain.toLowerCase();
+    const existing = currentBestByDomain.get(d);
+    if (existing == null || r.position < existing) {
+      currentBestByDomain.set(d, r.position);
+    }
+  }
+
   const sortedDomains = [...domainCounts.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 7)
-    .map(([domain, count]) => ({
-      domain,
-      count,
-      share: organicResults.length > 0 ? (count / organicResults.length) * 100 : 0,
-      brand: brandDomains.get(domain) ?? null,
-    }));
+    .map(([domain, count]) => {
+      const prev = previousBestByDomain.get(domain);
+      const curr = currentBestByDomain.get(domain);
+      const delta = prev != null && curr != null ? prev - curr : null;
+      return {
+        domain,
+        count,
+        share: organicResults.length > 0 ? (count / organicResults.length) * 100 : 0,
+        brand: brandDomains.get(domain) ?? null,
+        bestPosition: curr ?? null,
+        delta,
+      };
+    });
 
   return (
     <div className="space-y-6">
@@ -504,6 +558,8 @@ function ShareOfSerpPanel({
     count: number;
     share: number;
     brand: BrandRef | null;
+    bestPosition: number | null;
+    delta: number | null;
   }>;
   totalOrganic: number;
   title: string;
@@ -524,7 +580,7 @@ function ShareOfSerpPanel({
         {description}
       </p>
       <Card>
-        <CardContent className="p-4 space-y-2">
+        <CardContent className="p-4 space-y-2.5">
           {domains.map((d) => (
             <div key={d.domain} className="space-y-1">
               <div className="flex items-center justify-between gap-3 text-xs">
@@ -543,9 +599,36 @@ function ShareOfSerpPanel({
                       {d.brand.page_name}
                     </Badge>
                   )}
+                  {d.bestPosition != null && (
+                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                      best #{d.bestPosition}
+                    </span>
+                  )}
+                  {d.delta != null && d.delta !== 0 && (
+                    <span
+                      className={`flex items-center gap-0.5 text-[10px] tabular-nums ${
+                        d.delta > 0 ? "text-emerald-400" : "text-red-400"
+                      }`}
+                    >
+                      {d.delta > 0 ? (
+                        <TrendingUp className="size-3" />
+                      ) : (
+                        <TrendingDown className="size-3" />
+                      )}
+                      {Math.abs(d.delta)}
+                    </span>
+                  )}
+                  {d.delta === 0 && (
+                    <span className="flex items-center text-[10px] text-muted-foreground">
+                      <Minus className="size-3" />
+                    </span>
+                  )}
                 </span>
                 <span className="tabular-nums text-muted-foreground shrink-0">
-                  {d.count} <span className="text-foreground font-medium">({d.share.toFixed(0)}%)</span>
+                  {d.count}{" "}
+                  <span className="text-foreground font-medium">
+                    ({d.share.toFixed(0)}%)
+                  </span>
                 </span>
               </div>
               <div className="h-1.5 rounded-full bg-muted overflow-hidden">

@@ -116,6 +116,57 @@ export async function POST(req: Request) {
       }
     }
 
+    // Snapshot rank history (Migration 0039): aggregato per
+    // dominio per result_type. Append-only, una riga per (query,
+    // domain, type) per scan. Failure non-fatale (log + continua).
+    type DomainAgg = {
+      best_position: number | null;
+      result_count: number;
+      result_type: string;
+    };
+    const domainAggs = new Map<string, DomainAgg>();
+    for (const r of result.results) {
+      const domain = r.normalized_domain?.toLowerCase();
+      if (!domain) continue;
+      const key = `${r.result_type}|${domain}`;
+      const existing = domainAggs.get(key);
+      if (existing) {
+        existing.result_count += 1;
+        if (
+          r.position != null &&
+          (existing.best_position == null || r.position < existing.best_position)
+        ) {
+          existing.best_position = r.position;
+        }
+      } else {
+        domainAggs.set(key, {
+          best_position: r.position ?? null,
+          result_count: 1,
+          result_type: r.result_type,
+        });
+      }
+    }
+    const snapshotRows: Array<Record<string, unknown>> = [];
+    for (const [key, agg] of domainAggs.entries()) {
+      const [, domain] = key.split("|");
+      snapshotRows.push({
+        workspace_id: queryRow.workspace_id,
+        query_id: queryRow.id,
+        normalized_domain: domain,
+        result_type: agg.result_type,
+        best_position: agg.best_position,
+        result_count: agg.result_count,
+      });
+    }
+    if (snapshotRows.length > 0) {
+      const { error: snapErr } = await admin
+        .from("mait_serp_result_snapshots")
+        .insert(snapshotRows);
+      if (snapErr) {
+        console.error(`[SERP route] Snapshot insert error (non-fatal):`, snapErr);
+      }
+    }
+
     await admin
       .from("mait_serp_queries")
       .update({ last_scraped_at: new Date().toISOString() })
