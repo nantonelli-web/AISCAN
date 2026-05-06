@@ -531,28 +531,31 @@ export default async function MapsSearchDetailPage({
                       />
                     </div>
 
-                    {/* Popular times — heatmap settimanale. Component
-                        renderizza null se popular_times e' vuoto, quindi
-                        il border-t qui sotto si attiva solo per i place
-                        con dati. */}
-                    {p.popular_times &&
-                      Object.keys(p.popular_times).length > 0 && (
-                        <div className="pt-3 border-t border-border">
-                          <PopularTimesHeatmap
-                            data={p.popular_times}
-                            liveText={p.popular_times_live_text}
-                            livePercent={p.popular_times_live_percent}
-                            locale={locale}
-                            title={t("maps", "popularTimes")}
-                            legend={{
-                              quiet: t("maps", "ptQuiet"),
-                              moderate: t("maps", "ptModerate"),
-                              busy: t("maps", "ptBusy"),
-                              peak: t("maps", "ptPeak"),
-                            }}
-                          />
-                        </div>
-                      )}
+                    {/* Popular times — heatmap settimanale. Render
+                        sempre, anche per place senza dato: il
+                        component mostra titolo + spiegazione fonte
+                        + "non disponibile" cosi e' chiaro che e'
+                        stato verificato. */}
+                    <div className="pt-3 border-t border-border">
+                      <PopularTimesHeatmap
+                        data={p.popular_times}
+                        liveText={p.popular_times_live_text}
+                        livePercent={p.popular_times_live_percent}
+                        locale={locale}
+                        title={t("maps", "popularTimes")}
+                        description={t("maps", "popularTimesDescription")}
+                        unavailableLabel={t(
+                          "maps",
+                          "popularTimesUnavailable",
+                        )}
+                        legend={{
+                          quiet: t("maps", "ptQuiet"),
+                          moderate: t("maps", "ptModerate"),
+                          busy: t("maps", "ptBusy"),
+                          peak: t("maps", "ptPeak"),
+                        }}
+                      />
+                    </div>
 
                     {/* Reviews — compact list, max 5 inline. The user
                         can re-scan to refresh; further reviews are

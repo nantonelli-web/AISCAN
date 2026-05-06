@@ -1943,6 +1943,14 @@ const translations = {
     previousRank: { it: "Posizione precedente", en: "Previous rank" },
     rankUnchanged: { it: "Posizione invariata", en: "Rank unchanged" },
     popularTimes: { it: "Orari di affluenza", en: "Popular times" },
+    popularTimesDescription: {
+      it: "Dati Google Maps derivati da location history aggregata e anonima. Le percentuali sono relative al picco settimanale di questo place (100% = ora più affollata della settimana, NON sempre pieno).",
+      en: "Google Maps data derived from anonymised aggregated location history. Percentages are relative to this place's weekly peak (100% = busiest hour of the week, NOT always full).",
+    },
+    popularTimesUnavailable: {
+      it: "Google non espone Popular Times per questo place: tipicamente succede su corner shop, store nuovi o punti vendita con basso volume di location-history aggregata.",
+      en: "Google does not surface Popular Times for this place: typically the case for corner shops, new stores or locations with low aggregated location-history volume.",
+    },
     ptQuiet: { it: "Tranquillo", en: "Quiet" },
     ptModerate: { it: "Moderato", en: "Moderate" },
     ptBusy: { it: "Affollato", en: "Busy" },

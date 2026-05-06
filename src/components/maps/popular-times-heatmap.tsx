@@ -50,6 +50,12 @@ interface Props {
   locale?: string;
   title: string;
   legend: LegendLabels;
+  /** Frase esplicativa sotto il titolo (da dove arrivano i dati). */
+  description: string;
+  /** Mostrato quando data e' vuoto invece di nascondere il pannello —
+   *  cosi l'utente vede che e' stato verificato e Google non espone
+   *  il dato per questo place specifico. */
+  unavailableLabel: string;
 }
 
 /**
@@ -75,9 +81,37 @@ export function PopularTimesHeatmap({
   locale,
   title,
   legend,
+  description,
+  unavailableLabel,
 }: Props) {
-  if (!data || typeof data !== "object" || Object.keys(data).length === 0) {
-    return null;
+  const hasData =
+    data && typeof data === "object" && Object.keys(data).length > 0;
+
+  // Header sempre presente (titolo + descrizione fonte): se manca
+  // il dato per questo place mostriamo solo "non disponibile"
+  // invece di nascondere il pannello — cosi e' chiaro che e'
+  // stato verificato e che il vuoto e' un limite di Google, non
+  // una nostra omissione.
+  const header = (
+    <div className="space-y-1">
+      <p className="text-[10px] uppercase tracking-wider text-foreground font-semibold">
+        {title}
+      </p>
+      <p className="text-[10px] text-muted-foreground leading-snug">
+        {description}
+      </p>
+    </div>
+  );
+
+  if (!hasData) {
+    return (
+      <div className="space-y-2">
+        {header}
+        <p className="text-[11px] text-muted-foreground italic">
+          {unavailableLabel}
+        </p>
+      </div>
+    );
   }
 
   const labels = locale === "en" ? DAY_LABELS_EN : DAY_LABELS_IT;
@@ -99,12 +133,17 @@ export function PopularTimesHeatmap({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[10px] uppercase tracking-wider text-foreground font-semibold">
-          {title}
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1 min-w-0">
+          <p className="text-[10px] uppercase tracking-wider text-foreground font-semibold">
+            {title}
+          </p>
+          <p className="text-[10px] text-muted-foreground leading-snug">
+            {description}
+          </p>
+        </div>
         {liveText ? (
-          <p className="text-[10px] text-gold font-medium">
+          <p className="text-[10px] text-gold font-medium shrink-0">
             {liveText}
             {typeof livePercent === "number" ? ` (${livePercent}%)` : ""}
           </p>
