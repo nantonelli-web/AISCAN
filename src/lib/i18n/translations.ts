@@ -2020,6 +2020,10 @@ const translations = {
       it: 'es. "Branded — Sezane Italia"',
       en: 'e.g. "Branded — Sezane Italy"',
     },
+    aiOverviewNoBrandCited: {
+      it: "Nessun tuo brand citato",
+      en: "No tracked brand cited",
+    },
     brandPresence: { it: "Brand presence", en: "Brand presence" },
     brandPresenceDescription: {
       it: "Quanti dei competitor tracciati del workspace appaiono in pagina 1 organic, e a che posizione. Il match e' sul dominio normalizzato (eTLD+1).",

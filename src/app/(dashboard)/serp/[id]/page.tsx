@@ -169,6 +169,24 @@ export default async function SerpQueryDetailPage({
     (a, b) => a.pos - b.pos,
   )[0];
 
+  // AI Overview brand citation (Feature SERP #5): match dei domain
+  // delle AI sources contro i tracked brands. Battleground SEO
+  // 2026 — citazione nell'AI Overview pesa quanto top 3 organic.
+  const aiBrandCitations: Array<{
+    brand: BrandRef;
+    url: string | null;
+  }> = [];
+  for (const r of aiSources) {
+    if (!r.normalized_domain) continue;
+    const d = r.normalized_domain.toLowerCase();
+    const matched = trackedDomains.find(
+      (b) => b.google_domain?.toLowerCase() === d,
+    );
+    if (matched && !aiBrandCitations.some((x) => x.brand.id === matched.id)) {
+      aiBrandCitations.push({ brand: matched, url: r.url });
+    }
+  }
+
   // Share of SERP page 1: aggregato top N domini sui risultati
   // organic (i piu' rappresentativi del "vero" ranking, esclusi
   // ads e shopping). Top 7 + "altri" se servono.
@@ -375,6 +393,25 @@ export default async function SerpQueryDetailPage({
                   ? `${aiSources.length === 1 ? t("serp", "aiOverviewSourceSingular") : t("serp", "aiOverviewSourcePlural")}`
                   : t("serp", "aiOverviewAbsent")}
               </p>
+              {latestRun.has_ai_overview &&
+                trackedBrandsCount > 0 &&
+                (aiBrandCitations.length > 0 ? (
+                  <div className="flex flex-wrap gap-1 justify-center pt-1">
+                    {aiBrandCitations.map(({ brand }) => (
+                      <Badge
+                        key={brand.id}
+                        variant="gold"
+                        className="text-[9px] py-0 px-1.5"
+                      >
+                        {brand.page_name}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground italic">
+                    {t("serp", "aiOverviewNoBrandCited")}
+                  </p>
+                ))}
             </CardContent>
           </Card>
         </div>
