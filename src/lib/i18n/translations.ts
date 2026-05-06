@@ -2020,6 +2020,16 @@ const translations = {
       it: 'es. "Branded — Sezane Italia"',
       en: 'e.g. "Branded — Sezane Italy"',
     },
+    peopleAlsoAsk: { it: "People Also Ask", en: "People Also Ask" },
+    peopleAlsoAskDescription: {
+      it: "Domande che gli utenti pongono frequentemente intorno a questa query. Ogni domanda è un intento di ricerca: rispondere bene su blog/FAQ porta visite organiche.",
+      en: "Questions users frequently ask around this query. Each question is a search intent: answering well on blog/FAQ drives organic traffic.",
+    },
+    relatedQueries: { it: "Ricerche correlate", en: "Related queries" },
+    relatedQueriesDescription: {
+      it: "Suggerimenti che Google mostra in fondo alla SERP per intenti vicini. Utile per keyword expansion e ad-group estesi.",
+      en: "Suggestions Google shows at the bottom of the SERP for adjacent intents. Useful for keyword expansion and broader ad-groups.",
+    },
     linkedBrandsTitle: { it: "Brand collegati", en: "Linked brands" },
     addBrand: { it: "Aggiungi", en: "Add" },
     noneLinked: { it: "Nessun brand collegato", en: "No brands linked" },

@@ -9,6 +9,8 @@ import {
   Globe,
   ExternalLink,
   HelpCircle,
+  Compass,
+  MessageCircleQuestion,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth/session";
@@ -323,7 +325,156 @@ export default async function SerpQueryDetailPage({
           brandDomains={brandDomains}
         />
       )}
+
+      {/* ─── People Also Ask ──────────────────────────────── */}
+      {Array.isArray(latestRun?.people_also_ask) &&
+        latestRun.people_also_ask.length > 0 && (
+          <PeopleAlsoAskPanel
+            items={
+              latestRun.people_also_ask as Array<{
+                question: string | null;
+                answer: string | null;
+                title: string | null;
+                url: string | null;
+              }>
+            }
+            title={t("serp", "peopleAlsoAsk")}
+            description={t("serp", "peopleAlsoAskDescription")}
+          />
+        )}
+
+      {/* ─── Related queries ──────────────────────────────── */}
+      {Array.isArray(latestRun?.related_queries) &&
+        latestRun.related_queries.length > 0 && (
+          <RelatedQueriesPanel
+            items={
+              latestRun.related_queries as Array<{
+                title: string | null;
+                url: string | null;
+              }>
+            }
+            title={t("serp", "relatedQueries")}
+            description={t("serp", "relatedQueriesDescription")}
+          />
+        )}
     </div>
+  );
+}
+
+/**
+ * People Also Ask: domande suggerite da Google con risposta ed
+ * eventuale source. Content-strategy gold — ogni domanda e' un
+ * intento di ricerca a cui il brand puo' rispondere via blog/FAQ.
+ */
+function PeopleAlsoAskPanel({
+  items,
+  title,
+  description,
+}: {
+  items: Array<{
+    question: string | null;
+    answer: string | null;
+    title: string | null;
+    url: string | null;
+  }>;
+  title: string;
+  description: string;
+}) {
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center gap-2">
+        <MessageCircleQuestion className="size-4 text-gold" />
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+          {title}
+        </h2>
+        <span className="text-xs text-muted-foreground">({items.length})</span>
+      </div>
+      <p className="text-[11px] text-muted-foreground leading-snug max-w-3xl">
+        {description}
+      </p>
+      <Card>
+        <CardContent className="p-0 divide-y divide-border">
+          {items.map((q, idx) => (
+            <details key={idx} className="group">
+              <summary className="p-4 cursor-pointer flex items-start gap-3 hover:bg-muted/30 transition-colors">
+                <HelpCircle className="size-4 text-gold/70 mt-0.5 shrink-0" />
+                <span className="text-sm font-medium flex-1">
+                  {q.question ?? "—"}
+                </span>
+              </summary>
+              {(q.answer || q.title || q.url) && (
+                <div className="px-4 pb-4 pl-11 space-y-1.5">
+                  {q.answer && (
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      {q.answer}
+                    </p>
+                  )}
+                  {(q.title || q.url) && (
+                    <a
+                      href={q.url ?? "#"}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] text-gold hover:underline inline-flex items-center gap-1"
+                    >
+                      {q.title ?? q.url}
+                      <ExternalLink className="size-3" />
+                    </a>
+                  )}
+                </div>
+              )}
+            </details>
+          ))}
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
+/**
+ * Related queries: ricerche correlate suggerite da Google in fondo
+ * alla SERP. Buona miniera per keyword expansion e ad-group.
+ */
+function RelatedQueriesPanel({
+  items,
+  title,
+  description,
+}: {
+  items: Array<{ title: string | null; url: string | null }>;
+  title: string;
+  description: string;
+}) {
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Compass className="size-4 text-gold" />
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+          {title}
+        </h2>
+        <span className="text-xs text-muted-foreground">({items.length})</span>
+      </div>
+      <p className="text-[11px] text-muted-foreground leading-snug max-w-3xl">
+        {description}
+      </p>
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-wrap gap-1.5">
+            {items.map((q, idx) =>
+              q.title ? (
+                <a
+                  key={idx}
+                  href={q.url ?? "#"}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs px-2.5 py-1 rounded-full border border-border hover:border-gold/40 hover:text-gold transition-colors"
+                >
+                  {q.title}
+                </a>
+              ) : null,
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </section>
   );
 }
 
