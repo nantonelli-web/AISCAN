@@ -412,17 +412,28 @@ export async function scrapeMapsPlaces(
     50,
   );
 
+  // skipClosedPlaces=true: di default scartiamo i place chiusi
+  // (l'utente vuole brand attivi, non audit storici). Test reale
+  // 2026-05-06: una scan "Marina Rinaldi store Dubai" tornava SOLO
+  // la vecchia location del Burjuman Center marcata come chiusa,
+  // mentre la boutique attiva in Dubai Mall era a rank piu basso e
+  // veniva tagliata dal cap maxPlaces.
+  // deeperCityScrape=true: forza il crawler a esplorare la citta
+  // oltre i top-N che Google Maps mostra di default. Costa di piu
+  // in tempo run ma il cap maxCrawledPlacesPerSearch protegge il
+  // budget — preferiamo coverage > velocita per uno strumento di
+  // monitoring.
   const input: Record<string, unknown> = {
     searchStringsArray: [searchTerm],
     locationQuery,
     maxCrawledPlacesPerSearch: maxPlaces,
     language,
     countryCode,
-    skipClosedPlaces: false,
+    skipClosedPlaces: true,
     maxReviews: maxReviewsPerPlace,
     reviewsSort: "newest",
     scrapeReviewsPersonalData: false,
-    deeperCityScrape: false,
+    deeperCityScrape: true,
     onlyDataFromSearchPage: false,
   };
 
