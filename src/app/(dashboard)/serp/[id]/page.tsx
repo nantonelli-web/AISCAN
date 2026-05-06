@@ -423,6 +423,28 @@ export default async function SerpQueryDetailPage({
         </Card>
       )}
 
+      {/* ─── SERP composition mix ─────────────────────────── */}
+      {latestRun &&
+        (organicResults.length > 0 ||
+          paidResults.length > 0 ||
+          paidProducts.length > 0 ||
+          aiSources.length > 0) && (
+          <CompositionMixPanel
+            organic={organicResults.length}
+            paid={paidResults.length}
+            paidProducts={paidProducts.length}
+            aiSources={aiSources.length}
+            title={t("serp", "compositionMix")}
+            description={t("serp", "compositionMixDescription")}
+            labels={{
+              organic: t("serp", "organicResults"),
+              paid: t("serp", "paidResults"),
+              paidProducts: t("serp", "paidProducts"),
+              aiSources: t("serp", "aiSources"),
+            }}
+          />
+        )}
+
       {/* ─── Brand presence summary ───────────────────────── */}
       {trackedBrandsCount > 0 && organicResults.length > 0 && (
         <Card>
@@ -576,6 +598,115 @@ export default async function SerpQueryDetailPage({
           />
         )}
     </div>
+  );
+}
+
+/**
+ * SERP composition mix: barra impilata con la distribuzione %
+ * dei result_type (organic / paid / paid_product / ai_source).
+ * Highlight macro: query commerciali sono dominate da paid +
+ * shopping; query content-driven sono organic-heavy; query in
+ * transizione hanno AI Overview con N sources.
+ */
+function CompositionMixPanel({
+  organic,
+  paid,
+  paidProducts,
+  aiSources,
+  title,
+  description,
+  labels,
+}: {
+  organic: number;
+  paid: number;
+  paidProducts: number;
+  aiSources: number;
+  title: string;
+  description: string;
+  labels: {
+    organic: string;
+    paid: string;
+    paidProducts: string;
+    aiSources: string;
+  };
+}) {
+  const total = organic + paid + paidProducts + aiSources;
+  if (total === 0) return null;
+  const segments = [
+    {
+      key: "organic",
+      label: labels.organic,
+      count: organic,
+      color: "bg-emerald-500/80",
+      swatch: "rgb(16, 185, 129)",
+    },
+    {
+      key: "paid",
+      label: labels.paid,
+      count: paid,
+      color: "bg-amber-500/80",
+      swatch: "rgb(245, 158, 11)",
+    },
+    {
+      key: "paidProducts",
+      label: labels.paidProducts,
+      count: paidProducts,
+      color: "bg-orange-500/80",
+      swatch: "rgb(249, 115, 22)",
+    },
+    {
+      key: "aiSources",
+      label: labels.aiSources,
+      count: aiSources,
+      color: "bg-violet-500/80",
+      swatch: "rgb(139, 92, 246)",
+    },
+  ].filter((s) => s.count > 0);
+
+  return (
+    <Card>
+      <CardContent className="p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <PieChart className="size-4 text-gold" />
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+            {title}
+          </h2>
+          <span className="text-xs text-muted-foreground">
+            ({total} total)
+          </span>
+        </div>
+        <p className="text-[11px] text-muted-foreground leading-snug max-w-3xl">
+          {description}
+        </p>
+        <div className="flex h-2.5 w-full rounded-full overflow-hidden bg-muted">
+          {segments.map((s) => (
+            <div
+              key={s.key}
+              className={s.color}
+              style={{ width: `${(s.count / total) * 100}%` }}
+              title={`${s.label}: ${s.count} (${((s.count / total) * 100).toFixed(0)}%)`}
+            />
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-[11px]">
+          {segments.map((s) => (
+            <span key={s.key} className="flex items-center gap-1.5">
+              <span
+                className="size-2.5 rounded-sm"
+                style={{ backgroundColor: s.swatch }}
+              />
+              <span className="text-foreground font-medium tabular-nums">
+                {((s.count / total) * 100).toFixed(0)}%
+              </span>
+              <span className="text-muted-foreground">{s.label}</span>
+              <span className="text-muted-foreground/60 tabular-nums">
+                ({s.count})
+              </span>
+            </span>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

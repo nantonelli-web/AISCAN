@@ -2024,6 +2024,11 @@ const translations = {
       it: "Nessun tuo brand citato",
       en: "No tracked brand cited",
     },
+    compositionMix: { it: "Composizione SERP", en: "SERP composition" },
+    compositionMixDescription: {
+      it: "Distribuzione % dei tipi di risultato in pagina 1. Tante ads/shopping = query commerciale (territorio difensivo). Mostly organic = query content-driven (opportunità SEO). AI Overview con N sources = trend zero-click.",
+      en: "% breakdown of result types on page 1. Lots of ads/shopping = commercial query (defensive territory). Mostly organic = content-driven query (SEO opportunity). AI Overview with N sources = zero-click trend.",
+    },
     brandPresence: { it: "Brand presence", en: "Brand presence" },
     brandPresenceDescription: {
       it: "Quanti dei competitor tracciati del workspace appaiono in pagina 1 organic, e a che posizione. Il match e' sul dominio normalizzato (eTLD+1).",
