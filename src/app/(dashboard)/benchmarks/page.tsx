@@ -107,8 +107,10 @@ function parseChannel(raw: string | string[] | undefined): Channel {
  *  compute pipeline. */
 function isBenchmarkImplemented(
   ch: Channel,
-): ch is "meta" | "google" | "instagram" {
-  return ch === "meta" || ch === "google" || ch === "instagram";
+): ch is "meta" | "google" | "instagram" | "tiktok" {
+  return (
+    ch === "meta" || ch === "google" || ch === "instagram" || ch === "tiktok"
+  );
 }
 
 function parseStatus(raw: string | string[] | undefined): StatusFilter {

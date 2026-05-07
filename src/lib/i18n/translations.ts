@@ -755,6 +755,15 @@ const translations = {
   // ─── Compare ───────────────────────────────────────────────
   compare: {
     collabPosts: { it: "Post in collab", en: "Collab posts" },
+    tiktokFormatMix: {
+      it: "Mix formato (video/slides)",
+      en: "Format mix (video/slides)",
+    },
+    tiktokAvgDuration: { it: "Durata media video", en: "Avg video duration" },
+    tiktokAudioStrategy: {
+      it: "Audio (originale/trending)",
+      en: "Audio (original/trending)",
+    },
     title: { it: "Confronto brand", en: "Brand comparison" },
     subtitle: {
       it: "Seleziona 2 o 3 brand per confrontarli side-by-side.",
@@ -2214,6 +2223,12 @@ const translations = {
     collabsPerBrand: {
       it: "Collab per brand",
       en: "Collabs per brand",
+    },
+    avgPlays: { it: "Visualizzazioni medie", en: "Avg plays" },
+    avgShares: { it: "Condivisioni medie", en: "Avg shares" },
+    tiktokDurationDistribution: {
+      it: "Distribuzione durata video",
+      en: "Video duration distribution",
     },
     title: { it: "Contenuti organici Instagram", en: "Instagram Organic Content" },
     subtitle: {

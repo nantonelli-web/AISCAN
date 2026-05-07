@@ -55,6 +55,7 @@ import {
 import type {
   BenchmarkData,
   OrganicBenchmarkData,
+  TiktokBenchmarkData,
 } from "@/lib/analytics/benchmarks";
 import { PageLoader } from "@/components/ui/page-loader";
 import { DateRangeShortcuts, defaultPresets } from "@/components/ui/date-range-shortcuts";
@@ -91,7 +92,13 @@ type Channel =
  *  a placeholder for any channel outside this set so we never ask the
  *  API for stats it cannot compute. */
 function isImplementedChannel(ch: Channel | null): boolean {
-  return ch === "all" || ch === "meta" || ch === "google" || ch === "instagram";
+  return (
+    ch === "all" ||
+    ch === "meta" ||
+    ch === "google" ||
+    ch === "instagram" ||
+    ch === "tiktok"
+  );
 }
 
 /**
@@ -230,7 +237,39 @@ interface OrganicCompStats {
   }[];
 }
 
-type CompStats = AdsCompStats | OrganicCompStats;
+interface TiktokCompStats {
+  id: string;
+  name: string;
+  kind: "tiktok";
+  tiktokUsername: string | null;
+  totalPosts: number;
+  videoCount: number;
+  slideshowCount: number;
+  avgPlays: number;
+  avgLikes: number;
+  avgComments: number;
+  avgShares: number;
+  avgDuration: number; // seconds
+  originalAudioCount: number;
+  trendingAudioCount: number;
+  topHashtags: { name: string; count: number }[];
+  postsPerWeek: number;
+  avgCaptionLength: number;
+  /** Collab L1 (regex caption fallback). */
+  collabPosts: number;
+  collabRate: number; // 0..100
+  latestPosts: {
+    post_id: string;
+    caption: string | null;
+    cover_url: string | null;
+    post_url: string | null;
+    plays: number;
+    likes: number;
+    comments: number;
+  }[];
+}
+
+type CompStats = AdsCompStats | OrganicCompStats | TiktokCompStats;
 
 /** Old cached rows (pre-organic) have no `kind` — default to "ads". Old
  *  rows from before Phase 3 also have no `channel` discriminator on ad
@@ -241,6 +280,7 @@ function normalizeStats(raw: unknown): CompStats[] | null {
   return raw.map((s) => {
     const rec = s as Record<string, unknown>;
     if (rec.kind === "organic") return rec as unknown as OrganicCompStats;
+    if (rec.kind === "tiktok") return rec as unknown as TiktokCompStats;
     const withKind = { ...(rec as object), kind: "ads" } as Record<string, unknown>;
     if (typeof withKind.channel !== "string") {
       withKind.channel = "meta";
@@ -451,10 +491,11 @@ export function CompareView({
     });
   }
 
-  // Benchmark tab state — may be ads or organic depending on channel
+  // Benchmark tab state — ads / organic / tiktok depending on channel.
   type BenchmarkPayload =
     | ({ kind: "ads" } & BenchmarkData)
-    | ({ kind: "organic" } & OrganicBenchmarkData);
+    | ({ kind: "organic" } & OrganicBenchmarkData)
+    | ({ kind: "tiktok" } & TiktokBenchmarkData);
   const [benchmarkData, setBenchmarkData] = useState<BenchmarkPayload | null>(
     null
   );
@@ -803,6 +844,7 @@ export function CompareView({
       channel === "meta" ? "meta"
       : channel === "google" ? "google"
       : channel === "instagram" ? "instagram"
+      : channel === "tiktok" ? "tiktok"
       : undefined;
     // Pass the user-selected date range so the refresh rate (and any
     // other windowed KPI on BenchmarkData) reflects what they chose
@@ -2183,7 +2225,7 @@ export function CompareView({
             />
           </div>
 
-          {/* Technical Tab — branch on stats kind (ads vs organic) */}
+          {/* Technical Tab — branch on stats kind (ads vs organic vs tiktok) */}
           {activeTab === "technical" &&
             (loading || regenerating ? (
               <LoadingState text={t("compare", "generating")} />
@@ -2191,6 +2233,12 @@ export function CompareView({
               stats[0].kind === "organic" ? (
                 <OrganicTechnicalView
                   stats={stats as OrganicCompStats[]}
+                  t={t}
+                  refreshRateWindowDays={refreshRateWindowDays}
+                />
+              ) : stats[0].kind === "tiktok" ? (
+                <TiktokTechnicalView
+                  stats={stats as TiktokCompStats[]}
                   t={t}
                   refreshRateWindowDays={refreshRateWindowDays}
                 />
@@ -2264,13 +2312,21 @@ export function CompareView({
               />
             ))}
 
-          {/* Benchmark Tab — branch on kind (ads vs organic) */}
+          {/* Benchmark Tab — branch on kind (ads / organic / tiktok) */}
           {activeTab === "benchmark" &&
             (benchmarkLoading || regenerating ? (
               <LoadingState text={t("compare", "generating")} />
             ) : benchmarkData?.kind === "organic" ? (
               benchmarkData.totals.totalPosts > 0 ? (
                 <OrganicBenchmarkCharts data={benchmarkData} t={t} />
+              ) : (
+                <div className="py-16 text-center text-muted-foreground text-sm">
+                  {t("benchmarks", "noData")}
+                </div>
+              )
+            ) : benchmarkData?.kind === "tiktok" ? (
+              benchmarkData.totals.totalPosts > 0 ? (
+                <TiktokBenchmarkCharts data={benchmarkData} t={t} />
               ) : (
                 <div className="py-16 text-center text-muted-foreground text-sm">
                   {t("benchmarks", "noData")}
@@ -2960,6 +3016,176 @@ function OrganicTechnicalView({
 }
 
 /**
+ * TikTok technical view (Feature 2026-05-07). Stessa struttura di
+ * OrganicTechnicalView ma con KPI TikTok-specific: plays, shares,
+ * format mix slideshow vs video, audio strategy, durata media.
+ * Collab L1 incluso fin dal day 1.
+ */
+function TiktokTechnicalView({
+  stats,
+  t,
+  refreshRateWindowDays,
+}: {
+  stats: TiktokCompStats[];
+  t: (s: string, k: string) => string;
+  refreshRateWindowDays: number;
+}) {
+  return (
+    <div className="space-y-4">
+      <CompareTable
+        label={t("compare", "totalPosts")}
+        stats={stats}
+        render={(s) => String(s.totalPosts)}
+        highlight
+      />
+      <CompareTable
+        label={t("compare", "collabPosts")}
+        stats={stats}
+        render={(s) => {
+          if (s.collabPosts === 0) return "0";
+          return `${s.collabPosts} (${s.collabRate}%)`;
+        }}
+        highlight
+      />
+      <CompareTable
+        label={`${t("compare", "postsPerWeek")} (${refreshRateWindowDays}${t("compare", "refreshRateWindowSuffix")})`}
+        stats={stats}
+        render={(s) =>
+          s.postsPerWeek > 0
+            ? `${s.postsPerWeek} ${t("compare", "postsPerWeekUnit")}`
+            : "—"
+        }
+        highlight
+      />
+      <CompareTable
+        label={t("compare", "tiktokFormatMix")}
+        stats={stats}
+        render={(s) => {
+          const total = s.videoCount + s.slideshowCount;
+          if (total === 0) return "—";
+          const [vid, slide] = percentSplit([s.videoCount, s.slideshowCount]);
+          return `${vid}% video · ${slide}% slides`;
+        }}
+      />
+      <CompareTable
+        label={t("organic", "avgPlays")}
+        stats={stats}
+        render={(s) => (s.avgPlays > 0 ? formatNumber(s.avgPlays) : "—")}
+      />
+      <CompareTable
+        label={t("compare", "avgLikes")}
+        stats={stats}
+        render={(s) => (s.avgLikes > 0 ? formatNumber(s.avgLikes) : "—")}
+      />
+      <CompareTable
+        label={t("compare", "avgComments")}
+        stats={stats}
+        render={(s) =>
+          s.avgComments > 0 ? formatNumber(s.avgComments) : "—"
+        }
+      />
+      <CompareTable
+        label={t("organic", "avgShares")}
+        stats={stats}
+        render={(s) => (s.avgShares > 0 ? formatNumber(s.avgShares) : "—")}
+      />
+      <CompareTable
+        label={t("compare", "tiktokAvgDuration")}
+        stats={stats}
+        render={(s) =>
+          s.avgDuration > 0 ? `${s.avgDuration}s` : "—"
+        }
+      />
+      <CompareTable
+        label={t("compare", "tiktokAudioStrategy")}
+        stats={stats}
+        render={(s) => {
+          const total = s.originalAudioCount + s.trendingAudioCount;
+          if (total === 0) return "—";
+          const [orig, trend] = percentSplit([
+            s.originalAudioCount,
+            s.trendingAudioCount,
+          ]);
+          return `${orig}% original · ${trend}% trending`;
+        }}
+      />
+      <CompareTable
+        label={t("compare", "topHashtags")}
+        stats={stats}
+        render={(s) =>
+          s.topHashtags
+            .slice(0, 5)
+            .map((h) => `#${h.name}`)
+            .join(" ") || "—"
+        }
+      />
+      <CompareTable
+        label={t("compare", "avgCaptionLength")}
+        stats={stats}
+        render={(s) =>
+          s.avgCaptionLength > 0
+            ? `${s.avgCaptionLength} ${t("compare", "avgCopyChars")}`
+            : "—"
+        }
+      />
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">
+            {t("compare", "latestPosts")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div
+            className={cn(
+              "grid gap-4",
+              stats.length === 2 ? "grid-cols-2" : "grid-cols-3",
+            )}
+          >
+            {stats.map((s) => (
+              <div key={s.id} className="space-y-3">
+                <p className="text-xs font-medium text-gold">{s.name}</p>
+                {s.latestPosts.slice(0, 3).map((post) => (
+                  <a
+                    key={post.post_id}
+                    href={post.post_url ?? "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block rounded-lg border border-border overflow-hidden hover:border-gold/40 transition-colors"
+                  >
+                    {post.cover_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={post.cover_url}
+                        alt=""
+                        className="w-full aspect-[4/5] object-cover"
+                      />
+                    ) : (
+                      <div className="aspect-[4/5] bg-muted grid place-items-center text-xs text-muted-foreground">
+                        Post
+                      </div>
+                    )}
+                    <div className="p-2 space-y-1">
+                      {post.caption && (
+                        <p className="text-xs line-clamp-2">{post.caption}</p>
+                      )}
+                      <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                        <span>▶ {formatNumber(post.plays)}</span>
+                        <span>♥ {formatNumber(post.likes)}</span>
+                        <span>💬 {formatNumber(post.comments)}</span>
+                      </div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+/**
  * One creative tile in the "Latest ads" grid. Tracks an `imgError`
  * state so we can fall back to the text preview when the image URL
  * fails to load (404, CORS) OR when it loads but is just a tiny
@@ -3452,6 +3678,168 @@ function BenchmarkStat({ label, value }: { label: string; value: string }) {
         <div className="text-2xl font-semibold">{value}</div>
       </CardContent>
     </Card>
+  );
+}
+
+function TiktokBenchmarkCharts({
+  data,
+  t,
+}: {
+  data: TiktokBenchmarkData;
+  t: (section: string, key: string) => string;
+}) {
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <BenchmarkStat
+          label={t("compare", "totalPosts")}
+          value={formatNumber(data.totals.totalPosts)}
+        />
+        <BenchmarkStat
+          label={t("organic", "avgPlays")}
+          value={formatNumber(data.totals.avgPlays)}
+        />
+        <BenchmarkStat
+          label={t("compare", "avgLikes")}
+          value={formatNumber(data.totals.avgLikes)}
+        />
+        <BenchmarkStat
+          label={t("compare", "avgComments")}
+          value={formatNumber(data.totals.avgComments)}
+        />
+        <BenchmarkStat
+          label={t("organic", "avgShares")}
+          value={formatNumber(data.totals.avgShares)}
+        />
+        <BenchmarkStat
+          label={t("organic", "collabPosts")}
+          value={`${formatNumber(data.totals.collabPosts)} (${data.totals.collabRate}%)`}
+        />
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("benchmarks", "postsVolumePerCompetitor")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <HorizontalBarChart
+            data={data.postsByCompetitor}
+            dataKey="posts"
+            label={t("compare", "totalPosts")}
+          />
+        </CardContent>
+      </Card>
+
+      {data.collabPostsByCompetitor.some((c) => c.collabPosts > 0) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("organic", "collabsPerBrand")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HorizontalBarChart
+              data={data.collabPostsByCompetitor.map((c) => ({
+                name: c.name,
+                count: c.collabPosts,
+              }))}
+              dataKey="count"
+              label={t("organic", "collabPosts")}
+              color="#d97757"
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {data.topHashtags.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("compare", "topHashtags")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HorizontalBarChart
+              data={data.topHashtags}
+              dataKey="count"
+              label={t("benchmarks", "adsLabel")}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("organic", "avgPlays")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HorizontalBarChart
+              data={data.avgPlaysByCompetitor}
+              dataKey="plays"
+              label={t("organic", "avgPlays")}
+              color="#d97757"
+            />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("compare", "avgLikes")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HorizontalBarChart
+              data={data.avgLikesByCompetitor}
+              dataKey="likes"
+              label={t("compare", "avgLikes")}
+              color="#c9a44d"
+            />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("organic", "avgShares")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HorizontalBarChart
+              data={data.avgSharesByCompetitor}
+              dataKey="shares"
+              label={t("organic", "avgShares")}
+              color="#6b8e6b"
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              {t("organic", "tiktokDurationDistribution")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HorizontalBarChart
+              data={data.durationDistribution.map((b) => ({
+                name: b.bucket,
+                count: b.count,
+              }))}
+              dataKey="count"
+              label={t("compare", "totalPosts")}
+              color="#5b7ea3"
+            />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("compare", "postsPerWeek")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HorizontalBarChart
+              data={data.postsPerWeekByCompetitor}
+              dataKey="postsPerWeek"
+              label={t("compare", "postsPerWeekUnit")}
+              color="#6b8e6b"
+            />
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }
 

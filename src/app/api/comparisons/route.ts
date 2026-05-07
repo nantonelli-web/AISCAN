@@ -75,7 +75,7 @@ const CURRENT_DATA_VERSION = 12;
 const postSchema = z.object({
   competitor_ids: z.array(z.string().uuid()).min(2).max(3),
   locale: z.enum(["it", "en"]).optional(),
-  channel: z.enum(["all", "meta", "google", "instagram"]).optional().default("meta"),
+  channel: z.enum(["all", "meta", "google", "instagram", "tiktok"]).optional().default("meta"),
   countries: z.array(z.string()).optional(),
   /** Optional ISO dates. When supplied, the refresh-rate / posts-per-week
    *  metrics use this window instead of the legacy fixed 90d. */
@@ -640,6 +640,197 @@ type OrganicRow = {
   created_at: string;
 };
 
+/**
+ * Per-brand TikTok stats per Compare. Mirror di computeOrganicStats
+ * con KPI TikTok-specific. Collab L1 incluso col regex caption
+ * fallback.
+ */
+type TiktokRow = {
+  post_id: string;
+  post_url: string | null;
+  caption: string | null;
+  cover_url: string | null;
+  is_slideshow: boolean | null;
+  duration_seconds: number | null;
+  play_count: number | null;
+  digg_count: number | null;
+  share_count: number | null;
+  comment_count: number | null;
+  hashtags: string[] | null;
+  mentions: string[] | null;
+  music_original: boolean | null;
+  posted_at: string | null;
+  created_at: string;
+};
+
+async function computeTiktokStats(
+  ids: string[],
+  admin: ReturnType<typeof createAdminClient>,
+  refreshRate?: { fromMs: number; toMs: number; weeks: number },
+  dateFilter?: { from: string; to: string },
+) {
+  return Promise.all(
+    ids.map(async (id) => {
+      const postsQuery = admin
+        .from("mait_tiktok_posts")
+        .select(
+          "post_id, post_url, caption, cover_url, is_slideshow, duration_seconds, play_count, digg_count, share_count, comment_count, hashtags, mentions, music_original, posted_at, created_at",
+        )
+        .eq("competitor_id", id)
+        .order("posted_at", { ascending: false, nullsFirst: false })
+        .limit(500);
+      if (dateFilter) {
+        postsQuery
+          .gte("posted_at", dateFilter.from)
+          .lte("posted_at", dateFilter.to + "T23:59:59Z");
+      }
+      const [{ data: comp }, { data: posts }] = await Promise.all([
+        admin
+          .from("mait_competitors")
+          .select("id, page_name, tiktok_username")
+          .eq("id", id)
+          .single(),
+        postsQuery,
+      ]);
+
+      const list = (posts ?? []) as TiktokRow[];
+
+      let videoCount = 0;
+      let slideshowCount = 0;
+      let originalAudioCount = 0;
+      let trendingAudioCount = 0;
+      const plays: number[] = [];
+      const likes: number[] = [];
+      const comments: number[] = [];
+      const shares: number[] = [];
+      const captions: number[] = [];
+      const durations: number[] = [];
+      const tagMap = new Map<string, number>();
+
+      for (const p of list) {
+        if (p.is_slideshow) slideshowCount++;
+        else videoCount++;
+        if (p.music_original === true) originalAudioCount++;
+        else if (p.music_original === false) trendingAudioCount++;
+        if (typeof p.play_count === "number") plays.push(p.play_count);
+        if (typeof p.digg_count === "number") likes.push(p.digg_count);
+        if (typeof p.comment_count === "number") comments.push(p.comment_count);
+        if (typeof p.share_count === "number") shares.push(p.share_count);
+        if (typeof p.duration_seconds === "number" && p.duration_seconds > 0) {
+          durations.push(p.duration_seconds);
+        }
+        const cl = (p.caption ?? "").length;
+        if (cl > 0) captions.push(cl);
+        for (const raw of p.hashtags ?? []) {
+          const tag = (raw ?? "").trim().toLowerCase();
+          if (!tag) continue;
+          tagMap.set(tag, (tagMap.get(tag) ?? 0) + 1);
+        }
+      }
+
+      const avg = (arr: number[]) =>
+        arr.length === 0
+          ? 0
+          : Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
+
+      const avgPlays = avg(plays);
+      const avgLikes = avg(likes);
+      const avgComments = avg(comments);
+      const avgShares = avg(shares);
+      const avgCaptionLength = avg(captions);
+      const avgDuration =
+        durations.length === 0
+          ? 0
+          : Math.round(
+              (durations.reduce((s, n) => s + n, 0) / durations.length) * 10,
+            ) / 10;
+
+      const topHashtags = [...tagMap.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([name, count]) => ({ name, count }));
+
+      // Cadence
+      const fromMs = refreshRate?.fromMs ?? Date.now() - 90 * 86_400_000;
+      const toMs = refreshRate?.toMs ?? Date.now();
+      const weeks = refreshRate?.weeks ?? 90 / 7;
+      const recent = list.filter((p) => {
+        if (!p.posted_at) return false;
+        const when = new Date(p.posted_at).getTime();
+        return Number.isFinite(when) && when >= fromMs && when <= toMs;
+      }).length;
+      const postsPerWeek = Math.round((recent / weeks) * 10) / 10;
+
+      // Latest 5 posts
+      const latestPosts = list.slice(0, 5).map((p) => ({
+        post_id: p.post_id,
+        caption: p.caption,
+        cover_url: p.cover_url,
+        post_url: p.post_url,
+        plays: p.play_count ?? 0,
+        likes: p.digg_count ?? 0,
+        comments: p.comment_count ?? 0,
+      }));
+
+      // Collab L1: mentions[] + regex caption fallback dedup.
+      let collabPosts = 0;
+      for (const p of list) {
+        const set = new Set<string>();
+        for (const m of p.mentions ?? []) {
+          const h = (m ?? "")
+            .trim()
+            .replace(/^@+/, "")
+            .replace(/[^A-Za-z0-9_]+$/, "")
+            .replace(/\.+$/, "")
+            .toLowerCase();
+          if (h) set.add(h);
+        }
+        if (p.caption) {
+          const matches = p.caption.matchAll(
+            /(?<![A-Za-z0-9_.])@([A-Za-z0-9_.]+)/g,
+          );
+          for (const m of matches) {
+            const h = (m[1] ?? "")
+              .trim()
+              .replace(/[^A-Za-z0-9_]+$/, "")
+              .replace(/\.+$/, "")
+              .toLowerCase();
+            if (h) set.add(h);
+          }
+        }
+        if (set.size > 0) collabPosts += 1;
+      }
+      const collabRate =
+        list.length === 0
+          ? 0
+          : Math.round((collabPosts / list.length) * 100);
+
+      return {
+        id,
+        name: comp?.page_name ?? "—",
+        kind: "tiktok" as const,
+        tiktokUsername: comp?.tiktok_username ?? null,
+        totalPosts: list.length,
+        videoCount,
+        slideshowCount,
+        avgPlays,
+        avgLikes,
+        avgComments,
+        avgShares,
+        avgDuration,
+        originalAudioCount,
+        trendingAudioCount,
+        topHashtags,
+        postsPerWeek,
+        avgCaptionLength,
+        collabPosts,
+        collabRate,
+        latestPosts,
+      };
+    }),
+  );
+}
+
 async function computeOrganicStats(
   ids: string[],
   admin: ReturnType<typeof createAdminClient>,
@@ -1006,6 +1197,7 @@ export async function POST(req: Request) {
   payload.data_version = CURRENT_DATA_VERSION;
 
   const isOrganic = parsed.data.channel === "instagram";
+  const isTiktok = parsed.data.channel === "tiktok";
 
   // Refresh-rate window — same shape used in benchmarks.ts. Defaults to
   // a rolling 90d ending today when the caller does not supply dates.
@@ -1045,6 +1237,13 @@ export async function POST(req: Request) {
   if (sections.includes("technical")) {
     if (isOrganic) {
       payload.technical_data = await computeOrganicStats(
+        ids,
+        admin,
+        refreshWindow,
+        dateFilter,
+      );
+    } else if (isTiktok) {
+      payload.technical_data = await computeTiktokStats(
         ids,
         admin,
         refreshWindow,

@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   computeBenchmarks,
   computeOrganicBenchmarks,
+  computeTiktokBenchmarks,
 } from "@/lib/analytics/benchmarks";
 
 export async function GET(request: NextRequest) {
@@ -49,6 +50,17 @@ export async function GET(request: NextRequest) {
   if (sourceParam === "instagram") {
     const data = await computeOrganicBenchmarks(supabase, workspaceId, ids);
     return NextResponse.json({ kind: "organic", ...data });
+  }
+
+  if (sourceParam === "tiktok") {
+    const data = await computeTiktokBenchmarks(
+      supabase,
+      workspaceId,
+      ids,
+      dateFrom,
+      dateTo,
+    );
+    return NextResponse.json({ kind: "tiktok", ...data });
   }
 
   const validSource =

@@ -1701,3 +1701,454 @@ export async function computeOrganicBenchmarks(
     },
   };
 }
+
+/* ─────────────────────────────────────────────────────────────
+   TikTok benchmarks (Feature 2026-05-07)
+   ─────────────────────────────────────────────────────────────
+   Pipeline parallela a OrganicBenchmarks ma adattata alla
+   semantica TikTok:
+   - "Likes" qui = digg_count (cuori). "Plays" e' una metrica
+     primaria che IG non ha.
+   - Format mix: slideshow vs video (no carousel/reel/image
+     trinity di IG).
+   - Audio strategy: original vs trending audio (gia' esposto da
+     `music_original`).
+   - Collab L1 attivo dal day 1 (regex caption + mentions[]).
+   ───────────────────────────────────────────────────────────── */
+
+interface TiktokRow {
+  competitor_id: string | null;
+  caption: string | null;
+  duration_seconds: number | null;
+  is_slideshow: boolean | null;
+  play_count: number | null;
+  digg_count: number | null;
+  share_count: number | null;
+  comment_count: number | null;
+  collect_count: number | null;
+  hashtags: string[] | null;
+  mentions: string[] | null;
+  music_name: string | null;
+  music_author: string | null;
+  music_original: boolean | null;
+  posted_at: string | null;
+  created_at: string;
+}
+
+export interface TiktokBenchmarkData {
+  competitors: CompetitorRef[];
+  postsByCompetitor: { name: string; posts: number }[];
+  /** slideshow vs video mix per brand. */
+  formatStackedByCompetitor: {
+    name: string;
+    video: number;
+    slideshow: number;
+  }[];
+  topHashtags: { name: string; count: number }[];
+  avgPlaysByCompetitor: { name: string; plays: number }[];
+  avgLikesByCompetitor: { name: string; likes: number }[];
+  avgCommentsByCompetitor: { name: string; comments: number }[];
+  avgSharesByCompetitor: { name: string; shares: number }[];
+  postsPerWeekByCompetitor: { name: string; postsPerWeek: number }[];
+  avgCaptionLengthByCompetitor: { name: string; chars: number }[];
+  /** Coverage: when was the brand first scanned on TikTok? */
+  coverageByCompetitor: {
+    competitor: string;
+    earliestPost: string | null;
+    postsInRange: number;
+  }[];
+  /** Audio strategy: original (suono custom) vs trending (riusato). */
+  audioStrategyByCompetitor: {
+    competitor: string;
+    totalPosts: number;
+    originalAudio: number;
+    trendingAudio: number;
+  }[];
+  /** Distribuzione durata video (buckets 0-15s, 15-30s, ecc.). */
+  durationDistribution: { bucket: string; count: number }[];
+  /** Top trending audio (no original) usato dai brand. */
+  topTrendingAudio: { song: string; count: number }[];
+  /** Collab L1: post che taggano/menzionano account ≠ brand. */
+  collabPostsByCompetitor: {
+    name: string;
+    collabPosts: number;
+    totalPosts: number;
+    rate: number;
+  }[];
+  totals: {
+    totalPosts: number;
+    avgPlays: number;
+    avgLikes: number;
+    avgComments: number;
+    avgShares: number;
+    avgDuration: number;
+    avgCaptionLength: number;
+    collabPosts: number;
+    collabRate: number; // 0..100
+  };
+}
+
+export async function computeTiktokBenchmarks(
+  supabase: SupabaseClient,
+  workspaceId: string,
+  competitorIds?: string[],
+  dateFrom?: string,
+  dateTo?: string,
+): Promise<TiktokBenchmarkData> {
+  async function fetchAllPosts(): Promise<TiktokRow[]> {
+    const PAGE = 1000;
+    const SAFETY_CAP = 30_000;
+    const rows: TiktokRow[] = [];
+    for (let from = 0; from < SAFETY_CAP; from += PAGE) {
+      let q = supabase
+        .from("mait_tiktok_posts")
+        .select(
+          "competitor_id, caption, duration_seconds, is_slideshow, play_count, digg_count, share_count, comment_count, collect_count, hashtags, mentions, music_name, music_author, music_original, posted_at, created_at",
+        )
+        .eq("workspace_id", workspaceId)
+        .order("posted_at", { ascending: false, nullsFirst: false })
+        .range(from, from + PAGE - 1);
+      if (competitorIds && competitorIds.length > 0) {
+        q = q.in("competitor_id", competitorIds);
+      }
+      if (dateFrom) q = q.gte("posted_at", dateFrom);
+      if (dateTo) q = q.lte("posted_at", dateTo + "T23:59:59Z");
+      const { data, error } = await q;
+      if (error || !data || data.length === 0) break;
+      rows.push(...(data as TiktokRow[]));
+      if (data.length < PAGE) break;
+    }
+    return rows;
+  }
+
+  async function fetchCoverageRows(): Promise<
+    { competitor_id: string | null; posted_at: string | null }[]
+  > {
+    const PAGE = 1000;
+    const SAFETY_CAP = 30_000;
+    const rows: { competitor_id: string | null; posted_at: string | null }[] = [];
+    for (let from = 0; from < SAFETY_CAP; from += PAGE) {
+      let q = supabase
+        .from("mait_tiktok_posts")
+        .select("competitor_id, posted_at")
+        .eq("workspace_id", workspaceId)
+        .order("posted_at", { ascending: false, nullsFirst: false })
+        .range(from, from + PAGE - 1);
+      if (competitorIds && competitorIds.length > 0) {
+        q = q.in("competitor_id", competitorIds);
+      }
+      const { data, error } = await q;
+      if (error || !data || data.length === 0) break;
+      rows.push(...data);
+      if (data.length < PAGE) break;
+    }
+    return rows;
+  }
+
+  const [{ data: comps }, posts, coverageRaw] = await Promise.all([
+    supabase
+      .from("mait_competitors")
+      .select("id, page_name")
+      .eq("workspace_id", workspaceId)
+      .in(
+        "id",
+        competitorIds && competitorIds.length > 0
+          ? competitorIds
+          : ["00000000-0000-0000-0000-000000000000"],
+      ),
+    fetchAllPosts(),
+    fetchCoverageRows(),
+  ]);
+
+  const compMap = new Map<string, string>();
+  for (const c of (comps ?? []) as CompetitorRef[]) {
+    compMap.set(c.id, c.page_name);
+  }
+
+  // Per-competitor aggregator state.
+  type Bucket = {
+    total: number;
+    plays: number[];
+    likes: number[];
+    comments: number[];
+    shares: number[];
+    captions: number[];
+    video: number;
+    slideshow: number;
+    originalAudio: number;
+    trendingAudio: number;
+  };
+  const byComp = new Map<string, Bucket>();
+  const ensure = (id: string): Bucket => {
+    let b = byComp.get(id);
+    if (!b) {
+      b = {
+        total: 0,
+        plays: [],
+        likes: [],
+        comments: [],
+        shares: [],
+        captions: [],
+        video: 0,
+        slideshow: 0,
+        originalAudio: 0,
+        trendingAudio: 0,
+      };
+      byComp.set(id, b);
+    }
+    return b;
+  };
+
+  const allPlays: number[] = [];
+  const allLikes: number[] = [];
+  const allComments: number[] = [];
+  const allShares: number[] = [];
+  const allCaptions: number[] = [];
+  const allDurations: number[] = [];
+  const tagMap = new Map<string, number>();
+  const trendingAudioCounts = new Map<string, number>();
+  const durationBucketCounts = new Map<string, number>([
+    ["<15s", 0],
+    ["15-30s", 0],
+    ["30-60s", 0],
+    ["60-120s", 0],
+    [">120s", 0],
+  ]);
+
+  for (const p of posts) {
+    const cid = p.competitor_id;
+    if (!cid) continue;
+    const b = ensure(cid);
+    b.total += 1;
+    if (typeof p.play_count === "number") {
+      b.plays.push(p.play_count);
+      allPlays.push(p.play_count);
+    }
+    if (typeof p.digg_count === "number") {
+      b.likes.push(p.digg_count);
+      allLikes.push(p.digg_count);
+    }
+    if (typeof p.comment_count === "number") {
+      b.comments.push(p.comment_count);
+      allComments.push(p.comment_count);
+    }
+    if (typeof p.share_count === "number") {
+      b.shares.push(p.share_count);
+      allShares.push(p.share_count);
+    }
+    const capLen = (p.caption ?? "").length;
+    if (capLen > 0) {
+      b.captions.push(capLen);
+      allCaptions.push(capLen);
+    }
+    if (p.is_slideshow) b.slideshow += 1;
+    else b.video += 1;
+    if (p.music_original === true) b.originalAudio += 1;
+    else if (p.music_original === false) b.trendingAudio += 1;
+
+    if (typeof p.duration_seconds === "number" && p.duration_seconds > 0) {
+      allDurations.push(p.duration_seconds);
+      const d = p.duration_seconds;
+      const bucket =
+        d < 15 ? "<15s" : d < 30 ? "15-30s" : d < 60 ? "30-60s" : d < 120 ? "60-120s" : ">120s";
+      durationBucketCounts.set(bucket, (durationBucketCounts.get(bucket) ?? 0) + 1);
+    }
+
+    for (const raw of p.hashtags ?? []) {
+      const tag = (raw ?? "").trim().toLowerCase();
+      if (!tag) continue;
+      tagMap.set(tag, (tagMap.get(tag) ?? 0) + 1);
+    }
+    if (p.music_original === false && p.music_name) {
+      const song = p.music_author
+        ? `${p.music_name} — ${p.music_author}`
+        : p.music_name;
+      trendingAudioCounts.set(song, (trendingAudioCounts.get(song) ?? 0) + 1);
+    }
+  }
+
+  // Coverage map.
+  const earliestByComp = new Map<string, string>();
+  const inRangeByComp = new Map<string, number>();
+  const fromMs = dateFrom ? new Date(dateFrom).getTime() : 0;
+  const toMs = dateTo
+    ? new Date(dateTo + "T23:59:59Z").getTime()
+    : Date.now();
+  for (const r of coverageRaw) {
+    const cid = r.competitor_id;
+    if (!cid) continue;
+    if (r.posted_at) {
+      const prev = earliestByComp.get(cid);
+      if (!prev || new Date(r.posted_at) < new Date(prev)) {
+        earliestByComp.set(cid, r.posted_at);
+      }
+      const t = new Date(r.posted_at).getTime();
+      if (t >= fromMs && t <= toMs) {
+        inRangeByComp.set(cid, (inRangeByComp.get(cid) ?? 0) + 1);
+      }
+    }
+  }
+
+  const coverageByCompetitor = (comps ?? []).map((c) => ({
+    competitor: c.page_name,
+    earliestPost: earliestByComp.get(c.id) ?? null,
+    postsInRange: inRangeByComp.get(c.id) ?? 0,
+  }));
+
+  // Posts/week — same window logic as IG.
+  const days = dateFrom && dateTo
+    ? Math.max(
+        1,
+        Math.ceil(
+          (new Date(dateTo + "T23:59:59Z").getTime() -
+            new Date(dateFrom).getTime()) /
+            86_400_000,
+        ),
+      )
+    : 90;
+  const weeks = days / 7;
+  const postsPerWeekByCompetitor = [...byComp.entries()]
+    .map(([id, v]) => ({
+      name: compMap.get(id) ?? "N/A",
+      postsPerWeek: Math.round((v.total / weeks) * 10) / 10,
+    }))
+    .sort((a, b) => b.postsPerWeek - a.postsPerWeek);
+
+  const avg = (arr: number[]) =>
+    arr.length === 0 ? 0 : Math.round(arr.reduce((s, x) => s + x, 0) / arr.length);
+
+  const postsByCompetitor = [...byComp.entries()]
+    .map(([id, v]) => ({ name: compMap.get(id) ?? "N/A", posts: v.total }))
+    .sort((a, b) => b.posts - a.posts);
+
+  const formatStackedByCompetitor = [...byComp.entries()]
+    .map(([id, v]) => ({
+      name: compMap.get(id) ?? "N/A",
+      video: v.video,
+      slideshow: v.slideshow,
+    }))
+    .sort((a, b) => b.video + b.slideshow - (a.video + a.slideshow));
+
+  const avgPlaysByCompetitor = [...byComp.entries()]
+    .map(([id, v]) => ({ name: compMap.get(id) ?? "N/A", plays: avg(v.plays) }))
+    .sort((a, b) => b.plays - a.plays);
+  const avgLikesByCompetitor = [...byComp.entries()]
+    .map(([id, v]) => ({ name: compMap.get(id) ?? "N/A", likes: avg(v.likes) }))
+    .sort((a, b) => b.likes - a.likes);
+  const avgCommentsByCompetitor = [...byComp.entries()]
+    .map(([id, v]) => ({
+      name: compMap.get(id) ?? "N/A",
+      comments: avg(v.comments),
+    }))
+    .sort((a, b) => b.comments - a.comments);
+  const avgSharesByCompetitor = [...byComp.entries()]
+    .map(([id, v]) => ({
+      name: compMap.get(id) ?? "N/A",
+      shares: avg(v.shares),
+    }))
+    .sort((a, b) => b.shares - a.shares);
+  const avgCaptionLengthByCompetitor = [...byComp.entries()]
+    .map(([id, v]) => ({
+      name: compMap.get(id) ?? "N/A",
+      chars: avg(v.captions),
+    }))
+    .sort((a, b) => b.chars - a.chars);
+
+  const audioStrategyByCompetitor = [...byComp.entries()]
+    .map(([id, v]) => ({
+      competitor: compMap.get(id) ?? "N/A",
+      totalPosts: v.total,
+      originalAudio: v.originalAudio,
+      trendingAudio: v.trendingAudio,
+    }))
+    .sort((a, b) => b.totalPosts - a.totalPosts);
+
+  const topHashtags = [...tagMap.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 15)
+    .map(([name, count]) => ({ name, count }));
+
+  const topTrendingAudio = [...trendingAudioCounts.entries()]
+    .map(([song, count]) => ({ song, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  // Collab L1: per-competitor con regex caption fallback.
+  const collabByComp = new Map<string, { collab: number; total: number }>();
+  let totalCollabPosts = 0;
+  // import lazy via require non-friendly; usiamo direct logic
+  // identica al pattern IG ma su mentions + caption-regex.
+  for (const p of posts) {
+    const cid = p.competitor_id;
+    if (!cid) continue;
+    const set = new Set<string>();
+    for (const m of p.mentions ?? []) {
+      const h = (m ?? "").trim().replace(/^@+/, "").replace(/[^A-Za-z0-9_]+$/, "").replace(/\.+$/, "").toLowerCase();
+      if (h) set.add(h);
+    }
+    if (p.caption) {
+      const matches = p.caption.matchAll(/(?<![A-Za-z0-9_.])@([A-Za-z0-9_.]+)/g);
+      for (const m of matches) {
+        const h = (m[1] ?? "").trim().replace(/[^A-Za-z0-9_]+$/, "").replace(/\.+$/, "").toLowerCase();
+        if (h) set.add(h);
+      }
+    }
+    const isCollab = set.size > 0;
+    const entry = collabByComp.get(cid) ?? { collab: 0, total: 0 };
+    entry.total += 1;
+    if (isCollab) {
+      entry.collab += 1;
+      totalCollabPosts += 1;
+    }
+    collabByComp.set(cid, entry);
+  }
+  const collabPostsByCompetitor = [...collabByComp.entries()]
+    .map(([id, v]) => ({
+      name: compMap.get(id) ?? "N/A",
+      collabPosts: v.collab,
+      totalPosts: v.total,
+      rate: v.total === 0 ? 0 : Math.round((v.collab / v.total) * 100),
+    }))
+    .sort((a, b) => b.collabPosts - a.collabPosts);
+
+  return {
+    competitors: (comps ?? []) as CompetitorRef[],
+    postsByCompetitor,
+    formatStackedByCompetitor,
+    topHashtags,
+    avgPlaysByCompetitor,
+    avgLikesByCompetitor,
+    avgCommentsByCompetitor,
+    avgSharesByCompetitor,
+    postsPerWeekByCompetitor,
+    avgCaptionLengthByCompetitor,
+    coverageByCompetitor,
+    audioStrategyByCompetitor,
+    durationDistribution: [...durationBucketCounts.entries()].map(
+      ([bucket, count]) => ({ bucket, count }),
+    ),
+    topTrendingAudio,
+    collabPostsByCompetitor,
+    totals: {
+      totalPosts: posts.length,
+      avgPlays: avg(allPlays),
+      avgLikes: avg(allLikes),
+      avgComments: avg(allComments),
+      avgShares: avg(allShares),
+      avgDuration:
+        allDurations.length === 0
+          ? 0
+          : Math.round(
+              (allDurations.reduce((s, n) => s + n, 0) /
+                allDurations.length) *
+                10,
+            ) / 10,
+      avgCaptionLength: avg(allCaptions),
+      collabPosts: totalCollabPosts,
+      collabRate:
+        posts.length === 0
+          ? 0
+          : Math.round((totalCollabPosts / posts.length) * 100),
+    },
+  };
+}

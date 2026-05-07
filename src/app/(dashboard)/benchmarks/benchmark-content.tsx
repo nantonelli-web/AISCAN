@@ -2,8 +2,10 @@ import { createClient } from "@/lib/supabase/server";
 import {
   computeBenchmarks,
   computeOrganicBenchmarks,
+  computeTiktokBenchmarks,
   type InferredAudience,
   type InferredObjective,
+  type TiktokBenchmarkData,
 } from "@/lib/analytics/benchmarks";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatNumber } from "@/lib/utils";
@@ -58,7 +60,7 @@ export async function BenchmarkContent({
   statusFilter,
 }: {
   workspaceId: string;
-  channel: "meta" | "google" | "instagram";
+  channel: "meta" | "google" | "instagram" | "tiktok";
   competitorIdsFilter: string[] | undefined;
   dateFrom: string;
   dateTo: string;
@@ -79,6 +81,19 @@ export async function BenchmarkContent({
   if (channel === "instagram") {
     return (
       <OrganicContent
+        supabase={supabase}
+        workspaceId={workspaceId}
+        competitorIdsFilter={competitorIdsFilter}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        t={t}
+      />
+    );
+  }
+
+  if (channel === "tiktok") {
+    return (
+      <TiktokContent
         supabase={supabase}
         workspaceId={workspaceId}
         competitorIdsFilter={competitorIdsFilter}
@@ -544,6 +559,300 @@ export async function BenchmarkContent({
 /* ─── Instagram / organic variant ─────────────────────────────
    Uses the existing computeOrganicBenchmarks so we can share the
    shape with the Compare page without duplicating logic here. */
+/**
+ * TikTok benchmarks (Feature 2026-05-07). Stessa struttura di
+ * OrganicContent ma con KPI TikTok-native: plays, likes (digg),
+ * shares; format mix slideshow vs video; audio strategy original
+ * vs trending; durata video distribution. Collab L1 incluso dal
+ * day 1 — KPI nei totals e chart per-brand.
+ */
+async function TiktokContent({
+  supabase,
+  workspaceId,
+  competitorIdsFilter,
+  dateFrom,
+  dateTo,
+  t,
+}: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  workspaceId: string;
+  competitorIdsFilter: string[] | undefined;
+  dateFrom: string;
+  dateTo: string;
+  t: (section: string, key: string) => string;
+}) {
+  const data: TiktokBenchmarkData = await computeTiktokBenchmarks(
+    supabase,
+    workspaceId,
+    competitorIdsFilter,
+    dateFrom,
+    dateTo,
+  );
+
+  const TOLERANCE_DAYS = 3;
+  const fromTs = new Date(dateFrom).getTime();
+  const noScanBrands = data.coverageByCompetitor
+    .filter((c) => c.earliestPost === null)
+    .map((c) => c.competitor);
+  const coverageGaps = data.coverageByCompetitor
+    .filter((c) => c.earliestPost !== null)
+    .map((c) => {
+      const earliestTs = new Date(c.earliestPost!).getTime();
+      const gapDays = Math.round((earliestTs - fromTs) / 86_400_000);
+      return { ...c, gapDays };
+    })
+    .filter((c) => c.gapDays > TOLERANCE_DAYS);
+
+  if (data.totals.totalPosts === 0) {
+    return (
+      <div className="space-y-6">
+        {noScanBrands.length > 0 && (
+          <NoScanWarning brands={noScanBrands} channelLabel="TikTok" t={t} />
+        )}
+        <Card>
+          <CardContent className="py-16 text-center text-muted-foreground">
+            {t("benchmarks", "noData")}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <p className="text-sm text-muted-foreground">
+        {t("benchmarks", "comparativeAnalysis")}{" "}
+        {formatNumber(data.totals.totalPosts)} {t("organic", "posts")}{" "}
+        {t("benchmarks", "adsOf")} {data.postsByCompetitor.length}{" "}
+        {t("benchmarks", "competitorsWord")}
+      </p>
+
+      {noScanBrands.length > 0 && (
+        <NoScanWarning brands={noScanBrands} channelLabel="TikTok" t={t} />
+      )}
+      {coverageGaps.length > 0 && (
+        <div className="rounded-lg border border-gold/40 bg-gold/5 px-4 py-3">
+          <p className="text-xs font-semibold text-gold mb-1.5">
+            {t("benchmarks", "coverageWarningTitle")}
+          </p>
+          <p className="text-[11px] text-muted-foreground mb-2">
+            {t("benchmarks", "coverageWarningBody")}
+          </p>
+          <ul className="text-[11px] text-foreground space-y-0.5">
+            {coverageGaps.map((c) => (
+              <li key={c.competitor}>
+                <span className="font-medium">{c.competitor}</span>
+                <span className="text-muted-foreground">
+                  {" — "}
+                  {t("benchmarks", "coverageFrom")} {c.earliestPost ?? "—"}
+                  {` (${c.gapDays} ${t("benchmarks", "coverageDaysShort")})`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* KPIs TikTok */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <Stat
+          label={t("organic", "postsLabel")}
+          value={formatNumber(data.totals.totalPosts)}
+        />
+        <Stat
+          label={t("organic", "avgPlays")}
+          value={formatNumber(data.totals.avgPlays)}
+        />
+        <Stat
+          label={t("organic", "avgLikes")}
+          value={formatNumber(data.totals.avgLikes)}
+        />
+        <Stat
+          label={t("organic", "avgComments")}
+          value={formatNumber(data.totals.avgComments)}
+        />
+        <Stat
+          label={t("organic", "avgShares")}
+          value={formatNumber(data.totals.avgShares)}
+        />
+        <Stat
+          label={t("organic", "collabPosts")}
+          value={`${formatNumber(data.totals.collabPosts)} (${data.totals.collabRate}%)`}
+        />
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("organic", "postsPerBrand")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <HorizontalBarChart
+            data={data.postsByCompetitor}
+            dataKey="posts"
+            label={t("organic", "postsLabel")}
+          />
+        </CardContent>
+      </Card>
+
+      {data.collabPostsByCompetitor.some((c) => c.collabPosts > 0) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("organic", "collabsPerBrand")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HorizontalBarChart
+              data={data.collabPostsByCompetitor.map((c) => ({
+                name: c.name,
+                count: c.collabPosts,
+              }))}
+              dataKey="count"
+              label={t("organic", "collabPosts")}
+              color="#d97757"
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {data.topHashtags.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("organic", "topHashtags")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HorizontalBarChart
+              data={data.topHashtags}
+              dataKey="count"
+              label={t("organic", "postsLabel")}
+              color="#8a6bb0"
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("organic", "avgPlays")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HorizontalBarChart
+              data={data.avgPlaysByCompetitor}
+              dataKey="plays"
+              label={t("organic", "avgPlays")}
+              color="#d97757"
+            />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("organic", "avgLikes")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HorizontalBarChart
+              data={data.avgLikesByCompetitor}
+              dataKey="likes"
+              label={t("organic", "avgLikes")}
+              color="#5b7ea3"
+            />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("organic", "avgShares")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HorizontalBarChart
+              data={data.avgSharesByCompetitor}
+              dataKey="shares"
+              label={t("organic", "avgShares")}
+              color="#6b8e6b"
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between gap-3 flex-wrap">
+              <span>{t("organic", "tiktokDurationDistribution")}</span>
+              <span className="text-xs font-normal text-muted-foreground">
+                {t("organic", "avgReelDuration")} {data.totals.avgDuration}
+                {t("organic", "seconds")}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HorizontalBarChart
+              data={data.durationDistribution.map((b) => ({
+                name: b.bucket,
+                count: b.count,
+              }))}
+              dataKey="count"
+              label={t("organic", "postsLabel")}
+              color="#5b7ea3"
+            />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("organic", "postsPerWeek")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HorizontalBarChart
+              data={data.postsPerWeekByCompetitor}
+              dataKey="postsPerWeek"
+              label={t("organic", "postsPerWeek")}
+              color="#6b8e6b"
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      {data.audioStrategyByCompetitor.some((b) => b.totalPosts > 0) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("organic", "audioStrategy")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">
+              {t("organic", "audioStrategyDescription")}
+            </p>
+            <AudioStrategyChart
+              data={data.audioStrategyByCompetitor.map((b) => ({
+                name: b.competitor,
+                originalAudio: b.originalAudio,
+                trendingAudio: b.trendingAudio,
+              }))}
+              originalLabel={t("organic", "originalAudio")}
+              trendingLabel={t("organic", "trendingAudio")}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {data.topTrendingAudio.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("organic", "topTrendingAudio")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HorizontalBarChart
+              data={data.topTrendingAudio.map((a) => ({
+                name: a.song,
+                count: a.count,
+              }))}
+              dataKey="count"
+              label={t("organic", "postsLabel")}
+              color="#d97757"
+            />
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 async function OrganicContent({
   supabase,
   workspaceId,
