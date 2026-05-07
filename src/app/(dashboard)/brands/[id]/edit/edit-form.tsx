@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { X, Trash2, Plus } from "lucide-react";
+import { X, Trash2, Plus, Sparkles, Loader2, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,7 @@ import { FieldWithVerifyLink } from "@/components/ui/field-with-verify-link";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import type { MaitCompetitor } from "@/types";
+import type { DiscoveryResult } from "@/lib/discovery/website-scraper";
 
 import { getCountries } from "@/config/countries";
 
@@ -86,6 +87,112 @@ export function EditCompetitorForm({
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // ── Brand auto-discovery (Strategy A) ────────────────────────
+  // Stesso pattern del form di creazione (new/form.tsx) replicato
+  // qui perche' molti brand sono stati creati prima della feature
+  // auto-fill e hanno proprieta' incomplete. Pre-popoliamo il
+  // dominio col page_url salvato per minimizzare friction:
+  // l'utente clicca Run e basta.
+  const initialDiscoveryDomain = (() => {
+    const url = competitor.page_url ?? competitor.google_domain ?? "";
+    if (!url) return "";
+    try {
+      const u = url.startsWith("http") ? url : `https://${url}`;
+      return new URL(u).hostname.replace(/^www\./, "");
+    } catch {
+      return url;
+    }
+  })();
+  const [discoveryDomain, setDiscoveryDomain] = useState(
+    initialDiscoveryDomain,
+  );
+  const [discoveryRunning, setDiscoveryRunning] = useState(false);
+  // Modalita' applicazione: di default solo i campi VUOTI vengono
+  // sovrascritti, cosi' un utente che ri-esegue la discovery non
+  // perde valori manualmente corretti. Toggle "Sovrascrivi tutti"
+  // per usi specifici (es. brand cambia dominio).
+  const [discoveryOverwrite, setDiscoveryOverwrite] = useState(false);
+
+  async function runDiscovery() {
+    if (!discoveryDomain.trim()) return;
+    setDiscoveryRunning(true);
+    try {
+      const res = await fetch("/api/brand-discovery", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ domain: discoveryDomain.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error ?? "Discovery failed");
+        return;
+      }
+      const d = json as DiscoveryResult;
+
+      if (!d.fetched) {
+        toast.warning(t("newCompetitor", "discoveryNoFetch"));
+        return;
+      }
+
+      let applied = 0;
+      let skipped = 0;
+      const apply = <T,>(
+        field: { value: T | null; confidence: number },
+        currentValue: T,
+        setter: (v: T) => void,
+      ) => {
+        if (!field.value || field.confidence < 50) return;
+        // Determina se il campo corrente e' "vuoto":
+        const isEmpty =
+          currentValue == null ||
+          (typeof currentValue === "string" && currentValue.trim() === "") ||
+          (Array.isArray(currentValue) && currentValue.length === 0);
+        if (!isEmpty && !discoveryOverwrite) {
+          skipped += 1;
+          return;
+        }
+        setter(field.value);
+        applied += 1;
+      };
+
+      apply(d.page_name, pageName, setPageName);
+      apply(d.page_url, pageUrl ?? "", (v) => setPageUrl(v));
+      apply(d.instagram_username, instagramUsername, setInstagramUsername);
+      apply(d.tiktok_username, tiktokUsername, setTiktokUsername);
+      apply(d.youtube_channel_url, youtubeChannelUrl, setYoutubeChannelUrl);
+      apply(d.snapchat_handle, snapchatHandle, setSnapchatHandle);
+      apply(d.google_domain, googleDomain, setGoogleDomain);
+
+      if (applied === 0 && skipped === 0) {
+        toast.warning(t("newCompetitor", "discoveryNoFields"));
+      } else if (applied === 0 && skipped > 0) {
+        toast.info(
+          t("editCompetitor", "discoveryAllFilled").replace(
+            "{n}",
+            String(skipped),
+          ),
+        );
+      } else {
+        const base = t("newCompetitor", "discoveryAppliedN").replace(
+          "{n}",
+          String(applied),
+        );
+        const extra =
+          skipped > 0
+            ? ` · ${t("editCompetitor", "discoverySkippedN").replace(
+                "{n}",
+                String(skipped),
+              )}`
+            : "";
+        toast.success(base + extra);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Discovery failed");
+    } finally {
+      setDiscoveryRunning(false);
+    }
+  }
 
   useEffect(() => {
     fetch("/api/clients")
@@ -166,6 +273,74 @@ export function EditCompetitorForm({
   return (
     <div className="space-y-6">
       <form onSubmit={onSubmit} className="space-y-5">
+        {/* ─── Auto-discovery shortcut ──────────────────────────
+            Uguale al form di creazione (new/form.tsx) ma con
+            toggle "Sovrascrivi tutti" di default OFF: un brand
+            esistente di solito ha gia' qualche campo corretto
+            manualmente, e l'utente non vuole perderlo. Default:
+            riempi solo i vuoti. */}
+        <div className="rounded-xl border border-gold/40 bg-gold-soft/30 px-4 py-3.5">
+          <div className="flex items-start gap-3">
+            <div className="size-9 rounded-lg bg-gold text-gold-foreground grid place-items-center shrink-0 shadow-sm">
+              <Sparkles className="size-5" />
+            </div>
+            <div className="min-w-0 flex-1 space-y-2">
+              <div>
+                <h3 className="text-sm font-semibold leading-tight">
+                  {t("editCompetitor", "discoveryTitle")}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                  {t("editCompetitor", "discoverySubtitle")}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative flex-1 min-w-[220px]">
+                  <Globe className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Input
+                    type="text"
+                    value={discoveryDomain}
+                    onChange={(e) => setDiscoveryDomain(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        runDiscovery();
+                      }
+                    }}
+                    placeholder={t("newCompetitor", "discoveryPlaceholder")}
+                    className="pl-9 h-9"
+                    disabled={discoveryRunning}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  onClick={runDiscovery}
+                  disabled={discoveryRunning || !discoveryDomain.trim()}
+                  size="sm"
+                  className="h-9 cursor-pointer gap-1.5"
+                >
+                  {discoveryRunning ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="size-4" />
+                  )}
+                  {discoveryRunning
+                    ? t("newCompetitor", "discoveryRunning")
+                    : t("newCompetitor", "discoveryRun")}
+                </Button>
+              </div>
+              <label className="inline-flex items-center gap-2 text-[11px] text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={discoveryOverwrite}
+                  onChange={(e) => setDiscoveryOverwrite(e.target.checked)}
+                  className="size-3.5 cursor-pointer"
+                />
+                {t("editCompetitor", "discoveryOverwriteAll")}
+              </label>
+            </div>
+          </div>
+        </div>
+
         <div className="grid gap-5 lg:grid-cols-2">
           <div className="space-y-4">
             <div className="space-y-2">

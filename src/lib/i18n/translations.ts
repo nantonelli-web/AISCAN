@@ -430,6 +430,26 @@ const translations = {
 
   // ─── Edit Brand ────────────────────────────────────────────
   editCompetitor: {
+    discoveryTitle: {
+      it: "Auto-completa proprietà del brand",
+      en: "Auto-fill brand properties",
+    },
+    discoverySubtitle: {
+      it: "Inserisci il dominio e ripopola i campi mancanti (Instagram, TikTok, YouTube, Snapchat, Google domain, ecc). Di default vengono compilati solo i campi vuoti per non sovrascrivere i tuoi valori manuali.",
+      en: "Enter the domain to refill missing fields (Instagram, TikTok, YouTube, Snapchat, Google domain, etc). By default only empty fields are filled, your manual values are preserved.",
+    },
+    discoveryOverwriteAll: {
+      it: "Sovrascrivi anche i campi già compilati",
+      en: "Overwrite already-filled fields too",
+    },
+    discoveryAllFilled: {
+      it: "Tutti i {n} campi trovati erano già compilati. Spunta 'Sovrascrivi' per riapplicarli.",
+      en: "All {n} discovered fields were already filled. Tick 'Overwrite' to reapply them.",
+    },
+    discoverySkippedN: {
+      it: "{n} skip (già compilati)",
+      en: "{n} skipped (already filled)",
+    },
     title: { it: "Modifica brand", en: "Edit brand" },
     detailsTitle: { it: "Dettagli", en: "Details" },
     detailsDescription: { it: "Modifica le informazioni del brand.", en: "Edit brand information." },
