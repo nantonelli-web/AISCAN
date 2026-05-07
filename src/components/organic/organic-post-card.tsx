@@ -22,7 +22,12 @@ export function OrganicPostCard({
   selfHandle?: string | null;
 }) {
   const { t } = useT();
-  const isCollab = isCollabPost(post.mentions, post.tagged_users, selfHandle);
+  const isCollab = isCollabPost(
+    post.mentions,
+    post.tagged_users,
+    selfHandle,
+    post.caption,
+  );
   // Display URL pointing direttamente a Instagram CDN
   // (instagram.fcps*.fna.fbcdn.net / scontent-*) ha
   // signature time-limited e dopo poche ore restituisce 403/404,

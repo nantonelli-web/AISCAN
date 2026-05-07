@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ExternalLink, Heart, MessageCircle, Play, Bookmark, Music, Image as ImageIcon, Pin, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatNumber, isPlayableVideoUrl } from "@/lib/utils";
@@ -28,7 +29,12 @@ export function TikTokPostCard({
 }) {
   const { t } = useT();
   const duration = formatDuration(post.duration_seconds);
-  const isCollab = isCollabPost(post.mentions, null, selfHandle);
+  const isCollab = isCollabPost(post.mentions, null, selfHandle, post.caption);
+  // Cover_url fail → mostra placeholder con CTA TikTok. Stesso
+  // pattern dell'OrganicPostCard per i casi in cui IG CDN si
+  // rifiuta. TikTok cover_url e' tipicamente mirrorato su Supabase
+  // storage quindi il rate di errore qui dovrebbe essere basso.
+  const [coverFailed, setCoverFailed] = useState(false);
   // TikTok CDN gates cross-origin <video> reads on Referer headers
   // and 403s when the request comes straight from aiscan.io —
   // hence the same-origin proxy at /api/proxy/tiktok-video. Once
@@ -53,26 +59,64 @@ export function TikTokPostCard({
             src={proxiedVideoUrl}
             poster={post.cover_url ?? undefined}
           />
-        ) : post.cover_url ? (
+        ) : post.cover_url && !coverFailed ? (
+          // Cover statica + click-through al post originale.
+          // L'actor TikTok dal 2026-05-01 circa ha smesso di
+          // estrarre playAddr (anti-scraping di TikTok), quindi
+          // il video_url e' null su quasi tutti i post recenti
+          // → niente hover preview, ma la cover si vede e il
+          // click apre il video reale su tiktok.com.
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={post.cover_url}
-            alt={post.caption?.slice(0, 80) ?? "TikTok video"}
-            className="absolute inset-0 w-full h-full object-cover"
-            loading="lazy"
-          />
-        ) : post.is_slideshow ? (
-          // Slideshow with no cover — this is rare and there's
-          // no equivalent of a video to fall back to. Use the
-          // generic empty-image branch.
-          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-            <ImageIcon className="size-10" />
-          </div>
+          <a
+            href={post.post_url ?? "#"}
+            target="_blank"
+            rel="noreferrer"
+            className="absolute inset-0 group/cover"
+            aria-label={t("organic", "viewOnTiktok")}
+          >
+            <img
+              src={post.cover_url}
+              alt={post.caption?.slice(0, 80) ?? "TikTok video"}
+              className="absolute inset-0 w-full h-full object-cover"
+              loading="lazy"
+              onError={() => setCoverFailed(true)}
+            />
+            {/* Play overlay che appare in hover quando non
+                c'e' video preview giocabile, cosi l'utente sa
+                che il click apre il post su TikTok. */}
+            {!hasPlayableVideo && !post.is_slideshow && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover/cover:bg-black/30 transition-colors">
+                <div className="size-12 rounded-full bg-white/90 grid place-items-center opacity-0 group-hover/cover:opacity-100 transition-opacity">
+                  <Play className="size-5 text-black fill-black ml-0.5" />
+                </div>
+              </div>
+            )}
+          </a>
         ) : (
-          // Video post but neither a playable URL nor a cover
-          // — typical when the actor scraped metadata only.
-          // Show the dedicated "video not delivered" placeholder.
-          <VideoUnavailable />
+          // Niente cover (raro): placeholder cliccabile al post
+          // originale dove il contenuto e' sempre visibile.
+          <a
+            href={post.post_url ?? "#"}
+            target="_blank"
+            rel="noreferrer"
+            className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-gold transition-colors"
+            aria-label={t("organic", "previewUnavailable")}
+          >
+            {post.is_slideshow ? (
+              <ImageIcon className="size-10" />
+            ) : (
+              <Play className="size-10" />
+            )}
+            <span className="text-[10px] font-medium uppercase tracking-wider px-3 text-center leading-tight">
+              {t("organic", "previewUnavailable")}
+            </span>
+            {post.post_url && (
+              <span className="text-[10px] inline-flex items-center gap-1">
+                {t("organic", "viewOnTiktok")}
+                <ExternalLink className="size-3" />
+              </span>
+            )}
+          </a>
         )}
 
         {/* Top-left: type badge */}

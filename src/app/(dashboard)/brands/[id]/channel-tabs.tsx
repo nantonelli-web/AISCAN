@@ -405,6 +405,7 @@ export function ChannelTabs({
         organicPosts.map((p) => ({
           mentions: p.mentions,
           tagged_users: p.tagged_users,
+          caption: p.caption,
           platform: "instagram",
         })),
         brand.instagramUsername,
@@ -415,7 +416,12 @@ export function ChannelTabs({
   const igCollabPosts = useMemo(
     () =>
       organicPosts.filter((p) =>
-        isCollabPost(p.mentions, p.tagged_users, brand.instagramUsername),
+        isCollabPost(
+          p.mentions,
+          p.tagged_users,
+          brand.instagramUsername,
+          p.caption,
+        ),
       ).length,
     [organicPosts, brand.instagramUsername],
   );
@@ -424,6 +430,7 @@ export function ChannelTabs({
       aggregateCollaborators(
         tiktokPosts.map((p) => ({
           mentions: p.mentions,
+          caption: p.caption,
           platform: "tiktok",
         })),
         brand.tiktokUsername,
@@ -434,7 +441,7 @@ export function ChannelTabs({
   const ttCollabPosts = useMemo(
     () =>
       tiktokPosts.filter((p) =>
-        isCollabPost(p.mentions, null, brand.tiktokUsername),
+        isCollabPost(p.mentions, null, brand.tiktokUsername, p.caption),
       ).length,
     [tiktokPosts, brand.tiktokUsername],
   );
