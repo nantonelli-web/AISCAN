@@ -131,6 +131,16 @@ export function EditCompetitorForm({
       const d = json as DiscoveryResult;
 
       if (!d.fetched) {
+        // Anche con fetch fallito (sito blocked / timeout) il
+        // server torna comunque google_domain derivato dall'input.
+        // Applicalo se vuoto: meglio di niente per l'utente.
+        if (
+          d.google_domain.value &&
+          d.google_domain.confidence >= 50 &&
+          (discoveryOverwrite || !googleDomain.trim())
+        ) {
+          setGoogleDomain(d.google_domain.value);
+        }
         toast.warning(t("newCompetitor", "discoveryNoFetch"));
         return;
       }

@@ -170,29 +170,96 @@ async function fetchHtmlOnce(url: string): Promise<string | null> {
 /**
  * Tenta in sequenza piu' varianti dell'URL per resilienza.
  *
- * Verificato 2026-05-07: marc-cain.com risponde 200 con curl
- * ma il 301 https://marc-cain.com → https://www.marc-cain.com a
- * volte fa scattare il timeout 8s da datacenter Vercel
- * (geo-routing del sito + handshake TLS). Bumpato il timeout a
- * 15s e aggiunto un fallback esplicito su www.<host> quando
- * l'apex fallisce.
+ * Pattern verificato 2026-05-07 con marc-cain.com: il sito
+ * risponde 200 con cURL diretto (1s) ma da datacenter Vercel
+ * tipicamente fallisce per uno di tre motivi:
+ *   1. Geo-routing TLS handshake lento → bumpato timeout a 15s.
+ *   2. Sito serve solo da www.<host> → retry esplicito.
+ *   3. Cloudflare/Akamai bot detection blocca IP datacenter → in
+ *      questo caso il fetch diretto non c'e' verso che funzioni;
+ *      usiamo Apify cheerio-scraper come fallback (Strategy B).
+ *      Sicuro: il costo per discovery one-shot e' ~ $0.001.
  */
 async function fetchHtml(originUrl: string): Promise<string | null> {
-  const html = await fetchHtmlOnce(originUrl);
-  if (html) return html;
+  // 1. Apex
+  const direct = await fetchHtmlOnce(originUrl);
+  if (direct) return direct;
 
-  // Tenta www.<host> se l'origin era apex (no www).
+  // 2. Tenta www.<host> se l'origin era apex (no www).
+  let wwwUrl: string | null = null;
   try {
     const u = new URL(originUrl);
     if (!u.hostname.startsWith("www.") && u.hostname.split(".").length >= 2) {
-      const wwwUrl = `${u.protocol}//www.${u.hostname}${u.pathname}${u.search}`;
+      wwwUrl = `${u.protocol}//www.${u.hostname}${u.pathname}${u.search}`;
       const retry = await fetchHtmlOnce(wwwUrl);
       if (retry) return retry;
     }
   } catch {
     /* malformed URL, fall through */
   }
+
+  // 3. Apify fallback. Usa il proxy residenziale dell'actor per
+  //    bypassare il bot detection sui Vercel IP. Solo se abbiamo
+  //    il token: senza, ritorna null e l'utente compila a mano.
+  if (process.env.APIFY_API_TOKEN) {
+    const targets = [originUrl, ...(wwwUrl ? [wwwUrl] : [])];
+    for (const url of targets) {
+      const html = await fetchViaApify(url);
+      if (html) return html;
+    }
+  }
+
   return null;
+}
+
+/**
+ * Fallback Strategy B: usa apify/cheerio-scraper per fetch della
+ * homepage. L'actor gira con proxy datacenter+residential di
+ * Apify che non sono nei blocklist tipici dei brand siti.
+ *
+ * Tradeoff: ~10-30s di latenza per il run (vs 1-3s di fetch
+ * diretto) e costo per workspace ($0.001 per page). Chiamato solo
+ * dopo che il fetch diretto ha fallito due volte.
+ */
+async function fetchViaApify(url: string): Promise<string | null> {
+  const token = process.env.APIFY_API_TOKEN;
+  if (!token) return null;
+  try {
+    console.log(`[discovery] Apify fallback for ${url}`);
+    const res = await fetch(
+      `https://api.apify.com/v2/acts/apify~cheerio-scraper/run-sync-get-dataset-items?token=${encodeURIComponent(token)}&format=json`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          startUrls: [{ url }],
+          maxRequestsPerCrawl: 1,
+          maxConcurrency: 1,
+          // pageFunction: leggi tutto il body html e restituiscilo
+          pageFunction:
+            "async function pageFunction(context) { return { html: context.$.html() }; }",
+        }),
+        signal: AbortSignal.timeout(60_000),
+      },
+    );
+    if (!res.ok) {
+      console.warn(`[discovery] Apify HTTP ${res.status}`);
+      return null;
+    }
+    const data = (await res.json()) as Array<{ html?: string }>;
+    const html = data[0]?.html ?? null;
+    if (!html) {
+      console.warn(`[discovery] Apify returned no html`);
+      return null;
+    }
+    console.log(`[discovery] Apify ok, ${html.length} bytes`);
+    return html.length > MAX_HTML_BYTES ? html.slice(0, MAX_HTML_BYTES) : html;
+  } catch (e) {
+    console.warn(
+      `[discovery] Apify fallback failed: ${(e as Error).message}`,
+    );
+    return null;
+  }
 }
 
 /* ── Extraction primitives ───────────────────────────────────── */

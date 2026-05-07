@@ -89,6 +89,16 @@ export function NewCompetitorForm() {
       const d = json as DiscoveryResult;
 
       if (!d.fetched) {
+        // Anche con fetch fallito il server torna google_domain
+        // derivato dall'input. Applicalo se vuoto cosi l'utente
+        // ha almeno un campo gia' compilato.
+        if (
+          d.google_domain.value &&
+          d.google_domain.confidence >= 50 &&
+          !googleDomain.trim()
+        ) {
+          setGoogleDomain(d.google_domain.value);
+        }
         toast.warning(t("newCompetitor", "discoveryNoFetch"));
         return;
       }
