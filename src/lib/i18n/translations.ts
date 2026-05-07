@@ -2024,15 +2024,6 @@ const translations = {
       it: "Nessun tuo brand citato",
       en: "No tracked brand cited",
     },
-    compositionMix: { it: "Composizione SERP", en: "SERP composition" },
-    compositionMixDescription: {
-      it: "Distribuzione % dei tipi di risultato in pagina 1. Tante ads/shopping = query commerciale (territorio difensivo). Mostly organic = query content-driven (opportunità SEO). AI Overview con N sources = trend zero-click.",
-      en: "% breakdown of result types on page 1. Lots of ads/shopping = commercial query (defensive territory). Mostly organic = content-driven query (SEO opportunity). AI Overview with N sources = zero-click trend.",
-    },
-    adsCaveat: {
-      it: "Le ads (paid + shopping) qui sono spesso sottostimate: Google riconosce gli scraper e serve la SERP con meno ads del normale, anche con proxy residenziali. Per il landscape ads completo del brand vai sul modulo Google Ads (scraping diretto della Ads Transparency, fonte autoritativa).",
-      en: "Ads (paid + shopping) here are typically underestimated: Google detects scrapers and serves SERPs with fewer ads, even with residential proxies. For the brand's full ads landscape see the Google Ads module (direct scrape of Ads Transparency, authoritative source).",
-    },
     brandPresence: { it: "Brand presence", en: "Brand presence" },
     brandPresenceDescription: {
       it: "Quanti dei competitor tracciati del workspace appaiono in pagina 1 organic, e a che posizione. Il match e' sul dominio normalizzato (eTLD+1).",
