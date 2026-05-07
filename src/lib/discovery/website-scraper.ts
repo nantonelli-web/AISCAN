@@ -25,7 +25,7 @@
  * rest before saving.
  */
 
-const FETCH_TIMEOUT_MS = 8_000;
+const FETCH_TIMEOUT_MS = 15_000;
 const MAX_HTML_BYTES = 1_500_000; // 1.5 MB cap — fashion sites can be heavy
 
 export interface DiscoveryField<T = string> {
@@ -118,7 +118,7 @@ function toFetchableUrl(input: string): { origin: string; bareDomain: string } |
 
 /* ── HTML fetch with timeout + size cap ───────────────────────── */
 
-async function fetchHtml(url: string): Promise<string | null> {
+async function fetchHtmlOnce(url: string): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -136,7 +136,10 @@ async function fetchHtml(url: string): Promise<string | null> {
       signal: controller.signal,
       redirect: "follow",
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn(`[discovery] ${url} → HTTP ${res.status}`);
+      return null;
+    }
 
     // Stream-read with a 1.5MB cap so we don't OOM on a SPA that
     // ships a 30MB inlined hero video.
@@ -153,11 +156,43 @@ async function fetchHtml(url: string): Promise<string | null> {
       html += decoder.decode(value, { stream: true });
     }
     return html;
-  } catch {
+  } catch (e) {
+    const err = e as Error;
+    console.warn(
+      `[discovery] ${url} fetch failed: ${err.name}/${err.message}`,
+    );
     return null;
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Tenta in sequenza piu' varianti dell'URL per resilienza.
+ *
+ * Verificato 2026-05-07: marc-cain.com risponde 200 con curl
+ * ma il 301 https://marc-cain.com → https://www.marc-cain.com a
+ * volte fa scattare il timeout 8s da datacenter Vercel
+ * (geo-routing del sito + handshake TLS). Bumpato il timeout a
+ * 15s e aggiunto un fallback esplicito su www.<host> quando
+ * l'apex fallisce.
+ */
+async function fetchHtml(originUrl: string): Promise<string | null> {
+  const html = await fetchHtmlOnce(originUrl);
+  if (html) return html;
+
+  // Tenta www.<host> se l'origin era apex (no www).
+  try {
+    const u = new URL(originUrl);
+    if (!u.hostname.startsWith("www.") && u.hostname.split(".").length >= 2) {
+      const wwwUrl = `${u.protocol}//www.${u.hostname}${u.pathname}${u.search}`;
+      const retry = await fetchHtmlOnce(wwwUrl);
+      if (retry) return retry;
+    }
+  } catch {
+    /* malformed URL, fall through */
+  }
+  return null;
 }
 
 /* ── Extraction primitives ───────────────────────────────────── */
