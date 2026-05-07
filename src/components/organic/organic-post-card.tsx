@@ -1,16 +1,27 @@
 "use client";
 
-import { ExternalLink, Heart, MessageCircle, Play, Eye, ImageIcon, Film, Sparkles } from "lucide-react";
+import { ExternalLink, Heart, MessageCircle, Play, Eye, ImageIcon, Film, Sparkles, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatNumber, isPlayableVideoUrl } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { AI_TAGS_ENABLED } from "@/config/features";
 import { VideoPreview } from "@/components/ads/video-preview";
 import { VideoUnavailable } from "@/components/ui/video-unavailable";
+import { isCollabPost } from "@/lib/organic/collaborations";
 import type { MaitOrganicPost } from "@/types";
 
-export function OrganicPostCard({ post }: { post: MaitOrganicPost }) {
+export function OrganicPostCard({
+  post,
+  selfHandle,
+}: {
+  post: MaitOrganicPost;
+  /** L'handle Instagram del brand stesso, per escludere auto-tag dal
+   *  detection collaborazioni. Senza questo, ogni post sarebbe
+   *  "collab" perche' i brand si auto-taggano. */
+  selfHandle?: string | null;
+}) {
   const { t } = useT();
+  const isCollab = isCollabPost(post.mentions, post.tagged_users, selfHandle);
 
   const aiTags = (post.raw_data as Record<string, unknown> | null)?.ai_tags as
     | { sector?: string; tone?: string; objective?: string }
@@ -60,6 +71,18 @@ export function OrganicPostCard({ post }: { post: MaitOrganicPost }) {
             {typeLabel.toUpperCase()}
           </span>
         </div>
+
+        {/* Collaborazione badge — appare in top-right quando il post
+            tagga/menziona almeno un account ≠ brand stesso. Signal
+            forte di influencer/ambassador/collab brand. */}
+        {isCollab && (
+          <div className="absolute top-2 right-2 pointer-events-none">
+            <span className="inline-flex items-center gap-1 rounded bg-gold/90 backdrop-blur-sm px-1.5 py-0.5 text-[10px] font-semibold text-black">
+              <Users className="size-3" />
+              {t("organic", "collabBadge")}
+            </span>
+          </div>
+        )}
 
         {/* Bottom hover stats strip — gradient + small chips at the
             bottom keep the engagement numbers visible without

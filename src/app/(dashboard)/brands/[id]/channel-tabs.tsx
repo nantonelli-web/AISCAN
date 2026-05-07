@@ -8,6 +8,11 @@ import { Button } from "@/components/ui/button";
 import { AdCard } from "@/components/ads/ad-card";
 import { OrganicPostCard } from "@/components/organic/organic-post-card";
 import { TikTokPostCard } from "@/components/organic/tiktok-post-card";
+import { TopCollaboratorsPanel } from "@/components/organic/top-collaborators-panel";
+import {
+  aggregateCollaborators,
+  isCollabPost,
+} from "@/lib/organic/collaborations";
 import { TiktokAdCard } from "@/components/ads/tiktok-ad-card";
 import { SnapchatProfileCard } from "@/components/organic/snapchat-profile-card";
 import { YoutubeChannelCard } from "@/components/organic/youtube-channel-card";
@@ -388,6 +393,51 @@ export function ChannelTabs({
   const visibleAds = channel === "meta" ? metaAds : channel === "google" ? googleAds : channel === "all" ? ads : [];
   const visibleOrganic = showInstagram ? organicPosts : [];
   const visibleTiktok = showTiktok ? tiktokPosts : [];
+
+  // ─── Collaborazioni L1 (2026-05-07) ─────────────────────────
+  // Aggregato dei collaboratori ricorrenti (account taggati/menzionati
+  // ≠ brand stesso) per piattaforma. Il pannello viene renderizzato
+  // sopra il grid post in ciascuna scheda. La detection per-post
+  // (badge "Collab" sul thumbnail) e' delegata al card component.
+  const igCollaborators = useMemo(
+    () =>
+      aggregateCollaborators(
+        organicPosts.map((p) => ({
+          mentions: p.mentions,
+          tagged_users: p.tagged_users,
+          platform: "instagram",
+        })),
+        brand.instagramUsername,
+        "instagram",
+      ),
+    [organicPosts, brand.instagramUsername],
+  );
+  const igCollabPosts = useMemo(
+    () =>
+      organicPosts.filter((p) =>
+        isCollabPost(p.mentions, p.tagged_users, brand.instagramUsername),
+      ).length,
+    [organicPosts, brand.instagramUsername],
+  );
+  const ttCollaborators = useMemo(
+    () =>
+      aggregateCollaborators(
+        tiktokPosts.map((p) => ({
+          mentions: p.mentions,
+          platform: "tiktok",
+        })),
+        brand.tiktokUsername,
+        "tiktok",
+      ),
+    [tiktokPosts, brand.tiktokUsername],
+  );
+  const ttCollabPosts = useMemo(
+    () =>
+      tiktokPosts.filter((p) =>
+        isCollabPost(p.mentions, null, brand.tiktokUsername),
+      ).length,
+    [tiktokPosts, brand.tiktokUsername],
+  );
   const visibleSnapchat = showSnapchat ? snapchatProfiles : [];
   const latestSnapchat = visibleSnapchat[0] ?? null;
   const visibleYoutubeVideos = showYoutube ? youtubeVideos : [];
@@ -809,9 +859,20 @@ export function ChannelTabs({
                   {" "}{t("organic", "postsCount")}
                 </p>
               )}
+              {channel === "instagram" && igCollaborators.length > 0 && (
+                <TopCollaboratorsPanel
+                  collaborators={igCollaborators}
+                  totalCollabPosts={igCollabPosts}
+                  totalPosts={visibleOrganic.length}
+                />
+              )}
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {visibleOrganic.map((post) => (
-                  <OrganicPostCard key={post.id} post={post} />
+                  <OrganicPostCard
+                    key={post.id}
+                    post={post}
+                    selfHandle={brand.instagramUsername}
+                  />
                 ))}
               </div>
             </>
@@ -923,9 +984,20 @@ export function ChannelTabs({
                   {" "}{t("organic", "postsCount")}
                 </p>
               )}
+              {channel === "tiktok" && ttCollaborators.length > 0 && (
+                <TopCollaboratorsPanel
+                  collaborators={ttCollaborators}
+                  totalCollabPosts={ttCollabPosts}
+                  totalPosts={visibleTiktok.length}
+                />
+              )}
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {visibleTiktok.map((post) => (
-                  <TikTokPostCard key={post.id} post={post} />
+                  <TikTokPostCard
+                    key={post.id}
+                    post={post}
+                    selfHandle={brand.tiktokUsername}
+                  />
                 ))}
               </div>
             </>

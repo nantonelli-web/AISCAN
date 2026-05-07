@@ -2162,6 +2162,40 @@ const translations = {
   },
 
   organic: {
+    // Collaborazioni L1 (2026-05-07): detection di post fatti in
+    // collab con influencer/ambassador/altri brand basato sui
+    // tagged_users + mentions ≠ brand stesso.
+    collabBadge: { it: "Collab", en: "Collab" },
+    topCollabsTitle: {
+      it: "Collaboratori ricorrenti",
+      en: "Recurring collaborators",
+    },
+    topCollabsDescription: {
+      it: "Account taggati o menzionati nei post che NON sono il brand stesso. Chi compare più volte è un collaboratore strutturale (ambassador, partner di linea); chi compare una volta è una collab one-shot. La distinzione brand vs influencer vs VIP non è ancora automatica.",
+      en: "Accounts tagged or mentioned in posts that are NOT the brand itself. Frequent ones are structural collaborators (ambassadors, line partners); single-occurrence ones are one-shot collabs. Brand vs influencer vs VIP classification not yet automated.",
+    },
+    collabPosts: {
+      it: "Post in collab",
+      en: "Collab posts",
+    },
+    collabRate: {
+      it: "Tasso collab",
+      en: "Collab rate",
+    },
+    recurringCollabs: {
+      it: "Collaboratori ricorrenti (≥2)",
+      en: "Recurring (≥2)",
+    },
+    oneShotCollabs: {
+      it: "Collab one-shot",
+      en: "One-shot collabs",
+    },
+    collabSingular: { it: "post", en: "post" },
+    collabPlural: { it: "post", en: "posts" },
+    moreCollaborators: {
+      it: "altri collaboratori non mostrati",
+      en: "more collaborators not shown",
+    },
     title: { it: "Contenuti organici Instagram", en: "Instagram Organic Content" },
     subtitle: {
       it: "Post organici raccolti dal profilo Instagram.",

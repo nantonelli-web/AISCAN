@@ -1,11 +1,12 @@
 "use client";
 
-import { ExternalLink, Heart, MessageCircle, Play, Bookmark, Music, Image as ImageIcon, Pin } from "lucide-react";
+import { ExternalLink, Heart, MessageCircle, Play, Bookmark, Music, Image as ImageIcon, Pin, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatNumber, isPlayableVideoUrl } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { VideoPreview } from "@/components/ads/video-preview";
 import { VideoUnavailable } from "@/components/ui/video-unavailable";
+import { isCollabPost } from "@/lib/organic/collaborations";
 import type { MaitTikTokPost } from "@/types";
 
 function formatDuration(s: number | null): string | null {
@@ -16,9 +17,18 @@ function formatDuration(s: number | null): string | null {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
-export function TikTokPostCard({ post }: { post: MaitTikTokPost }) {
+export function TikTokPostCard({
+  post,
+  selfHandle,
+}: {
+  post: MaitTikTokPost;
+  /** Handle TikTok del brand stesso, per escludere auto-tag dalla
+   *  detection collab. */
+  selfHandle?: string | null;
+}) {
   const { t } = useT();
   const duration = formatDuration(post.duration_seconds);
+  const isCollab = isCollabPost(post.mentions, null, selfHandle);
   // TikTok CDN gates cross-origin <video> reads on Referer headers
   // and 403s when the request comes straight from aiscan.io —
   // hence the same-origin proxy at /api/proxy/tiktok-video. Once
@@ -79,12 +89,20 @@ export function TikTokPostCard({ post }: { post: MaitTikTokPost }) {
           )}
         </div>
 
-        {/* Top-right: duration */}
-        {duration && (
-          <div className="absolute top-2 right-2 pointer-events-none">
-            <span className="inline-flex items-center rounded bg-black/70 backdrop-blur-sm px-1.5 py-0.5 text-[10px] font-medium text-white tabular-nums">
-              {duration}
-            </span>
+        {/* Top-right: duration + collab badge stack */}
+        {(duration || isCollab) && (
+          <div className="absolute top-2 right-2 flex flex-col items-end gap-1 pointer-events-none">
+            {duration && (
+              <span className="inline-flex items-center rounded bg-black/70 backdrop-blur-sm px-1.5 py-0.5 text-[10px] font-medium text-white tabular-nums">
+                {duration}
+              </span>
+            )}
+            {isCollab && (
+              <span className="inline-flex items-center gap-1 rounded bg-gold/90 backdrop-blur-sm px-1.5 py-0.5 text-[10px] font-semibold text-black">
+                <Users className="size-3" />
+                {t("organic", "collabBadge")}
+              </span>
+            )}
           </div>
         )}
 
