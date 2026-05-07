@@ -128,13 +128,16 @@ export default async function SerpQueryDetailPage({
     results = r ?? [];
   }
 
-  // Build a domain lookup so we can highlight rows that match a
-  // linked brand (or any brand in the workspace, since the user
-  // probably wants to know "is any of my tracked brands ranking?").
+  // Build a domain lookup so we can highlight rows / domain shares
+  // matched against any TRACKED brand in the workspace (not just the
+  // brands linked to this specific query). Coerente col pannello
+  // Brand Presence che usa la stessa fonte. Senza questo, dopo
+  // unlink di un brand-query la SERP non aveva piu' highlight gold
+  // anche se il dominio era di un competitor del workspace.
   const brandDomains = new Map<string, BrandRef>();
-  for (const b of brandList) {
-    if (b.google_domain) {
-      brandDomains.set(b.google_domain.toLowerCase(), b);
+  for (const c of (allCompetitors ?? []) as BrandRef[]) {
+    if (c.google_domain) {
+      brandDomains.set(c.google_domain.toLowerCase(), c);
     }
   }
 

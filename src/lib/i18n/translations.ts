@@ -2024,10 +2024,10 @@ const translations = {
       it: "Nessun tuo brand citato",
       en: "No tracked brand cited",
     },
-    brandPresence: { it: "Brand presence", en: "Brand presence" },
+    brandPresence: { it: "Presenza dei tuoi brand", en: "Your brands' presence" },
     brandPresenceDescription: {
-      it: "Quanti dei competitor tracciati del workspace appaiono in pagina 1 organic, e a che posizione. Il match e' sul dominio normalizzato (eTLD+1).",
-      en: "How many of your workspace's tracked competitors appear on page 1 organic, and at what position. Match is on the normalised domain (eTLD+1).",
+      it: "Quali dei tuoi brand monitorati compaiono nei risultati organici di Google per questa ricerca, e in che posizione si trovano.",
+      en: "Which of your tracked brands show up in Google's organic results for this search, and at what position.",
     },
     matchedBrands: {
       it: "Brand presenti / tracciati",
@@ -2041,10 +2041,10 @@ const translations = {
       it: "Nessun brand in pagina 1",
       en: "No brand on page 1",
     },
-    shareOfSerp: { it: "Share of SERP page 1", en: "Share of SERP page 1" },
+    shareOfSerp: { it: "Chi domina la prima pagina", en: "Who owns page 1" },
     shareOfSerpDescription: {
-      it: "Top domini per quota di risultati organici nella pagina 1. Evidenziati in gold quelli matchati con un brand tracciato. Concentrazione alta = competizione duopolistica; bassa = pagina aperta.",
-      en: "Top domains by share of organic results on page 1. Highlighted gold are matched against a tracked brand. High concentration = duopoly; low = open page.",
+      it: "I siti che occupano più posizioni nei risultati organici di Google per questa ricerca. Quando un sito ha più del 30% delle posizioni, sta dominando la pagina e diventa difficile da scavalcare. I tuoi brand monitorati sono evidenziati in oro.",
+      en: "The websites holding the most spots in Google's organic results for this search. When one site holds more than 30% of the spots, it's dominating the page and becomes hard to outrank. Your tracked brands are highlighted in gold.",
     },
     peopleAlsoAsk: { it: "People Also Ask", en: "People Also Ask" },
     peopleAlsoAskDescription: {
