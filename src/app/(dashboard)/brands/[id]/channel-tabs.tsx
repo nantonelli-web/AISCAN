@@ -152,6 +152,17 @@ interface Props {
     avgComments: number | null;
     totalViews: number;
   };
+  /** Light projection di TUTTI i post IG del brand (non solo i 30
+   *  visibili nel grid) per il collab aggregate. */
+  organicCollabPool: Array<{
+    caption: string | null;
+    mentions: string[] | null;
+    tagged_users: string[] | null;
+  }>;
+  tiktokCollabPool: Array<{
+    caption: string | null;
+    mentions: string[] | null;
+  }>;
 }
 
 export function ChannelTabs({
@@ -177,6 +188,8 @@ export function ChannelTabs({
   organicStats,
   tiktokStats,
   youtubeStats,
+  organicCollabPool,
+  tiktokCollabPool,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -399,10 +412,16 @@ export function ChannelTabs({
   // ≠ brand stesso) per piattaforma. Il pannello viene renderizzato
   // sopra il grid post in ciascuna scheda. La detection per-post
   // (badge "Collab" sul thumbnail) e' delegata al card component.
+  // Aggregati collab calcolati sull'INTERA history del brand
+  // (organicCollabPool / tiktokCollabPool) e non sui 30 post
+  // visibili nel grid. Questo perche' un brand puo' avere collab
+  // significativi piu' indietro nel tempo che andrebbero persi se
+  // contassimo solo l'ultimo mese (verificato 2026-05-07: Elena
+  // Miro TikTok aveva 0 collab nei 30 ultimi ma 5+ nei 50 totali).
   const igCollaborators = useMemo(
     () =>
       aggregateCollaborators(
-        organicPosts.map((p) => ({
+        organicCollabPool.map((p) => ({
           mentions: p.mentions,
           tagged_users: p.tagged_users,
           caption: p.caption,
@@ -411,11 +430,11 @@ export function ChannelTabs({
         brand.instagramUsername,
         "instagram",
       ),
-    [organicPosts, brand.instagramUsername],
+    [organicCollabPool, brand.instagramUsername],
   );
   const igCollabPosts = useMemo(
     () =>
-      organicPosts.filter((p) =>
+      organicCollabPool.filter((p) =>
         isCollabPost(
           p.mentions,
           p.tagged_users,
@@ -423,12 +442,12 @@ export function ChannelTabs({
           p.caption,
         ),
       ).length,
-    [organicPosts, brand.instagramUsername],
+    [organicCollabPool, brand.instagramUsername],
   );
   const ttCollaborators = useMemo(
     () =>
       aggregateCollaborators(
-        tiktokPosts.map((p) => ({
+        tiktokCollabPool.map((p) => ({
           mentions: p.mentions,
           caption: p.caption,
           platform: "tiktok",
@@ -436,14 +455,14 @@ export function ChannelTabs({
         brand.tiktokUsername,
         "tiktok",
       ),
-    [tiktokPosts, brand.tiktokUsername],
+    [tiktokCollabPool, brand.tiktokUsername],
   );
   const ttCollabPosts = useMemo(
     () =>
-      tiktokPosts.filter((p) =>
+      tiktokCollabPool.filter((p) =>
         isCollabPost(p.mentions, null, brand.tiktokUsername, p.caption),
       ).length,
-    [tiktokPosts, brand.tiktokUsername],
+    [tiktokCollabPool, brand.tiktokUsername],
   );
   const visibleSnapchat = showSnapchat ? snapchatProfiles : [];
   const latestSnapchat = visibleSnapchat[0] ?? null;
@@ -876,7 +895,7 @@ export function ChannelTabs({
                 <TopCollaboratorsPanel
                   collaborators={igCollaborators}
                   totalCollabPosts={igCollabPosts}
-                  totalPosts={visibleOrganic.length}
+                  totalPosts={organicCollabPool.length}
                 />
               )}
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -1007,7 +1026,7 @@ export function ChannelTabs({
                 <TopCollaboratorsPanel
                   collaborators={ttCollaborators}
                   totalCollabPosts={ttCollabPosts}
-                  totalPosts={visibleTiktok.length}
+                  totalPosts={tiktokCollabPool.length}
                 />
               )}
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

@@ -214,6 +214,14 @@ export async function BrandChannelsSection({
     { data: youtubeVideos },
     { count: metaFiltered },
     { count: googleFiltered },
+    // Collab L1 aggregate (2026-05-07): fetch SEPARATO leggero
+    // (solo i campi necessari al detection) sull'INTERA history
+    // dei post organic. La grid card resta capped a 30 per
+    // performance, ma l'aggregato Top Collaboratori usa la
+    // copertura completa altrimenti perdiamo collab vecchie.
+    // Cap a 1000 per workspace come safety net.
+    { data: organicAllForCollab },
+    { data: tiktokAllForCollab },
   ] = await Promise.all([
     adsQuery,
     supabase
@@ -287,11 +295,32 @@ export async function BrandChannelsSection({
       .limit(30),
     metaCountQuery,
     googleCountQuery,
+    supabase
+      .from("mait_organic_posts")
+      .select("caption, mentions, tagged_users")
+      .eq("competitor_id", competitorId)
+      .eq("platform", "instagram")
+      .limit(1000),
+    supabase
+      .from("mait_tiktok_posts")
+      .select("caption, mentions")
+      .eq("competitor_id", competitorId)
+      .limit(1000),
   ]);
 
   const adsList = (ads ?? []) as MaitAdExternal[];
   const organicList = (organicPosts ?? []) as MaitOrganicPost[];
   const tiktokList = (tiktokPosts ?? []) as MaitTikTokPost[];
+  // Light projections per il collab aggregate (history piena).
+  const organicCollabPool = (organicAllForCollab ?? []) as Array<{
+    caption: string | null;
+    mentions: string[] | null;
+    tagged_users: string[] | null;
+  }>;
+  const tiktokCollabPool = (tiktokAllForCollab ?? []) as Array<{
+    caption: string | null;
+    mentions: string[] | null;
+  }>;
   const tiktokAdsList = (tiktokAdsRows ?? []) as MaitTiktokAd[];
   const snapchatList = (snapchatProfiles ?? []) as MaitSnapchatProfile[];
   const snapchatAdsList = (snapchatAdsRows ?? []) as MaitSnapchatAd[];
@@ -526,6 +555,8 @@ export async function BrandChannelsSection({
         avgComments: ytAvgComments,
         totalViews: ytTotalViews,
       }}
+      organicCollabPool={organicCollabPool}
+      tiktokCollabPool={tiktokCollabPool}
     />
   );
 }
