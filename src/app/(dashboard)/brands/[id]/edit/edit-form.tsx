@@ -226,7 +226,7 @@ export function EditCompetitorForm({
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const res = await fetch(`/api/brands/${competitor.id}`, {
+    const res = await fetch(`/api/competitors/${competitor.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -257,7 +257,7 @@ export function EditCompetitorForm({
 
   async function onDelete() {
     setDeleting(true);
-    const res = await fetch(`/api/brands/${competitor.id}`, {
+    const res = await fetch(`/api/competitors/${competitor.id}`, {
       method: "DELETE",
     });
     setDeleting(false);
