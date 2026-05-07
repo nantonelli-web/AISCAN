@@ -455,7 +455,7 @@ export default async function SerpQueryDetailPage({
                 {t("serp", "brandPresence")}
               </h2>
             </div>
-            <p className="text-[11px] text-muted-foreground leading-snug max-w-3xl">
+            <p className="text-[11px] text-muted-foreground leading-snug">
               {t("serp", "brandPresenceDescription")}
             </p>
             <div className="grid gap-3 sm:grid-cols-3 text-sm">
@@ -675,7 +675,7 @@ function CompositionMixPanel({
             ({total} total)
           </span>
         </div>
-        <p className="text-[11px] text-muted-foreground leading-snug max-w-3xl">
+        <p className="text-[11px] text-muted-foreground leading-snug">
           {description}
         </p>
         <div className="flex h-2.5 w-full rounded-full overflow-hidden bg-muted">
@@ -744,7 +744,7 @@ function ShareOfSerpPanel({
           ({totalOrganic} organic)
         </span>
       </div>
-      <p className="text-[11px] text-muted-foreground leading-snug max-w-3xl">
+      <p className="text-[11px] text-muted-foreground leading-snug">
         {description}
       </p>
       <Card>
@@ -843,7 +843,7 @@ function PeopleAlsoAskPanel({
         </h2>
         <span className="text-xs text-muted-foreground">({items.length})</span>
       </div>
-      <p className="text-[11px] text-muted-foreground leading-snug max-w-3xl">
+      <p className="text-[11px] text-muted-foreground leading-snug">
         {description}
       </p>
       <Card>
@@ -906,7 +906,7 @@ function RelatedQueriesPanel({
         </h2>
         <span className="text-xs text-muted-foreground">({items.length})</span>
       </div>
-      <p className="text-[11px] text-muted-foreground leading-snug max-w-3xl">
+      <p className="text-[11px] text-muted-foreground leading-snug">
         {description}
       </p>
       <Card>
