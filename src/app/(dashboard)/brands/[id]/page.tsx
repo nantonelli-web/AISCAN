@@ -365,7 +365,22 @@ export default async function CompetitorDetailPage({
           <div className="min-w-0 space-y-2">
             <div className="space-y-0.5">
               <p className="eyebrow">{t("competitors", "title")}</p>
-              <h1 className="text-3xl font-serif tracking-tight">{c.page_name}</h1>
+              {/* Pencil inline a destra del nome (richiesta utente
+                  2026-05-07): chi vuole correggere le proprietà del
+                  brand le associa visivamente al titolo, non agli
+                  action button della colonna destra. */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-3xl font-serif tracking-tight">
+                  {c.page_name}
+                </h1>
+                <Link
+                  href={`/brands/${c.id}/edit?from=brand`}
+                  title={t("editCompetitor", "title")}
+                  className="size-8 rounded-md border border-border grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors print:hidden"
+                >
+                  <Pencil className="size-3.5" />
+                </Link>
+              </div>
             </div>
             {/* Brand identity row: website link only.
                 Removed 2026-05-04 from this row:
@@ -398,13 +413,6 @@ export default async function CompetitorDetailPage({
           <div className="inline-flex items-center rounded-md border border-border bg-muted/30 px-3 py-1.5 text-xs">
             <FrequencySelector competitorId={c.id} initial={frequency} />
           </div>
-          <Link
-            href={`/brands/${c.id}/edit?from=brand`}
-            className="size-9 rounded-md border border-border grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            title={t("editCompetitor", "title")}
-          >
-            <Pencil className="size-4" />
-          </Link>
           <DeleteBrandButton
             competitorId={c.id}
             competitorName={c.page_name}
