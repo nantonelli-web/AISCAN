@@ -436,6 +436,7 @@ export default async function SerpQueryDetailPage({
             aiSources={aiSources.length}
             title={t("serp", "compositionMix")}
             description={t("serp", "compositionMixDescription")}
+            adsCaveat={t("serp", "adsCaveat")}
             labels={{
               organic: t("serp", "organicResults"),
               paid: t("serp", "paidResults"),
@@ -615,6 +616,7 @@ function CompositionMixPanel({
   aiSources,
   title,
   description,
+  adsCaveat,
   labels,
 }: {
   organic: number;
@@ -623,6 +625,7 @@ function CompositionMixPanel({
   aiSources: number;
   title: string;
   description: string;
+  adsCaveat: string;
   labels: {
     organic: string;
     paid: string;
@@ -705,6 +708,11 @@ function CompositionMixPanel({
             </span>
           ))}
         </div>
+        {paid === 0 && paidProducts === 0 && (
+          <p className="text-[10px] text-amber-400/90 italic leading-snug pt-1 border-t border-border">
+            ⚠ {adsCaveat}
+          </p>
+        )}
       </CardContent>
     </Card>
   );
