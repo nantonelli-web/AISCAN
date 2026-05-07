@@ -64,6 +64,16 @@ export function TopCollaboratorsPanel({
     : collaborators.slice(0, INITIAL_VISIBLE);
   const maxCount = collaborators[0]?.count ?? 1;
   const hidden = collaborators.length - visible.length;
+  // Nascondi le badge "Instagram"/"TikTok" quando tutti i
+  // collaboratori sono su una sola piattaforma — il filtro globale
+  // del tab gia' lo dichiara, ripetere la label su ogni riga e'
+  // rumore. Mostra le badge SOLO in vista multi-piattaforma (es.
+  // un eventuale futuro tab "All channels").
+  const platformsInDataset = new Set<string>();
+  for (const c of collaborators) {
+    for (const p of c.platforms) platformsInDataset.add(p);
+  }
+  const showPlatformBadges = platformsInDataset.size > 1;
 
   return (
     <Card>
@@ -132,12 +142,12 @@ export function TopCollaboratorsPanel({
                     @{c.handle}
                     <ExternalLink className="size-3 opacity-50 group-hover:opacity-100 transition-opacity shrink-0" />
                   </a>
-                  {c.platforms.has("instagram") && (
+                  {showPlatformBadges && c.platforms.has("instagram") && (
                     <Badge variant="outline" className="text-[9px] py-0 px-1.5">
                       {IG_LABEL}
                     </Badge>
                   )}
-                  {c.platforms.has("tiktok") && (
+                  {showPlatformBadges && c.platforms.has("tiktok") && (
                     <Badge variant="outline" className="text-[9px] py-0 px-1.5">
                       {TIKTOK_LABEL}
                     </Badge>

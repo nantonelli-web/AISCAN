@@ -16,25 +16,31 @@
  * Normalizza un handle social per il dedup.
  * - Rimuove `@` iniziali
  * - Trim whitespace
- * - Rimuove punteggiatura terminale (. , ; : ! ? + e simili) — l'actor
- *   IG a volte include il punto/virgola di fine frase nel parsing del
- *   mention (es. "Ciao @user, come va?" → mention "user," vs un altro
- *   post "@user." → mention "user."). Senza questo strip avremmo
- *   duplicati spurii — utente ha segnalato 2026-05-07.
- * - Rimuove caratteri non-validi negli handle (handle IG/TikTok =
- *   ASCII letters/digits/underscore/dot interno).
+ * - Rimuove TUTTA la punteggiatura terminale, INCLUSO il punto.
+ *   Gli handle IG/TikTok validi non terminano con `.` (Meta lo
+ *   vieta). Quindi un trailing `.` e' sempre artefatto del parser.
+ *   Internal dots (es. "courage.studio") restano intatti perche'
+ *   la regex matcha solo la fine della stringa.
+ * - Rimuove characters invisibili (zero-width, NBSP, ecc.) interni.
  * - Lowercase per match case-insensitive.
+ *
+ * Bug 2026-05-07 prima del fix: il regex precedente
+ * `[^A-Za-z0-9_.]+$` includeva `.` nella whitelist, quindi non
+ * spogliava trailing dots. Risultato: "verderame_milano" e
+ * "verderame_milano." venivano dedupati come distinti.
  */
 export function normalizeHandle(raw: string | null | undefined): string {
   if (!raw) return "";
   let h = raw.trim().replace(/^@+/, "");
-  // Strip ogni char terminale che non sia parte del handle valido.
-  // Alcuni handle IG legittimi contengono `.` interni (es.
-  // "courage.studio") quindi rimuoviamo solo SEQUENZE finali di
-  // punteggiatura, non un punto al centro.
-  h = h.replace(/[^A-Za-z0-9_.]+$/, "");
-  // Normalizza ulteriormente eventuale char invisibile interno
-  // (zero-width, non-breaking space) e abbassa case.
+  // Strip qualsiasi char NON-word (== [a-zA-Z0-9_]) terminale.
+  // Notare: NIENTE `.` nella whitelist di [^...], quindi i punti
+  // terminali vengono rimossi correttamente.
+  h = h.replace(/[^A-Za-z0-9_]+$/, "");
+  // Rimuovi anche eventuali sequenze di punti terminali residue
+  // (sicurezza extra in caso di handle malformati).
+  h = h.replace(/\.+$/, "");
+  // Normalizza char invisibili interni (zero-width, NBSP) e
+  // abbassa case.
   h = h.replace(/[​-‍﻿]/g, "").toLowerCase();
   return h;
 }

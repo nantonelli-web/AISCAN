@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ExternalLink, Heart, MessageCircle, Play, Eye, ImageIcon, Film, Sparkles, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatNumber, isPlayableVideoUrl } from "@/lib/utils";
@@ -22,6 +23,14 @@ export function OrganicPostCard({
 }) {
   const { t } = useT();
   const isCollab = isCollabPost(post.mentions, post.tagged_users, selfHandle);
+  // Display URL pointing direttamente a Instagram CDN
+  // (instagram.fcps*.fna.fbcdn.net / scontent-*) ha
+  // signature time-limited e dopo poche ore restituisce 403/404,
+  // mentre i post mirrorati su Supabase storage restano stabili.
+  // Il mirror non sempre va a buon fine al scan time, quindi
+  // tracciamo l'errore di load lato client e cadiamo sul
+  // placeholder con CTA al post originale.
+  const [imgFailed, setImgFailed] = useState(false);
 
   const aiTags = (post.raw_data as Record<string, unknown> | null)?.ai_tags as
     | { sector?: string; tone?: string; objective?: string }
@@ -45,13 +54,14 @@ export function OrganicPostCard({
             src={post.video_url}
             poster={post.display_url ?? undefined}
           />
-        ) : post.display_url ? (
+        ) : post.display_url && !imgFailed ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={post.display_url}
             alt={post.caption?.slice(0, 80) ?? "Instagram post"}
             className="absolute inset-0 w-full h-full object-cover"
             loading="lazy"
+            onError={() => setImgFailed(true)}
           />
         ) : isVideo ? (
           // Video / Reel with neither playable URL nor cover —
@@ -59,9 +69,28 @@ export function OrganicPostCard({
           // preview is a source-side issue, not a UI bug.
           <VideoUnavailable />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+          // Anteprima non disponibile: o display_url e' null, o
+          // l'IG CDN ha rifiutato il fetch. Render placeholder
+          // cliccabile che porta al post originale dove il
+          // contenuto e' sempre visibile.
+          <a
+            href={post.post_url ?? "#"}
+            target="_blank"
+            rel="noreferrer"
+            className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-gold transition-colors"
+            aria-label={t("organic", "previewUnavailable")}
+          >
             <ImageIcon className="size-10" />
-          </div>
+            <span className="text-[10px] font-medium uppercase tracking-wider px-3 text-center leading-tight">
+              {t("organic", "previewUnavailable")}
+            </span>
+            {post.post_url && (
+              <span className="text-[10px] inline-flex items-center gap-1">
+                {t("organic", "viewOnInstagram")}
+                <ExternalLink className="size-3" />
+              </span>
+            )}
+          </a>
         )}
 
         {/* Type badge */}

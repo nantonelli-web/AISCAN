@@ -2169,13 +2169,17 @@ const translations = {
     // collab con influencer/ambassador/altri brand basato sui
     // tagged_users + mentions ≠ brand stesso.
     collabBadge: { it: "Collab", en: "Collab" },
+    previewUnavailable: {
+      it: "Anteprima non disponibile",
+      en: "Preview unavailable",
+    },
     topCollabsTitle: {
-      it: "Collaboratori ricorrenti",
-      en: "Recurring collaborators",
+      it: "Collaboratori",
+      en: "Collaborators",
     },
     topCollabsDescription: {
-      it: "Account taggati o menzionati nei post che NON sono il brand stesso. Chi compare più volte è un collaboratore strutturale (ambassador, partner di linea); chi compare una volta è una collab one-shot. La distinzione brand vs influencer vs VIP non è ancora automatica.",
-      en: "Accounts tagged or mentioned in posts that are NOT the brand itself. Frequent ones are structural collaborators (ambassadors, line partners); single-occurrence ones are one-shot collabs. Brand vs influencer vs VIP classification not yet automated.",
+      it: "Account taggati o menzionati nei post che NON sono il brand stesso. Un singolo post può taggare più persone, quindi il numero di collaboratori distinti è di solito maggiore del numero di post in collab. Chi compare più volte è un collaboratore strutturale (ambassador, partner di linea); chi compare una volta è una collab one-shot. La distinzione brand vs influencer vs VIP non è ancora automatica.",
+      en: "Accounts tagged or mentioned in posts that are NOT the brand itself. A single post may tag multiple people, so the number of distinct collaborators is usually larger than the number of collab posts. Frequent ones are structural collaborators (ambassadors, line partners); single-occurrence ones are one-shot collabs. Brand vs influencer vs VIP classification not yet automated.",
     },
     collabPosts: {
       it: "Post in collab",
