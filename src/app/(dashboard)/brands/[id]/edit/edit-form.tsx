@@ -92,17 +92,46 @@ export function EditCompetitorForm({
   // Stesso pattern del form di creazione (new/form.tsx) replicato
   // qui perche' molti brand sono stati creati prima della feature
   // auto-fill e hanno proprieta' incomplete. Pre-popoliamo il
-  // dominio col page_url salvato per minimizzare friction:
-  // l'utente clicca Run e basta.
+  // dominio col google_domain del brand (= sito istituzionale).
+  //
+  // ATTENZIONE: NON usare page_url come fallback se sembra una
+  // social platform URL (facebook.com, instagram.com, ecc): il
+  // page_url tipicamente punta alla Facebook page del brand
+  // (es. "facebook.com/marinarinaldi"), e pre-popolare l'auto-
+  // fill con "facebook.com" e' un nonsense — bug segnalato
+  // 2026-05-07.
   const initialDiscoveryDomain = (() => {
-    const url = competitor.page_url ?? competitor.google_domain ?? "";
-    if (!url) return "";
-    try {
-      const u = url.startsWith("http") ? url : `https://${url}`;
-      return new URL(u).hostname.replace(/^www\./, "");
-    } catch {
-      return url;
-    }
+    const SOCIAL_HOSTS = new Set([
+      "facebook.com",
+      "fb.com",
+      "instagram.com",
+      "tiktok.com",
+      "youtube.com",
+      "youtu.be",
+      "twitter.com",
+      "x.com",
+      "linkedin.com",
+      "pinterest.com",
+      "snapchat.com",
+      "threads.net",
+    ]);
+    const extractHost = (url: string | null): string | null => {
+      if (!url) return null;
+      try {
+        const u = url.startsWith("http") ? url : `https://${url}`;
+        const host = new URL(u).hostname.replace(/^www\./, "").toLowerCase();
+        return host || null;
+      } catch {
+        return null;
+      }
+    };
+    // 1. google_domain ha priorita' (campo pensato per il sito).
+    const fromGoogle = extractHost(competitor.google_domain ?? null);
+    if (fromGoogle && !SOCIAL_HOSTS.has(fromGoogle)) return fromGoogle;
+    // 2. page_url solo se NON e' una social platform.
+    const fromPage = extractHost(competitor.page_url ?? null);
+    if (fromPage && !SOCIAL_HOSTS.has(fromPage)) return fromPage;
+    return "";
   })();
   const [discoveryDomain, setDiscoveryDomain] = useState(
     initialDiscoveryDomain,
