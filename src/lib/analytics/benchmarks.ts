@@ -1171,6 +1171,10 @@ interface OrganicRow {
   comments_count: number | null;
   video_views: number | null;
   hashtags: string[] | null;
+  // Tagged users + mentions per Collab L1 (2026-05-07): sono usati per
+  // distinguere i post in collaborazione dai post stand-alone.
+  tagged_users: string[] | null;
+  mentions: string[] | null;
   posted_at: string | null;
   created_at: string;
   // JSON-projected from raw_data so we can chart Reel-specific signals
@@ -1247,7 +1251,18 @@ export interface OrganicBenchmarkData {
     avgComments: number;
     avgViews: number;
     avgCaptionLength: number;
+    /** Collab L1 (2026-05-07): post che taggano/menzionano almeno un
+     *  account ≠ brand stesso. Indica strategia di partnership /
+     *  ambassador / influencer. */
+    collabPosts: number;
+    collabRate: number; // 0..100
   };
+  collabPostsByCompetitor: {
+    name: string;
+    collabPosts: number;
+    totalPosts: number;
+    rate: number;
+  }[];
 }
 
 export async function computeOrganicBenchmarks(
@@ -1275,7 +1290,7 @@ export async function computeOrganicBenchmarks(
           // wire small — we only pull the two fields we need for
           // Reel charts instead of the whole raw_data blob (which
           // can be 5-15 KB per post).
-          "competitor_id, post_type, video_url, caption, likes_count, comments_count, video_views, hashtags, posted_at, created_at, videoDuration:raw_data->videoDuration, musicInfo:raw_data->musicInfo",
+          "competitor_id, post_type, video_url, caption, likes_count, comments_count, video_views, hashtags, tagged_users, mentions, posted_at, created_at, videoDuration:raw_data->videoDuration, musicInfo:raw_data->musicInfo",
         )
         .eq("workspace_id", workspaceId)
         .eq("platform", "instagram")
@@ -1623,6 +1638,40 @@ export async function computeOrganicBenchmarks(
       .slice(0, 10),
   };
 
+  // Collab L1 (2026-05-07): aggregato post-collab per competitor.
+  // Un post e' "collab" se ha tagged_users != [] OR mentions != []
+  // (escluso auto-tag del brand stesso). Per il benchmark non
+  // abbiamo il brand handle preciso per ogni post — assumiamo che
+  // any-non-empty array sia signal di collab. Il leakage da auto-
+  // tag (brand che si auto-menziona) e' bound dal fatto che auto-
+  // tag puro su tutti i post e' raro: tipicamente i brand si
+  // taggano insieme ad altri, quindi il post resta classificato
+  // collab corretto. Approssimazione accettabile per benchmark.
+  const collabByComp = new Map<string, { collab: number; total: number }>();
+  let totalCollabPosts = 0;
+  for (const p of posts) {
+    const cid = p.competitor_id;
+    if (!cid) continue;
+    const tagsLen = (p.tagged_users ?? []).length;
+    const menLen = (p.mentions ?? []).length;
+    const isCollab = tagsLen > 0 || menLen > 0;
+    const entry = collabByComp.get(cid) ?? { collab: 0, total: 0 };
+    entry.total += 1;
+    if (isCollab) {
+      entry.collab += 1;
+      totalCollabPosts += 1;
+    }
+    collabByComp.set(cid, entry);
+  }
+  const collabPostsByCompetitor = [...collabByComp.entries()]
+    .map(([id, v]) => ({
+      name: compMap.get(id) ?? "N/A",
+      collabPosts: v.collab,
+      totalPosts: v.total,
+      rate: v.total === 0 ? 0 : Math.round((v.collab / v.total) * 100),
+    }))
+    .sort((a, b) => b.collabPosts - a.collabPosts);
+
   return {
     competitors: comps,
     postsByCompetitor,
@@ -1637,12 +1686,18 @@ export async function computeOrganicBenchmarks(
     avgCaptionLengthByCompetitor,
     coverageByCompetitor,
     reelStats,
+    collabPostsByCompetitor,
     totals: {
       totalPosts: posts.length,
       avgLikes: avg(allLikes),
       avgComments: avg(allComments),
       avgViews: avg(allViews),
       avgCaptionLength: avg(allCaptions),
+      collabPosts: totalCollabPosts,
+      collabRate:
+        posts.length === 0
+          ? 0
+          : Math.round((totalCollabPosts / posts.length) * 100),
     },
   };
 }

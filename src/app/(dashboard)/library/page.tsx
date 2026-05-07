@@ -34,6 +34,8 @@ interface SearchParams {
   channel?: string;
   brand?: string;
   client?: string;
+  /** "1" per filtrare solo i post in collaborazione (IG/TikTok). */
+  collab?: string;
 }
 
 export default async function LibraryPage({
@@ -87,6 +89,7 @@ export default async function LibraryPage({
     platform: sp.platform,
     cta: sp.cta,
     status: sp.status,
+    collab: sp.collab === "1",
   };
   const [{ data: contentData }, { count: totalCount }] = await Promise.all([
     buildLibraryQuery(supabase, { ...filterArgs, offset: 0, limit: PAGE_SIZE }),
@@ -153,6 +156,12 @@ export default async function LibraryPage({
         </Card>
       ) : (
         <LibraryItemsView
+          // key forza il remount al cambio di qualsiasi filtro: senza
+          // questo, useState(initial) dentro la view persiste i
+          // vecchi item dopo router.push (es. filtrare TikTok dopo
+          // Instagram continuava a mostrare le card IG iniziali).
+          // Bug segnalato 2026-05-07.
+          key={`${sp.channel ?? "all"}|${sp.brand ?? ""}|${sp.client ?? ""}|${sp.q ?? ""}|${sp.platform ?? ""}|${sp.cta ?? ""}|${sp.status ?? ""}|${sp.format ?? ""}|${sp.collab ?? ""}`}
           initial={initial}
           initialHasMore={initialHasMore}
           pageSize={PAGE_SIZE}

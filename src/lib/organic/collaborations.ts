@@ -12,14 +12,31 @@
  * "ci sono account esterni taggati o no".
  */
 
-/** Normalizza un handle (rimuove @, trim, lowercase, rimuove punto finale). */
+/**
+ * Normalizza un handle social per il dedup.
+ * - Rimuove `@` iniziali
+ * - Trim whitespace
+ * - Rimuove punteggiatura terminale (. , ; : ! ? + e simili) — l'actor
+ *   IG a volte include il punto/virgola di fine frase nel parsing del
+ *   mention (es. "Ciao @user, come va?" → mention "user," vs un altro
+ *   post "@user." → mention "user."). Senza questo strip avremmo
+ *   duplicati spurii — utente ha segnalato 2026-05-07.
+ * - Rimuove caratteri non-validi negli handle (handle IG/TikTok =
+ *   ASCII letters/digits/underscore/dot interno).
+ * - Lowercase per match case-insensitive.
+ */
 export function normalizeHandle(raw: string | null | undefined): string {
   if (!raw) return "";
-  return raw
-    .trim()
-    .replace(/^@+/, "")
-    .replace(/\.+$/, "")
-    .toLowerCase();
+  let h = raw.trim().replace(/^@+/, "");
+  // Strip ogni char terminale che non sia parte del handle valido.
+  // Alcuni handle IG legittimi contengono `.` interni (es.
+  // "courage.studio") quindi rimuoviamo solo SEQUENZE finali di
+  // punteggiatura, non un punto al centro.
+  h = h.replace(/[^A-Za-z0-9_.]+$/, "");
+  // Normalizza ulteriormente eventuale char invisibile interno
+  // (zero-width, non-breaking space) e abbassa case.
+  h = h.replace(/[​-‍﻿]/g, "").toLowerCase();
+  return h;
 }
 
 /** Unione dedup di mentions + tagged_users normalizzati, esclusi handle vuoti. */

@@ -789,7 +789,7 @@ export function ChannelTabs({
           )}
           {/* Engagement stats */}
           {organicStats.count > 0 && channel === "instagram" && (
-            <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
               <Card>
                 <CardContent className="py-4 text-center">
                   <p className="text-2xl font-semibold">
@@ -818,6 +818,12 @@ export function ChannelTabs({
                 <CardContent className="py-4 text-center">
                   <p className="text-2xl font-semibold">{formatNumber(organicStats.totalViews)}</p>
                   <p className="text-xs text-muted-foreground">{t("organic", "totalViews")}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="py-4 text-center">
+                  <p className="text-2xl font-semibold">{igCollabPosts}</p>
+                  <p className="text-xs text-muted-foreground">{t("organic", "collabPosts")}</p>
                 </CardContent>
               </Card>
             </div>
@@ -895,7 +901,7 @@ export function ChannelTabs({
             </div>
           )}
           {tiktokStats.count > 0 && channel === "tiktok" && (
-            <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
               <Card>
                 <CardContent className="py-4 text-center">
                   <p className="text-2xl font-semibold">
@@ -924,6 +930,12 @@ export function ChannelTabs({
                 <CardContent className="py-4 text-center">
                   <p className="text-2xl font-semibold">{formatNumber(tiktokStats.totalViews)}</p>
                   <p className="text-xs text-muted-foreground">{t("organic", "totalViews")}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="py-4 text-center">
+                  <p className="text-2xl font-semibold">{ttCollabPosts}</p>
+                  <p className="text-xs text-muted-foreground">{t("organic", "collabPosts")}</p>
                 </CardContent>
               </Card>
             </div>

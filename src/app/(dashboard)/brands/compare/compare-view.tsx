@@ -215,6 +215,11 @@ interface OrganicCompStats {
   topHashtags: { name: string; count: number }[];
   postsPerWeek: number;
   avgCaptionLength: number;
+  /** Collab L1 (2026-05-07): post che taggano/menzionano almeno un
+   *  account ≠ brand. Optional perche' i record cached creati prima
+   *  di questa feature non lo avranno. */
+  collabPosts?: number;
+  collabRate?: number; // 0..100
   latestPosts: {
     post_id: string;
     caption: string | null;
@@ -2820,6 +2825,18 @@ function OrganicTechnicalView({
         label={t("compare", "totalPosts")}
         stats={stats}
         render={(s) => String(s.totalPosts)}
+        highlight
+      />
+      <CompareTable
+        label={t("compare", "collabPosts")}
+        stats={stats}
+        render={(s) => {
+          // collabPosts/collabRate sono optional perche' i record cached
+          // pre-feature non li hanno. Per quelli mostriamo un —.
+          if (s.collabPosts == null) return "—";
+          if (s.collabPosts === 0) return "0";
+          return `${s.collabPosts} (${s.collabRate ?? 0}%)`;
+        }}
         highlight
       />
       <CompareTable

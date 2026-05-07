@@ -36,6 +36,15 @@ export interface LibraryQueryArgs {
   platform: string | undefined;
   cta: string | undefined;
   status: string | undefined;
+  /** Filtro "Solo collaborazioni" (Feature L1 collab 2026-05-07).
+   *  IG: tagged_users != [] OR mentions != [].
+   *  TikTok: mentions != [].
+   *  Approssimazione: include anche post dove e' taggato il brand
+   *  stesso (auto-tag) — il filtro fine "esclusi auto-tag" sarebbe
+   *  troppo costoso lato DB perche' richiede confronto con il
+   *  competitor.instagram_username. Fine-tuning a render time se
+   *  serve. */
+  collab?: boolean;
   /** Inclusive lower bound of the slice. 0 = first page. */
   offset: number;
   /** Slice size. Each page request returns at most this many
@@ -135,6 +144,13 @@ export function buildLibraryQuery(
       .range(offset, offset + limit - 1);
     igQuery = applyProjectScope(igQuery, args);
     igQuery = applyOrganicTextSearch(igQuery, args, "caption");
+    if (args.collab) {
+      // tagged_users != [] OR mentions != []. Postgrest array
+      // length filter via NOT eq.{}.
+      igQuery = igQuery.or(
+        "tagged_users.not.eq.{},mentions.not.eq.{}",
+      );
+    }
     return igQuery;
   }
 
@@ -147,6 +163,9 @@ export function buildLibraryQuery(
       .range(offset, offset + limit - 1);
     ttQuery = applyProjectScope(ttQuery, args);
     ttQuery = applyOrganicTextSearch(ttQuery, args, "caption");
+    if (args.collab) {
+      ttQuery = ttQuery.not("mentions", "eq", "{}");
+    }
     return ttQuery;
   }
 
@@ -216,6 +235,11 @@ export function buildLibraryCountQuery(
       .eq("workspace_id", workspaceId);
     igQuery = applyProjectScope(igQuery, filterArgs);
     igQuery = applyOrganicTextSearch(igQuery, filterArgs, "caption");
+    if (filterArgs.collab) {
+      igQuery = igQuery.or(
+        "tagged_users.not.eq.{},mentions.not.eq.{}",
+      );
+    }
     return igQuery;
   }
   if (surface === "tiktok") {
@@ -225,6 +249,9 @@ export function buildLibraryCountQuery(
       .eq("workspace_id", workspaceId);
     ttQuery = applyProjectScope(ttQuery, filterArgs);
     ttQuery = applyOrganicTextSearch(ttQuery, filterArgs, "caption");
+    if (filterArgs.collab) {
+      ttQuery = ttQuery.not("mentions", "eq", "{}");
+    }
     return ttQuery;
   }
   if (surface === "snapchat") {

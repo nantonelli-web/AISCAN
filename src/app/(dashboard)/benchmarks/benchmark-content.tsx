@@ -630,12 +630,16 @@ async function OrganicContent({
       )}
 
       {/* KPIs */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <Stat label={t("organic", "postsLabel")} value={formatNumber(data.totals.totalPosts)} />
         <Stat label={t("organic", "avgLikes")} value={formatNumber(data.totals.avgLikes)} />
         <Stat label={t("organic", "avgComments")} value={formatNumber(data.totals.avgComments)} />
         <Stat label={t("organic", "avgViews")} value={formatNumber(data.totals.avgViews)} />
         <Stat label={t("benchmarks", "avgCopyLength")} value={`${data.totals.avgCaptionLength} chr`} />
+        <Stat
+          label={t("organic", "collabPosts")}
+          value={`${formatNumber(data.totals.collabPosts)} (${data.totals.collabRate}%)`}
+        />
       </div>
 
       <Card>
@@ -650,6 +654,26 @@ async function OrganicContent({
           />
         </CardContent>
       </Card>
+
+      {/* Collab posts per brand — Collab L1 (2026-05-07). */}
+      {data.collabPostsByCompetitor.some((c) => c.collabPosts > 0) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("organic", "collabsPerBrand")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HorizontalBarChart
+              data={data.collabPostsByCompetitor.map((c) => ({
+                name: c.name,
+                count: c.collabPosts,
+              }))}
+              dataKey="count"
+              label={t("organic", "collabPosts")}
+              color="#d97757"
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

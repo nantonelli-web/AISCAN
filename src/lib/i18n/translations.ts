@@ -754,6 +754,7 @@ const translations = {
 
   // ─── Compare ───────────────────────────────────────────────
   compare: {
+    collabPosts: { it: "Post in collab", en: "Collab posts" },
     title: { it: "Confronto brand", en: "Brand comparison" },
     subtitle: {
       it: "Seleziona 2 o 3 brand per confrontarli side-by-side.",
@@ -1049,6 +1050,8 @@ const translations = {
 
   // ─── Library ───────────────────────────────────────────────
   library: {
+    collabFilter: { it: "Collab", en: "Collab" },
+    onlyCollab: { it: "Solo collab", en: "Only collab" },
     title: { it: "Creative Library", en: "Creative Library" },
     subtitle: {
       it: "Tutte le creativit\u00E0 raccolte nel workspace.",
@@ -2195,6 +2198,18 @@ const translations = {
     moreCollaborators: {
       it: "altri collaboratori non mostrati",
       en: "more collaborators not shown",
+    },
+    showAllCollaborators: {
+      it: "Mostra tutti",
+      en: "Show all",
+    },
+    showLess: {
+      it: "Mostra meno",
+      en: "Show less",
+    },
+    collabsPerBrand: {
+      it: "Collab per brand",
+      en: "Collabs per brand",
     },
     title: { it: "Contenuti organici Instagram", en: "Instagram Organic Content" },
     subtitle: {

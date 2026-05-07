@@ -27,6 +27,7 @@ export async function GET(req: Request) {
   const platform = url.searchParams.get("platform") ?? undefined;
   const cta = url.searchParams.get("cta") ?? undefined;
   const status = url.searchParams.get("status") ?? undefined;
+  const collab = url.searchParams.get("collab") === "1";
   const offset = Math.max(0, parseInt(url.searchParams.get("offset") ?? "0") || 0);
   // Cap limit at 240 to bound a single request payload — caller
   // can chain multiple requests for unbounded scroll.
@@ -70,6 +71,7 @@ export async function GET(req: Request) {
     platform,
     cta,
     status,
+    collab,
     offset,
     limit,
   };

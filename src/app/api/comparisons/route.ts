@@ -633,6 +633,9 @@ type OrganicRow = {
   comments_count: number | null;
   video_views: number | null;
   hashtags: string[] | null;
+  // Collab L1 (2026-05-07).
+  tagged_users: string[] | null;
+  mentions: string[] | null;
   posted_at: string | null;
   created_at: string;
 };
@@ -650,7 +653,7 @@ async function computeOrganicStats(
       const postsQuery = admin
         .from("mait_organic_posts")
         .select(
-          "post_id, post_url, post_type, caption, display_url, video_url, likes_count, comments_count, video_views, hashtags, posted_at, created_at"
+          "post_id, post_url, post_type, caption, display_url, video_url, likes_count, comments_count, video_views, hashtags, tagged_users, mentions, posted_at, created_at"
         )
         .eq("competitor_id", id)
         .eq("platform", "instagram")
@@ -746,6 +749,20 @@ async function computeOrganicStats(
         comments: p.comments_count ?? 0,
       }));
 
+      // Collab L1 (2026-05-07): conta i post con almeno un account
+      // taggato/menzionato. Approssimazione: include eventuali
+      // auto-tag del brand stesso, ma il leakage e' marginale per
+      // un signal di benchmark.
+      const collabPosts = list.filter(
+        (p) =>
+          (p.tagged_users ?? []).length > 0 ||
+          (p.mentions ?? []).length > 0,
+      ).length;
+      const collabRate =
+        list.length === 0
+          ? 0
+          : Math.round((collabPosts / list.length) * 100);
+
       // Legacy rows may store a full URL in instagram_username — clean
       // it server-side so the UI always gets a plain handle to display.
       const rawHandle = comp?.instagram_username ?? null;
@@ -803,6 +820,8 @@ async function computeOrganicStats(
         topHashtags,
         postsPerWeek,
         avgCaptionLength,
+        collabPosts,
+        collabRate,
         latestPosts,
       };
     })

@@ -10,9 +10,14 @@
  * one-shot. La distinzione brand-vs-influencer-vs-VIP e' Livello 2
  * (parcheggiata in project_open_followups.md), qui li elenchiamo
  * tutti con frequenza.
+ *
+ * Pattern: top 5 visibili di default, "Mostra tutti" toggle per
+ * espandere alla lista completa. Ogni riga ha icona link al
+ * profilo IG/TikTok per ispezione veloce.
  */
 
-import { Users } from "lucide-react";
+import { useState } from "react";
+import { Users, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useT } from "@/lib/i18n/context";
@@ -20,6 +25,20 @@ import type { CollabFrequency } from "@/lib/organic/collaborations";
 
 const TIKTOK_LABEL = "TikTok";
 const IG_LABEL = "Instagram";
+const INITIAL_VISIBLE = 5;
+
+/** URL del profilo per piattaforma. Preferenza: IG se presente,
+ *  altrimenti TikTok. Per account comuni alle due usiamo IG come
+ *  default (piu' diffuso per browse profile). */
+function profileUrlFor(handle: string, platforms: Set<string>): string {
+  if (platforms.has("instagram")) {
+    return `https://www.instagram.com/${handle}/`;
+  }
+  if (platforms.has("tiktok")) {
+    return `https://www.tiktok.com/@${handle}`;
+  }
+  return `https://www.instagram.com/${handle}/`;
+}
 
 export function TopCollaboratorsPanel({
   collaborators,
@@ -34,13 +53,17 @@ export function TopCollaboratorsPanel({
   totalPosts: number;
 }) {
   const { t } = useT();
+  const [expanded, setExpanded] = useState(false);
   if (collaborators.length === 0 || totalPosts === 0) {
     return null;
   }
   const collabRate =
     totalPosts > 0 ? Math.round((totalCollabPosts / totalPosts) * 100) : 0;
-  const top = collaborators.slice(0, 12);
-  const maxCount = top[0]?.count ?? 1;
+  const visible = expanded
+    ? collaborators
+    : collaborators.slice(0, INITIAL_VISIBLE);
+  const maxCount = collaborators[0]?.count ?? 1;
+  const hidden = collaborators.length - visible.length;
 
   return (
     <Card>
@@ -96,13 +119,19 @@ export function TopCollaboratorsPanel({
           </div>
         </div>
         <div className="space-y-1.5 pt-1">
-          {top.map((c) => (
+          {visible.map((c) => (
             <div key={c.handle} className="space-y-1">
               <div className="flex items-center justify-between gap-3 text-xs">
                 <span className="flex items-center gap-2 min-w-0">
-                  <span className="font-medium text-foreground truncate">
+                  <a
+                    href={profileUrlFor(c.handle, c.platforms)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-medium text-foreground truncate hover:text-gold inline-flex items-center gap-1 group"
+                  >
                     @{c.handle}
-                  </span>
+                    <ExternalLink className="size-3 opacity-50 group-hover:opacity-100 transition-opacity shrink-0" />
+                  </a>
                   {c.platforms.has("instagram") && (
                     <Badge variant="outline" className="text-[9px] py-0 px-1.5">
                       {IG_LABEL}
@@ -130,11 +159,24 @@ export function TopCollaboratorsPanel({
             </div>
           ))}
         </div>
-        {collaborators.length > top.length && (
-          <p className="text-[10px] text-muted-foreground italic">
-            +{collaborators.length - top.length}{" "}
-            {t("organic", "moreCollaborators")}
-          </p>
+        {(hidden > 0 || expanded) && collaborators.length > INITIAL_VISIBLE && (
+          <button
+            type="button"
+            onClick={() => setExpanded((s) => !s)}
+            className="flex items-center gap-1 text-[11px] text-gold hover:text-gold/80 transition-colors font-medium"
+          >
+            {expanded ? (
+              <>
+                <ChevronUp className="size-3.5" />
+                {t("organic", "showLess")}
+              </>
+            ) : (
+              <>
+                <ChevronDown className="size-3.5" />
+                {t("organic", "showAllCollaborators")} ({hidden})
+              </>
+            )}
+          </button>
         )}
       </CardContent>
     </Card>

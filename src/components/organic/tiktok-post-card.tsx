@@ -98,7 +98,7 @@ export function TikTokPostCard({
               </span>
             )}
             {isCollab && (
-              <span className="inline-flex items-center gap-1 rounded bg-gold/90 backdrop-blur-sm px-1.5 py-0.5 text-[10px] font-semibold text-black">
+              <span className="inline-flex items-center gap-1 rounded bg-white px-1.5 py-0.5 text-[10px] font-semibold text-black shadow-sm">
                 <Users className="size-3" />
                 {t("organic", "collabBadge")}
               </span>

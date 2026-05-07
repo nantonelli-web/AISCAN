@@ -28,6 +28,7 @@ interface Initial {
   channel?: string;
   brand?: string;
   client?: string;
+  collab?: string;
 }
 
 function GoogleIcon({ className }: { className?: string }) {
@@ -106,6 +107,7 @@ export function LibraryFilters({
     initial.platform,
     initial.cta,
     initial.status,
+    initial.collab,
   ]);
 
   function navigate(next: URLSearchParams) {
@@ -166,17 +168,32 @@ export function LibraryFilters({
   }
 
   function selectChannel(ch?: string) {
+    // Cambiare canale azzera collab se il nuovo canale non lo
+    // supporta (collab e' significativo solo su IG/TikTok).
+    const collabApplies =
+      ch === undefined || ch === "instagram" || ch === "tiktok";
     setFilters({
       channel: ch,
       brand: filters.brand,
       client: filters.client,
       q: filters.q,
+      collab: collabApplies ? filters.collab : undefined,
     });
     const next = new URLSearchParams();
     if (ch) next.set("channel", ch);
     if (filters.brand) next.set("brand", filters.brand);
     if (filters.client) next.set("client", filters.client);
     if (filters.q) next.set("q", filters.q);
+    if (collabApplies && filters.collab === "1") next.set("collab", "1");
+    navigate(next);
+  }
+
+  function toggleCollab() {
+    const next = new URLSearchParams(params.toString());
+    const newVal = filters.collab === "1" ? undefined : "1";
+    setFilters((s) => ({ ...s, collab: newVal }));
+    if (newVal) next.set("collab", newVal);
+    else next.delete("collab");
     navigate(next);
   }
 
@@ -188,7 +205,8 @@ export function LibraryFilters({
       filters.format ||
       filters.channel ||
       filters.brand ||
-      filters.client,
+      filters.client ||
+      filters.collab === "1",
   );
 
   // Facets are always shown now — fetch eagerly. The /library/facets
@@ -309,6 +327,25 @@ export function LibraryFilters({
               </BigPill>
             </div>
           </div>
+          {/* Solo collab toggle — visibile solo quando il canale
+              corrente supporta tagged_users/mentions (IG, TikTok, o
+              Tutti). Nascosta su Snapchat/YouTube/Meta/Google dove
+              il dato non c'e'. */}
+          {(!filters.channel ||
+            filters.channel === "instagram" ||
+            filters.channel === "tiktok") && (
+            <div className="flex items-center gap-2 pt-1">
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                {t("library", "collabFilter")}
+              </span>
+              <BigPill
+                active={filters.collab === "1"}
+                onClick={toggleCollab}
+              >
+                {t("library", "onlyCollab")}
+              </BigPill>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -536,6 +573,12 @@ export function LibraryFilters({
             <Tag
               label={filters.status}
               onRemove={() => update("status", null)}
+            />
+          )}
+          {filters.collab === "1" && (
+            <Tag
+              label={t("library", "onlyCollab")}
+              onRemove={() => update("collab", null)}
             />
           )}
         </div>
