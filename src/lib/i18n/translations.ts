@@ -2043,13 +2043,16 @@ const translations = {
     },
     shareOfSerp: { it: "Chi domina la prima pagina", en: "Who owns page 1" },
     shareOfSerpDescription: {
-      it: "I siti che occupano più posizioni nei risultati organici di Google per questa ricerca. Quando un sito ha più del 30% delle posizioni, sta dominando la pagina e diventa difficile da scavalcare. I tuoi brand monitorati sono evidenziati in oro.",
-      en: "The websites holding the most spots in Google's organic results for this search. When one site holds more than 30% of the spots, it's dominating the page and becomes hard to outrank. Your tracked brands are highlighted in gold.",
+      it: "I siti che occupano più posizioni nei risultati organici di Google per questa ricerca. Quando un sito ha più del 30% delle posizioni, sta dominando la pagina e diventa difficile da scavalcare. I tuoi brand monitorati sono evidenziati in blu.",
+      en: "The websites holding the most spots in Google's organic results for this search. When one site holds more than 30% of the spots, it's dominating the page and becomes hard to outrank. Your tracked brands are highlighted in blue.",
     },
-    peopleAlsoAsk: { it: "People Also Ask", en: "People Also Ask" },
+    peopleAlsoAsk: {
+      it: "Le persone hanno chiesto anche",
+      en: "People also ask",
+    },
     peopleAlsoAskDescription: {
-      it: "Domande che gli utenti pongono frequentemente intorno a questa query. Ogni domanda è un intento di ricerca: rispondere bene su blog/FAQ porta visite organiche.",
-      en: "Questions users frequently ask around this query. Each question is a search intent: answering well on blog/FAQ drives organic traffic.",
+      it: "Domande che gli utenti pongono frequentemente su questa ricerca. Ogni domanda è un'opportunità: rispondere bene sul tuo sito (blog, FAQ) ti porta visite organiche.",
+      en: "Questions users frequently ask around this search. Each question is an opportunity: answering well on your site (blog, FAQ) brings in organic traffic.",
     },
     relatedQueries: { it: "Ricerche correlate", en: "Related queries" },
     relatedQueriesDescription: {

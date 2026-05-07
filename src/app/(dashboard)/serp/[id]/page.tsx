@@ -720,15 +720,34 @@ function PeopleAlsoAskPanel({
       </p>
       <Card>
         <CardContent className="p-0 divide-y divide-border">
-          {items.map((q, idx) => (
-            <details key={idx} className="group">
-              <summary className="p-4 cursor-pointer flex items-start gap-3 hover:bg-muted/30 transition-colors">
-                <HelpCircle className="size-4 text-gold/70 mt-0.5 shrink-0" />
-                <span className="text-sm font-medium flex-1">
-                  {q.question ?? "—"}
-                </span>
-              </summary>
-              {(q.answer || q.title || q.url) && (
+          {items.map((q, idx) => {
+            const hasBody = !!(q.answer || q.title || q.url);
+            // Se non c'e' answer/title/url Google non ha
+            // espanso la domanda nello snapshot scraped → mostro
+            // riga statica senza chevron, cosi non sembra
+            // cliccabile-ma-vuota. La domanda resta visibile come
+            // signal di intent.
+            if (!hasBody) {
+              return (
+                <div
+                  key={idx}
+                  className="p-4 flex items-start gap-3 opacity-70"
+                >
+                  <HelpCircle className="size-4 text-muted-foreground/60 mt-0.5 shrink-0" />
+                  <span className="text-sm font-medium flex-1">
+                    {q.question ?? "—"}
+                  </span>
+                </div>
+              );
+            }
+            return (
+              <details key={idx} className="group">
+                <summary className="p-4 cursor-pointer flex items-start gap-3 hover:bg-muted/30 transition-colors">
+                  <HelpCircle className="size-4 text-gold/70 mt-0.5 shrink-0" />
+                  <span className="text-sm font-medium flex-1">
+                    {q.question ?? "—"}
+                  </span>
+                </summary>
                 <div className="px-4 pb-4 pl-11 space-y-1.5">
                   {q.answer && (
                     <p className="text-xs text-muted-foreground leading-relaxed">
@@ -747,9 +766,9 @@ function PeopleAlsoAskPanel({
                     </a>
                   )}
                 </div>
-              )}
-            </details>
-          ))}
+              </details>
+            );
+          })}
         </CardContent>
       </Card>
     </section>
@@ -769,6 +788,19 @@ function RelatedQueriesPanel({
   title: string;
   description: string;
 }) {
+  // L'actor restituisce le related queries duplicate (2x) — verificato
+  // 2026-05-07 sul dataset di "marina rinaldi". Dedup case-insensitive
+  // per titolo, mantenendo la prima occorrenza (con il suo url).
+  const seen = new Set<string>();
+  const unique: Array<{ title: string; url: string | null }> = [];
+  for (const q of items) {
+    if (!q.title) continue;
+    const key = q.title.trim().toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push({ title: q.title, url: q.url });
+  }
+
   return (
     <section className="space-y-2">
       <div className="flex items-center gap-2">
@@ -776,7 +808,7 @@ function RelatedQueriesPanel({
         <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
           {title}
         </h2>
-        <span className="text-xs text-muted-foreground">({items.length})</span>
+        <span className="text-xs text-muted-foreground">({unique.length})</span>
       </div>
       <p className="text-[11px] text-muted-foreground leading-snug">
         {description}
@@ -784,19 +816,17 @@ function RelatedQueriesPanel({
       <Card>
         <CardContent className="p-4">
           <div className="flex flex-wrap gap-1.5">
-            {items.map((q, idx) =>
-              q.title ? (
-                <a
-                  key={idx}
-                  href={q.url ?? "#"}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs px-2.5 py-1 rounded-full border border-border hover:border-gold/40 hover:text-gold transition-colors"
-                >
-                  {q.title}
-                </a>
-              ) : null,
-            )}
+            {unique.map((q, idx) => (
+              <a
+                key={idx}
+                href={q.url ?? "#"}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs px-2.5 py-1 rounded-full border border-border hover:border-gold/40 hover:text-gold transition-colors"
+              >
+                {q.title}
+              </a>
+            ))}
           </div>
         </CardContent>
       </Card>
