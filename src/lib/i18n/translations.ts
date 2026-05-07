@@ -450,6 +450,11 @@ const translations = {
       it: "{n} skip (già compilati)",
       en: "{n} skipped (already filled)",
     },
+    discoveryNeedsApproval: {
+      it: "Il sito blocca lo scraping. Approva una sola volta lo scraper Apify per sbloccare la auto-discovery sui siti protetti (Cloudflare/Akamai). Una volta approvato, le scan future passano automaticamente.",
+      en: "This site blocks scraping. Approve the Apify scraper once to unlock auto-discovery on protected sites (Cloudflare/Akamai). After approval, future scans go through automatically.",
+    },
+    discoveryApproveBtn: { it: "Approva ora", en: "Approve now" },
     title: { it: "Modifica brand", en: "Edit brand" },
     detailsTitle: { it: "Dettagli", en: "Details" },
     detailsDescription: { it: "Modifica le informazioni del brand.", en: "Edit brand information." },

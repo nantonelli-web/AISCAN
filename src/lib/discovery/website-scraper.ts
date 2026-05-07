@@ -52,6 +52,12 @@ export interface DiscoveryResult {
    *  scrape returned no usable HTML (DNS error, 4xx/5xx, timeout)
    *  and the caller should show a "couldn't reach the site" UI. */
   fetched: boolean;
+  /** Set quando il sito ha bot detection aggressiva (Cloudflare,
+   *  Akamai) e il fallback Apify richiede approvazione one-time
+   *  dell'actor. URL diretto al pannello Apify dove cliccare
+   *  "Approve permissions". Una volta approvato, scan successive
+   *  passano automaticamente. */
+  needsApprovalUrl?: string;
 }
 
 const empty = <T>(source = "—"): DiscoveryField<T> => ({
@@ -180,10 +186,14 @@ async function fetchHtmlOnce(url: string): Promise<string | null> {
  *      usiamo Apify cheerio-scraper come fallback (Strategy B).
  *      Sicuro: il costo per discovery one-shot e' ~ $0.001.
  */
-async function fetchHtml(originUrl: string): Promise<string | null> {
+type FetchResult =
+  | { html: string }
+  | { html: null; needsApproval?: string };
+
+async function fetchHtml(originUrl: string): Promise<FetchResult> {
   // 1. Apex
   const direct = await fetchHtmlOnce(originUrl);
-  if (direct) return direct;
+  if (direct) return { html: direct };
 
   // 2. Tenta www.<host> se l'origin era apex (no www).
   let wwwUrl: string | null = null;
@@ -192,36 +202,52 @@ async function fetchHtml(originUrl: string): Promise<string | null> {
     if (!u.hostname.startsWith("www.") && u.hostname.split(".").length >= 2) {
       wwwUrl = `${u.protocol}//www.${u.hostname}${u.pathname}${u.search}`;
       const retry = await fetchHtmlOnce(wwwUrl);
-      if (retry) return retry;
+      if (retry) return { html: retry };
     }
   } catch {
     /* malformed URL, fall through */
   }
 
-  // 3. Apify fallback. Usa il proxy residenziale dell'actor per
-  //    bypassare il bot detection sui Vercel IP. Solo se abbiamo
-  //    il token: senza, ritorna null e l'utente compila a mano.
+  // 3. Apify fallback (cheerio-scraper + residential proxy).
   if (process.env.APIFY_API_TOKEN) {
     const targets = [originUrl, ...(wwwUrl ? [wwwUrl] : [])];
+    let approvalUrl: string | undefined;
     for (const url of targets) {
-      const html = await fetchViaApify(url);
-      if (html) return html;
+      const result = await fetchViaApify(url);
+      if (typeof result === "string") return { html: result };
+      if (result && typeof result === "object" && "needsApproval" in result) {
+        approvalUrl = result.needsApproval;
+        break; // se il primo round dice "needs approval" il secondo dira lo stesso
+      }
     }
+    if (approvalUrl) return { html: null, needsApproval: approvalUrl };
   }
 
-  return null;
+  return { html: null };
 }
 
 /**
- * Fallback Strategy B: usa apify/cheerio-scraper per fetch della
- * homepage. L'actor gira con proxy datacenter+residential di
- * Apify che non sono nei blocklist tipici dei brand siti.
+ * Fallback Strategy B: usa apify/cheerio-scraper con proxy
+ * residenziale per bypassare Cloudflare/Akamai bot detection.
  *
- * Tradeoff: ~10-30s di latenza per il run (vs 1-3s di fetch
- * diretto) e costo per workspace ($0.001 per page). Chiamato solo
- * dopo che il fetch diretto ha fallito due volte.
+ * Verificato 2026-05-07: gli actor "limited permission" (es.
+ * rixin/fast-html-fetcher) NON possono usare residential proxy
+ * → vengono comunque bloccati 403 dall'IP datacenter Apify per
+ * siti come marc-cain.com. Solo apify/cheerio-scraper (full
+ * permission) supporta il residenziale, ma richiede una
+ * approvazione one-time dal workspace owner del token Apify.
+ *
+ * Output di questa funzione:
+ *  - HTML string → scrape ok
+ *  - { needsApproval: url } → user deve approvare l'actor
+ *  - null → altri errori
  */
-async function fetchViaApify(url: string): Promise<string | null> {
+type ApifyFallbackResult =
+  | string
+  | { needsApproval: string }
+  | null;
+
+async function fetchViaApify(url: string): Promise<ApifyFallbackResult> {
   const token = process.env.APIFY_API_TOKEN;
   if (!token) return null;
   try {
@@ -235,15 +261,36 @@ async function fetchViaApify(url: string): Promise<string | null> {
           startUrls: [{ url }],
           maxRequestsPerCrawl: 1,
           maxConcurrency: 1,
-          // pageFunction: leggi tutto il body html e restituiscilo
+          proxyConfiguration: {
+            useApifyProxy: true,
+            apifyProxyGroups: ["RESIDENTIAL"],
+          },
           pageFunction:
             "async function pageFunction(context) { return { html: context.$.html() }; }",
         }),
-        signal: AbortSignal.timeout(60_000),
+        signal: AbortSignal.timeout(90_000),
       },
     );
     if (!res.ok) {
-      console.warn(`[discovery] Apify HTTP ${res.status}`);
+      const body = await res.text().catch(() => "");
+      // Apify API ritorna 4xx + body JSON con type "full-permission-actor-not-approved"
+      // quando l'utente non ha approvato l'actor. In quel caso surfaciamo
+      // l'approvalUrl all'UI cosi l'utente puo' sbloccare con un click.
+      try {
+        const j = JSON.parse(body) as {
+          error?: { type?: string; data?: { approvalUrl?: string } };
+        };
+        if (j.error?.type === "full-permission-actor-not-approved") {
+          const approvalUrl =
+            j.error.data?.approvalUrl ??
+            "https://console.apify.com/actors/YrQuEkowkNCLdk4j2?approvePermissions=true";
+          console.warn(`[discovery] Apify needs approval: ${approvalUrl}`);
+          return { needsApproval: approvalUrl };
+        }
+      } catch {
+        /* not JSON, fall through */
+      }
+      console.warn(`[discovery] Apify HTTP ${res.status}: ${body.slice(0, 200)}`);
       return null;
     }
     const data = (await res.json()) as Array<{ html?: string }>;
@@ -544,8 +591,17 @@ export async function discoverBrandFromDomain(
 
   if (!fetchable) return result;
 
-  const html = await fetchHtml(fetchable.origin);
-  if (!html) return result;
+  const fetchRes = await fetchHtml(fetchable.origin);
+  const html = fetchRes.html;
+  if (!html) {
+    if (
+      "needsApproval" in fetchRes &&
+      typeof fetchRes.needsApproval === "string"
+    ) {
+      result.needsApprovalUrl = fetchRes.needsApproval;
+    }
+    return result;
+  }
   result.fetched = true;
 
   const meta = extractMetaTags(html);

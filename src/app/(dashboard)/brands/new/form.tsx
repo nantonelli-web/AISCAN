@@ -89,9 +89,6 @@ export function NewCompetitorForm() {
       const d = json as DiscoveryResult;
 
       if (!d.fetched) {
-        // Anche con fetch fallito il server torna google_domain
-        // derivato dall'input. Applicalo se vuoto cosi l'utente
-        // ha almeno un campo gia' compilato.
         if (
           d.google_domain.value &&
           d.google_domain.confidence >= 50 &&
@@ -99,7 +96,18 @@ export function NewCompetitorForm() {
         ) {
           setGoogleDomain(d.google_domain.value);
         }
-        toast.warning(t("newCompetitor", "discoveryNoFetch"));
+        if (d.needsApprovalUrl) {
+          toast.warning(t("editCompetitor", "discoveryNeedsApproval"), {
+            duration: 12_000,
+            action: {
+              label: t("editCompetitor", "discoveryApproveBtn"),
+              onClick: () =>
+                window.open(d.needsApprovalUrl!, "_blank", "noopener"),
+            },
+          });
+        } else {
+          toast.warning(t("newCompetitor", "discoveryNoFetch"));
+        }
         return;
       }
 

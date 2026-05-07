@@ -131,9 +131,6 @@ export function EditCompetitorForm({
       const d = json as DiscoveryResult;
 
       if (!d.fetched) {
-        // Anche con fetch fallito (sito blocked / timeout) il
-        // server torna comunque google_domain derivato dall'input.
-        // Applicalo se vuoto: meglio di niente per l'utente.
         if (
           d.google_domain.value &&
           d.google_domain.confidence >= 50 &&
@@ -141,7 +138,21 @@ export function EditCompetitorForm({
         ) {
           setGoogleDomain(d.google_domain.value);
         }
-        toast.warning(t("newCompetitor", "discoveryNoFetch"));
+        // Se il sito ha bot detection (Cloudflare/Akamai) e il
+        // fallback Apify richiede approvazione, mostra un toast
+        // con link cliccabile invece del generico "unreachable".
+        if (d.needsApprovalUrl) {
+          toast.warning(t("editCompetitor", "discoveryNeedsApproval"), {
+            duration: 12_000,
+            action: {
+              label: t("editCompetitor", "discoveryApproveBtn"),
+              onClick: () =>
+                window.open(d.needsApprovalUrl!, "_blank", "noopener"),
+            },
+          });
+        } else {
+          toast.warning(t("newCompetitor", "discoveryNoFetch"));
+        }
         return;
       }
 
