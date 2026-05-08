@@ -129,7 +129,7 @@ export default async function ClientBrandPickerPage({
             />
           </svg>
         </div>
-        <div className="p-6 sm:p-8 flex items-start gap-4">
+        <div className="p-6 sm:p-8 flex items-center gap-4">
           <div
             className="size-12 rounded-xl shrink-0 ring-2 ring-border shadow"
             style={{ backgroundColor: client.color ?? "#94a3b8" }}
@@ -213,18 +213,6 @@ export default async function ClientBrandPickerPage({
                         <p className="text-base font-semibold tracking-tight truncate group-hover:text-gold transition-colors">
                           {b.page_name}
                         </p>
-                        <div className="flex items-center gap-1.5 flex-wrap mt-1">
-                          {b.country && (
-                            <Badge variant="outline" className="text-[9px] py-0 px-1.5 uppercase">
-                              {b.country}
-                            </Badge>
-                          )}
-                          {b.category && (
-                            <Badge variant="outline" className="text-[9px] py-0 px-1.5">
-                              {b.category}
-                            </Badge>
-                          )}
-                        </div>
                       </div>
                       <ChevronRight className="size-4 text-muted-foreground shrink-0 group-hover:text-gold transition-colors" />
                     </div>

@@ -3,7 +3,6 @@ import { Building2 } from "lucide-react";
 import { getSessionUser } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DynamicBackLink } from "@/components/ui/dynamic-back-link";
-import { Badge } from "@/components/ui/badge";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { BrandDetailClient } from "./brand-detail-client";
 import type { PerfImportListItem } from "@/types/perf";
@@ -102,7 +101,7 @@ export default async function BrandPerfDetailPage({
             )}
           </svg>
         </div>
-        <div className="p-6 sm:p-8 flex items-start gap-4">
+        <div className="p-6 sm:p-8 flex items-center gap-4">
           <div className="size-12 rounded-xl shrink-0 ring-2 ring-border bg-gradient-to-br from-amber-500/30 to-sky-500/20 grid place-items-center text-amber-600 shadow-sm">
             <Building2 className="size-6" />
           </div>
@@ -113,18 +112,6 @@ export default async function BrandPerfDetailPage({
             <h1 className="text-3xl font-serif tracking-tight truncate">
               {brand.page_name}
             </h1>
-            <div className="flex items-center gap-2 flex-wrap pt-1">
-              {brand.country && (
-                <Badge variant="outline" className="text-[10px] uppercase">
-                  {brand.country}
-                </Badge>
-              )}
-              {brand.category && (
-                <Badge variant="outline" className="text-[10px]">
-                  {brand.category}
-                </Badge>
-              )}
-            </div>
           </div>
         </div>
       </header>

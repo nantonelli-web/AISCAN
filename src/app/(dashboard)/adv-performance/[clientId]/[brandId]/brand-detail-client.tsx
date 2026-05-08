@@ -12,7 +12,31 @@ import {
   UploadCloud,
   FileSpreadsheet,
   Sparkles,
+  Infinity as InfinityIcon,
+  Search,
+  Music2,
+  Ghost,
 } from "lucide-react";
+
+const CHANNEL_PILL: Record<
+  string,
+  {
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    bg: string;
+    text: string;
+  }
+> = {
+  meta: {
+    label: "Meta",
+    icon: InfinityIcon,
+    bg: "bg-[#0866ff]/12",
+    text: "text-[#0866ff]",
+  },
+  google: { label: "Google", icon: Search, bg: "bg-blue-500/10", text: "text-blue-500" },
+  tiktok: { label: "TikTok", icon: Music2, bg: "bg-rose-500/10", text: "text-rose-500" },
+  snapchat: { label: "Snapchat", icon: Ghost, bg: "bg-yellow-500/10", text: "text-yellow-600" },
+};
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -171,14 +195,26 @@ export function BrandDetailClient({
                   }
                 >
                   <CardContent className="p-4 flex items-center gap-4">
-                    <div className="size-10 rounded-md bg-amber-500/10 text-amber-500 grid place-items-center shrink-0">
-                      <FileSpreadsheet className="size-5" />
-                    </div>
+                    {(() => {
+                      const ch = CHANNEL_PILL[imp.channel] ?? CHANNEL_PILL.meta;
+                      const ChIcon = ch.icon;
+                      return (
+                        <div
+                          className={`size-11 rounded-lg ${ch.bg} ${ch.text} grid place-items-center shrink-0 ring-1 ring-inset ring-current/15`}
+                          title={ch.label}
+                        >
+                          <ChIcon className="size-5" />
+                        </div>
+                      );
+                    })()}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant="outline" className="text-[10px] uppercase">
-                          {imp.channel}
-                        </Badge>
+                        <span
+                          className={`text-xs font-bold ${(CHANNEL_PILL[imp.channel] ?? CHANNEL_PILL.meta).text}`}
+                        >
+                          {(CHANNEL_PILL[imp.channel] ?? CHANNEL_PILL.meta).label}
+                        </span>
+                        <span className="text-muted-foreground/40">·</span>
                         <p className="text-sm font-medium tabular-nums">
                           {formatDate(imp.period_from)} →{" "}
                           {formatDate(imp.period_to)}
@@ -192,24 +228,12 @@ export function BrandDetailClient({
                           </Badge>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1">
-                        <span>
-                          {imp.row_count}{" "}
-                          {t("advPerformance", "summaryRows").toLowerCase()}
-                        </span>
-                        <span className="text-muted-foreground/40">·</span>
-                        <span>
-                          {imp.total_spend.toLocaleString()} {imp.currency ?? ""}
-                        </span>
-                        {imp.file_name && (
-                          <>
-                            <span className="text-muted-foreground/40">·</span>
-                            <span className="truncate max-w-[200px]">
-                              {imp.file_name}
-                            </span>
-                          </>
-                        )}
-                      </div>
+                      {imp.file_name && (
+                        <p className="text-[11.5px] text-muted-foreground mt-1 truncate flex items-center gap-1.5">
+                          <FileSpreadsheet className="size-3 shrink-0" />
+                          {imp.file_name}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0 print:hidden">
                       {!isFailed && (

@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { TrendingUp, Search, Music2, Ghost } from "lucide-react";
+import { TrendingUp, Search, Music2, Ghost, Infinity as InfinityIcon } from "lucide-react";
 import { getSessionUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { DynamicBackLink } from "@/components/ui/dynamic-back-link";
@@ -9,21 +9,6 @@ import { formatDate } from "@/lib/utils";
 import { DashboardClient } from "./dashboard-client";
 
 export const dynamic = "force-dynamic";
-
-/** Meta logo (infinity-style mark). Lucide non ha un'icona Meta
- *  ufficiale, quindi inline SVG semplificato. */
-function MetaLogo({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 287 191"
-      fill="currentColor"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M50.5 0c20.5 0 38 13.5 60 50 32-50 64-50 86 0 28 50 60 50 90 0v50c-30 50-62 50-90 0-22-50-54-50-86 0-22 36-39.5 50-60 50C22.6 100 0 78 0 50 0 22 22.6 0 50.5 0z" />
-    </svg>
-  );
-}
 
 const CHANNEL_META: Record<
   string,
@@ -36,7 +21,7 @@ const CHANNEL_META: Record<
 > = {
   meta: {
     label: "Meta",
-    icon: MetaLogo,
+    icon: InfinityIcon, // Meta usa un infinity mark stilizzato
     bg: "bg-[#0866ff]/12",
     text: "text-[#0866ff]",
   },

@@ -2341,8 +2341,8 @@ const translations = {
       en: "Accepts CSV, XLSX (~50MB max)",
     },
     importsListTitle: {
-      it: "Export caricati",
-      en: "Uploaded exports",
+      it: "File caricati",
+      en: "Uploaded files",
     },
     importsListSubtitle: {
       it: "Ogni riga e' un periodo di reporting. Click sulla freccia per aprire il dashboard, sul cestino per rimuovere l'import.",
@@ -2399,8 +2399,8 @@ const translations = {
       en: "Total clicks received by the ads",
     },
     kpiReachHint: {
-      it: "Utenti unici raggiunti dalle campagne",
-      en: "Unique users reached by the campaigns",
+      it: "Reach cumulato per (ad set × settimana); possibile overlap fra settimane",
+      en: "Cumulated reach across (ad set × week); possible inter-week overlap",
     },
     kpiCtrHint: {
       it: "Click ÷ Impression × 100. Quanto seducono al click",
@@ -2427,8 +2427,8 @@ const translations = {
       en: "Total purchases in the period, across all campaign types",
     },
     kpiCostPerPurchaseHint: {
-      it: "Spesa ÷ acquisti. Più basso = meglio",
-      en: "Spend ÷ purchases. Lower is better",
+      it: "Spesa ÷ acquisti",
+      en: "Spend ÷ purchases",
     },
     kpiPostEngagementsHint: {
       it: "Like, commenti, share, reazioni cumulati sui post sponsorizzati",

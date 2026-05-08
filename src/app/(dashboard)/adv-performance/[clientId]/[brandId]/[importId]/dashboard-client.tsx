@@ -130,6 +130,7 @@ function KpiCard({
   hint,
   icon: Icon = Activity,
   tone = "slate",
+  forceTwoDecimals = false,
 }: {
   label: string;
   value: number | null;
@@ -141,15 +142,23 @@ function KpiCard({
   hint?: string;
   icon?: React.ComponentType<{ className?: string }>;
   tone?: AccentTone;
+  forceTwoDecimals?: boolean;
 }) {
+  const fmt = (n: number) =>
+    forceTwoDecimals
+      ? new Intl.NumberFormat("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }).format(n)
+      : formatNumber(n);
   const display =
     value == null
       ? "—"
       : isMoney
         ? formatMoney(value, currency ?? null)
         : isPercent
-          ? `${formatNumber(value)}%`
-          : formatNumber(value);
+          ? `${fmt(value)}%`
+          : fmt(value);
   const deltaIsPositive = delta != null && delta > 0;
   const deltaIsNegative = delta != null && delta < 0;
   const goodColor = invertColors ? "text-rose-400" : "text-emerald-400";
@@ -306,30 +315,45 @@ export function DashboardClient({ importId }: { importId: string }) {
       params.set("week_current", weekCurrent);
       params.set("week_compare", weekCompare);
     }
-    setLoading(true);
-    setError(null);
-    fetch(`/api/perf/imports/${importId}/dashboard?${params.toString()}`, {
-      cache: "no-store",
-    })
-      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
-      .then(({ ok, j }) => {
-        if (!ok) {
-          setError(j.error ?? "Failed to load dashboard");
-        } else {
-          const d = j as PerfDashboardData;
-          setData(d);
-          if (
-            d.weeks.length >= 2 &&
-            mode === "week" &&
-            (!weekCurrent || !weekCompare)
-          ) {
-            setWeekCurrent((cur) => cur || d.weeks[d.weeks.length - 1]);
-            setWeekCompare((cmp) => cmp || d.weeks[d.weeks.length - 2]);
-          }
-        }
+    // Debounce 150ms cosi i cambi consecutivi (es. utente che apre
+    // un select e seleziona dopo 50ms) non triggherano 2 fetch.
+    // Non-blocking: setLoading=true ma data rimane mostrato finche'
+    // arriva la risposta nuova, evitando lo "schermo bianco".
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => {
+      setLoading(true);
+      setError(null);
+      fetch(`/api/perf/imports/${importId}/dashboard?${params.toString()}`, {
+        cache: "no-store",
+        signal: ctrl.signal,
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Error"))
-      .finally(() => setLoading(false));
+        .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+        .then(({ ok, j }) => {
+          if (!ok) {
+            setError(j.error ?? "Failed to load dashboard");
+          } else {
+            const d = j as PerfDashboardData;
+            setData(d);
+            if (
+              d.weeks.length >= 2 &&
+              mode === "week" &&
+              (!weekCurrent || !weekCompare)
+            ) {
+              setWeekCurrent((cur) => cur || d.weeks[d.weeks.length - 1]);
+              setWeekCompare((cmp) => cmp || d.weeks[d.weeks.length - 2]);
+            }
+          }
+        })
+        .catch((e) => {
+          if (e instanceof Error && e.name === "AbortError") return;
+          setError(e instanceof Error ? e.message : "Error");
+        })
+        .finally(() => setLoading(false));
+    }, 150);
+    return () => {
+      clearTimeout(timer);
+      ctrl.abort();
+    };
   }, [importId, mode, customFrom, customTo, weekCurrent, weekCompare]);
 
   const deltas = useMemo(() => {
@@ -376,7 +400,13 @@ export function DashboardClient({ importId }: { importId: string }) {
   const showCountryPurchases = countriesTotalPurch > 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {loading && (
+        <div className="fixed top-4 right-4 z-40 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-background/95 backdrop-blur border border-border shadow-md text-xs text-muted-foreground print:hidden">
+          <Loader2 className="size-3.5 animate-spin text-amber-500" />
+          Aggiornamento dati…
+        </div>
+      )}
       {/* Comparison switcher */}
       <Card className="print:hidden">
         <CardContent className="p-5 space-y-3">
@@ -634,16 +664,19 @@ export function DashboardClient({ importId }: { importId: string }) {
               icon={Gauge}
               tone="amber"
             />
-            {hasRoasData && (
-              <KpiCard
-                label={t("advPerformance", "kpiRoas")}
-                value={k.roas}
-                delta={deltas?.roas ?? null}
-                hint={t("advPerformance", "kpiRoasHint")}
-                icon={Target}
-                tone="green"
-              />
-            )}
+            {/* ROAS visibile sempre quando ci sono purchases. Se
+                manca il purchase value (k.roas == null) mostriamo 0
+                cosi il numero appare 0.00 e l'utente capisce che
+                il file non aveva tracking conversion value. */}
+            <KpiCard
+              label={t("advPerformance", "kpiRoas")}
+              value={k.roas ?? 0}
+              delta={deltas?.roas ?? null}
+              hint={t("advPerformance", "kpiRoasHint")}
+              icon={Target}
+              tone="green"
+              forceTwoDecimals
+            />
           </div>
         </section>
       )}
@@ -1180,6 +1213,9 @@ function CampaignTypesPanel({
   ).length;
 
   const hasAnyPurchases = breakdown.some((b) => b.purchases > 0);
+  const totalSpend = breakdown.reduce((s, b) => s + b.spend, 0);
+  const totalResults = breakdown.reduce((s, b) => s + b.resultCount, 0);
+  const totalPurch = breakdown.reduce((s, b) => s + b.purchases, 0);
 
   return (
     <Card>
@@ -1245,46 +1281,73 @@ function CampaignTypesPanel({
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {breakdown.map((b) => (
-                <tr key={b.code} className="hover:bg-muted/30">
-                  <td className="py-3">
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        variant={b.code === "UNKNOWN" ? "outline" : "gold"}
-                        className="text-[10px]"
-                      >
-                        {b.code}
-                      </Badge>
-                      <span className="text-foreground font-medium">{b.label}</span>
-                    </div>
-                  </td>
-                  <td className="text-right tabular-nums">
-                    {b.campaignCount}
-                  </td>
-                  <td className="text-right tabular-nums font-medium">
-                    {formatMoney(b.spend, currency)}
-                  </td>
-                  <td className="text-right tabular-nums">
-                    {b.resultCount > 0
-                      ? formatNumber(b.resultCount)
-                      : "—"}
-                  </td>
-                  <td className="text-right tabular-nums">
-                    {b.cpr != null ? formatMoney(b.cpr, currency) : "—"}
-                  </td>
-                  {hasAnyPurchases && (
+              {breakdown.map((b) => {
+                const spendPct =
+                  totalSpend > 0 ? (b.spend / totalSpend) * 100 : 0;
+                const resPct =
+                  totalResults > 0 ? (b.resultCount / totalResults) * 100 : 0;
+                const purchPct =
+                  totalPurch > 0 ? (b.purchases / totalPurch) * 100 : 0;
+                return (
+                  <tr key={b.code} className="hover:bg-muted/30">
+                    <td className="py-3">
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant={b.code === "UNKNOWN" ? "outline" : "gold"}
+                          className="text-[10px]"
+                        >
+                          {b.code}
+                        </Badge>
+                        <span className="text-foreground font-medium">{b.label}</span>
+                      </div>
+                    </td>
                     <td className="text-right tabular-nums">
-                      {b.purchases > 0 ? (
-                        <span className="text-emerald-500 font-semibold">
-                          {formatNumber(b.purchases)}
-                        </span>
+                      {b.campaignCount}
+                    </td>
+                    <td className="text-right tabular-nums">
+                      <div className="font-medium">
+                        {formatMoney(b.spend, currency)}
+                      </div>
+                      <div className="text-[10.5px] text-muted-foreground">
+                        {formatNumber(Math.round(spendPct * 10) / 10)}%
+                      </div>
+                    </td>
+                    <td className="text-right tabular-nums">
+                      {b.resultCount > 0 ? (
+                        <>
+                          <div className="font-medium">
+                            {formatNumber(b.resultCount)}
+                          </div>
+                          <div className="text-[10.5px] text-muted-foreground">
+                            {formatNumber(Math.round(resPct * 10) / 10)}%
+                          </div>
+                        </>
                       ) : (
                         "—"
                       )}
                     </td>
-                  )}
-                </tr>
-              ))}
+                    <td className="text-right tabular-nums">
+                      {b.cpr != null ? formatMoney(b.cpr, currency) : "—"}
+                    </td>
+                    {hasAnyPurchases && (
+                      <td className="text-right tabular-nums">
+                        {b.purchases > 0 ? (
+                          <>
+                            <div className="font-semibold text-emerald-500">
+                              {formatNumber(b.purchases)}
+                            </div>
+                            <div className="text-[10.5px] text-muted-foreground">
+                              {formatNumber(Math.round(purchPct * 10) / 10)}%
+                            </div>
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
