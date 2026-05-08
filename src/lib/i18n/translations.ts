@@ -2286,9 +2286,19 @@ const translations = {
     dashboardTitle: { it: "Performance", en: "Performance" },
     comparisonNone: { it: "Nessun confronto", en: "No comparison" },
     comparisonPrevious: { it: "Periodo precedente", en: "Previous period" },
-    comparisonWeek: { it: "Settimana precedente", en: "Previous week" },
+    comparisonWeek: { it: "Confronta settimane", en: "Compare weeks" },
     comparisonYoy: { it: "Stesso periodo anno scorso", en: "Same period last year" },
     comparisonCustom: { it: "Range personalizzato", en: "Custom range" },
+    weekCurrent: { it: "Settimana corrente", en: "Current week" },
+    weekCompare: { it: "Confronta con", en: "Compare with" },
+    weekPickHint: {
+      it: "Scegli quale settimana visualizzare e quale usare come confronto.",
+      en: "Pick which week to view and which to use as comparison.",
+    },
+    weeksUnavailable: {
+      it: "L'export non contiene la colonna 'Week'. Confronto disponibile solo per file settimanali.",
+      en: "Export has no 'Week' column. Available only for weekly files.",
+    },
     kpiSpend: { it: "Spesa", en: "Spend" },
     kpiImpressions: { it: "Impression", en: "Impressions" },
     kpiClicks: { it: "Click", en: "Clicks" },
@@ -2301,6 +2311,10 @@ const translations = {
     kpiRoas: { it: "ROAS", en: "ROAS" },
     kpiFrequency: { it: "Frequenza", en: "Frequency" },
     timeSeriesTitle: { it: "Andamento giornaliero", en: "Daily trend" },
+    timeSeriesDescription: {
+      it: "Spesa giornaliera in barre, impression sovrapposte come linea. Mostra come il budget e' stato distribuito nei giorni del periodo selezionato e quanto traffico ha generato giorno per giorno.",
+      en: "Daily spend as bars, impressions as the overlay line. Shows how budget was distributed across days of the selected period and how much traffic was generated each day.",
+    },
     topCampaignsBySpend: {
       it: "Top campagne per spesa",
       en: "Top campaigns by spend",
@@ -2312,6 +2326,33 @@ const translations = {
     objectiveMix: { it: "Distribuzione per obiettivo", en: "Objective mix" },
     creativeTypeMix: { it: "Distribuzione per tipo creatività", en: "Creative type mix" },
     creativeCountByType: { it: "Numero asset per tipo", en: "Asset count by type" },
+    creativeCountByTypeHint: {
+      it: "Le creativita' tendono a ripetersi settimana per settimana, quindi mostriamo il numero di asset rilevati nell'ultima settimana del file (label sotto al titolo) per evitare sovra-conteggi.",
+      en: "Creatives tend to repeat week-over-week, so we show the asset count detected in the latest week of the file (label below the title) to avoid double counting.",
+    },
+    creativeCountWindowLabel: {
+      it: "Finestra:",
+      en: "Window:",
+    },
+    countriesTitle: { it: "Distribuzione per paese", en: "Country breakdown" },
+    countriesDescription: {
+      it: "Spesa, impression e click ripartiti per paese, decodificando i token presenti nei nomi campagna e ad set (es. KSA → Arabia Saudita, UAE → Emirati). Le campagne multi-paese (es. KSA-UAE) vengono divise pro-rata fra i paesi.",
+      en: "Spend, impressions and clicks split by country, decoded from tokens in campaign and ad set names (e.g. KSA → Saudi Arabia, UAE → UAE). Multi-country campaigns (e.g. KSA-UAE) are split pro-rata across the targeted countries.",
+    },
+    countryCol: { it: "Paese", en: "Country" },
+    kpiPostEngagements: { it: "Post engagement", en: "Post engagements" },
+    kpiInstagramVisits: { it: "Visite profilo IG", en: "IG profile visits" },
+    kpiInstagramFollows: { it: "Follow IG", en: "IG follows" },
+    kpiPurchases: { it: "Acquisti", en: "Purchases" },
+    kpiCostPerPurchase: { it: "Costo per acquisto", en: "Cost per purchase" },
+    engagementSectionTitle: {
+      it: "Engagement & Social",
+      en: "Engagement & Social",
+    },
+    engagementSectionDescription: {
+      it: "Metriche di interazione e crescita social attribuite alle ads (post engagement totali, visite e nuovi follower Instagram).",
+      en: "Engagement and social-growth metrics attributed to the ads (total post engagements, Instagram profile visits and new follows).",
+    },
     campaignTypesTitle: { it: "Tipologia campagna e risultati", en: "Campaign type and results" },
     campaignTypesDescription: {
       it: "Decodifica automatica dal nome campagna (VC = View Content, ATC = Add to Cart, PUR = Purchase, ecc). I risultati e il CPR sono calcolati per ogni tipologia. Verifica e correggi se necessario.",

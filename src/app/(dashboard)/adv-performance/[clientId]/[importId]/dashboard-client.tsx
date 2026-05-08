@@ -115,7 +115,6 @@ function KpiCard({
           : formatNumber(value);
   const deltaIsPositive = delta != null && delta > 0;
   const deltaIsNegative = delta != null && delta < 0;
-  // For "lower is better" (CPM, CPC, CPA), color by inverted sign.
   const goodColor = invertColors ? "text-red-400" : "text-emerald-400";
   const badColor = invertColors ? "text-emerald-400" : "text-red-400";
   return (
@@ -166,6 +165,11 @@ function buildDeltaMap(
       effectiveCpc: null,
       roas: null,
       frequency: null,
+      purchases: null,
+      costPerPurchase: null,
+      postEngagements: null,
+      instagramProfileVisits: null,
+      instagramFollows: null,
     };
   }
   return {
@@ -178,6 +182,23 @@ function buildDeltaMap(
     effectiveCpc: deltaPctInverse(current.effectiveCpc, prev.effectiveCpc),
     roas: deltaPct(current.roas, prev.roas),
     frequency: deltaPct(current.frequency, prev.frequency),
+    purchases: deltaPct(current.purchases, prev.purchases),
+    costPerPurchase: deltaPctInverse(
+      current.costPerPurchase,
+      prev.costPerPurchase,
+    ),
+    postEngagements: deltaPct(
+      current.postEngagements,
+      prev.postEngagements,
+    ),
+    instagramProfileVisits: deltaPct(
+      current.instagramProfileVisits,
+      prev.instagramProfileVisits,
+    ),
+    instagramFollows: deltaPct(
+      current.instagramFollows,
+      prev.instagramFollows,
+    ),
   };
 }
 
@@ -186,6 +207,8 @@ export function DashboardClient({ importId }: { importId: string }) {
   const [mode, setMode] = useState<ComparisonMode>("none");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const [weekCurrent, setWeekCurrent] = useState("");
+  const [weekCompare, setWeekCompare] = useState("");
   const [data, setData] = useState<PerfDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -197,6 +220,10 @@ export function DashboardClient({ importId }: { importId: string }) {
       params.set("compare_from", customFrom);
       params.set("compare_to", customTo);
     }
+    if (mode === "week" && weekCurrent && weekCompare) {
+      params.set("week_current", weekCurrent);
+      params.set("week_compare", weekCompare);
+    }
     setLoading(true);
     setError(null);
     fetch(`/api/perf/imports/${importId}/dashboard?${params.toString()}`, {
@@ -207,12 +234,22 @@ export function DashboardClient({ importId }: { importId: string }) {
         if (!ok) {
           setError(j.error ?? "Failed to load dashboard");
         } else {
-          setData(j as PerfDashboardData);
+          const d = j as PerfDashboardData;
+          setData(d);
+          // Auto-pick week defaults the first time we get the list
+          if (
+            d.weeks.length >= 2 &&
+            mode === "week" &&
+            (!weekCurrent || !weekCompare)
+          ) {
+            setWeekCurrent((cur) => cur || d.weeks[d.weeks.length - 1]);
+            setWeekCompare((cmp) => cmp || d.weeks[d.weeks.length - 2]);
+          }
         }
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Error"))
       .finally(() => setLoading(false));
-  }, [importId, mode, customFrom, customTo]);
+  }, [importId, mode, customFrom, customTo, weekCurrent, weekCompare]);
 
   const deltas = useMemo(() => {
     if (!data) return null;
@@ -238,6 +275,18 @@ export function DashboardClient({ importId }: { importId: string }) {
   if (!data) return null;
 
   const k = data.current;
+
+  // KPI extras: only show purchases / engagement / IG when present.
+  const showPurchases = k.purchases > 0;
+  const showEngagement =
+    k.postEngagements > 0 ||
+    k.instagramProfileVisits > 0 ||
+    k.instagramFollows > 0;
+
+  // Hide Top ROAS panel when there's nothing meaningful (all roas
+  // are 0/null because purchase_value is missing).
+  const hasRoasData =
+    data.topByCampaignRoas.some((c) => (c.roas ?? 0) > 0) || (k.roas ?? 0) > 0;
 
   return (
     <div className="space-y-6">
@@ -333,16 +382,74 @@ export function DashboardClient({ importId }: { importId: string }) {
               </Badge>
             )}
           </div>
-          {mode !== "none" && !data.comparison.aggregate && (
-            <p className="text-[11px] text-amber-400">
-              {t("advPerformance", "noComparisonData")}
-            </p>
+
+          {/* Week-pick UI: due dropdown popolate dalla lista weeks
+              dell'import. Visibile solo in mode "week". */}
+          {mode === "week" && (
+            <div className="space-y-2 pt-2 border-t border-border/50">
+              {data.weeks.length === 0 ? (
+                <p className="text-[11px] text-amber-400">
+                  {t("advPerformance", "weeksUnavailable")}
+                </p>
+              ) : (
+                <>
+                  <p className="text-[11px] text-muted-foreground">
+                    {t("advPerformance", "weekPickHint")}
+                  </p>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                        {t("advPerformance", "weekCurrent")}
+                      </Label>
+                      <select
+                        value={weekCurrent}
+                        onChange={(e) => setWeekCurrent(e.target.value)}
+                        className="h-8 rounded-md border border-border bg-muted px-2 text-xs"
+                      >
+                        <option value="">—</option>
+                        {data.weeks.map((w) => (
+                          <option key={w} value={w}>
+                            {w}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                        {t("advPerformance", "weekCompare")}
+                      </Label>
+                      <select
+                        value={weekCompare}
+                        onChange={(e) => setWeekCompare(e.target.value)}
+                        className="h-8 rounded-md border border-border bg-muted px-2 text-xs"
+                      >
+                        <option value="">—</option>
+                        {data.weeks
+                          .filter((w) => w !== weekCurrent)
+                          .map((w) => (
+                            <option key={w} value={w}>
+                              {w}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           )}
+
+          {mode !== "none" &&
+            mode !== "week" &&
+            !data.comparison.aggregate && (
+              <p className="text-[11px] text-amber-400">
+                {t("advPerformance", "noComparisonData")}
+              </p>
+            )}
         </CardContent>
       </Card>
 
-      {/* KPI cards — niente "Risultati" generico (ogni campagna
-          ha il proprio risultato per type, vedi sezione sotto). */}
+      {/* KPI cards */}
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 xl:grid-cols-4">
         <KpiCard
           label={t("advPerformance", "kpiSpend")}
@@ -388,20 +495,92 @@ export function DashboardClient({ importId }: { importId: string }) {
           isMoney
           currency={data.currency}
         />
-        <KpiCard
-          label={t("advPerformance", "kpiRoas")}
-          value={k.roas}
-          delta={deltas?.roas ?? null}
-        />
+        {hasRoasData ? (
+          <KpiCard
+            label={t("advPerformance", "kpiRoas")}
+            value={k.roas}
+            delta={deltas?.roas ?? null}
+          />
+        ) : (
+          <KpiCard
+            label={t("advPerformance", "kpiFrequency")}
+            value={k.frequency}
+            delta={deltas?.frequency ?? null}
+          />
+        )}
       </div>
+
+      {/* Purchases section — solo se ci sono acquisti nel periodo. */}
+      {showPurchases && (
+        <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 xl:grid-cols-3">
+          <KpiCard
+            label={t("advPerformance", "kpiPurchases")}
+            value={k.purchases}
+            delta={deltas?.purchases ?? null}
+          />
+          <KpiCard
+            label={t("advPerformance", "kpiCostPerPurchase")}
+            value={k.costPerPurchase}
+            delta={deltas?.costPerPurchase ?? null}
+            invertColors
+            isMoney
+            currency={data.currency}
+          />
+          {k.purchaseValue > 0 && (
+            <KpiCard
+              label={t("advPerformance", "kpiRoas")}
+              value={k.roas}
+              delta={deltas?.roas ?? null}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Engagement & Social section — solo se ≥1 metrica > 0. */}
+      {showEngagement && (
+        <Card>
+          <CardContent className="p-5 space-y-3">
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+                {t("advPerformance", "engagementSectionTitle")}
+              </h3>
+              <p className="text-[11px] text-muted-foreground">
+                {t("advPerformance", "engagementSectionDescription")}
+              </p>
+            </div>
+            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
+              <KpiCard
+                label={t("advPerformance", "kpiPostEngagements")}
+                value={k.postEngagements}
+                delta={deltas?.postEngagements ?? null}
+              />
+              <KpiCard
+                label={t("advPerformance", "kpiInstagramVisits")}
+                value={k.instagramProfileVisits}
+                delta={deltas?.instagramProfileVisits ?? null}
+              />
+              <KpiCard
+                label={t("advPerformance", "kpiInstagramFollows")}
+                value={k.instagramFollows}
+                delta={deltas?.instagramFollows ?? null}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Time series */}
       {data.timeSeries.length > 0 && (
         <Card>
           <CardContent className="p-4 space-y-3">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-              {t("advPerformance", "timeSeriesTitle")}
-            </h3>
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+                {t("advPerformance", "timeSeriesTitle")}
+              </h3>
+              <p className="text-[11px] text-muted-foreground">
+                {t("advPerformance", "timeSeriesDescription")}
+              </p>
+            </div>
             <ResponsiveContainer width="100%" height={280}>
               <ComposedChart
                 data={data.timeSeries}
@@ -443,8 +622,9 @@ export function DashboardClient({ importId }: { importId: string }) {
         </Card>
       )}
 
-      {/* Top campaigns */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      {/* Top campaigns. Top ROAS nascosto se nessuna campagna ha
+          ROAS > 0 (file senza purchase_value). */}
+      <div className={`grid gap-4 ${hasRoasData ? "lg:grid-cols-2" : ""}`}>
         {data.topByCampaignSpend.length > 0 && (
           <Card>
             <CardContent className="p-4 space-y-3">
@@ -463,7 +643,7 @@ export function DashboardClient({ importId }: { importId: string }) {
             </CardContent>
           </Card>
         )}
-        {data.topByCampaignRoas.length > 0 && (
+        {hasRoasData && data.topByCampaignRoas.length > 0 && (
           <Card>
             <CardContent className="p-4 space-y-3">
               <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
@@ -483,10 +663,80 @@ export function DashboardClient({ importId }: { importId: string }) {
         )}
       </div>
 
-      {/* Campaign types — risultati e CPR diversificati per type
-          decodificata dal nome campagna. Pannello sempre presente
-          quando ci sono campagne (anche solo UNKNOWN). Ha la UI
-          di override per correggere la decodifica. */}
+      {/* Country breakdown — solo se almeno un paese decodificato. */}
+      {data.countries.length > 0 &&
+        !(
+          data.countries.length === 1 && data.countries[0].code === "UNKNOWN"
+        ) && (
+          <Card>
+            <CardContent className="p-5 space-y-3">
+              <div className="space-y-1">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+                  {t("advPerformance", "countriesTitle")}
+                </h3>
+                <p className="text-[11px] text-muted-foreground">
+                  {t("advPerformance", "countriesDescription")}
+                </p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
+                      <th className="text-left py-2 font-semibold">
+                        {t("advPerformance", "countryCol")}
+                      </th>
+                      <th className="text-right py-2 font-semibold">
+                        {t("advPerformance", "ctCampaigns")}
+                      </th>
+                      <th className="text-right py-2 font-semibold">
+                        {t("advPerformance", "kpiSpend")}
+                      </th>
+                      <th className="text-right py-2 font-semibold">
+                        {t("advPerformance", "kpiImpressions")}
+                      </th>
+                      <th className="text-right py-2 font-semibold">
+                        {t("advPerformance", "kpiClicks")}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {data.countries.map((c) => (
+                      <tr key={c.code}>
+                        <td className="py-2.5">
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant={
+                                c.code === "UNKNOWN" ? "outline" : "gold"
+                              }
+                              className="text-[10px]"
+                            >
+                              {c.code}
+                            </Badge>
+                            <span className="text-foreground">{c.label}</span>
+                          </div>
+                        </td>
+                        <td className="text-right tabular-nums">
+                          {c.campaignCount}
+                        </td>
+                        <td className="text-right tabular-nums">
+                          {formatMoney(c.spend, data.currency)}
+                        </td>
+                        <td className="text-right tabular-nums">
+                          {formatNumber(c.impressions)}
+                        </td>
+                        <td className="text-right tabular-nums">
+                          {formatNumber(c.clicks)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+      {/* Campaign types — risultati e CPR diversificati per type. */}
       {data.campaignTypes.length > 0 && (
         <CampaignTypesPanel
           importId={importId}
@@ -494,15 +744,12 @@ export function DashboardClient({ importId }: { importId: string }) {
           assignments={data.campaignTypeAssignments}
           currency={data.currency}
           onOverridesSaved={() => {
-            // Re-fetch dashboard data after override save.
-            // Trigger a query string change to bust the useEffect.
             window.location.reload();
           }}
         />
       )}
 
-      {/* Creative type mix — solo se l'export ha le custom column
-          creative_type / creative_count. */}
+      {/* Creative type mix + asset count by type. */}
       {(data.creativeTypeMix.length > 0 ||
         data.creativeCountByType.length > 0) && (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -545,9 +792,22 @@ export function DashboardClient({ importId }: { importId: string }) {
           {data.creativeCountByType.length > 0 && (
             <Card>
               <CardContent className="p-4 space-y-3">
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-                  {t("advPerformance", "creativeCountByType")}
-                </h3>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+                    {t("advPerformance", "creativeCountByType")}
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">
+                    {t("advPerformance", "creativeCountByTypeHint")}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    <span className="uppercase tracking-wider">
+                      {t("advPerformance", "creativeCountWindowLabel")}
+                    </span>{" "}
+                    <Badge variant="outline" className="text-[10px]">
+                      {data.creativeCountLabel}
+                    </Badge>
+                  </p>
+                </div>
                 <div className="space-y-2 pt-1">
                   {data.creativeCountByType.map((c) => (
                     <div
@@ -567,10 +827,7 @@ export function DashboardClient({ importId }: { importId: string }) {
         </div>
       )}
 
-      {/* Objective mix — mostrato SOLO se l'export Meta ha la
-          colonna Objective popolata. Molti file (es. quelli
-          custom) non l'hanno → pannello nascosto invece di
-          mostrare un pie vuoto. */}
+      {/* Objective mix — solo quando objective popolato. */}
       {data.objectiveMix.length > 0 &&
         data.objectiveMix.some((o) => o.name && o.name !== "—") && (
           <Card>
@@ -612,16 +869,6 @@ export function DashboardClient({ importId }: { importId: string }) {
   );
 }
 
-/* ─── Campaign Types panel ───────────────────────────────────
- * Mostra il breakdown KPI per tipologia di campagna decodificata
- * dal nome (VC / ATC / PUR / ...). Ogni riga = una type, con
- * spend / impressions / N campagne / N risultati / CPR specifico.
- *
- * Ha un bottone "Edit mapping" che apre una modal dove l'utente
- * vede l'auto-decodifica per ogni campagna e puo' overridarla
- * scegliendo da una dropdown o segnando "Unknown". Salva in
- * mait_perf_imports.campaign_type_overrides via PATCH.
- */
 function CampaignTypesPanel({
   importId,
   breakdown,

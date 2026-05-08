@@ -64,6 +64,9 @@ const COLUMN_SYNONYMS: Record<string, string[]> = {
     "inizio del periodo di rendicontazione",
     "inizio del rendiconto",
   ],
+  // Week — esportata in granularita' settimanale (es. "week 14").
+  // Permette confronti week-vs-week reali nel dashboard.
+  week: ["week", "settimana"],
   reporting_starts: [
     "reporting starts",
     "inizio del periodo di rendicontazione",
@@ -513,8 +516,18 @@ export async function parseMetaExport(
       if (h) rawData[h] = row[idx];
     });
 
+    // Week: se presente, normalizziamo lowercase + collapse spaces.
+    // Manteniamo il formato originale ("week 14") per UX coerente
+    // con il file Meta.
+    const weekRaw = get(row, "week");
+    const week =
+      weekRaw == null || String(weekRaw).trim() === ""
+        ? null
+        : String(weekRaw).trim().toLowerCase().replace(/\s+/g, " ");
+
     rows.push({
       date,
+      week,
       campaign_name: get(row, "campaign_name")
         ? String(get(row, "campaign_name"))
         : null,

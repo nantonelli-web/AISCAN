@@ -12,12 +12,47 @@ import type {
   MetaCampaignAggregate,
   CampaignTypeBreakdown,
   CampaignTypeAssignment,
+  CountryBreakdown,
 } from "@/types/perf";
 import {
   decodeCampaignType,
   resolveCampaignType,
   type CampaignType,
 } from "./campaign-decoder";
+import {
+  decodeCountriesFromNames,
+  countryLabel,
+} from "./country-decoder";
+
+/** Read a numeric value from row.raw_data tolerating IT/EN locale
+ *  and currency symbols. Used for engagement metrics that aren't
+ *  in the normalised schema. */
+function readRawNumber(row: MetaPerfRow, key: string): number {
+  const v = row.raw_data?.[key];
+  if (v == null) return 0;
+  if (typeof v === "number") return Number.isFinite(v) ? Math.max(0, v) : 0;
+  const s = String(v).trim();
+  if (!s) return 0;
+  // Detect locale on the fly (IT uses "1.234,56", EN "1,234.56")
+  const lastDot = s.lastIndexOf(".");
+  const lastComma = s.lastIndexOf(",");
+  let cleaned = s.replace(/[€$£¥%\s]/g, "");
+  if (lastDot >= 0 && lastComma >= 0) {
+    if (lastComma > lastDot) {
+      cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+    } else {
+      cleaned = cleaned.replace(/,/g, "");
+    }
+  } else if (lastComma >= 0) {
+    const after = s.length - 1 - lastComma;
+    cleaned =
+      after === 3 && s.length > 4
+        ? cleaned.replace(/,/g, "")
+        : cleaned.replace(",", ".");
+  }
+  const n = Number.parseFloat(cleaned);
+  return Number.isFinite(n) ? Math.max(0, n) : 0;
+}
 
 /** Sum totals across rows, then derive ratio metrics from sums. This
  *  is statistically correct (weighted averages) — a row's CTR or CPM
@@ -31,6 +66,9 @@ export function aggregateKpis(rows: MetaPerfRow[]): MetaKpiAggregate {
   let results = 0;
   let purchases = 0;
   let purchaseValue = 0;
+  let postEngagements = 0;
+  let igProfileVisits = 0;
+  let igFollows = 0;
   const campaigns = new Set<string>();
   const adSets = new Set<string>();
   const ads = new Set<string>();
@@ -44,6 +82,9 @@ export function aggregateKpis(rows: MetaPerfRow[]): MetaKpiAggregate {
     results += Math.max(0, r.results ?? 0);
     purchases += Math.max(0, r.purchases ?? 0);
     purchaseValue += Math.max(0, r.purchase_value ?? 0);
+    postEngagements += readRawNumber(r, "Post engagements");
+    igProfileVisits += readRawNumber(r, "Instagram profile visits");
+    igFollows += readRawNumber(r, "Instagram follows");
     if (r.campaign_name) campaigns.add(r.campaign_name);
     if (r.ad_set_name) adSets.add(r.ad_set_name);
     if (r.ad_name) ads.add(r.ad_name);
@@ -73,8 +114,9 @@ export function aggregateKpis(rows: MetaPerfRow[]): MetaKpiAggregate {
   const effectiveCpc =
     effectiveClicks > 0 ? amountSpent / effectiveClicks : null;
   const costPerResult = results > 0 ? amountSpent / results : null;
-  const roas = amountSpent > 0 ? purchaseValue / amountSpent : null;
+  const roas = amountSpent > 0 && purchaseValue > 0 ? purchaseValue / amountSpent : null;
   const frequency = ratio(impressions, reach);
+  const costPerPurchase = purchases > 0 ? amountSpent / purchases : null;
 
   return {
     rowCount: rows.length,
@@ -87,6 +129,9 @@ export function aggregateKpis(rows: MetaPerfRow[]): MetaKpiAggregate {
     results: Math.round(results * 100) / 100,
     purchases: Math.round(purchases * 100) / 100,
     purchaseValue: Math.round(purchaseValue * 100) / 100,
+    postEngagements: Math.round(postEngagements),
+    instagramProfileVisits: Math.round(igProfileVisits),
+    instagramFollows: Math.round(igFollows),
     ctr,
     linkCtr,
     effectiveCtr,
@@ -100,6 +145,8 @@ export function aggregateKpis(rows: MetaPerfRow[]): MetaKpiAggregate {
     roas: roas == null ? null : Math.round(roas * 100) / 100,
     frequency:
       frequency == null ? null : Math.round(frequency * 100) / 100,
+    costPerPurchase:
+      costPerPurchase == null ? null : Math.round(costPerPurchase * 100) / 100,
     uniqueCampaigns: campaigns.size,
     uniqueAdSets: adSets.size,
     uniqueAds: ads.size,
@@ -226,12 +273,53 @@ export function aggregateCreativeTypeMix(
     .sort((a, b) => b.value - a.value);
 }
 
-/** Numero totale asset per creative type (somma di creative_count
- *  dedup per (campaign,ad_set,ad) per non contare due volte la
- *  stessa creativity quando piu' righe la riferiscono). */
-export function aggregateCreativeCountByType(
-  rows: MetaPerfRow[],
-): { name: string; count: number }[] {
+/** Numero asset per creative type. Logica:
+ *  - se l'export ha le settimane (column "Week" popolata), conta
+ *    solo le righe della week piu' recente — perche' le creativita'
+ *    si ripetono settimana per settimana e sommare globalmente
+ *    gonfia il numero in proporzione al numero di settimane;
+ *  - se l'export e' giornaliero (no week), dedup per
+ *    (creative_type, ad_name, ad_set_name, campaign_name).
+ *
+ *  Ritorna anche un label esplicito della finestra usata per la UI.
+ */
+export function aggregateCreativeCountByType(rows: MetaPerfRow[]): {
+  items: { name: string; count: number }[];
+  label: string;
+} {
+  // Determina se le week sono presenti
+  const weeksWithData = new Set<string>();
+  for (const r of rows) {
+    if (r.week) weeksWithData.add(r.week);
+  }
+
+  if (weeksWithData.size > 0) {
+    // Prendi la week piu' recente (ordinamento alfabetico funziona
+    // sui token "week 14"..."week 18"; aggiunto compare numerico
+    // come tiebreaker per anno crossover).
+    const sorted = [...weeksWithData].sort((a, b) => {
+      const na = Number(a.replace(/\D+/g, "")) || 0;
+      const nb = Number(b.replace(/\D+/g, "")) || 0;
+      return na - nb;
+    });
+    const latest = sorted[sorted.length - 1];
+    const counts = new Map<string, number>();
+    for (const r of rows) {
+      if (r.week !== latest) continue;
+      if (!r.creative_type || r.creative_count == null) continue;
+      counts.set(
+        r.creative_type,
+        (counts.get(r.creative_type) ?? 0) + (r.creative_count ?? 0),
+      );
+    }
+    return {
+      items: [...counts.entries()]
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count),
+      label: latest,
+    };
+  }
+
   const seen = new Set<string>();
   const counts = new Map<string, number>();
   for (const r of rows) {
@@ -244,9 +332,72 @@ export function aggregateCreativeCountByType(
       (counts.get(r.creative_type) ?? 0) + (r.creative_count ?? 0),
     );
   }
-  return [...counts.entries()]
-    .map(([name, count]) => ({ name, count }))
-    .sort((a, b) => b.count - a.count);
+  return {
+    items: [...counts.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count),
+    label: "totale dedup",
+  };
+}
+
+/** Lista weeks distinte presenti nelle rows, ordinate
+ *  cronologicamente (per il dropdown del confronto week). */
+export function listWeeks(rows: MetaPerfRow[]): string[] {
+  const set = new Set<string>();
+  for (const r of rows) {
+    if (r.week) set.add(r.week);
+  }
+  return [...set].sort((a, b) => {
+    const na = Number(a.replace(/\D+/g, "")) || 0;
+    const nb = Number(b.replace(/\D+/g, "")) || 0;
+    return na - nb;
+  });
+}
+
+/** Country breakdown — split spend pro-rata quando una campagna
+ *  targetizza piu' paesi (es. KSA-UAE → 50% KSA, 50% UAE). */
+export function aggregateCountryBreakdown(
+  rows: MetaPerfRow[],
+): CountryBreakdown[] {
+  type Bucket = {
+    code: string;
+    label: string;
+    spend: number;
+    impressions: number;
+    clicks: number;
+    campaigns: Set<string>;
+  };
+  const buckets = new Map<string, Bucket>();
+  for (const r of rows) {
+    const codes = decodeCountriesFromNames(r.campaign_name, r.ad_set_name);
+    const share = 1 / codes.length;
+    for (const c of codes) {
+      const b = buckets.get(c) ?? {
+        code: c,
+        label: countryLabel(c),
+        spend: 0,
+        impressions: 0,
+        clicks: 0,
+        campaigns: new Set<string>(),
+      };
+      b.spend += Math.max(0, r.amount_spent) * share;
+      b.impressions += Math.max(0, r.impressions) * share;
+      b.clicks +=
+        (r.clicks > 0 ? r.clicks : Math.max(0, r.link_clicks)) * share;
+      if (r.campaign_name) b.campaigns.add(r.campaign_name);
+      buckets.set(c, b);
+    }
+  }
+  return [...buckets.values()]
+    .map((b) => ({
+      code: b.code,
+      label: b.label,
+      spend: Math.round(b.spend * 100) / 100,
+      impressions: Math.round(b.impressions),
+      clicks: Math.round(b.clicks),
+      campaignCount: b.campaigns.size,
+    }))
+    .sort((a, b) => b.spend - a.spend);
 }
 
 // Re-export type for convenience in route handler.

@@ -202,6 +202,7 @@ export async function POST(req: Request) {
     import_id: imp.id,
     client_id: parsed.data.client_id,
     date: r.date,
+    week: r.week,
     campaign_name: r.campaign_name,
     campaign_id: r.campaign_id,
     ad_set_name: r.ad_set_name,
@@ -236,43 +237,70 @@ export async function POST(req: Request) {
     creative_count: r.creative_count,
     raw_data: r.raw_data,
   }));
-  // Detect if migration 0041 columns are present. If the first
-  // insert fails with PGRST204 schema-cache miss for creative_*,
-  // we strip those fields and retry without them — so an upload
-  // does not block when the DB hasn't been migrated yet. The
-  // header diagnostics get a warning so the user knows the data
-  // is partial.
+  // Detect if optional columns are present. If the first insert
+  // fails with PGRST204 schema-cache miss for creative_* (mig 0041)
+  // or week (mig 0042), strip those fields and retry. Diagnostics
+  // get a warning so the user knows what migration to run.
   let stripCreativeFields = false;
-  let migrationWarningPushed = false;
+  let stripWeekField = false;
+  let warning0041Pushed = false;
+  let warning0042Pushed = false;
   for (let i = 0; i < rowsForInsert.length; i += CHUNK) {
     const slice = rowsForInsert.slice(i, i + CHUNK);
-    const payload = stripCreativeFields
-      ? slice.map(
-          ({ creative_type: _ct, creative_count: _cc, ...rest }) => rest,
-        )
-      : slice;
+    const payload = slice.map((row) => {
+      const out = { ...row } as Record<string, unknown>;
+      if (stripCreativeFields) {
+        delete out.creative_type;
+        delete out.creative_count;
+      }
+      if (stripWeekField) {
+        delete out.week;
+      }
+      return out;
+    });
     const { error } = await admin.from("mait_perf_meta_rows").insert(payload);
     if (error) {
       const msg = error.message || "";
-      const isMigrationMissing =
+      const has = (re: RegExp) => re.test(msg);
+      const schemaCacheMiss = has(/(schema cache|column|does not exist)/i);
+      const isCreativeMissing =
         !stripCreativeFields &&
-        /creative_(type|count)/.test(msg) &&
-        /(schema cache|column|does not exist)/i.test(msg);
-      if (isMigrationMissing) {
+        schemaCacheMiss &&
+        has(/creative_(type|count)/);
+      const isWeekMissing =
+        !stripWeekField && schemaCacheMiss && /\bweek\b/.test(msg);
+      if (isCreativeMissing) {
         console.warn(
-          "[perf/imports] migration 0041 not applied — retrying without creative_type/creative_count",
+          "[perf/imports] migration 0041 not applied — retry without creative_*",
         );
         stripCreativeFields = true;
-        if (!migrationWarningPushed) {
+        if (!warning0041Pushed) {
           diagnostics.push({
             severity: "warning",
             code: "migration_pending",
             message:
               "Migration 0041 non applicata sul DB: creative_type / creative_count non salvati. Applica la SQL nel Supabase SQL Editor e ricarica il file per vederli.",
           });
-          migrationWarningPushed = true;
+          warning0041Pushed = true;
         }
-        i -= CHUNK; // re-process this chunk without the fields
+        i -= CHUNK;
+        continue;
+      }
+      if (isWeekMissing) {
+        console.warn(
+          "[perf/imports] migration 0042 not applied — retry without week",
+        );
+        stripWeekField = true;
+        if (!warning0042Pushed) {
+          diagnostics.push({
+            severity: "warning",
+            code: "migration_pending",
+            message:
+              "Migration 0042 non applicata sul DB: column 'week' non salvata. Il confronto week-vs-week leggera' Week da raw_data in fly. Applica la SQL per filter veloci.",
+          });
+          warning0042Pushed = true;
+        }
+        i -= CHUNK;
         continue;
       }
       console.error("[perf/imports] insert rows failed:", error);
@@ -284,7 +312,7 @@ export async function POST(req: Request) {
       );
     }
   }
-  if (migrationWarningPushed) {
+  if (warning0041Pushed || warning0042Pushed) {
     await admin
       .from("mait_perf_imports")
       .update({ diagnostics })

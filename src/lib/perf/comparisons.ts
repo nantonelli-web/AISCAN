@@ -55,6 +55,11 @@ interface CurrentPeriod {
   channel: "meta";
   periodFrom: string;
   periodTo: string;
+  /** Quando si confrontano due settimane esplicite (mode="week"),
+   *  current viene rimappato sulla week scelta dall'utente. */
+  weekCurrent?: string | null;
+  weekCompare?: string | null;
+  importId?: string;
 }
 
 /** Compute the (from, to) of the comparison window given the mode. */
@@ -74,14 +79,18 @@ export function comparisonWindow(
   }
 
   if (mode === "week") {
-    // 7 giorni prima del periodo corrente, durata 7 giorni
-    // (week-over-week classico). Se il periodo corrente e' piu'
-    // lungo di 7 giorni, ricadiamo comunque su 7-day window —
-    // questo modo serve a confrontare l'ultima settimana col
-    // settimanale precedente, non a sovrapporre periodi lunghi.
-    const to = addDays(current.periodFrom, -1);
-    const from = addDays(to, -6);
-    return { from, to, label: `${from} → ${to}` };
+    // Confronto fra due settimane esplicite del file. La logica
+    // di filtering per week e' nel route handler — qui restituiamo
+    // un placeholder window che copre il period intero (lo usiamo
+    // come check di esistenza, non per il filter date).
+    if (current.weekCurrent && current.weekCompare) {
+      return {
+        from: current.periodFrom,
+        to: current.periodTo,
+        label: `${current.weekCompare} vs ${current.weekCurrent}`,
+      };
+    }
+    return { from: null, to: null, label: null };
   }
 
   if (mode === "yoy") {

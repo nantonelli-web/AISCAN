@@ -19,6 +19,10 @@ export interface PerfDiagnostic {
 /** Meta export normalised row (mait_perf_meta_rows). */
 export interface MetaPerfRow {
   date: string; // ISO date (YYYY-MM-DD)
+  /** Week token estratto dalla column "Week" (es. "week 14"). Null
+   *  se l'export e' giornaliero. Usato per filter+confronti
+   *  week-vs-week. */
+  week: string | null;
   campaign_name: string | null;
   campaign_id: string | null;
   ad_set_name: string | null;
@@ -92,6 +96,12 @@ export interface MetaKpiAggregate {
   results: number;
   purchases: number;
   purchaseValue: number;
+  /** Engagement metrics estratte dal raw_data (Meta colonne
+   *  opzionali "Post engagements", "Instagram profile visits",
+   *  "Instagram follows"). 0 se l'export non le include. */
+  postEngagements: number;
+  instagramProfileVisits: number;
+  instagramFollows: number;
   // Derivati
   ctr: number | null; // clicks/impressions × 100
   linkCtr: number | null;
@@ -105,6 +115,8 @@ export interface MetaKpiAggregate {
   costPerResult: number | null; // spend/results
   roas: number | null; // purchaseValue / spend
   frequency: number | null; // impressions/reach
+  /** Cost per Purchase = spend / purchases. Null se purchases=0. */
+  costPerPurchase: number | null;
   uniqueCampaigns: number;
   uniqueAdSets: number;
   uniqueAds: number;
@@ -159,6 +171,20 @@ export interface MetaCampaignAggregate {
   roas: number | null;
 }
 
+/** Aggregato per paese (estratto da campaign_name / ad_set_name
+ *  via country-decoder). */
+export interface CountryBreakdown {
+  /** ISO-2-like code (KSA, UAE, IT, US, ecc) o "MULTI" per campagne
+   *  che targetizzano piu' paesi (KSA-UAE / KSA+UAE) o "UNKNOWN"
+   *  quando nessun paese e' decodificato. */
+  code: string;
+  label: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  campaignCount: number;
+}
+
 /** DTO restituito da /api/perf/imports/[id]/dashboard. */
 export interface PerfDashboardData {
   importId: string;
@@ -184,13 +210,28 @@ export interface PerfDashboardData {
   /** Spend share per creative type (image / video / carousel / ...).
    *  Può essere vuoto se l'export non ha la colonna creative_type. */
   creativeTypeMix: { name: string; value: number }[];
-  /** Numero asset per creative type (somma di creative_count). */
+  /** Numero asset per creative type (riferito alla week piu' recente
+   *  o, se l'export non ha le week, dedup per ad_name). Evita di
+   *  gonfiare il count quando le creativita' si ripetono week per
+   *  week. */
   creativeCountByType: { name: string; count: number }[];
+  /** Etichetta del periodo a cui si riferisce creativeCountByType
+   *  (es. "week 18" o "totale dedup"), per chiarezza nella UI. */
+  creativeCountLabel: string;
   /** Per-type breakdown computed via campaign-decoder + overrides. */
   campaignTypes: CampaignTypeBreakdown[];
   /** Assignments per la UI di override. Tutte le campagne uniche
    *  del file con la decodifica auto + eventuale override. */
   campaignTypeAssignments: CampaignTypeAssignment[];
+  /** Country breakdown estratto dai nomi campagna / ad set. */
+  countries: CountryBreakdown[];
+  /** Lista delle settimane presenti nel file (dalla column "Week").
+   *  Vuota se l'export e' giornaliero. Ordinata cronologicamente. */
+  weeks: string[];
+  /** Quando il dashboard e' filtrato per una specifica week (mode
+   *  comparison "week"), questo identifica la week corrente
+   *  visualizzata. */
+  weekCurrent: string | null;
 }
 
 /** Riga della lista import shown sul client detail page. */
