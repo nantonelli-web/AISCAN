@@ -12,11 +12,13 @@ import {
   UploadCloud,
   FileSpreadsheet,
   Sparkles,
-  Infinity as InfinityIcon,
-  Search,
-  Music2,
-  Ghost,
 } from "lucide-react";
+import {
+  MetaLogo,
+  GoogleLogo,
+  TiktokLogo,
+  SnapchatLogo,
+} from "@/components/icons/channel-icons";
 
 const CHANNEL_PILL: Record<
   string,
@@ -29,13 +31,13 @@ const CHANNEL_PILL: Record<
 > = {
   meta: {
     label: "Meta",
-    icon: InfinityIcon,
+    icon: MetaLogo,
     bg: "bg-[#0866ff]/12",
     text: "text-[#0866ff]",
   },
-  google: { label: "Google", icon: Search, bg: "bg-blue-500/10", text: "text-blue-500" },
-  tiktok: { label: "TikTok", icon: Music2, bg: "bg-rose-500/10", text: "text-rose-500" },
-  snapchat: { label: "Snapchat", icon: Ghost, bg: "bg-yellow-500/10", text: "text-yellow-600" },
+  google: { label: "Google", icon: GoogleLogo, bg: "bg-blue-500/10", text: "text-blue-500" },
+  tiktok: { label: "TikTok", icon: TiktokLogo, bg: "bg-rose-500/10", text: "text-rose-500" },
+  snapchat: { label: "Snapchat", icon: SnapchatLogo, bg: "bg-yellow-500/10", text: "text-yellow-600" },
 };
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";

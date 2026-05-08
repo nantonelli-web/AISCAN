@@ -1,6 +1,12 @@
 import { notFound } from "next/navigation";
-import { TrendingUp, Search, Music2, Ghost, Infinity as InfinityIcon } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 import { getSessionUser } from "@/lib/auth/session";
+import {
+  MetaLogo,
+  GoogleLogo,
+  TiktokLogo,
+  SnapchatLogo,
+} from "@/components/icons/channel-icons";
 import { createClient } from "@/lib/supabase/server";
 import { DynamicBackLink } from "@/components/ui/dynamic-back-link";
 import { PrintButton } from "@/components/ui/print-button";
@@ -21,25 +27,25 @@ const CHANNEL_META: Record<
 > = {
   meta: {
     label: "Meta",
-    icon: InfinityIcon, // Meta usa un infinity mark stilizzato
+    icon: MetaLogo,
     bg: "bg-[#0866ff]/12",
     text: "text-[#0866ff]",
   },
   google: {
     label: "Google",
-    icon: Search,
+    icon: GoogleLogo,
     bg: "bg-blue-500/10",
     text: "text-blue-500",
   },
   tiktok: {
     label: "TikTok",
-    icon: Music2,
+    icon: TiktokLogo,
     bg: "bg-rose-500/10",
     text: "text-rose-500",
   },
   snapchat: {
     label: "Snapchat",
-    icon: Ghost,
+    icon: SnapchatLogo,
     bg: "bg-yellow-500/10",
     text: "text-yellow-600",
   },

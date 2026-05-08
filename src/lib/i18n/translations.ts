@@ -2374,6 +2374,8 @@ const translations = {
       it: "Apri un cliente per scegliere il brand e analizzare le sue performance.",
       en: "Open a client to pick a brand and analyse its performance.",
     },
+    homeAnalysesLabel: { it: "Analisi", en: "Analyses" },
+    homeRangeLabel: { it: "Periodo analisi", en: "Analysis range" },
     kpiSpend: { it: "Spesa", en: "Spend" },
     kpiImpressions: { it: "Impression", en: "Impressions" },
     kpiClicks: { it: "Click", en: "Clicks" },

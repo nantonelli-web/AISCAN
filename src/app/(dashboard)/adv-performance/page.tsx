@@ -10,10 +10,15 @@ import {
 import { getSessionUser } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { DynamicBackLink } from "@/components/ui/dynamic-back-link";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { formatDate } from "@/lib/utils";
+import {
+  MetaLogo,
+  GoogleLogo,
+  TiktokLogo,
+  SnapchatLogo,
+} from "@/components/icons/channel-icons";
 
 export const dynamic = "force-dynamic";
 
@@ -23,8 +28,40 @@ interface ClientWithImports {
   color: string | null;
   brandsCount: number;
   importsCount: number;
-  lastPeriod: string | null;
+  lastFrom: string | null;
+  lastTo: string | null;
   channels: Set<string>;
+}
+
+const CHANNEL_PILL: Record<
+  string,
+  {
+    label: string;
+    Logo: React.ComponentType<{ className?: string }>;
+    bg: string;
+    text: string;
+  }
+> = {
+  meta: {
+    label: "Meta",
+    Logo: MetaLogo,
+    bg: "bg-[#0866ff]/12",
+    text: "text-[#0866ff]",
+  },
+  google: { label: "Google", Logo: GoogleLogo, bg: "bg-blue-500/10", text: "text-blue-500" },
+  tiktok: { label: "TikTok", Logo: TiktokLogo, bg: "bg-rose-500/10", text: "text-rose-500" },
+  snapchat: { label: "Snapchat", Logo: SnapchatLogo, bg: "bg-yellow-500/10", text: "text-yellow-600" },
+};
+
+/** Iniziali (max 2 caratteri) dal nome cliente per l'avatar. */
+function initialsOf(name: string): string {
+  const tokens = name
+    .split(/[\s\-_/.]+/)
+    .map((t) => t.replace(/[^A-Za-zÀ-ÿ]/g, ""))
+    .filter(Boolean);
+  if (tokens.length === 0) return name.slice(0, 2).toUpperCase();
+  if (tokens.length === 1) return tokens[0].slice(0, 2).toUpperCase();
+  return (tokens[0][0] + tokens[1][0]).toUpperCase();
 }
 
 export default async function AdvPerformancePage() {
@@ -45,7 +82,7 @@ export default async function AdvPerformancePage() {
       .order("name"),
     admin
       .from("mait_perf_imports")
-      .select("client_id, channel, period_to")
+      .select("client_id, channel, period_from, period_to")
       .eq("workspace_id", profile.workspace_id!)
       .eq("status", "validated")
       .order("period_to", { ascending: false }),
@@ -63,6 +100,7 @@ export default async function AdvPerformancePage() {
   const imports = (importsData ?? []) as {
     client_id: string;
     channel: string;
+    period_from: string;
     period_to: string;
   }[];
   const brands = (brandsData ?? []) as {
@@ -78,7 +116,8 @@ export default async function AdvPerformancePage() {
       color: c.color,
       brandsCount: 0,
       importsCount: 0,
-      lastPeriod: null,
+      lastFrom: null,
+      lastTo: null,
       channels: new Set(),
     });
   }
@@ -92,8 +131,11 @@ export default async function AdvPerformancePage() {
     if (!entry) continue;
     entry.importsCount += 1;
     entry.channels.add(imp.channel);
-    if (entry.lastPeriod == null || imp.period_to > entry.lastPeriod) {
-      entry.lastPeriod = imp.period_to;
+    // imports e' ordinato per period_to desc, quindi il primo
+    // hit per ogni client e' il piu' recente.
+    if (entry.lastTo == null) {
+      entry.lastTo = imp.period_to;
+      entry.lastFrom = imp.period_from;
     }
   }
   const enriched = [...byClient.values()];
@@ -109,7 +151,6 @@ export default async function AdvPerformancePage() {
     <div className="space-y-6">
       <DynamicBackLink fallbackHref="/dashboard" label={t("common", "backToDashboard")} />
 
-      {/* Hero with chart silhouette background */}
       <header className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-amber-500/15 via-sky-500/8 to-transparent">
         <div className="absolute inset-0 -z-10 opacity-50 pointer-events-none" aria-hidden>
           <svg viewBox="0 0 1000 240" className="size-full" preserveAspectRatio="none">
@@ -128,7 +169,6 @@ export default async function AdvPerformancePage() {
                 <stop offset="100%" stopColor="#5b7ea3" stopOpacity="0" />
               </linearGradient>
             </defs>
-            {/* Bars (impressions) */}
             {Array.from({ length: 28 }).map((_, i) => {
               const x = 30 + i * 34;
               const heights = [70, 55, 90, 65, 110, 80, 130, 95, 150, 120, 165, 140, 180, 155, 195, 170, 175, 160, 185, 145, 155, 130, 145, 115, 135, 110, 120, 95];
@@ -145,7 +185,6 @@ export default async function AdvPerformancePage() {
                 />
               );
             })}
-            {/* Line (spend trend) */}
             <path
               d="M0 200 Q 100 180, 180 165 T 340 130 T 500 100 T 660 70 T 820 55 T 1000 35"
               stroke="url(#hp-line)"
@@ -157,7 +196,6 @@ export default async function AdvPerformancePage() {
               d="M0 200 Q 100 180, 180 165 T 340 130 T 500 100 T 660 70 T 820 55 T 1000 35 L 1000 240 L 0 240 Z"
               fill="url(#hp-fill)"
             />
-            {/* Dots highlight */}
             {[
               [180, 165],
               [340, 130],
@@ -176,7 +214,7 @@ export default async function AdvPerformancePage() {
             ))}
           </svg>
         </div>
-        <div className="p-6 sm:p-9 grid gap-5 sm:grid-cols-[auto_1fr] items-start">
+        <div className="p-6 sm:p-9 grid gap-5 sm:grid-cols-[auto_1fr] items-center">
           <div className="size-14 rounded-2xl bg-gradient-to-br from-amber-500/30 to-sky-500/20 ring-2 ring-border grid place-items-center text-amber-600 shadow-sm">
             <TrendingUp className="size-6" />
           </div>
@@ -211,7 +249,6 @@ export default async function AdvPerformancePage() {
         </div>
       </header>
 
-      {/* Clients grid */}
       {clients.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center space-y-2">
@@ -234,74 +271,89 @@ export default async function AdvPerformancePage() {
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {enriched.map((c) => (
-              <Link
-                key={c.id}
-                href={`/adv-performance/${c.id}`}
-                className="block group"
-              >
-                <Card className="h-full hover:border-gold/50 hover:shadow-md transition-all relative overflow-hidden">
-                  <div
-                    className="absolute inset-x-0 top-0 h-1"
-                    style={{ backgroundColor: c.color ?? "#94a3b8" }}
-                    aria-hidden
-                  />
-                  <CardContent className="p-5 space-y-3 pt-6">
-                    <div className="flex items-start gap-3">
-                      <div
-                        className="size-10 rounded-lg shrink-0 ring-2 ring-border"
-                        style={{ backgroundColor: c.color ?? "#94a3b8" }}
-                        aria-hidden
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-base font-semibold tracking-tight truncate group-hover:text-gold transition-colors">
-                          {c.name}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">
-                          {c.brandsCount === 0
-                            ? "— brand"
-                            : c.brandsCount === 1
-                              ? "1 brand"
-                              : `${c.brandsCount} brand`}
-                        </p>
+            {enriched.map((c) => {
+              const initials = initialsOf(c.name);
+              return (
+                <Link
+                  key={c.id}
+                  href={`/adv-performance/${c.id}`}
+                  className="block group"
+                >
+                  <Card className="h-full hover:border-gold/50 hover:shadow-md transition-all relative overflow-hidden">
+                    <CardContent className="p-5 space-y-3">
+                      <div className="flex items-start gap-3">
+                        {/* Avatar iniziali con gradient soft (sostituisce
+                            il quadrato pieno blu/verde). */}
+                        <div
+                          className="size-11 rounded-full grid place-items-center shrink-0 ring-1 ring-border bg-gradient-to-br from-amber-100 via-amber-50 to-sky-50 text-amber-700 font-serif text-base font-semibold tracking-tight"
+                          aria-hidden
+                        >
+                          {initials}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-base font-semibold tracking-tight truncate group-hover:text-gold transition-colors">
+                            {c.name}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            {c.brandsCount === 0
+                              ? "— brand"
+                              : c.brandsCount === 1
+                                ? "1 brand"
+                                : `${c.brandsCount} brand`}
+                          </p>
+                        </div>
+                        <ChevronRight className="size-4 text-muted-foreground shrink-0 group-hover:text-gold transition-colors" />
                       </div>
-                      <ChevronRight className="size-4 text-muted-foreground shrink-0 group-hover:text-gold transition-colors" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/40">
-                      <div className="space-y-0.5">
-                        <p className="text-[9.5px] uppercase tracking-wider text-muted-foreground">
-                          Export
-                        </p>
-                        <p className="text-lg font-semibold tabular-nums leading-none">
-                          {c.importsCount}
-                        </p>
+
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/40">
+                        <div className="space-y-0.5">
+                          <p className="text-[9.5px] uppercase tracking-wider text-muted-foreground">
+                            {t("advPerformance", "homeAnalysesLabel")}
+                          </p>
+                          <p className="text-lg font-semibold tabular-nums leading-none">
+                            {c.importsCount}
+                          </p>
+                        </div>
+                        <div className="space-y-0.5">
+                          <p className="text-[9.5px] uppercase tracking-wider text-muted-foreground">
+                            {t("advPerformance", "homeRangeLabel")}
+                          </p>
+                          {c.lastFrom && c.lastTo ? (
+                            <p className="text-[11px] tabular-nums font-medium leading-tight">
+                              {formatDate(c.lastFrom)}
+                              <br />
+                              <span className="text-muted-foreground">→ </span>
+                              {formatDate(c.lastTo)}
+                            </p>
+                          ) : (
+                            <p className="text-[11.5px] text-muted-foreground">—</p>
+                          )}
+                        </div>
                       </div>
-                      <div className="space-y-0.5">
-                        <p className="text-[9.5px] uppercase tracking-wider text-muted-foreground">
-                          {t("advPerformance", "lastPeriod")}
-                        </p>
-                        <p className="text-[11.5px] tabular-nums truncate font-medium">
-                          {c.lastPeriod ? formatDate(c.lastPeriod) : "—"}
-                        </p>
-                      </div>
-                    </div>
-                    {c.channels.size > 0 && (
-                      <div className="flex items-center gap-1 pt-1">
-                        {[...c.channels].map((ch) => (
-                          <Badge
-                            key={ch}
-                            variant="outline"
-                            className="text-[9px] py-0 px-1.5 uppercase"
-                          >
-                            {ch}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+
+                      {c.channels.size > 0 && (
+                        <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                          {[...c.channels].map((ch) => {
+                            const meta = CHANNEL_PILL[ch];
+                            if (!meta) return null;
+                            const Logo = meta.Logo;
+                            return (
+                              <div
+                                key={ch}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md ${meta.bg} ${meta.text} text-[10px] font-semibold ring-1 ring-inset ring-current/15`}
+                              >
+                                <Logo className="size-3" />
+                                {meta.label}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Link>
+              );
+            })}
           </div>
         </section>
       )}
