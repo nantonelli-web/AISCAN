@@ -52,6 +52,15 @@ export async function PATCH(
     .update({ campaign_type_overrides: parsed.data.overrides })
     .eq("id", id);
   if (error) {
+    if (/campaign_type_overrides/.test(error.message ?? "")) {
+      return NextResponse.json(
+        {
+          error:
+            "Migrazione 0041 non applicata sul DB. Esegui la SQL nel Supabase SQL Editor e riprova.",
+        },
+        { status: 503 },
+      );
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
   return NextResponse.json({ ok: true });

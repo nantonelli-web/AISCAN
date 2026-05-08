@@ -236,10 +236,45 @@ export async function POST(req: Request) {
     creative_count: r.creative_count,
     raw_data: r.raw_data,
   }));
+  // Detect if migration 0041 columns are present. If the first
+  // insert fails with PGRST204 schema-cache miss for creative_*,
+  // we strip those fields and retry without them — so an upload
+  // does not block when the DB hasn't been migrated yet. The
+  // header diagnostics get a warning so the user knows the data
+  // is partial.
+  let stripCreativeFields = false;
+  let migrationWarningPushed = false;
   for (let i = 0; i < rowsForInsert.length; i += CHUNK) {
     const slice = rowsForInsert.slice(i, i + CHUNK);
-    const { error } = await admin.from("mait_perf_meta_rows").insert(slice);
+    const payload = stripCreativeFields
+      ? slice.map(
+          ({ creative_type: _ct, creative_count: _cc, ...rest }) => rest,
+        )
+      : slice;
+    const { error } = await admin.from("mait_perf_meta_rows").insert(payload);
     if (error) {
+      const msg = error.message || "";
+      const isMigrationMissing =
+        !stripCreativeFields &&
+        /creative_(type|count)/.test(msg) &&
+        /(schema cache|column|does not exist)/i.test(msg);
+      if (isMigrationMissing) {
+        console.warn(
+          "[perf/imports] migration 0041 not applied — retrying without creative_type/creative_count",
+        );
+        stripCreativeFields = true;
+        if (!migrationWarningPushed) {
+          diagnostics.push({
+            severity: "warning",
+            code: "migration_pending",
+            message:
+              "Migration 0041 non applicata sul DB: creative_type / creative_count non salvati. Applica la SQL nel Supabase SQL Editor e ricarica il file per vederli.",
+          });
+          migrationWarningPushed = true;
+        }
+        i -= CHUNK; // re-process this chunk without the fields
+        continue;
+      }
       console.error("[perf/imports] insert rows failed:", error);
       // Best-effort: roll back header
       await admin.from("mait_perf_imports").delete().eq("id", imp.id);
@@ -248,6 +283,12 @@ export async function POST(req: Request) {
         { status: 500 },
       );
     }
+  }
+  if (migrationWarningPushed) {
+    await admin
+      .from("mait_perf_imports")
+      .update({ diagnostics })
+      .eq("id", imp.id);
   }
 
   return NextResponse.json({
