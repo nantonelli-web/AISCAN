@@ -215,6 +215,16 @@ export async function GET(
 
   const creativeCount = aggregateCreativeCountByType(currentRows);
 
+  // Compute the actual data bounds across the import (used to
+  // constrain the custom date picker to dates that exist).
+  let dataMinDate: string | null = null;
+  let dataMaxDate: string | null = null;
+  for (const r of rows) {
+    if (!r.date) continue;
+    if (dataMinDate == null || r.date < dataMinDate) dataMinDate = r.date;
+    if (dataMaxDate == null || r.date > dataMaxDate) dataMaxDate = r.date;
+  }
+
   const payload: PerfDashboardData = {
     importId: id,
     clientId: imp.client_id,
@@ -242,6 +252,8 @@ export async function GET(
     countries: aggregateCountryBreakdown(currentRows),
     weeks: listWeeks(rows),
     weekCurrent: weekCurrentEffective,
+    dataMinDate,
+    dataMaxDate,
   };
 
   return NextResponse.json(payload);

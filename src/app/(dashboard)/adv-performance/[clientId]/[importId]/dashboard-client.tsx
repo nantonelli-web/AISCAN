@@ -14,6 +14,7 @@ import {
   PieChart,
   Pie,
   Cell,
+  Label as ReLabel,
 } from "recharts";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,27 @@ import {
   Pencil,
   Save,
   X as XIcon,
+  DollarSign,
+  Eye,
+  MousePointerClick,
+  Users,
+  Percent,
+  Gauge,
+  Repeat,
+  ShoppingCart,
+  Heart,
+  Camera,
+  UserPlus,
+  CalendarRange,
+  Globe2,
+  Image as ImageIcon,
+  Video,
+  Layers,
+  Activity,
+  Target,
+  Sparkles,
+  CalendarDays,
+  HelpCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useT } from "@/lib/i18n/context";
@@ -81,12 +103,21 @@ function deltaPct(curr: number | null, prev: number | null): number | null {
 }
 
 function deltaPctInverse(curr: number | null, prev: number | null): number | null {
-  // Per metriche dove "alto = peggio" (CPM, CPC, CPA): invertiamo
-  // il signal del delta cosi una crescita del CPM appare come
-  // delta negativo (worsened) nella UI.
   const d = deltaPct(curr, prev);
   return d == null ? null : -d;
 }
+
+type AccentTone = "gold" | "blue" | "green" | "purple" | "rose" | "amber" | "slate";
+
+const TONES: Record<AccentTone, { ring: string; bg: string; text: string }> = {
+  gold: { ring: "ring-amber-500/20", bg: "bg-amber-500/10", text: "text-amber-500" },
+  blue: { ring: "ring-sky-500/20", bg: "bg-sky-500/10", text: "text-sky-500" },
+  green: { ring: "ring-emerald-500/20", bg: "bg-emerald-500/10", text: "text-emerald-500" },
+  purple: { ring: "ring-violet-500/20", bg: "bg-violet-500/10", text: "text-violet-500" },
+  rose: { ring: "ring-rose-500/20", bg: "bg-rose-500/10", text: "text-rose-500" },
+  amber: { ring: "ring-orange-500/20", bg: "bg-orange-500/10", text: "text-orange-500" },
+  slate: { ring: "ring-slate-500/20", bg: "bg-slate-500/10", text: "text-slate-500" },
+};
 
 function KpiCard({
   label,
@@ -96,6 +127,9 @@ function KpiCard({
   currency,
   isMoney = false,
   isPercent = false,
+  hint,
+  icon: Icon = Activity,
+  tone = "slate",
 }: {
   label: string;
   value: number | null;
@@ -104,6 +138,9 @@ function KpiCard({
   currency?: string | null;
   isMoney?: boolean;
   isPercent?: boolean;
+  hint?: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  tone?: AccentTone;
 }) {
   const display =
     value == null
@@ -115,34 +152,51 @@ function KpiCard({
           : formatNumber(value);
   const deltaIsPositive = delta != null && delta > 0;
   const deltaIsNegative = delta != null && delta < 0;
-  const goodColor = invertColors ? "text-red-400" : "text-emerald-400";
-  const badColor = invertColors ? "text-emerald-400" : "text-red-400";
+  const goodColor = invertColors ? "text-rose-400" : "text-emerald-400";
+  const badColor = invertColors ? "text-emerald-400" : "text-rose-400";
+  const t = TONES[tone];
   return (
-    <Card>
-      <CardContent className="p-4 space-y-1">
-        <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
-          {label}
+    <Card className="overflow-hidden">
+      <CardContent className="p-4 space-y-2">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+            {label}
+          </p>
+          <div className={`size-7 rounded-md grid place-items-center ${t.bg} ${t.text}`}>
+            <Icon className="size-3.5" />
+          </div>
+        </div>
+        <p className="text-2xl font-semibold tabular-nums leading-tight">
+          {display}
         </p>
-        <p className="text-2xl font-semibold tabular-nums">{display}</p>
-        {delta != null && (
-          <p
-            className={`text-[11px] tabular-nums inline-flex items-center gap-0.5 ${
-              deltaIsPositive
-                ? goodColor
-                : deltaIsNegative
-                  ? badColor
-                  : "text-muted-foreground"
-            }`}
-          >
-            {deltaIsPositive ? (
-              <TrendingUp className="size-3" />
-            ) : deltaIsNegative ? (
-              <TrendingDown className="size-3" />
-            ) : (
-              <Minus className="size-3" />
-            )}
-            {delta > 0 ? "+" : ""}
-            {formatNumber(Math.round(delta * 10) / 10)}%
+        <div className="flex items-center justify-between gap-2 min-h-[18px]">
+          {delta != null ? (
+            <p
+              className={`text-[11px] tabular-nums inline-flex items-center gap-0.5 font-medium ${
+                deltaIsPositive
+                  ? goodColor
+                  : deltaIsNegative
+                    ? badColor
+                    : "text-muted-foreground"
+              }`}
+            >
+              {deltaIsPositive ? (
+                <TrendingUp className="size-3" />
+              ) : deltaIsNegative ? (
+                <TrendingDown className="size-3" />
+              ) : (
+                <Minus className="size-3" />
+              )}
+              {delta > 0 ? "+" : ""}
+              {formatNumber(Math.round(delta * 10) / 10)}%
+            </p>
+          ) : (
+            <span />
+          )}
+        </div>
+        {hint && (
+          <p className="text-[10.5px] text-muted-foreground leading-snug pt-1 border-t border-border/40">
+            {hint}
           </p>
         )}
       </CardContent>
@@ -187,10 +241,7 @@ function buildDeltaMap(
       current.costPerPurchase,
       prev.costPerPurchase,
     ),
-    postEngagements: deltaPct(
-      current.postEngagements,
-      prev.postEngagements,
-    ),
+    postEngagements: deltaPct(current.postEngagements, prev.postEngagements),
     instagramProfileVisits: deltaPct(
       current.instagramProfileVisits,
       prev.instagramProfileVisits,
@@ -200,6 +251,37 @@ function buildDeltaMap(
       prev.instagramFollows,
     ),
   };
+}
+
+function SectionHeader({
+  icon: Icon,
+  title,
+  description,
+  tone = "slate",
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description?: string;
+  tone?: AccentTone;
+}) {
+  const t = TONES[tone];
+  return (
+    <div className="flex items-start gap-3">
+      <div className={`size-9 rounded-lg grid place-items-center ${t.bg} ${t.text}`}>
+        <Icon className="size-4" />
+      </div>
+      <div className="space-y-0.5 flex-1 min-w-0">
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+          {title}
+        </h3>
+        {description && (
+          <p className="text-[11.5px] text-muted-foreground leading-snug">
+            {description}
+          </p>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function DashboardClient({ importId }: { importId: string }) {
@@ -236,7 +318,6 @@ export function DashboardClient({ importId }: { importId: string }) {
         } else {
           const d = j as PerfDashboardData;
           setData(d);
-          // Auto-pick week defaults the first time we get the list
           if (
             d.weeks.length >= 2 &&
             mode === "week" &&
@@ -266,7 +347,7 @@ export function DashboardClient({ importId }: { importId: string }) {
   if (error) {
     return (
       <Card>
-        <CardContent className="py-12 text-center text-sm text-red-400">
+        <CardContent className="py-12 text-center text-sm text-rose-400">
           {error}
         </CardContent>
       </Card>
@@ -276,329 +357,382 @@ export function DashboardClient({ importId }: { importId: string }) {
 
   const k = data.current;
 
-  // KPI extras: only show purchases / engagement / IG when present.
   const showPurchases = k.purchases > 0;
   const showEngagement =
     k.postEngagements > 0 ||
     k.instagramProfileVisits > 0 ||
     k.instagramFollows > 0;
-
-  // Hide Top ROAS panel when there's nothing meaningful (all roas
-  // are 0/null because purchase_value is missing).
   const hasRoasData =
     data.topByCampaignRoas.some((c) => (c.roas ?? 0) > 0) || (k.roas ?? 0) > 0;
+
+  // Country totals for percentages
+  const countriesTotalSpend = data.countries.reduce((s, c) => s + c.spend, 0);
+  const countriesTotalImp = data.countries.reduce((s, c) => s + c.impressions, 0);
+  const countriesTotalClicks = data.countries.reduce((s, c) => s + c.clicks, 0);
 
   return (
     <div className="space-y-6">
       {/* Comparison switcher */}
       <Card className="print:hidden">
-        <CardContent className="p-4 space-y-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
-              {t("advPerformance", "comparisonNone").toUpperCase()}
-            </span>
-            <button
-              type="button"
-              onClick={() => setMode("none")}
-              className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
-                mode === "none"
-                  ? "bg-gold/15 text-gold border-gold/30"
-                  : "border-border text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              {t("advPerformance", "comparisonNone")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("previous")}
-              className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
-                mode === "previous"
-                  ? "bg-gold/15 text-gold border-gold/30"
-                  : "border-border text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              {t("advPerformance", "comparisonPrevious")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("week")}
-              className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
-                mode === "week"
-                  ? "bg-gold/15 text-gold border-gold/30"
-                  : "border-border text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              {t("advPerformance", "comparisonWeek")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("yoy")}
-              className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
-                mode === "yoy"
-                  ? "bg-gold/15 text-gold border-gold/30"
-                  : "border-border text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              {t("advPerformance", "comparisonYoy")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("custom")}
-              className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
-                mode === "custom"
-                  ? "bg-gold/15 text-gold border-gold/30"
-                  : "border-border text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              {t("advPerformance", "comparisonCustom")}
-            </button>
-            {mode === "custom" && (
-              <div className="flex items-center gap-2 ml-2">
-                <Label htmlFor="cf" className="text-[10px]">
-                  from
-                </Label>
-                <Input
-                  id="cf"
-                  type="date"
-                  value={customFrom}
-                  onChange={(e) => setCustomFrom(e.target.value)}
-                  className="h-8 text-xs w-[140px]"
-                />
-                <Label htmlFor="ct" className="text-[10px]">
-                  to
-                </Label>
-                <Input
-                  id="ct"
-                  type="date"
-                  value={customTo}
-                  onChange={(e) => setCustomTo(e.target.value)}
-                  className="h-8 text-xs w-[140px]"
-                />
-              </div>
-            )}
-            {mode !== "none" && data.comparison.label && (
-              <Badge variant="outline" className="text-[10px] ml-auto">
+        <CardContent className="p-5 space-y-3">
+          <div className="flex items-start gap-3">
+            <div className="size-9 rounded-lg grid place-items-center bg-amber-500/10 text-amber-500">
+              <CalendarRange className="size-4" />
+            </div>
+            <div className="space-y-0.5 flex-1 min-w-0">
+              <h3 className="text-sm font-semibold uppercase tracking-wider">
+                {t("advPerformance", "comparisonNone")}
+              </h3>
+              <p className="text-[11.5px] text-muted-foreground leading-snug">
+                {t("advPerformance", "weekPickHint")}
+              </p>
+            </div>
+            {data.comparison.label && (
+              <Badge variant="outline" className="text-[10px] shrink-0">
                 {data.comparison.label}
               </Badge>
             )}
           </div>
 
-          {/* Week-pick UI: due dropdown popolate dalla lista weeks
-              dell'import. Visibile solo in mode "week". */}
-          {mode === "week" && (
-            <div className="space-y-2 pt-2 border-t border-border/50">
-              {data.weeks.length === 0 ? (
-                <p className="text-[11px] text-amber-400">
-                  {t("advPerformance", "weeksUnavailable")}
-                </p>
-              ) : (
-                <>
-                  <p className="text-[11px] text-muted-foreground">
-                    {t("advPerformance", "weekPickHint")}
-                  </p>
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <div className="flex items-center gap-2">
-                      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                        {t("advPerformance", "weekCurrent")}
-                      </Label>
-                      <select
-                        value={weekCurrent}
-                        onChange={(e) => setWeekCurrent(e.target.value)}
-                        className="h-8 rounded-md border border-border bg-muted px-2 text-xs"
-                      >
-                        <option value="">—</option>
-                        {data.weeks.map((w) => (
-                          <option key={w} value={w}>
-                            {w}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                        {t("advPerformance", "weekCompare")}
-                      </Label>
-                      <select
-                        value={weekCompare}
-                        onChange={(e) => setWeekCompare(e.target.value)}
-                        className="h-8 rounded-md border border-border bg-muted px-2 text-xs"
-                      >
-                        <option value="">—</option>
-                        {data.weeks
-                          .filter((w) => w !== weekCurrent)
-                          .map((w) => (
-                            <option key={w} value={w}>
-                              {w}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  </div>
-                </>
+          <div className="flex items-center gap-2 flex-wrap pt-1">
+            {(
+              [
+                { id: "none", label: t("advPerformance", "comparisonNone"), icon: XIcon },
+                { id: "week", label: t("advPerformance", "comparisonWeek"), icon: CalendarDays },
+                { id: "custom", label: t("advPerformance", "comparisonCustom"), icon: CalendarRange },
+              ] as { id: ComparisonMode; label: string; icon: React.ComponentType<{ className?: string }> }[]
+            ).map((opt) => {
+              const Icon = opt.icon;
+              const active = mode === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setMode(opt.id)}
+                  className={`px-3 py-1.5 text-xs rounded-md border transition-colors inline-flex items-center gap-1.5 ${
+                    active
+                      ? "bg-gold/15 text-gold border-gold/30 font-medium"
+                      : "border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="size-3.5" />
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {mode === "custom" && (
+            <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-border/50 mt-1">
+              <Label htmlFor="cf" className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                from
+              </Label>
+              <Input
+                id="cf"
+                type="date"
+                min={data.dataMinDate ?? undefined}
+                max={data.dataMaxDate ?? undefined}
+                value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                className="h-8 text-xs w-[160px]"
+              />
+              <Label htmlFor="ct" className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                to
+              </Label>
+              <Input
+                id="ct"
+                type="date"
+                min={data.dataMinDate ?? undefined}
+                max={data.dataMaxDate ?? undefined}
+                value={customTo}
+                onChange={(e) => setCustomTo(e.target.value)}
+                className="h-8 text-xs w-[160px]"
+              />
+              {data.dataMinDate && data.dataMaxDate && (
+                <span className="text-[10.5px] text-muted-foreground italic">
+                  ({data.dataMinDate} → {data.dataMaxDate})
+                </span>
               )}
             </div>
           )}
 
-          {mode !== "none" &&
-            mode !== "week" &&
-            !data.comparison.aggregate && (
-              <p className="text-[11px] text-amber-400">
-                {t("advPerformance", "noComparisonData")}
-              </p>
-            )}
+          {mode === "week" && (
+            <div className="space-y-2 pt-2 border-t border-border/50">
+              {data.weeks.length === 0 ? (
+                <p className="text-[11px] text-amber-400 inline-flex items-center gap-1">
+                  <HelpCircle className="size-3.5" />
+                  {t("advPerformance", "weeksUnavailable")}
+                </p>
+              ) : (
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {t("advPerformance", "weekCurrent")}
+                    </Label>
+                    <select
+                      value={weekCurrent}
+                      onChange={(e) => setWeekCurrent(e.target.value)}
+                      className="h-8 rounded-md border border-border bg-background px-2 text-xs"
+                    >
+                      <option value="">—</option>
+                      {data.weeks.map((w) => (
+                        <option key={w} value={w}>
+                          {w}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <span className="text-muted-foreground text-xs">vs</span>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {t("advPerformance", "weekCompare")}
+                    </Label>
+                    <select
+                      value={weekCompare}
+                      onChange={(e) => setWeekCompare(e.target.value)}
+                      className="h-8 rounded-md border border-border bg-background px-2 text-xs"
+                    >
+                      <option value="">—</option>
+                      {data.weeks
+                        .filter((w) => w !== weekCurrent)
+                        .map((w) => (
+                          <option key={w} value={w}>
+                            {w}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {mode === "custom" && !data.comparison.aggregate && (
+            <p className="text-[11px] text-amber-400">
+              {t("advPerformance", "noComparisonData")}
+            </p>
+          )}
         </CardContent>
       </Card>
 
-      {/* KPI cards */}
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 xl:grid-cols-4">
-        <KpiCard
-          label={t("advPerformance", "kpiSpend")}
-          value={k.amountSpent}
-          delta={deltas?.amountSpent ?? null}
-          isMoney
-          currency={data.currency}
+      {/* KPI overview section */}
+      <section className="space-y-3">
+        <SectionHeader
+          icon={Activity}
+          tone="gold"
+          title={t("advPerformance", "overviewSectionTitle")}
+          description={t("advPerformance", "overviewSectionDescription")}
         />
-        <KpiCard
-          label={t("advPerformance", "kpiImpressions")}
-          value={k.impressions}
-          delta={deltas?.impressions ?? null}
-        />
-        <KpiCard
-          label={t("advPerformance", "kpiClicks")}
-          value={k.effectiveClicks}
-          delta={deltas?.effectiveClicks ?? null}
-        />
-        <KpiCard
-          label={t("advPerformance", "kpiReach")}
-          value={k.reach}
-          delta={deltas?.reach ?? null}
-        />
-        <KpiCard
-          label={t("advPerformance", "kpiCtr")}
-          value={k.effectiveCtr}
-          delta={deltas?.effectiveCtr ?? null}
-          isPercent
-        />
-        <KpiCard
-          label={t("advPerformance", "kpiCpm")}
-          value={k.cpm}
-          delta={deltas?.cpm ?? null}
-          invertColors
-          isMoney
-          currency={data.currency}
-        />
-        <KpiCard
-          label={t("advPerformance", "kpiCpc")}
-          value={k.effectiveCpc}
-          delta={deltas?.effectiveCpc ?? null}
-          invertColors
-          isMoney
-          currency={data.currency}
-        />
-        {hasRoasData ? (
+        <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 xl:grid-cols-4">
           <KpiCard
-            label={t("advPerformance", "kpiRoas")}
-            value={k.roas}
-            delta={deltas?.roas ?? null}
+            label={t("advPerformance", "kpiSpend")}
+            value={k.amountSpent}
+            delta={deltas?.amountSpent ?? null}
+            isMoney
+            currency={data.currency}
+            hint={t("advPerformance", "kpiSpendHint")}
+            icon={DollarSign}
+            tone="gold"
           />
-        ) : (
+          <KpiCard
+            label={t("advPerformance", "kpiImpressions")}
+            value={k.impressions}
+            delta={deltas?.impressions ?? null}
+            hint={t("advPerformance", "kpiImpressionsHint")}
+            icon={Eye}
+            tone="blue"
+          />
+          <KpiCard
+            label={t("advPerformance", "kpiClicks")}
+            value={k.effectiveClicks}
+            delta={deltas?.effectiveClicks ?? null}
+            hint={t("advPerformance", "kpiClicksHint")}
+            icon={MousePointerClick}
+            tone="blue"
+          />
+          <KpiCard
+            label={t("advPerformance", "kpiReach")}
+            value={k.reach}
+            delta={deltas?.reach ?? null}
+            hint={t("advPerformance", "kpiReachHint")}
+            icon={Users}
+            tone="purple"
+          />
+          <KpiCard
+            label={t("advPerformance", "kpiCtr")}
+            value={k.effectiveCtr}
+            delta={deltas?.effectiveCtr ?? null}
+            isPercent
+            hint={t("advPerformance", "kpiCtrHint")}
+            icon={Percent}
+            tone="green"
+          />
+          <KpiCard
+            label={t("advPerformance", "kpiCpm")}
+            value={k.cpm}
+            delta={deltas?.cpm ?? null}
+            invertColors
+            isMoney
+            currency={data.currency}
+            hint={t("advPerformance", "kpiCpmHint")}
+            icon={Gauge}
+            tone="amber"
+          />
+          <KpiCard
+            label={t("advPerformance", "kpiCpc")}
+            value={k.effectiveCpc}
+            delta={deltas?.effectiveCpc ?? null}
+            invertColors
+            isMoney
+            currency={data.currency}
+            hint={t("advPerformance", "kpiCpcHint")}
+            icon={Gauge}
+            tone="amber"
+          />
           <KpiCard
             label={t("advPerformance", "kpiFrequency")}
             value={k.frequency}
             delta={deltas?.frequency ?? null}
+            hint={t("advPerformance", "kpiFrequencyHint")}
+            icon={Repeat}
+            tone="purple"
           />
-        )}
-      </div>
-
-      {/* Purchases section — solo se ci sono acquisti nel periodo. */}
-      {showPurchases && (
-        <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 xl:grid-cols-3">
-          <KpiCard
-            label={t("advPerformance", "kpiPurchases")}
-            value={k.purchases}
-            delta={deltas?.purchases ?? null}
-          />
-          <KpiCard
-            label={t("advPerformance", "kpiCostPerPurchase")}
-            value={k.costPerPurchase}
-            delta={deltas?.costPerPurchase ?? null}
-            invertColors
-            isMoney
-            currency={data.currency}
-          />
-          {k.purchaseValue > 0 && (
-            <KpiCard
-              label={t("advPerformance", "kpiRoas")}
-              value={k.roas}
-              delta={deltas?.roas ?? null}
-            />
-          )}
         </div>
+      </section>
+
+      {/* Purchases & ROI */}
+      {showPurchases && (
+        <section className="space-y-3">
+          <SectionHeader
+            icon={ShoppingCart}
+            tone="green"
+            title={t("advPerformance", "purchasesSectionTitle")}
+            description={t("advPerformance", "purchasesSectionDescription")}
+          />
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
+            <KpiCard
+              label={t("advPerformance", "kpiPurchases")}
+              value={k.purchases}
+              delta={deltas?.purchases ?? null}
+              hint={t("advPerformance", "kpiPurchasesHint")}
+              icon={ShoppingCart}
+              tone="green"
+            />
+            <KpiCard
+              label={t("advPerformance", "kpiCostPerPurchase")}
+              value={k.costPerPurchase}
+              delta={deltas?.costPerPurchase ?? null}
+              invertColors
+              isMoney
+              currency={data.currency}
+              hint={t("advPerformance", "kpiCostPerPurchaseHint")}
+              icon={Gauge}
+              tone="amber"
+            />
+            {hasRoasData && (
+              <KpiCard
+                label={t("advPerformance", "kpiRoas")}
+                value={k.roas}
+                delta={deltas?.roas ?? null}
+                hint={t("advPerformance", "kpiRoasHint")}
+                icon={Target}
+                tone="green"
+              />
+            )}
+          </div>
+        </section>
       )}
 
-      {/* Engagement & Social section — solo se ≥1 metrica > 0. */}
+      {/* Engagement & Social */}
       {showEngagement && (
-        <Card>
-          <CardContent className="p-5 space-y-3">
-            <div className="space-y-1">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-                {t("advPerformance", "engagementSectionTitle")}
-              </h3>
-              <p className="text-[11px] text-muted-foreground">
-                {t("advPerformance", "engagementSectionDescription")}
-              </p>
-            </div>
-            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
-              <KpiCard
-                label={t("advPerformance", "kpiPostEngagements")}
-                value={k.postEngagements}
-                delta={deltas?.postEngagements ?? null}
-              />
-              <KpiCard
-                label={t("advPerformance", "kpiInstagramVisits")}
-                value={k.instagramProfileVisits}
-                delta={deltas?.instagramProfileVisits ?? null}
-              />
-              <KpiCard
-                label={t("advPerformance", "kpiInstagramFollows")}
-                value={k.instagramFollows}
-                delta={deltas?.instagramFollows ?? null}
-              />
-            </div>
-          </CardContent>
-        </Card>
+        <section className="space-y-3">
+          <SectionHeader
+            icon={Heart}
+            tone="rose"
+            title={t("advPerformance", "engagementSectionTitle")}
+            description={t("advPerformance", "engagementSectionDescription")}
+          />
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
+            <KpiCard
+              label={t("advPerformance", "kpiPostEngagements")}
+              value={k.postEngagements}
+              delta={deltas?.postEngagements ?? null}
+              hint={t("advPerformance", "kpiPostEngagementsHint")}
+              icon={Heart}
+              tone="rose"
+            />
+            <KpiCard
+              label={t("advPerformance", "kpiInstagramVisits")}
+              value={k.instagramProfileVisits}
+              delta={deltas?.instagramProfileVisits ?? null}
+              hint={t("advPerformance", "kpiInstagramVisitsHint")}
+              icon={Camera}
+              tone="purple"
+            />
+            <KpiCard
+              label={t("advPerformance", "kpiInstagramFollows")}
+              value={k.instagramFollows}
+              delta={deltas?.instagramFollows ?? null}
+              hint={t("advPerformance", "kpiInstagramFollowsHint")}
+              icon={UserPlus}
+              tone="rose"
+            />
+          </div>
+        </section>
       )}
 
       {/* Time series */}
       {data.timeSeries.length > 0 && (
         <Card>
-          <CardContent className="p-4 space-y-3">
-            <div className="space-y-1">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-                {t("advPerformance", "timeSeriesTitle")}
-              </h3>
-              <p className="text-[11px] text-muted-foreground">
-                {t("advPerformance", "timeSeriesDescription")}
-              </p>
-            </div>
-            <ResponsiveContainer width="100%" height={280}>
+          <CardContent className="p-5 space-y-4">
+            <SectionHeader
+              icon={Sparkles}
+              tone="gold"
+              title={t("advPerformance", "timeSeriesTitle")}
+              description={t("advPerformance", "timeSeriesDescription")}
+            />
+            <ResponsiveContainer width="100%" height={300}>
               <ComposedChart
                 data={data.timeSeries}
-                margin={{ left: 0, right: 16, top: 8, bottom: 0 }}
+                margin={{ left: 20, right: 24, top: 12, bottom: 8 }}
               >
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                 <XAxis dataKey="date" tick={{ fontSize: 10 }} />
                 <YAxis
                   yAxisId="left"
                   tick={{ fontSize: 10 }}
-                  width={50}
-                />
+                  width={70}
+                >
+                  <ReLabel
+                    angle={-90}
+                    position="insideLeft"
+                    style={{
+                      textAnchor: "middle",
+                      fontSize: 11,
+                      fill: "#d9a82f",
+                      fontWeight: 600,
+                    }}
+                    value={`${t("advPerformance", "timeSeriesYLeftLabel")}${data.currency ? ` (${data.currency})` : ""}`}
+                  />
+                </YAxis>
                 <YAxis
                   yAxisId="right"
                   orientation="right"
                   tick={{ fontSize: 10 }}
-                  width={60}
-                />
+                  width={70}
+                >
+                  <ReLabel
+                    angle={-90}
+                    position="insideRight"
+                    style={{
+                      textAnchor: "middle",
+                      fontSize: 11,
+                      fill: "#5b7ea3",
+                      fontWeight: 600,
+                    }}
+                    value={t("advPerformance", "timeSeriesYRightLabel")}
+                  />
+                </YAxis>
                 <Tooltip />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Bar
@@ -622,15 +756,16 @@ export function DashboardClient({ importId }: { importId: string }) {
         </Card>
       )}
 
-      {/* Top campaigns. Top ROAS nascosto se nessuna campagna ha
-          ROAS > 0 (file senza purchase_value). */}
+      {/* Top campaigns */}
       <div className={`grid gap-4 ${hasRoasData ? "lg:grid-cols-2" : ""}`}>
         {data.topByCampaignSpend.length > 0 && (
           <Card>
-            <CardContent className="p-4 space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-                {t("advPerformance", "topCampaignsBySpend")}
-              </h3>
+            <CardContent className="p-5 space-y-3">
+              <SectionHeader
+                icon={DollarSign}
+                tone="gold"
+                title={t("advPerformance", "topCampaignsBySpend")}
+              />
               <HorizontalBarChart
                 data={data.topByCampaignSpend.map((c) => ({
                   name: c.campaign_name,
@@ -645,10 +780,12 @@ export function DashboardClient({ importId }: { importId: string }) {
         )}
         {hasRoasData && data.topByCampaignRoas.length > 0 && (
           <Card>
-            <CardContent className="p-4 space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-                {t("advPerformance", "topCampaignsByRoas")}
-              </h3>
+            <CardContent className="p-5 space-y-3">
+              <SectionHeader
+                icon={Target}
+                tone="green"
+                title={t("advPerformance", "topCampaignsByRoas")}
+              />
               <HorizontalBarChart
                 data={data.topByCampaignRoas.map((c) => ({
                   name: c.campaign_name,
@@ -663,21 +800,19 @@ export function DashboardClient({ importId }: { importId: string }) {
         )}
       </div>
 
-      {/* Country breakdown — solo se almeno un paese decodificato. */}
+      {/* Country breakdown */}
       {data.countries.length > 0 &&
         !(
           data.countries.length === 1 && data.countries[0].code === "UNKNOWN"
         ) && (
           <Card>
-            <CardContent className="p-5 space-y-3">
-              <div className="space-y-1">
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-                  {t("advPerformance", "countriesTitle")}
-                </h3>
-                <p className="text-[11px] text-muted-foreground">
-                  {t("advPerformance", "countriesDescription")}
-                </p>
-              </div>
+            <CardContent className="p-5 space-y-4">
+              <SectionHeader
+                icon={Globe2}
+                tone="blue"
+                title={t("advPerformance", "countriesTitle")}
+                description={t("advPerformance", "countriesDescription")}
+              />
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -700,35 +835,64 @@ export function DashboardClient({ importId }: { importId: string }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {data.countries.map((c) => (
-                      <tr key={c.code}>
-                        <td className="py-2.5">
-                          <div className="flex items-center gap-2">
-                            <Badge
-                              variant={
-                                c.code === "UNKNOWN" ? "outline" : "gold"
-                              }
-                              className="text-[10px]"
-                            >
-                              {c.code}
-                            </Badge>
-                            <span className="text-foreground">{c.label}</span>
-                          </div>
-                        </td>
-                        <td className="text-right tabular-nums">
-                          {c.campaignCount}
-                        </td>
-                        <td className="text-right tabular-nums">
-                          {formatMoney(c.spend, data.currency)}
-                        </td>
-                        <td className="text-right tabular-nums">
-                          {formatNumber(c.impressions)}
-                        </td>
-                        <td className="text-right tabular-nums">
-                          {formatNumber(c.clicks)}
-                        </td>
-                      </tr>
-                    ))}
+                    {data.countries.map((c) => {
+                      const spendShare =
+                        countriesTotalSpend > 0
+                          ? (c.spend / countriesTotalSpend) * 100
+                          : 0;
+                      const impShare =
+                        countriesTotalImp > 0
+                          ? (c.impressions / countriesTotalImp) * 100
+                          : 0;
+                      const clickShare =
+                        countriesTotalClicks > 0
+                          ? (c.clicks / countriesTotalClicks) * 100
+                          : 0;
+                      return (
+                        <tr key={c.code} className="hover:bg-muted/30">
+                          <td className="py-3">
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant={c.code === "UNKNOWN" ? "outline" : "gold"}
+                                className="text-[10px]"
+                              >
+                                {c.code}
+                              </Badge>
+                              <span className="text-foreground font-medium">
+                                {c.label}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="text-right tabular-nums">
+                            {c.campaignCount}
+                          </td>
+                          <td className="text-right tabular-nums">
+                            <div className="font-medium">
+                              {formatMoney(c.spend, data.currency)}
+                            </div>
+                            <div className="text-[10.5px] text-muted-foreground">
+                              {formatNumber(Math.round(spendShare * 10) / 10)}%
+                            </div>
+                          </td>
+                          <td className="text-right tabular-nums">
+                            <div className="font-medium">
+                              {formatNumber(c.impressions)}
+                            </div>
+                            <div className="text-[10.5px] text-muted-foreground">
+                              {formatNumber(Math.round(impShare * 10) / 10)}%
+                            </div>
+                          </td>
+                          <td className="text-right tabular-nums">
+                            <div className="font-medium">
+                              {formatNumber(c.clicks)}
+                            </div>
+                            <div className="text-[10.5px] text-muted-foreground">
+                              {formatNumber(Math.round(clickShare * 10) / 10)}%
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -736,7 +900,7 @@ export function DashboardClient({ importId }: { importId: string }) {
           </Card>
         )}
 
-      {/* Campaign types — risultati e CPR diversificati per type. */}
+      {/* Campaign types */}
       {data.campaignTypes.length > 0 && (
         <CampaignTypesPanel
           importId={importId}
@@ -749,16 +913,18 @@ export function DashboardClient({ importId }: { importId: string }) {
         />
       )}
 
-      {/* Creative type mix + asset count by type. */}
+      {/* Creative type mix + asset count */}
       {(data.creativeTypeMix.length > 0 ||
         data.creativeCountByType.length > 0) && (
         <div className="grid gap-4 lg:grid-cols-2">
           {data.creativeTypeMix.length > 0 && (
             <Card>
-              <CardContent className="p-4 space-y-3">
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-                  {t("advPerformance", "creativeTypeMix")}
-                </h3>
+              <CardContent className="p-5 space-y-4">
+                <SectionHeader
+                  icon={Layers}
+                  tone="purple"
+                  title={t("advPerformance", "creativeTypeMix")}
+                />
                 <ResponsiveContainer width="100%" height={240}>
                   <PieChart>
                     <Pie
@@ -790,51 +956,24 @@ export function DashboardClient({ importId }: { importId: string }) {
             </Card>
           )}
           {data.creativeCountByType.length > 0 && (
-            <Card>
-              <CardContent className="p-4 space-y-3">
-                <div className="space-y-1">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-                    {t("advPerformance", "creativeCountByType")}
-                  </h3>
-                  <p className="text-[11px] text-muted-foreground">
-                    {t("advPerformance", "creativeCountByTypeHint")}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    <span className="uppercase tracking-wider">
-                      {t("advPerformance", "creativeCountWindowLabel")}
-                    </span>{" "}
-                    <Badge variant="outline" className="text-[10px]">
-                      {data.creativeCountLabel}
-                    </Badge>
-                  </p>
-                </div>
-                <div className="space-y-2 pt-1">
-                  {data.creativeCountByType.map((c) => (
-                    <div
-                      key={c.name}
-                      className="flex items-center justify-between text-sm"
-                    >
-                      <span className="capitalize">{c.name}</span>
-                      <span className="text-2xl font-semibold tabular-nums">
-                        {c.count}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <CreativeAssetCard
+              items={data.creativeCountByType}
+              label={data.creativeCountLabel}
+            />
           )}
         </div>
       )}
 
-      {/* Objective mix — solo quando objective popolato. */}
+      {/* Objective mix */}
       {data.objectiveMix.length > 0 &&
         data.objectiveMix.some((o) => o.name && o.name !== "—") && (
           <Card>
-            <CardContent className="p-4 space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-                {t("advPerformance", "objectiveMix")}
-              </h3>
+            <CardContent className="p-5 space-y-4">
+              <SectionHeader
+                icon={Target}
+                tone="blue"
+                title={t("advPerformance", "objectiveMix")}
+              />
               <ResponsiveContainer width="100%" height={260}>
                 <PieChart>
                   <Pie
@@ -866,6 +1005,81 @@ export function DashboardClient({ importId }: { importId: string }) {
           </Card>
         )}
     </div>
+  );
+}
+
+/* ─── Creative Asset Card ────────────────────────────────────
+ * Grid visivo con icone + numero + label esplicito della
+ * finestra. Per ogni tipo (image / video / carousel / ecc) un
+ * tile colorato con icona pertinente.
+ */
+function CreativeAssetCard({
+  items,
+  label,
+}: {
+  items: { name: string; count: number }[];
+  label: string;
+}) {
+  const { t } = useT();
+  const iconFor = (name: string) => {
+    const n = name.toLowerCase();
+    if (/video|reel/.test(n)) return Video;
+    if (/carousel|collection/.test(n)) return Layers;
+    return ImageIcon;
+  };
+  const toneFor = (name: string): AccentTone => {
+    const n = name.toLowerCase();
+    if (/video|reel/.test(n)) return "rose";
+    if (/carousel|collection/.test(n)) return "purple";
+    return "blue";
+  };
+  return (
+    <Card>
+      <CardContent className="p-5 space-y-4">
+        <SectionHeader
+          icon={Layers}
+          tone="purple"
+          title={t("advPerformance", "creativeCountByType")}
+          description={t("advPerformance", "creativeCountByTypeHint")}
+        />
+        <div className="flex items-center gap-2 text-[10.5px]">
+          <span className="uppercase tracking-wider text-muted-foreground">
+            {t("advPerformance", "creativeCountWindowLabel")}
+          </span>
+          <Badge variant="outline" className="text-[10px]">
+            {label}
+          </Badge>
+        </div>
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+          {items.map((c) => {
+            const Icon = iconFor(c.name);
+            const tone = toneFor(c.name);
+            const T = TONES[tone];
+            return (
+              <div
+                key={c.name}
+                className={`rounded-lg border border-border p-4 flex items-center gap-3 ${T.bg} bg-opacity-30`}
+              >
+                <div className={`size-10 rounded-md grid place-items-center ${T.bg} ${T.text} shrink-0`}>
+                  <Icon className="size-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-muted-foreground capitalize">
+                    {c.name}
+                  </p>
+                  <p className="text-2xl font-semibold tabular-nums leading-tight">
+                    {formatNumber(c.count)}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {t("advPerformance", "creativeCountAvgWeeks")}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -930,24 +1144,24 @@ function CampaignTypesPanel({
     (a) => !a.decodedCode && !a.overrideCode,
   ).length;
 
+  const hasAnyPurchases = breakdown.some((b) => b.purchases > 0);
+
   return (
     <Card>
       <CardContent className="p-5 space-y-4">
         <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div className="space-y-1">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-              {t("advPerformance", "campaignTypesTitle")}
-            </h3>
-            <p className="text-[11px] text-muted-foreground leading-snug">
-              {t("advPerformance", "campaignTypesDescription")}
-            </p>
-          </div>
+          <SectionHeader
+            icon={Layers}
+            tone="amber"
+            title={t("advPerformance", "campaignTypesTitle")}
+            description={t("advPerformance", "campaignTypesDescription")}
+          />
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={() => setEditing(true)}
-            className="gap-1.5 print:hidden"
+            className="gap-1.5 print:hidden shrink-0"
           >
             <Pencil className="size-3.5" />
             {t("advPerformance", "editMapping")}
@@ -961,6 +1175,13 @@ function CampaignTypesPanel({
             )}
           </Button>
         </div>
+
+        {hasAnyPurchases && (
+          <div className="rounded-md border border-border bg-muted/30 p-2.5 text-[11px] text-muted-foreground inline-flex gap-2 items-start">
+            <HelpCircle className="size-3.5 mt-0.5 shrink-0 text-amber-500" />
+            <span>{t("advPerformance", "ctPurchasesHint")}</span>
+          </div>
+        )}
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -981,12 +1202,17 @@ function CampaignTypesPanel({
                 <th className="text-right py-2 font-semibold">
                   {t("advPerformance", "ctCpr")}
                 </th>
+                {hasAnyPurchases && (
+                  <th className="text-right py-2 font-semibold">
+                    {t("advPerformance", "ctPurchases")}
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {breakdown.map((b) => (
-                <tr key={b.code}>
-                  <td className="py-2.5">
+                <tr key={b.code} className="hover:bg-muted/30">
+                  <td className="py-3">
                     <div className="flex items-center gap-2">
                       <Badge
                         variant={b.code === "UNKNOWN" ? "outline" : "gold"}
@@ -994,13 +1220,13 @@ function CampaignTypesPanel({
                       >
                         {b.code}
                       </Badge>
-                      <span className="text-foreground">{b.label}</span>
+                      <span className="text-foreground font-medium">{b.label}</span>
                     </div>
                   </td>
                   <td className="text-right tabular-nums">
                     {b.campaignCount}
                   </td>
-                  <td className="text-right tabular-nums">
+                  <td className="text-right tabular-nums font-medium">
                     {formatMoney(b.spend, currency)}
                   </td>
                   <td className="text-right tabular-nums">
@@ -1011,6 +1237,17 @@ function CampaignTypesPanel({
                   <td className="text-right tabular-nums">
                     {b.cpr != null ? formatMoney(b.cpr, currency) : "—"}
                   </td>
+                  {hasAnyPurchases && (
+                    <td className="text-right tabular-nums">
+                      {b.purchases > 0 ? (
+                        <span className="text-emerald-500 font-semibold">
+                          {formatNumber(b.purchases)}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

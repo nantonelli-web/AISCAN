@@ -137,6 +137,11 @@ export interface CampaignTypeBreakdown {
   resultCount: number;
   /** Cost-per-result type-specifico = spend / resultCount. */
   cpr: number | null;
+  /** Numero acquisti registrati su questo gruppo di campagne —
+   *  indipendentemente dal tipo decodificato. Permette di vedere
+   *  dove cadono realmente gli acquisti se per esempio una ATC
+   *  finisce per portare anche purchases. */
+  purchases: number;
   /** Nomi delle campagne in questa categoria, per la UI di
    *  override. */
   campaignNames: string[];
@@ -232,6 +237,12 @@ export interface PerfDashboardData {
    *  comparison "week"), questo identifica la week corrente
    *  visualizzata. */
   weekCurrent: string | null;
+  /** Bounds delle date effettivamente presenti nelle righe del
+   *  file. Limitano il range del date picker custom: l'utente puo'
+   *  scegliere date solo dentro questa finestra (no senso usare
+   *  range fuori dal file). */
+  dataMinDate: string | null;
+  dataMaxDate: string | null;
 }
 
 /** Riga della lista import shown sul client detail page. */

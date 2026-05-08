@@ -2310,6 +2310,92 @@ const translations = {
     kpiCpa: { it: "CPA", en: "CPA" },
     kpiRoas: { it: "ROAS", en: "ROAS" },
     kpiFrequency: { it: "Frequenza", en: "Frequency" },
+    // KPI definition hints (visibili come sub-text sulla card)
+    kpiSpendHint: {
+      it: "Investimento totale nel periodo",
+      en: "Total spend in the period",
+    },
+    kpiImpressionsHint: {
+      it: "Visualizzazioni totali — somma su tutte le righe",
+      en: "Total ad views — summed across rows",
+    },
+    kpiClicksHint: {
+      it: "Click totali (link click se non disponibile)",
+      en: "Total clicks (link clicks fallback)",
+    },
+    kpiReachHint: {
+      it: "Utenti unici raggiunti — massimo nel periodo",
+      en: "Unique users reached — peak in period",
+    },
+    kpiCtrHint: {
+      it: "Click ÷ Impression × 100. Quanto seducono al click",
+      en: "Clicks ÷ Impressions × 100. How click-worthy",
+    },
+    kpiCpmHint: {
+      it: "Costo per 1.000 impression. Più basso = meglio",
+      en: "Cost per 1,000 impressions. Lower is better",
+    },
+    kpiCpcHint: {
+      it: "Costo per click. Più basso = meglio",
+      en: "Cost per click. Lower is better",
+    },
+    kpiRoasHint: {
+      it: "Ricavi da acquisti ÷ spesa. >1 = profittevole",
+      en: "Purchase value ÷ spend. >1 = profitable",
+    },
+    kpiFrequencyHint: {
+      it: "Quante volte in media un utente vede l'ad (impression / reach)",
+      en: "Avg times a user sees the ad (impressions / reach)",
+    },
+    kpiPurchasesHint: {
+      it: "Acquisti totali nel periodo, qualsiasi tipologia campagna",
+      en: "Total purchases in the period, across all campaign types",
+    },
+    kpiCostPerPurchaseHint: {
+      it: "Spesa ÷ acquisti. Più basso = meglio",
+      en: "Spend ÷ purchases. Lower is better",
+    },
+    kpiPostEngagementsHint: {
+      it: "Like, commenti, share, reazioni cumulati sui post sponsorizzati",
+      en: "Likes, comments, shares, reactions on sponsored posts",
+    },
+    kpiInstagramVisitsHint: {
+      it: "Click sul profilo IG dalle ads — interesse oltre il click",
+      en: "Profile clicks from ads — interest beyond the click",
+    },
+    kpiInstagramFollowsHint: {
+      it: "Nuovi follower IG attribuiti alle ads",
+      en: "New IG followers attributed to ads",
+    },
+    overviewSectionTitle: {
+      it: "Panoramica metriche",
+      en: "Performance overview",
+    },
+    overviewSectionDescription: {
+      it: "Indicatori principali di volume, traffico ed efficienza per il periodo selezionato. Le frecce mostrano la variazione rispetto al periodo di confronto.",
+      en: "Primary volume, traffic and efficiency metrics for the selected period. Arrows show variation vs the comparison period.",
+    },
+    purchasesSectionTitle: {
+      it: "Acquisti & ROI",
+      en: "Purchases & ROI",
+    },
+    purchasesSectionDescription: {
+      it: "Acquisti totali registrati nel file (qualsiasi campagna li abbia generati). Possono non coincidere con la categoria PURCH della tabella tipologie: la tabella per tipologia conta solo l'evento type-specifico (es. ATC = Add to Cart). Una campagna ATC che porta acquisti registra Adds to Cart nella sua riga e Purchase qui sopra.",
+      en: "Total purchases registered in the file (regardless of campaign type that drove them). May differ from the PURCH row in the campaign-type table: that row only counts the type-specific event (e.g. ATC = Adds to Cart). An ATC campaign that drives purchases shows Adds to Cart in its row and Purchases here above.",
+    },
+    timeSeriesYLeftLabel: {
+      it: "Spesa",
+      en: "Spend",
+    },
+    timeSeriesYRightLabel: {
+      it: "Impression",
+      en: "Impressions",
+    },
+    ctPurchases: { it: "Acquisti", en: "Purchases" },
+    ctPurchasesHint: {
+      it: "Acquisti registrati su queste campagne, anche quando il tipo non e' PURCH (es. una ATC puo' aver portato acquisti).",
+      en: "Purchases recorded on these campaigns even when the decoded type isn't PURCH (e.g. an ATC may have driven purchases).",
+    },
     timeSeriesTitle: { it: "Andamento giornaliero", en: "Daily trend" },
     timeSeriesDescription: {
       it: "Spesa giornaliera in barre, impression sovrapposte come linea. Mostra come il budget e' stato distribuito nei giorni del periodo selezionato e quanto traffico ha generato giorno per giorno.",
@@ -2327,12 +2413,16 @@ const translations = {
     creativeTypeMix: { it: "Distribuzione per tipo creatività", en: "Creative type mix" },
     creativeCountByType: { it: "Numero asset per tipo", en: "Asset count by type" },
     creativeCountByTypeHint: {
-      it: "Le creativita' tendono a ripetersi settimana per settimana, quindi mostriamo il numero di asset rilevati nell'ultima settimana del file (label sotto al titolo) per evitare sovra-conteggi.",
-      en: "Creatives tend to repeat week-over-week, so we show the asset count detected in the latest week of the file (label below the title) to avoid double counting.",
+      it: "Numero medio di asset attivi per settimana, calcolato come (totale asset rilevati nel file) / (numero di settimane). Cosi' il dato riflette il volume di creativita' mediamente live, anche se nel file vengono ripetute settimana per settimana.",
+      en: "Average active assets per week, computed as (total assets in file) / (number of weeks). This reflects the typical live-creative volume, even though assets repeat across weeks in the file.",
     },
     creativeCountWindowLabel: {
       it: "Finestra:",
       en: "Window:",
+    },
+    creativeCountAvgWeeks: {
+      it: "asset attivi / settimana (media)",
+      en: "active assets / week (avg)",
     },
     countriesTitle: { it: "Distribuzione per paese", en: "Country breakdown" },
     countriesDescription: {
@@ -2340,6 +2430,7 @@ const translations = {
       en: "Spend, impressions and clicks split by country, decoded from tokens in campaign and ad set names (e.g. KSA → Saudi Arabia, UAE → UAE). Multi-country campaigns (e.g. KSA-UAE) are split pro-rata across the targeted countries.",
     },
     countryCol: { it: "Paese", en: "Country" },
+    countryShareCol: { it: "% sul totale", en: "% of total" },
     kpiPostEngagements: { it: "Post engagement", en: "Post engagements" },
     kpiInstagramVisits: { it: "Visite profilo IG", en: "IG profile visits" },
     kpiInstagramFollows: { it: "Follow IG", en: "IG follows" },

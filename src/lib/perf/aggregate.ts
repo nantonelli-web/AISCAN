@@ -189,6 +189,7 @@ export function aggregateCampaignTypes(
     spend: number;
     impressions: number;
     resultCount: number;
+    purchases: number;
     campaigns: Set<string>;
   };
   const buckets = new Map<string, Bucket>();
@@ -204,11 +205,13 @@ export function aggregateCampaignTypes(
       spend: 0,
       impressions: 0,
       resultCount: 0,
+      purchases: 0,
       campaigns: new Set<string>(),
     };
     b.spend += Math.max(0, r.amount_spent);
     b.impressions += Math.max(0, r.impressions);
     if (field) b.resultCount += readEventCount(r, field);
+    b.purchases += Math.max(0, r.purchases ?? 0);
     if (r.campaign_name) b.campaigns.add(r.campaign_name);
     buckets.set(code, b);
   }
@@ -224,6 +227,7 @@ export function aggregateCampaignTypes(
         b.resultCount > 0
           ? Math.round((b.spend / b.resultCount) * 100) / 100
           : null,
+      purchases: Math.round(b.purchases * 100) / 100,
       campaignNames: [...b.campaigns].sort(),
     }))
     .sort((a, b) => b.spend - a.spend);
@@ -275,9 +279,11 @@ export function aggregateCreativeTypeMix(
 
 /** Numero asset per creative type. Logica:
  *  - se l'export ha le settimane (column "Week" popolata), conta
- *    solo le righe della week piu' recente — perche' le creativita'
- *    si ripetono settimana per settimana e sommare globalmente
- *    gonfia il numero in proporzione al numero di settimane;
+ *    le righe per (week, type), poi fa la **media** tra le
+ *    settimane. Cosi' se un brand fa rotation di ~17 image / ~10
+ *    video ogni settimana, il valore mostrato riflette il volume
+ *    medio di asset attivi per finestra di reporting (non il
+ *    volume del file moltiplicato per il numero di settimane);
  *  - se l'export e' giornaliero (no week), dedup per
  *    (creative_type, ad_name, ad_set_name, campaign_name).
  *
@@ -287,36 +293,42 @@ export function aggregateCreativeCountByType(rows: MetaPerfRow[]): {
   items: { name: string; count: number }[];
   label: string;
 } {
-  // Determina se le week sono presenti
   const weeksWithData = new Set<string>();
   for (const r of rows) {
     if (r.week) weeksWithData.add(r.week);
   }
 
   if (weeksWithData.size > 0) {
-    // Prendi la week piu' recente (ordinamento alfabetico funziona
-    // sui token "week 14"..."week 18"; aggiunto compare numerico
-    // come tiebreaker per anno crossover).
-    const sorted = [...weeksWithData].sort((a, b) => {
-      const na = Number(a.replace(/\D+/g, "")) || 0;
-      const nb = Number(b.replace(/\D+/g, "")) || 0;
-      return na - nb;
-    });
-    const latest = sorted[sorted.length - 1];
-    const counts = new Map<string, number>();
+    // Per ogni (week, creative_type) sommiamo creative_count, poi
+    // mediamo per type sulle N settimane.
+    type Pair = { week: string; type: string };
+    const byPair = new Map<string, number>();
     for (const r of rows) {
-      if (r.week !== latest) continue;
-      if (!r.creative_type || r.creative_count == null) continue;
-      counts.set(
-        r.creative_type,
-        (counts.get(r.creative_type) ?? 0) + (r.creative_count ?? 0),
-      );
+      if (!r.week || !r.creative_type || r.creative_count == null) continue;
+      const k = `${r.week}|${r.creative_type}`;
+      byPair.set(k, (byPair.get(k) ?? 0) + (r.creative_count ?? 0));
     }
+    const sumByType = new Map<string, number>();
+    const weeksByType = new Map<string, Set<string>>();
+    for (const [pairKey, value] of byPair) {
+      const [week, type] = pairKey.split("|") as [Pair["week"], Pair["type"]];
+      sumByType.set(type, (sumByType.get(type) ?? 0) + value);
+      const ws = weeksByType.get(type) ?? new Set<string>();
+      ws.add(week);
+      weeksByType.set(type, ws);
+    }
+    const totalWeeks = weeksWithData.size;
     return {
-      items: [...counts.entries()]
-        .map(([name, count]) => ({ name, count }))
+      items: [...sumByType.entries()]
+        .map(([name, sum]) => ({
+          name,
+          // Media: sum / nWeeks (usiamo totalWeeks invece di
+          // weeksByType[type].size cosi' un type assente in alcune
+          // settimane "diluisce" la media correttamente).
+          count: Math.round((sum / totalWeeks) * 10) / 10,
+        }))
         .sort((a, b) => b.count - a.count),
-      label: latest,
+      label: `media su ${totalWeeks} settiman${totalWeeks === 1 ? "a" : "e"}`,
     };
   }
 
