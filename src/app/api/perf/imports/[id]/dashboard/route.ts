@@ -146,19 +146,22 @@ export async function GET(
     if (data.length < PAGE) break;
   }
 
-  // For files in legacy/noWeek mode, week column may not exist:
-  // try to read it from raw_data so the dashboard still gets weeks.
-  if (level !== "full") {
-    for (const r of rows) {
-      if (r.week == null) {
-        const w = (r.raw_data as Record<string, unknown> | undefined)?.[
-          "Week"
-        ];
-        r.week =
-          w == null || String(w).trim() === ""
-            ? null
-            : String(w).trim().toLowerCase().replace(/\s+/g, " ");
-      }
+  // Backfill week from raw_data["Week"] for any row where the
+  // column is null. Copre due casi:
+  //  1. legacy/noWeek mode (la column non esiste o non era stata
+  //     SELECT-ata) — r.week e' undefined
+  //  2. import fatto prima della migration 0042 — la column esiste
+  //     ma e' NULL per le righe gia' salvate
+  // In entrambi i casi recuperiamo il valore dal raw_data che e'
+  // sempre stato salvato dal parser. Cosi' l'utente non deve
+  // reimportare il file dopo aver applicato la migration.
+  for (const r of rows) {
+    if (r.week == null) {
+      const w = (r.raw_data as Record<string, unknown> | undefined)?.["Week"];
+      r.week =
+        w == null || String(w).trim() === ""
+          ? null
+          : String(w).trim().toLowerCase().replace(/\s+/g, " ");
     }
   }
 
