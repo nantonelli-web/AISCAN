@@ -2349,6 +2349,10 @@ const translations = {
       en: "Each row is one reporting period. Click the chevron to open the dashboard, the trash icon to remove the import.",
     },
     quickUpload: { it: "Carica nuovo export", en: "Upload new export" },
+    backToImportsList: {
+      it: "Tutti gli export di {brand}",
+      en: "All exports for {brand}",
+    },
     // Hero home page
     homeHeroTagline: {
       it: "Da export Meta a insight in 30 secondi",
@@ -2387,16 +2391,16 @@ const translations = {
       en: "Total spend in the period",
     },
     kpiImpressionsHint: {
-      it: "Visualizzazioni totali — somma su tutte le righe",
-      en: "Total ad views — summed across rows",
+      it: "Visualizzazioni totali delle ads",
+      en: "Total ad views",
     },
     kpiClicksHint: {
-      it: "Click totali (link click se non disponibile)",
-      en: "Total clicks (link clicks fallback)",
+      it: "Click totali ricevuti dalle ads",
+      en: "Total clicks received by the ads",
     },
     kpiReachHint: {
-      it: "Utenti unici raggiunti — massimo nel periodo",
-      en: "Unique users reached — peak in period",
+      it: "Utenti unici raggiunti dalle campagne",
+      en: "Unique users reached by the campaigns",
     },
     kpiCtrHint: {
       it: "Click ÷ Impression × 100. Quanto seducono al click",
@@ -2451,8 +2455,8 @@ const translations = {
       en: "Purchases & ROI",
     },
     purchasesSectionDescription: {
-      it: "Acquisti totali registrati nel file (qualsiasi campagna li abbia generati). Possono non coincidere con la categoria PURCH della tabella tipologie: la tabella per tipologia conta solo l'evento type-specifico (es. ATC = Add to Cart). Una campagna ATC che porta acquisti registra Adds to Cart nella sua riga e Purchase qui sopra.",
-      en: "Total purchases registered in the file (regardless of campaign type that drove them). May differ from the PURCH row in the campaign-type table: that row only counts the type-specific event (e.g. ATC = Adds to Cart). An ATC campaign that drives purchases shows Adds to Cart in its row and Purchases here above.",
+      it: "Acquisti totali e costo medio per acquisto nel periodo selezionato.",
+      en: "Total purchases and average cost per purchase in the selected period.",
     },
     timeSeriesYLeftLabel: {
       it: "Spesa",

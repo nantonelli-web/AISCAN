@@ -76,7 +76,15 @@ export function aggregateKpis(rows: MetaPerfRow[]): MetaKpiAggregate {
   for (const r of rows) {
     amountSpent += Math.max(0, r.amount_spent);
     impressions += Math.max(0, r.impressions);
-    reach = Math.max(reach, r.reach); // reach is unique users — sum non sense
+    // Reach: per file weekly-aggregated sommiamo reach di ogni
+    // (campaign, ad_set, week). C'e' overlap (lo stesso user puo'
+    // essere raggiunto piu' volte fra ad_set/settimane diverse e
+    // viene contato N volte) ma e' la migliore approssimazione
+    // possibile sui dati esportati. Prima usavamo Math.max ma
+    // ritornava il reach della singola campagna piu' grande,
+    // facendo apparire la frequency = imp/reach a 30+ (errato).
+    // Con la sum la frequency torna realistic (~1.7 per Meta UAE).
+    reach += Math.max(0, r.reach);
     clicks += Math.max(0, r.clicks);
     linkClicks += Math.max(0, r.link_clicks);
     results += Math.max(0, r.results ?? 0);
@@ -377,6 +385,7 @@ export function aggregateCountryBreakdown(
     spend: number;
     impressions: number;
     clicks: number;
+    purchases: number;
     campaigns: Set<string>;
   };
   const buckets = new Map<string, Bucket>();
@@ -390,12 +399,14 @@ export function aggregateCountryBreakdown(
         spend: 0,
         impressions: 0,
         clicks: 0,
+        purchases: 0,
         campaigns: new Set<string>(),
       };
       b.spend += Math.max(0, r.amount_spent) * share;
       b.impressions += Math.max(0, r.impressions) * share;
       b.clicks +=
         (r.clicks > 0 ? r.clicks : Math.max(0, r.link_clicks)) * share;
+      b.purchases += Math.max(0, r.purchases ?? 0) * share;
       if (r.campaign_name) b.campaigns.add(r.campaign_name);
       buckets.set(c, b);
     }
@@ -407,6 +418,7 @@ export function aggregateCountryBreakdown(
       spend: Math.round(b.spend * 100) / 100,
       impressions: Math.round(b.impressions),
       clicks: Math.round(b.clicks),
+      purchases: Math.round(b.purchases * 100) / 100,
       campaignCount: b.campaigns.size,
     }))
     .sort((a, b) => b.spend - a.spend);

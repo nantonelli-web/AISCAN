@@ -369,6 +369,11 @@ export function DashboardClient({ importId }: { importId: string }) {
   const countriesTotalSpend = data.countries.reduce((s, c) => s + c.spend, 0);
   const countriesTotalImp = data.countries.reduce((s, c) => s + c.impressions, 0);
   const countriesTotalClicks = data.countries.reduce((s, c) => s + c.clicks, 0);
+  const countriesTotalPurch = data.countries.reduce(
+    (s, c) => s + c.purchases,
+    0,
+  );
+  const showCountryPurchases = countriesTotalPurch > 0;
 
   return (
     <div className="space-y-6">
@@ -832,6 +837,11 @@ export function DashboardClient({ importId }: { importId: string }) {
                       <th className="text-right py-2 font-semibold">
                         {t("advPerformance", "kpiClicks")}
                       </th>
+                      {showCountryPurchases && (
+                        <th className="text-right py-2 font-semibold">
+                          {t("advPerformance", "kpiPurchases")}
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -847,6 +857,10 @@ export function DashboardClient({ importId }: { importId: string }) {
                       const clickShare =
                         countriesTotalClicks > 0
                           ? (c.clicks / countriesTotalClicks) * 100
+                          : 0;
+                      const purchShare =
+                        countriesTotalPurch > 0
+                          ? (c.purchases / countriesTotalPurch) * 100
                           : 0;
                       return (
                         <tr key={c.code} className="hover:bg-muted/30">
@@ -890,6 +904,27 @@ export function DashboardClient({ importId }: { importId: string }) {
                               {formatNumber(Math.round(clickShare * 10) / 10)}%
                             </div>
                           </td>
+                          {showCountryPurchases && (
+                            <td className="text-right tabular-nums">
+                              {c.purchases > 0 ? (
+                                <>
+                                  <div className="font-semibold text-emerald-500">
+                                    {formatNumber(
+                                      Math.round(c.purchases * 10) / 10,
+                                    )}
+                                  </div>
+                                  <div className="text-[10.5px] text-muted-foreground">
+                                    {formatNumber(
+                                      Math.round(purchShare * 10) / 10,
+                                    )}
+                                    %
+                                  </div>
+                                </>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                          )}
                         </tr>
                       );
                     })}

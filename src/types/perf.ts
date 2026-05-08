@@ -187,6 +187,9 @@ export interface CountryBreakdown {
   spend: number;
   impressions: number;
   clicks: number;
+  /** Acquisti registrati su questo paese (split pro-rata se la
+   *  campagna targetizza piu' paesi). */
+  purchases: number;
   campaignCount: number;
 }
 
