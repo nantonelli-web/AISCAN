@@ -148,12 +148,27 @@ const COLUMN_SYNONYMS: Record<string, string[]> = {
 
 /* ─── Helpers ─────────────────────────────────────────────── */
 
-/** Lowercase + trim + collapse whitespace for synonym matching. */
+/** Lowercase + trim + collapse whitespace for synonym matching.
+ *  Strip trailing `(XXX)` SOLO se il contenuto e' un codice
+ *  currency-like (3 lettere) — copre "Amount spent (AED)",
+ *  "CPM (cost per 1,000 impressions) (AED)" senza intaccare
+ *  "CTR (link click-through rate)" (description, da NON
+ *  strippare). Bug 2026-05-08: la strip universale faceva
+ *  collassare link_ctr su ctr, propagando valori sbagliati. */
 function normHeader(h: string): string {
   return String(h ?? "")
     .trim()
     .toLowerCase()
-    .replace(/\s+/g, " ");
+    .replace(/\s+/g, " ")
+    .replace(/\s*\(\s*[a-z]{3}\s*\)\s*$/i, "");
+}
+
+/** Estrae il codice currency 3-letter da un header tipo "Amount
+ *  spent (AED)" → "AED". Ritorna null se non c'e' o non e' un
+ *  codice ISO 4217 plausibile (3 lettere maiuscole). */
+function extractCurrencyFromHeader(h: string): string | null {
+  const m = /\(([A-Z]{3})\)\s*$/i.exec(String(h ?? ""));
+  return m ? m[1].toUpperCase() : null;
 }
 
 /** Parse number tolerant to IT/EN locale.
@@ -413,10 +428,25 @@ export async function parseMetaExport(
     return idx == null ? undefined : row[idx];
   };
 
+  // ── Currency detection from column header ──
+  // Some Meta exports have no explicit "Currency" column but
+  // suffix the amount/CPM/CPC columns with the ISO code, es.
+  // "Amount spent (AED)". Estraggo qui dal nome del column
+  // Amount-spent — fallback usato quando la colonna Currency
+  // esplicita non c'e' nel file.
+  let currencyFromHeader: string | null = null;
+  if ("amount_spent" in header.colMap) {
+    const ix = header.colMap.amount_spent;
+    currencyFromHeader = extractCurrencyFromHeader(
+      header.headers[ix] ?? "",
+    );
+  }
+
   // Iterate data rows
   const rows: MetaPerfRow[] = [];
   let periodFrom: string | null = null;
   let periodTo: string | null = null;
+  let reportingEndsMax: string | null = null;
   let currency: string | null = null;
   const currencySet = new Set<string>();
 
@@ -436,6 +466,19 @@ export async function parseMetaExport(
 
     if (periodFrom == null || date < periodFrom) periodFrom = date;
     if (periodTo == null || date > periodTo) periodTo = date;
+
+    // For week/month-aggregated exports, Reporting ends e' >
+    // Reporting starts; teniamo traccia del max per usare quello
+    // come period_to (vero ultimo giorno coperto dal file).
+    const endsValue = get(row, "reporting_ends");
+    if (endsValue != null) {
+      const endsDate = parseDate(endsValue);
+      if (endsDate) {
+        if (reportingEndsMax == null || endsDate > reportingEndsMax) {
+          reportingEndsMax = endsDate;
+        }
+      }
+    }
 
     // Currency
     const cur = get(row, "currency");
@@ -502,6 +545,12 @@ export async function parseMetaExport(
     });
   }
 
+  // Currency: prefer explicit "Currency" column, fallback to
+  // suffix on Amount spent column (es. "Amount spent (AED)").
+  if (currency == null && currencyFromHeader) {
+    currency = currencyFromHeader;
+  }
+
   // Currency consistency
   if (currencySet.size > 1) {
     diagnostics.push({
@@ -510,6 +559,12 @@ export async function parseMetaExport(
       message: `File contains multiple currencies (${[...currencySet].join(", ")}). Meta exports a single currency per ad account.`,
       context: { currencies: [...currencySet] },
     });
+  }
+
+  // Use reporting_ends max as period_to when available — gives
+  // the "true" last-day-covered for week/month-aggregated exports.
+  if (reportingEndsMax && (periodTo == null || reportingEndsMax > periodTo)) {
+    periodTo = reportingEndsMax;
   }
 
   if (rows.length === 0 && !diagnostics.some((d) => d.severity === "error")) {

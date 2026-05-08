@@ -23,28 +23,55 @@ export function validateMetaParse(parsed: MetaParseResult): PerfDiagnostic[] {
   if (rows.length === 0) return diagnostics;
 
   // ── Date coverage gaps ──
+  // Salta interamente questa regola se l'export e' aggregato per
+  // settimana/mese: in quel caso ogni riga rappresenta un range di
+  // giorni e i "buchi" giorno-per-giorno sono falsi positivi.
+  // Detection: se le date uniche distano in media >= 5 giorni una
+  // dall'altra, NON e' una granularita' giornaliera.
   if (periodFrom && periodTo) {
-    const dateSet = new Set(rows.map((r) => r.date));
-    const cur = new Date(periodFrom + "T00:00:00Z");
-    const end = new Date(periodTo + "T00:00:00Z");
-    const missing: string[] = [];
-    while (cur <= end) {
-      const iso = cur.toISOString().slice(0, 10);
-      if (!dateSet.has(iso)) missing.push(iso);
-      cur.setUTCDate(cur.getUTCDate() + 1);
+    const uniqueDates = [...new Set(rows.map((r) => r.date))].sort();
+    let avgGap = 1;
+    if (uniqueDates.length >= 2) {
+      let totalGap = 0;
+      for (let i = 1; i < uniqueDates.length; i++) {
+        const a = new Date(uniqueDates[i - 1] + "T00:00:00Z").getTime();
+        const b = new Date(uniqueDates[i] + "T00:00:00Z").getTime();
+        totalGap += (b - a) / 86_400_000;
+      }
+      avgGap = totalGap / (uniqueDates.length - 1);
     }
-    if (missing.length > 0 && missing.length <= 30) {
+    const isDailyGranularity = avgGap < 2;
+
+    if (isDailyGranularity) {
+      const dateSet = new Set(uniqueDates);
+      const cur = new Date(periodFrom + "T00:00:00Z");
+      const end = new Date(periodTo + "T00:00:00Z");
+      const missing: string[] = [];
+      while (cur <= end) {
+        const iso = cur.toISOString().slice(0, 10);
+        if (!dateSet.has(iso)) missing.push(iso);
+        cur.setUTCDate(cur.getUTCDate() + 1);
+      }
+      if (missing.length > 0 && missing.length <= 30) {
+        diagnostics.push({
+          severity: "warning",
+          code: "date_gaps",
+          message: `${missing.length} day(s) without data within ${periodFrom}..${periodTo}.`,
+          context: { missing: missing.slice(0, 10), totalMissing: missing.length },
+        });
+      } else if (missing.length > 30) {
+        diagnostics.push({
+          severity: "warning",
+          code: "date_sparse",
+          message: `Coverage is sparse (${missing.length} days without data in the reported period). Possible reason: file scoped only to active campaigns; OK to proceed if intentional.`,
+        });
+      }
+    } else {
+      // Granularita' settimanale/mensile: info, non warning.
       diagnostics.push({
-        severity: "warning",
-        code: "date_gaps",
-        message: `${missing.length} day(s) without data within ${periodFrom}..${periodTo}.`,
-        context: { missing: missing.slice(0, 10), totalMissing: missing.length },
-      });
-    } else if (missing.length > 30) {
-      diagnostics.push({
-        severity: "warning",
-        code: "date_sparse",
-        message: `Coverage is sparse (${missing.length} days without data in the reported period). Possible reason: file scoped only to active campaigns; OK to proceed if intentional.`,
+        severity: "info",
+        code: "aggregated_granularity",
+        message: `Export is aggregated (avg ${Math.round(avgGap)} days per row). Daily-trend chart will show one point per aggregated bucket.`,
       });
     }
   }
