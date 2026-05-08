@@ -2377,7 +2377,7 @@ const translations = {
     kpiSpend: { it: "Spesa", en: "Spend" },
     kpiImpressions: { it: "Impression", en: "Impressions" },
     kpiClicks: { it: "Click", en: "Clicks" },
-    kpiReach: { it: "Reach / settimana", en: "Reach / week" },
+    kpiReach: { it: "Reach", en: "Reach" },
     kpiCtr: { it: "CTR", en: "CTR" },
     kpiCpm: { it: "CPM", en: "CPM" },
     kpiCpc: { it: "CPC", en: "CPC" },
@@ -2399,28 +2399,28 @@ const translations = {
       en: "Total clicks received by the ads",
     },
     kpiReachHint: {
-      it: "Media del reach settimanale (somma reach delle ad set per settimana, mediata sulle settimane del periodo). Non sappiamo se gli stessi utenti tornano nelle settimane successive.",
-      en: "Average weekly reach (sum of ad-set reach per week, averaged over the period's weeks). We don't know whether the same users recur week-over-week.",
+      it: "Reach stimato sul totale del periodo (Impressioni ÷ Frequenza).",
+      en: "Estimated reach for the total period (Impressions ÷ Frequency).",
     },
     kpiCtrHint: {
       it: "Click ÷ Impression × 100. Quanto seducono al click",
       en: "Clicks ÷ Impressions × 100. How click-worthy",
     },
     kpiCpmHint: {
-      it: "Costo per 1.000 impression. Più basso = meglio",
-      en: "Cost per 1,000 impressions. Lower is better",
+      it: "Costo per 1.000 impression",
+      en: "Cost per 1,000 impressions",
     },
     kpiCpcHint: {
-      it: "Costo per click. Più basso = meglio",
-      en: "Cost per click. Lower is better",
+      it: "Costo per click",
+      en: "Cost per click",
     },
     kpiRoasHint: {
       it: "Ricavi da acquisti ÷ spesa. >1 = profittevole",
       en: "Purchase value ÷ spend. >1 = profitable",
     },
     kpiFrequencyHint: {
-      it: "Numero medio di volte che un'ad e' stata mostrata per persona raggiunta (impression totali / reach totale del file).",
-      en: "Average times an ad was shown per person reached (total impressions / total reach across the file).",
+      it: "Numero medio di volte che un'ad e' stata mostrata per persona raggiunta nel periodo.",
+      en: "Average times an ad was shown per person reached in the period.",
     },
     kpiPurchasesHint: {
       it: "Acquisti totali nel periodo, qualsiasi tipologia campagna",

@@ -104,17 +104,14 @@ export function aggregateKpis(rows: MetaPerfRow[]): MetaKpiAggregate {
     if (r.ad_name) ads.add(r.ad_name);
   }
 
-  // Settimane disponibili: usa weeksSet se presenti, altrimenti
-  // approssima dividendo i giorni distinti per 7 (file daily).
-  // Floor a 1 per evitare divisione per zero o "media gonfiata"
-  // su file con 1-2 giorni soli.
-  const nWeeks =
-    weeksSet.size > 0
-      ? weeksSet.size
-      : Math.max(1, Math.ceil(datesSet.size / 7));
-  // Reach DISPLAY: media settimanale (= ampiezza tipica
-  // raggiunta in una settimana del periodo).
-  const reach = sumReach > 0 ? sumReach / nWeeks : 0;
+  // Reach DISPLAY: torniamo al valore sum (= impressions /
+  // frequency, matematicamente equivalente). Wording chiaro
+  // nella hint che e' il reach cumulato sul periodo, non un
+  // unique-users esatto. Voids = 1 se nWeeks vuoto per evitare
+  // div-by-zero in calcoli che dipendessero ancora dalle weeks.
+  void weeksSet;
+  void datesSet;
+  const reach = sumReach;
 
   const ratio = (n: number, d: number): number | null =>
     d > 0 ? n / d : null;
@@ -154,7 +151,7 @@ export function aggregateKpis(rows: MetaPerfRow[]): MetaKpiAggregate {
     rowCount: rows.length,
     amountSpent: Math.round(amountSpent * 100) / 100,
     impressions,
-    reach: Math.round(reach),
+    reach,
     clicks,
     linkClicks,
     effectiveClicks,
