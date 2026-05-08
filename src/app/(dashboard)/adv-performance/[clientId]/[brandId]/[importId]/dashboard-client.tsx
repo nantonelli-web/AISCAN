@@ -993,7 +993,7 @@ export function DashboardClient({ importId }: { importId: string }) {
                   tone="purple"
                   title={t("advPerformance", "creativeTypeMix")}
                 />
-                <ResponsiveContainer width="100%" height={240}>
+                <ResponsiveContainer width="100%" height={260}>
                   <PieChart>
                     <Pie
                       data={data.creativeTypeMix}
@@ -1002,7 +1002,12 @@ export function DashboardClient({ importId }: { importId: string }) {
                       cx="50%"
                       cy="50%"
                       outerRadius={80}
-                      label={(entry) => entry.name}
+                      label={(entry) => {
+                        const e = entry as { name?: string; percent?: number };
+                        const pct =
+                          e.percent != null ? (e.percent * 100).toFixed(1) : "0";
+                        return `${e.name ?? ""} ${pct}%`;
+                      }}
                     >
                       {data.creativeTypeMix.map((_, i) => (
                         <Cell
@@ -1042,7 +1047,7 @@ export function DashboardClient({ importId }: { importId: string }) {
                 tone="blue"
                 title={t("advPerformance", "objectiveMix")}
               />
-              <ResponsiveContainer width="100%" height={260}>
+              <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
                   <Pie
                     data={data.objectiveMix}
@@ -1051,7 +1056,12 @@ export function DashboardClient({ importId }: { importId: string }) {
                     cx="50%"
                     cy="50%"
                     outerRadius={90}
-                    label={(entry) => entry.name}
+                    label={(entry) => {
+                      const e = entry as { name?: string; percent?: number };
+                      const pct =
+                        e.percent != null ? (e.percent * 100).toFixed(1) : "0";
+                      return `${e.name ?? ""} ${pct}%`;
+                    }}
                   >
                     {data.objectiveMix.map((_, i) => (
                       <Cell
