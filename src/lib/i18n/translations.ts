@@ -2377,7 +2377,7 @@ const translations = {
     kpiSpend: { it: "Spesa", en: "Spend" },
     kpiImpressions: { it: "Impression", en: "Impressions" },
     kpiClicks: { it: "Click", en: "Clicks" },
-    kpiReach: { it: "Reach", en: "Reach" },
+    kpiReach: { it: "Reach / settimana", en: "Reach / week" },
     kpiCtr: { it: "CTR", en: "CTR" },
     kpiCpm: { it: "CPM", en: "CPM" },
     kpiCpc: { it: "CPC", en: "CPC" },
@@ -2399,8 +2399,8 @@ const translations = {
       en: "Total clicks received by the ads",
     },
     kpiReachHint: {
-      it: "Reach cumulato per (ad set × settimana); possibile overlap fra settimane",
-      en: "Cumulated reach across (ad set × week); possible inter-week overlap",
+      it: "Media del reach settimanale (somma reach delle ad set per settimana, mediata sulle settimane del periodo). Non sappiamo se gli stessi utenti tornano nelle settimane successive.",
+      en: "Average weekly reach (sum of ad-set reach per week, averaged over the period's weeks). We don't know whether the same users recur week-over-week.",
     },
     kpiCtrHint: {
       it: "Click ÷ Impression × 100. Quanto seducono al click",
@@ -2419,8 +2419,8 @@ const translations = {
       en: "Purchase value ÷ spend. >1 = profitable",
     },
     kpiFrequencyHint: {
-      it: "Quante volte in media un utente vede l'ad (impression / reach)",
-      en: "Avg times a user sees the ad (impressions / reach)",
+      it: "Numero medio di volte che un'ad e' stata mostrata per persona raggiunta (impression totali / reach totale del file).",
+      en: "Average times an ad was shown per person reached (total impressions / total reach across the file).",
     },
     kpiPurchasesHint: {
       it: "Acquisti totali nel periodo, qualsiasi tipologia campagna",

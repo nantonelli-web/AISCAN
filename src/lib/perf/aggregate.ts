@@ -60,7 +60,7 @@ function readRawNumber(row: MetaPerfRow, key: string): number {
 export function aggregateKpis(rows: MetaPerfRow[]): MetaKpiAggregate {
   let amountSpent = 0;
   let impressions = 0;
-  let reach = 0;
+  let sumReach = 0;
   let clicks = 0;
   let linkClicks = 0;
   let results = 0;
@@ -72,19 +72,25 @@ export function aggregateKpis(rows: MetaPerfRow[]): MetaKpiAggregate {
   const campaigns = new Set<string>();
   const adSets = new Set<string>();
   const ads = new Set<string>();
+  // Settimane distinte presenti nei dati (per calcolare reach
+  // medio settimanale). Se l'export e' giornaliero (no week) la
+  // grouping fallback usa il count distinto delle date — meno
+  // accurato ma evita di dividere per 1 e mostrare il sum totale.
+  const weeksSet = new Set<string>();
+  const datesSet = new Set<string>();
 
   for (const r of rows) {
     amountSpent += Math.max(0, r.amount_spent);
     impressions += Math.max(0, r.impressions);
-    // Reach: per file weekly-aggregated sommiamo reach di ogni
-    // (campaign, ad_set, week). C'e' overlap (lo stesso user puo'
-    // essere raggiunto piu' volte fra ad_set/settimane diverse e
-    // viene contato N volte) ma e' la migliore approssimazione
-    // possibile sui dati esportati. Prima usavamo Math.max ma
-    // ritornava il reach della singola campagna piu' grande,
-    // facendo apparire la frequency = imp/reach a 30+ (errato).
-    // Con la sum la frequency torna realistic (~1.7 per Meta UAE).
-    reach += Math.max(0, r.reach);
+    // Reach: aggregazione "raw" (somma per ad set × settimana).
+    // Lo display mostra la **media settimanale** (sumReach /
+    // numero settimane) per dare un valore conservativo invece
+    // del totale cumulato che sovrastima molto. La frequency
+    // resta calcolata su sumReach (matematicamente equivalente
+    // a avg_imp / avg_reach, ma piu' robusto numericamente).
+    sumReach += Math.max(0, r.reach);
+    if (r.week) weeksSet.add(r.week);
+    if (r.date) datesSet.add(r.date);
     clicks += Math.max(0, r.clicks);
     linkClicks += Math.max(0, r.link_clicks);
     results += Math.max(0, r.results ?? 0);
@@ -97,6 +103,18 @@ export function aggregateKpis(rows: MetaPerfRow[]): MetaKpiAggregate {
     if (r.ad_set_name) adSets.add(r.ad_set_name);
     if (r.ad_name) ads.add(r.ad_name);
   }
+
+  // Settimane disponibili: usa weeksSet se presenti, altrimenti
+  // approssima dividendo i giorni distinti per 7 (file daily).
+  // Floor a 1 per evitare divisione per zero o "media gonfiata"
+  // su file con 1-2 giorni soli.
+  const nWeeks =
+    weeksSet.size > 0
+      ? weeksSet.size
+      : Math.max(1, Math.ceil(datesSet.size / 7));
+  // Reach DISPLAY: media settimanale (= ampiezza tipica
+  // raggiunta in una settimana del periodo).
+  const reach = sumReach > 0 ? sumReach / nWeeks : 0;
 
   const ratio = (n: number, d: number): number | null =>
     d > 0 ? n / d : null;
@@ -123,14 +141,20 @@ export function aggregateKpis(rows: MetaPerfRow[]): MetaKpiAggregate {
     effectiveClicks > 0 ? amountSpent / effectiveClicks : null;
   const costPerResult = results > 0 ? amountSpent / results : null;
   const roas = amountSpent > 0 && purchaseValue > 0 ? purchaseValue / amountSpent : null;
-  const frequency = ratio(impressions, reach);
+  // Frequency: usa sumReach (totale raw) e impressions totali —
+  // matematicamente equivalente a (avg_imp / avg_reach), valore
+  // robusto della frequenza media nel periodo. Numericamente NON
+  // corrisponde a "impressions / reach" della UI (perche' reach
+  // mostrato e' la media settimanale), ma e' la metrica
+  // statistica corretta della frequenza media.
+  const frequency = ratio(impressions, sumReach);
   const costPerPurchase = purchases > 0 ? amountSpent / purchases : null;
 
   return {
     rowCount: rows.length,
     amountSpent: Math.round(amountSpent * 100) / 100,
     impressions,
-    reach,
+    reach: Math.round(reach),
     clicks,
     linkClicks,
     effectiveClicks,
