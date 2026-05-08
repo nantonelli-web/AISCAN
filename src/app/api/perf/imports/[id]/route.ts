@@ -67,12 +67,31 @@ export async function DELETE(
     return NextResponse.json({ error: delErr.message }, { status: 500 });
   }
 
-  // Best-effort delete file from storage; not fatal on failure.
+  // Best-effort delete file from storage; not fatal on failure
+  // (the DB rows are gone, file remaining is just an orphan).
+  // Log warnings so we can track storage drift and clean it up
+  // if it accumulates.
   if (imp.file_path) {
-    await admin.storage
-      .from("performance-imports")
-      .remove([imp.file_path])
-      .catch(() => undefined);
+    try {
+      const { error: rmErr, data } = await admin.storage
+        .from("performance-imports")
+        .remove([imp.file_path]);
+      if (rmErr) {
+        console.warn(
+          `[perf/imports] storage cleanup failed for import ${id} (${imp.file_path}):`,
+          rmErr.message,
+        );
+      } else if (!data || data.length === 0) {
+        console.warn(
+          `[perf/imports] storage cleanup: file ${imp.file_path} not found (already gone?)`,
+        );
+      }
+    } catch (e) {
+      console.warn(
+        `[perf/imports] storage cleanup threw for import ${id} (${imp.file_path}):`,
+        e instanceof Error ? e.message : e,
+      );
+    }
   }
 
   return NextResponse.json({ ok: true });
