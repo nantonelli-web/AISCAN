@@ -189,7 +189,7 @@ export default async function AdvPerformancePage() {
               <h1 className="text-3xl sm:text-4xl font-serif tracking-tight">
                 {t("advPerformance", "homeHeroTagline")}
               </h1>
-              <p className="text-sm text-muted-foreground text-pretty max-w-3xl leading-relaxed">
+              <p className="text-sm text-muted-foreground text-pretty leading-relaxed">
                 {t("advPerformance", "homeHeroBody")}
               </p>
             </div>
@@ -218,7 +218,7 @@ export default async function AdvPerformancePage() {
             <p className="text-sm font-medium">
               {t("advPerformance", "noClientsTitle")}
             </p>
-            <p className="text-xs text-muted-foreground max-w-md mx-auto">
+            <p className="text-xs text-muted-foreground">
               {t("advPerformance", "noClientsBody")}
             </p>
           </CardContent>

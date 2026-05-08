@@ -143,7 +143,7 @@ export default async function ClientBrandPickerPage({
             <h1 className="text-3xl font-serif tracking-tight truncate">
               {client.name}
             </h1>
-            <p className="text-sm text-muted-foreground text-pretty max-w-2xl">
+            <p className="text-sm text-muted-foreground text-pretty">
               {t("advPerformance", "brandPickerSubtitle").replace(
                 "{client}",
                 client.name,
@@ -164,7 +164,7 @@ export default async function ClientBrandPickerPage({
               <h3 className="text-base font-semibold tracking-tight">
                 {t("advPerformance", "noBrandsTitle")}
               </h3>
-              <p className="text-sm text-muted-foreground max-w-md mx-auto">
+              <p className="text-sm text-muted-foreground">
                 {t("advPerformance", "noBrandsBody")}
               </p>
             </div>
