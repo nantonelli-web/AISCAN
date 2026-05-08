@@ -16,6 +16,7 @@ import {
   LogOut,
   Coins,
   Radar,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
@@ -64,6 +65,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/collections", key: "collections", icon: FolderHeart, aliases: [] },
       { href: "/report", key: "report", icon: FileText, aliases: [] },
+      { href: "/adv-performance", key: "advPerformance", icon: TrendingUp, aliases: [] },
     ],
   },
   {

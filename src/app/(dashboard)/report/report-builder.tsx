@@ -468,7 +468,7 @@ export function ReportBuilder({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button
               variant={reportType === "comparison" ? "default" : "outline"}
               size="sm"
@@ -485,6 +485,14 @@ export function ReportBuilder({
             >
               {t("report", "typeSingle")}
             </Button>
+            {/* Adv Performance e' un modulo separato (upload + dashboard
+                interattivo). Da qui linko alla sua landing — niente
+                stato condiviso col flusso PPTX/PDF. */}
+            <Link href="/adv-performance">
+              <Button variant="outline" size="sm">
+                {t("advPerformance", "title")}
+              </Button>
+            </Link>
           </div>
         </CardContent>
       </Card>
