@@ -19,17 +19,30 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { TrendingUp, TrendingDown, Minus, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Loader2,
+  Pencil,
+  Save,
+  X as XIcon,
+} from "lucide-react";
+import { toast } from "sonner";
 import { useT } from "@/lib/i18n/context";
 import type {
   PerfDashboardData,
   MetaKpiAggregate,
+  CampaignTypeBreakdown,
+  CampaignTypeAssignment,
 } from "@/types/perf";
+import type { CampaignType } from "@/lib/perf/campaign-decoder";
 import {
   HorizontalBarChart,
 } from "@/components/dashboard/benchmark-charts";
 
-type ComparisonMode = "none" | "previous" | "yoy" | "custom";
+type ComparisonMode = "none" | "previous" | "week" | "yoy" | "custom";
 
 const PIE_COLORS = [
   "#d9a82f",
@@ -147,12 +160,10 @@ function buildDeltaMap(
       amountSpent: null,
       impressions: null,
       reach: null,
-      clicks: null,
-      ctr: null,
+      effectiveClicks: null,
+      effectiveCtr: null,
       cpm: null,
-      cpc: null,
-      results: null,
-      costPerResult: null,
+      effectiveCpc: null,
       roas: null,
       frequency: null,
     };
@@ -161,15 +172,10 @@ function buildDeltaMap(
     amountSpent: deltaPct(current.amountSpent, prev.amountSpent),
     impressions: deltaPct(current.impressions, prev.impressions),
     reach: deltaPct(current.reach, prev.reach),
-    clicks: deltaPct(current.clicks, prev.clicks),
-    ctr: deltaPct(current.ctr, prev.ctr),
+    effectiveClicks: deltaPct(current.effectiveClicks, prev.effectiveClicks),
+    effectiveCtr: deltaPct(current.effectiveCtr, prev.effectiveCtr),
     cpm: deltaPctInverse(current.cpm, prev.cpm),
-    cpc: deltaPctInverse(current.cpc, prev.cpc),
-    results: deltaPct(current.results, prev.results),
-    costPerResult: deltaPctInverse(
-      current.costPerResult,
-      prev.costPerResult,
-    ),
+    effectiveCpc: deltaPctInverse(current.effectiveCpc, prev.effectiveCpc),
     roas: deltaPct(current.roas, prev.roas),
     frequency: deltaPct(current.frequency, prev.frequency),
   };
@@ -266,6 +272,17 @@ export function DashboardClient({ importId }: { importId: string }) {
             </button>
             <button
               type="button"
+              onClick={() => setMode("week")}
+              className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
+                mode === "week"
+                  ? "bg-gold/15 text-gold border-gold/30"
+                  : "border-border text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              {t("advPerformance", "comparisonWeek")}
+            </button>
+            <button
+              type="button"
               onClick={() => setMode("yoy")}
               className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
                 mode === "yoy"
@@ -324,8 +341,9 @@ export function DashboardClient({ importId }: { importId: string }) {
         </CardContent>
       </Card>
 
-      {/* KPI cards */}
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 xl:grid-cols-5">
+      {/* KPI cards — niente "Risultati" generico (ogni campagna
+          ha il proprio risultato per type, vedi sezione sotto). */}
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 xl:grid-cols-4">
         <KpiCard
           label={t("advPerformance", "kpiSpend")}
           value={k.amountSpent}
@@ -340,8 +358,8 @@ export function DashboardClient({ importId }: { importId: string }) {
         />
         <KpiCard
           label={t("advPerformance", "kpiClicks")}
-          value={k.clicks}
-          delta={deltas?.clicks ?? null}
+          value={k.effectiveClicks}
+          delta={deltas?.effectiveClicks ?? null}
         />
         <KpiCard
           label={t("advPerformance", "kpiReach")}
@@ -350,8 +368,8 @@ export function DashboardClient({ importId }: { importId: string }) {
         />
         <KpiCard
           label={t("advPerformance", "kpiCtr")}
-          value={k.ctr}
-          delta={deltas?.ctr ?? null}
+          value={k.effectiveCtr}
+          delta={deltas?.effectiveCtr ?? null}
           isPercent
         />
         <KpiCard
@@ -364,21 +382,8 @@ export function DashboardClient({ importId }: { importId: string }) {
         />
         <KpiCard
           label={t("advPerformance", "kpiCpc")}
-          value={k.cpc}
-          delta={deltas?.cpc ?? null}
-          invertColors
-          isMoney
-          currency={data.currency}
-        />
-        <KpiCard
-          label={t("advPerformance", "kpiResults")}
-          value={k.results}
-          delta={deltas?.results ?? null}
-        />
-        <KpiCard
-          label={t("advPerformance", "kpiCpa")}
-          value={k.costPerResult}
-          delta={deltas?.costPerResult ?? null}
+          value={k.effectiveCpc}
+          delta={deltas?.effectiveCpc ?? null}
           invertColors
           isMoney
           currency={data.currency}
@@ -478,40 +483,419 @@ export function DashboardClient({ importId }: { importId: string }) {
         )}
       </div>
 
-      {/* Objective mix */}
-      {data.objectiveMix.length > 0 && (
-        <Card>
-          <CardContent className="p-4 space-y-3">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-              {t("advPerformance", "objectiveMix")}
-            </h3>
-            <ResponsiveContainer width="100%" height={260}>
-              <PieChart>
-                <Pie
-                  data={data.objectiveMix}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={90}
-                  label={(entry) => entry.name}
-                >
-                  {data.objectiveMix.map((_, i) => (
-                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value) =>
-                    typeof value === "number"
-                      ? formatMoney(value, data.currency)
-                      : String(value ?? "")
-                  }
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+      {/* Campaign types — risultati e CPR diversificati per type
+          decodificata dal nome campagna. Pannello sempre presente
+          quando ci sono campagne (anche solo UNKNOWN). Ha la UI
+          di override per correggere la decodifica. */}
+      {data.campaignTypes.length > 0 && (
+        <CampaignTypesPanel
+          importId={importId}
+          breakdown={data.campaignTypes}
+          assignments={data.campaignTypeAssignments}
+          currency={data.currency}
+          onOverridesSaved={() => {
+            // Re-fetch dashboard data after override save.
+            // Trigger a query string change to bust the useEffect.
+            window.location.reload();
+          }}
+        />
       )}
+
+      {/* Creative type mix — solo se l'export ha le custom column
+          creative_type / creative_count. */}
+      {(data.creativeTypeMix.length > 0 ||
+        data.creativeCountByType.length > 0) && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {data.creativeTypeMix.length > 0 && (
+            <Card>
+              <CardContent className="p-4 space-y-3">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+                  {t("advPerformance", "creativeTypeMix")}
+                </h3>
+                <ResponsiveContainer width="100%" height={240}>
+                  <PieChart>
+                    <Pie
+                      data={data.creativeTypeMix}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      label={(entry) => entry.name}
+                    >
+                      {data.creativeTypeMix.map((_, i) => (
+                        <Cell
+                          key={i}
+                          fill={PIE_COLORS[i % PIE_COLORS.length]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value) =>
+                        typeof value === "number"
+                          ? formatMoney(value, data.currency)
+                          : String(value ?? "")
+                      }
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+          {data.creativeCountByType.length > 0 && (
+            <Card>
+              <CardContent className="p-4 space-y-3">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+                  {t("advPerformance", "creativeCountByType")}
+                </h3>
+                <div className="space-y-2 pt-1">
+                  {data.creativeCountByType.map((c) => (
+                    <div
+                      key={c.name}
+                      className="flex items-center justify-between text-sm"
+                    >
+                      <span className="capitalize">{c.name}</span>
+                      <span className="text-2xl font-semibold tabular-nums">
+                        {c.count}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* Objective mix — mostrato SOLO se l'export Meta ha la
+          colonna Objective popolata. Molti file (es. quelli
+          custom) non l'hanno → pannello nascosto invece di
+          mostrare un pie vuoto. */}
+      {data.objectiveMix.length > 0 &&
+        data.objectiveMix.some((o) => o.name && o.name !== "—") && (
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+                {t("advPerformance", "objectiveMix")}
+              </h3>
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie
+                    data={data.objectiveMix}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={90}
+                    label={(entry) => entry.name}
+                  >
+                    {data.objectiveMix.map((_, i) => (
+                      <Cell
+                        key={i}
+                        fill={PIE_COLORS[i % PIE_COLORS.length]}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value) =>
+                      typeof value === "number"
+                        ? formatMoney(value, data.currency)
+                        : String(value ?? "")
+                    }
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
     </div>
+  );
+}
+
+/* ─── Campaign Types panel ───────────────────────────────────
+ * Mostra il breakdown KPI per tipologia di campagna decodificata
+ * dal nome (VC / ATC / PUR / ...). Ogni riga = una type, con
+ * spend / impressions / N campagne / N risultati / CPR specifico.
+ *
+ * Ha un bottone "Edit mapping" che apre una modal dove l'utente
+ * vede l'auto-decodifica per ogni campagna e puo' overridarla
+ * scegliendo da una dropdown o segnando "Unknown". Salva in
+ * mait_perf_imports.campaign_type_overrides via PATCH.
+ */
+function CampaignTypesPanel({
+  importId,
+  breakdown,
+  assignments,
+  currency,
+  onOverridesSaved,
+}: {
+  importId: string;
+  breakdown: CampaignTypeBreakdown[];
+  assignments: CampaignTypeAssignment[];
+  currency: string | null;
+  onOverridesSaved: () => void;
+}) {
+  const { t } = useT();
+  const [editing, setEditing] = useState(false);
+  const [knownTypes, setKnownTypes] = useState<CampaignType[]>([]);
+  const [overrides, setOverrides] = useState<Record<string, string>>(() => {
+    const m: Record<string, string> = {};
+    for (const a of assignments) {
+      if (a.overrideCode) m[a.campaignName] = a.overrideCode;
+    }
+    return m;
+  });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!editing) return;
+    fetch("/api/perf/campaign-types")
+      .then((r) => r.json())
+      .then((j) => setKnownTypes(j.types ?? []))
+      .catch(() => {});
+  }, [editing]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const res = await fetch(
+        `/api/perf/imports/${importId}/campaign-types`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ overrides }),
+        },
+      );
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        toast.error(j.error ?? "Save failed");
+        return;
+      }
+      toast.success(t("advPerformance", "campaignTypesSaved"));
+      setEditing(false);
+      onOverridesSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const undecoded = assignments.filter(
+    (a) => !a.decodedCode && !a.overrideCode,
+  ).length;
+
+  return (
+    <Card>
+      <CardContent className="p-5 space-y-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="space-y-1">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+              {t("advPerformance", "campaignTypesTitle")}
+            </h3>
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              {t("advPerformance", "campaignTypesDescription")}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setEditing(true)}
+            className="gap-1.5 print:hidden"
+          >
+            <Pencil className="size-3.5" />
+            {t("advPerformance", "editMapping")}
+            {undecoded > 0 && (
+              <Badge
+                variant="outline"
+                className="ml-1 text-[9px] py-0 px-1.5 text-amber-400 border-amber-400/40"
+              >
+                {undecoded}
+              </Badge>
+            )}
+          </Button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
+                <th className="text-left py-2 font-semibold">
+                  {t("advPerformance", "ctType")}
+                </th>
+                <th className="text-right py-2 font-semibold">
+                  {t("advPerformance", "ctCampaigns")}
+                </th>
+                <th className="text-right py-2 font-semibold">
+                  {t("advPerformance", "ctSpend")}
+                </th>
+                <th className="text-right py-2 font-semibold">
+                  {t("advPerformance", "ctResults")}
+                </th>
+                <th className="text-right py-2 font-semibold">
+                  {t("advPerformance", "ctCpr")}
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {breakdown.map((b) => (
+                <tr key={b.code}>
+                  <td className="py-2.5">
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        variant={b.code === "UNKNOWN" ? "outline" : "gold"}
+                        className="text-[10px]"
+                      >
+                        {b.code}
+                      </Badge>
+                      <span className="text-foreground">{b.label}</span>
+                    </div>
+                  </td>
+                  <td className="text-right tabular-nums">
+                    {b.campaignCount}
+                  </td>
+                  <td className="text-right tabular-nums">
+                    {formatMoney(b.spend, currency)}
+                  </td>
+                  <td className="text-right tabular-nums">
+                    {b.resultCount > 0
+                      ? formatNumber(b.resultCount)
+                      : "—"}
+                  </td>
+                  <td className="text-right tabular-nums">
+                    {b.cpr != null ? formatMoney(b.cpr, currency) : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {editing && (
+          <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4 print:hidden">
+            <Card className="w-full max-w-3xl max-h-[85vh] overflow-y-auto">
+              <CardContent className="p-5 space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-semibold">
+                      {t("advPerformance", "editMapping")}
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {t("advPerformance", "editMappingHint")}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditing(false)}
+                    className="size-8 rounded-md grid place-items-center text-muted-foreground hover:bg-muted"
+                  >
+                    <XIcon className="size-4" />
+                  </button>
+                </div>
+
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
+                      <th className="text-left py-2">
+                        {t("advPerformance", "campaignName")}
+                      </th>
+                      <th className="text-left py-2">
+                        {t("advPerformance", "decodedAs")}
+                      </th>
+                      <th className="text-left py-2">
+                        {t("advPerformance", "overrideTo")}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {assignments.map((a) => {
+                      const value =
+                        overrides[a.campaignName] ??
+                        a.overrideCode ??
+                        a.decodedCode ??
+                        "";
+                      return (
+                        <tr key={a.campaignName}>
+                          <td className="py-2 pr-3">
+                            <span className="text-xs font-medium break-all">
+                              {a.campaignName}
+                            </span>
+                          </td>
+                          <td className="py-2 pr-3">
+                            {a.decodedCode ? (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px]"
+                              >
+                                {a.decodedCode} · {a.decodedLabel}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-amber-400">
+                                {t("advPerformance", "notDecoded")}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2">
+                            <select
+                              value={value}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setOverrides((prev) => {
+                                  const next = { ...prev };
+                                  if (v === "" || v === a.decodedCode) {
+                                    delete next[a.campaignName];
+                                  } else {
+                                    next[a.campaignName] = v;
+                                  }
+                                  return next;
+                                });
+                              }}
+                              className="flex h-8 rounded-md border border-border bg-muted px-2 text-xs"
+                            >
+                              <option value="">
+                                — {t("advPerformance", "notDecoded")} —
+                              </option>
+                              {knownTypes.map((kt) => (
+                                <option key={kt.code} value={kt.code}>
+                                  {kt.code} · {kt.label}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-border">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditing(false)}
+                  >
+                    {t("advPerformance", "uploadCancel")}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={save}
+                    disabled={saving}
+                    className="gap-1.5"
+                  >
+                    {saving ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Save className="size-3.5" />
+                    )}
+                    {t("advPerformance", "saveOverrides")}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

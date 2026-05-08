@@ -5,6 +5,10 @@ import {
   aggregateTimeSeries,
   topCampaigns,
   objectiveMix,
+  aggregateCampaignTypes,
+  buildCampaignTypeAssignments,
+  aggregateCreativeTypeMix,
+  aggregateCreativeCountByType,
 } from "@/lib/perf/aggregate";
 import {
   buildComparison,
@@ -39,11 +43,11 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Fetch the import header
+  // Fetch the import header (include campaign_type_overrides JSONB)
   const { data: imp, error: impErr } = await supabase
     .from("mait_perf_imports")
     .select(
-      "id, workspace_id, client_id, channel, period_from, period_to, currency, status",
+      "id, workspace_id, client_id, channel, period_from, period_to, currency, status, campaign_type_overrides",
     )
     .eq("id", id)
     .single();
@@ -63,7 +67,7 @@ export async function GET(
     );
   }
 
-  // Load all rows for the import
+  // Load all rows for the import (include creative columns)
   const PAGE = 1000;
   const SAFETY_CAP = 50_000;
   const rows: MetaPerfRow[] = [];
@@ -71,7 +75,7 @@ export async function GET(
     const { data, error } = await supabase
       .from("mait_perf_meta_rows")
       .select(
-        "date, campaign_name, ad_set_name, ad_name, objective, amount_spent, impressions, reach, frequency, clicks, link_clicks, unique_clicks, unique_link_clicks, ctr, link_ctr, cpm, cpc, link_cpc, results, result_indicator, cost_per_result, purchase_roas, purchases, purchase_value, raw_data",
+        "date, campaign_name, ad_set_name, ad_name, objective, amount_spent, impressions, reach, frequency, clicks, link_clicks, unique_clicks, unique_link_clicks, ctr, link_ctr, cpm, cpc, link_cpc, results, result_indicator, cost_per_result, purchase_roas, purchases, purchase_value, creative_type, creative_count, raw_data",
       )
       .eq("import_id", id)
       .range(offset, offset + PAGE - 1);
@@ -79,6 +83,9 @@ export async function GET(
     rows.push(...(data as unknown as MetaPerfRow[]));
     if (data.length < PAGE) break;
   }
+
+  // Pull overrides from header
+  const overrides = (imp.campaign_type_overrides ?? {}) as Record<string, string>;
 
   // Comparison aggregate
   const comparison = await buildComparison(
@@ -114,6 +121,10 @@ export async function GET(
     topByCampaignSpend: topCampaigns(rows, "spend"),
     topByCampaignRoas: topCampaigns(rows, "roas"),
     objectiveMix: objectiveMix(rows),
+    creativeTypeMix: aggregateCreativeTypeMix(rows),
+    creativeCountByType: aggregateCreativeCountByType(rows),
+    campaignTypes: aggregateCampaignTypes(rows, overrides),
+    campaignTypeAssignments: buildCampaignTypeAssignments(rows, overrides),
   };
 
   return NextResponse.json(payload);

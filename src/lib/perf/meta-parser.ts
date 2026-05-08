@@ -144,6 +144,26 @@ const COLUMN_SYNONYMS: Record<string, string[]> = {
     "conversion rate ranking",
     "classifica del tasso di conversione",
   ],
+  // Creative metadata custom (some agencies append these to their
+  // exports manually; optional in the standard Meta export).
+  creative_type: [
+    "creative type",
+    "creative_type",
+    "tipo creatività",
+    "tipo creativita",
+    "tipo asset",
+    "asset type",
+    "format type",
+  ],
+  creative_count: [
+    "num. creatività",
+    "num creatività",
+    "num. creativita",
+    "num creativita",
+    "creative count",
+    "num creatives",
+    "asset count",
+  ],
 };
 
 /* ─── Helpers ─────────────────────────────────────────────── */
@@ -541,6 +561,10 @@ export async function parseMetaExport(
       conversion_rate_ranking: get(row, "conversion_rate_ranking")
         ? String(get(row, "conversion_rate_ranking"))
         : null,
+      creative_type: get(row, "creative_type")
+        ? String(get(row, "creative_type")).toLowerCase().trim()
+        : null,
+      creative_count: parseLocalNumber(get(row, "creative_count")) ?? null,
       raw_data: rawData,
     });
   }

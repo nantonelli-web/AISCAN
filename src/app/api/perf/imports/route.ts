@@ -232,6 +232,8 @@ export async function POST(req: Request) {
     quality_ranking: r.quality_ranking,
     engagement_rate_ranking: r.engagement_rate_ranking,
     conversion_rate_ranking: r.conversion_rate_ranking,
+    creative_type: r.creative_type,
+    creative_count: r.creative_count,
     raw_data: r.raw_data,
   }));
   for (let i = 0; i < rowsForInsert.length; i += CHUNK) {

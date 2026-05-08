@@ -18,7 +18,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { aggregateKpis } from "./aggregate";
 import type { MetaPerfRow, MetaKpiAggregate } from "@/types/perf";
 
-export type ComparisonMode = "none" | "previous" | "yoy" | "custom";
+export type ComparisonMode = "none" | "previous" | "week" | "yoy" | "custom";
 
 export interface ComparisonResult {
   mode: ComparisonMode;
@@ -70,6 +70,17 @@ export function comparisonWindow(
     const days = dayCount(current.periodFrom, current.periodTo);
     const to = addDays(current.periodFrom, -1);
     const from = addDays(to, -(days - 1));
+    return { from, to, label: `${from} → ${to}` };
+  }
+
+  if (mode === "week") {
+    // 7 giorni prima del periodo corrente, durata 7 giorni
+    // (week-over-week classico). Se il periodo corrente e' piu'
+    // lungo di 7 giorni, ricadiamo comunque su 7-day window —
+    // questo modo serve a confrontare l'ultima settimana col
+    // settimanale precedente, non a sovrapporre periodi lunghi.
+    const to = addDays(current.periodFrom, -1);
+    const from = addDays(to, -6);
     return { from, to, label: `${from} → ${to}` };
   }
 

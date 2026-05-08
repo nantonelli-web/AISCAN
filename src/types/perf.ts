@@ -54,6 +54,11 @@ export interface MetaPerfRow {
   engagement_rate_ranking: string | null;
   conversion_rate_ranking: string | null;
 
+  /** Custom columns (optional). image / video / carousel / ecc. */
+  creative_type: string | null;
+  /** Numero di creativita' associate al row (ad set / campaign). */
+  creative_count: number | null;
+
   raw_data: Record<string, unknown>;
 }
 
@@ -76,23 +81,63 @@ export interface MetaKpiAggregate {
   amountSpent: number;
   impressions: number;
   reach: number;
+  /** Clicks (all). 0 se l'export non lo include — molti file
+   *  Meta hanno solo Link clicks. */
   clicks: number;
   linkClicks: number;
+  /** "Effective" clicks: max(clicks, linkClicks). Usato dal
+   *  dashboard come KPI principale "Clicks" quando il file ha
+   *  solo link_clicks senza clicks (all). */
+  effectiveClicks: number;
   results: number;
   purchases: number;
   purchaseValue: number;
   // Derivati
   ctr: number | null; // clicks/impressions × 100
   linkCtr: number | null;
+  /** "Effective" CTR: usa effectiveClicks. */
+  effectiveCtr: number | null;
   cpm: number | null; // spend/impressions × 1000
   cpc: number | null; // spend/clicks
   linkCpc: number | null;
+  /** "Effective" CPC: spend/effectiveClicks. */
+  effectiveCpc: number | null;
   costPerResult: number | null; // spend/results
   roas: number | null; // purchaseValue / spend
   frequency: number | null; // impressions/reach
   uniqueCampaigns: number;
   uniqueAdSets: number;
   uniqueAds: number;
+}
+
+/** Per-campaign-type aggregate (es. tutte le campaign con type
+ *  ATC raggruppate). */
+export interface CampaignTypeBreakdown {
+  /** Sigla normalizzata (UPPERCASE) o "UNKNOWN" se non decoded. */
+  code: string;
+  label: string;
+  /** Numero di campagne distinte con questa type. */
+  campaignCount: number;
+  spend: number;
+  impressions: number;
+  /** "Eventi" risultato per la specifica type (es. ATC count
+   *  per ATC, View Content count per VC, Purchases per PUR). */
+  resultCount: number;
+  /** Cost-per-result type-specifico = spend / resultCount. */
+  cpr: number | null;
+  /** Nomi delle campagne in questa categoria, per la UI di
+   *  override. */
+  campaignNames: string[];
+}
+
+/** Riga della UI di override: mappa campaign_name → type_code,
+ *  con la possibilita' di confermare/correggere la decodifica. */
+export interface CampaignTypeAssignment {
+  campaignName: string;
+  decodedCode: string | null;
+  decodedLabel: string | null;
+  /** Override applicato (se diverso dal decoded). */
+  overrideCode: string | null;
 }
 
 /** Time series bucket (per giorno). */
@@ -124,7 +169,7 @@ export interface PerfDashboardData {
   currency: string | null;
   current: MetaKpiAggregate;
   comparison: {
-    mode: "none" | "previous" | "yoy" | "custom";
+    mode: "none" | "previous" | "week" | "yoy" | "custom";
     label: string | null;
     periodFrom: string | null;
     periodTo: string | null;
@@ -133,7 +178,19 @@ export interface PerfDashboardData {
   timeSeries: MetaTimeSeriesPoint[];
   topByCampaignSpend: MetaCampaignAggregate[];
   topByCampaignRoas: MetaCampaignAggregate[];
-  objectiveMix: { name: string; value: number }[]; // value = spend
+  /** Spend share per Meta objective (può essere vuoto se l'export
+   *  non ha la colonna Objective — dashboard nasconde il pannello). */
+  objectiveMix: { name: string; value: number }[];
+  /** Spend share per creative type (image / video / carousel / ...).
+   *  Può essere vuoto se l'export non ha la colonna creative_type. */
+  creativeTypeMix: { name: string; value: number }[];
+  /** Numero asset per creative type (somma di creative_count). */
+  creativeCountByType: { name: string; count: number }[];
+  /** Per-type breakdown computed via campaign-decoder + overrides. */
+  campaignTypes: CampaignTypeBreakdown[];
+  /** Assignments per la UI di override. Tutte le campagne uniche
+   *  del file con la decodifica auto + eventuale override. */
+  campaignTypeAssignments: CampaignTypeAssignment[];
 }
 
 /** Riga della lista import shown sul client detail page. */

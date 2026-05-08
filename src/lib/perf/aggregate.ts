@@ -10,7 +10,14 @@ import type {
   MetaKpiAggregate,
   MetaTimeSeriesPoint,
   MetaCampaignAggregate,
+  CampaignTypeBreakdown,
+  CampaignTypeAssignment,
 } from "@/types/perf";
+import {
+  decodeCampaignType,
+  resolveCampaignType,
+  type CampaignType,
+} from "./campaign-decoder";
 
 /** Sum totals across rows, then derive ratio metrics from sums. This
  *  is statistically correct (weighted averages) — a row's CTR or CPM
@@ -50,9 +57,21 @@ export function aggregateKpis(rows: MetaPerfRow[]): MetaKpiAggregate {
     impressions > 0
       ? Math.round((linkClicks / impressions) * 10000) / 100
       : null;
+  // Effective clicks: prefer "Clicks (all)" (clicks > 0) but fall
+  // back to link_clicks when the export doesn't have all-clicks
+  // (typical Meta UI export case). Same approach for CPC/CTR
+  // derivati. Verificato 2026-05-08 che i file Meta col solo
+  // Link clicks non avevano nessuna metrica click visualizzata.
+  const effectiveClicks = clicks > 0 ? clicks : linkClicks;
+  const effectiveCtr =
+    impressions > 0
+      ? Math.round((effectiveClicks / impressions) * 10000) / 100
+      : null;
   const cpm = impressions > 0 ? (amountSpent / impressions) * 1000 : null;
   const cpc = clicks > 0 ? amountSpent / clicks : null;
   const linkCpc = linkClicks > 0 ? amountSpent / linkClicks : null;
+  const effectiveCpc =
+    effectiveClicks > 0 ? amountSpent / effectiveClicks : null;
   const costPerResult = results > 0 ? amountSpent / results : null;
   const roas = amountSpent > 0 ? purchaseValue / amountSpent : null;
   const frequency = ratio(impressions, reach);
@@ -64,14 +83,18 @@ export function aggregateKpis(rows: MetaPerfRow[]): MetaKpiAggregate {
     reach,
     clicks,
     linkClicks,
+    effectiveClicks,
     results: Math.round(results * 100) / 100,
     purchases: Math.round(purchases * 100) / 100,
     purchaseValue: Math.round(purchaseValue * 100) / 100,
     ctr,
     linkCtr,
+    effectiveCtr,
     cpm: cpm == null ? null : Math.round(cpm * 100) / 100,
     cpc: cpc == null ? null : Math.round(cpc * 100) / 100,
     linkCpc: linkCpc == null ? null : Math.round(linkCpc * 100) / 100,
+    effectiveCpc:
+      effectiveCpc == null ? null : Math.round(effectiveCpc * 100) / 100,
     costPerResult:
       costPerResult == null ? null : Math.round(costPerResult * 100) / 100,
     roas: roas == null ? null : Math.round(roas * 100) / 100,
@@ -82,6 +105,152 @@ export function aggregateKpis(rows: MetaPerfRow[]): MetaKpiAggregate {
     uniqueAds: ads.size,
   };
 }
+
+/** Read an event value for a row given a CampaignType.eventField.
+ *  Supports "raw:Foo" notation that reads from row.raw_data[Foo]. */
+function readEventCount(row: MetaPerfRow, field: string): number {
+  if (field.startsWith("raw:")) {
+    const key = field.slice(4);
+    const v = row.raw_data?.[key];
+    if (typeof v === "number") return Math.max(0, v);
+    if (typeof v === "string") {
+      const n = Number.parseFloat(v.replace(/[^\d.,-]/g, "").replace(",", "."));
+      return Number.isFinite(n) ? Math.max(0, n) : 0;
+    }
+    return 0;
+  }
+  if (field === "purchases") return Math.max(0, row.purchases ?? 0);
+  if (field === "purchase_value") return Math.max(0, row.purchase_value ?? 0);
+  if (field === "results") return Math.max(0, row.results ?? 0);
+  if (field === "link_clicks") return Math.max(0, row.link_clicks);
+  if (field === "reach") return Math.max(0, row.reach);
+  return 0;
+}
+
+/** Per-campaign-type aggregate. Group rows by decoded (or
+ *  override-d) campaign type, then sum spend + per-type event
+ *  count, derive CPR. Campaigns che non si decodificano
+ *  finiscono in "UNKNOWN". */
+export function aggregateCampaignTypes(
+  rows: MetaPerfRow[],
+  overrides: Record<string, string> = {},
+): CampaignTypeBreakdown[] {
+  type Bucket = {
+    code: string;
+    label: string;
+    eventField: string | null;
+    spend: number;
+    impressions: number;
+    resultCount: number;
+    campaigns: Set<string>;
+  };
+  const buckets = new Map<string, Bucket>();
+  for (const r of rows) {
+    const t = resolveCampaignType(r.campaign_name, overrides);
+    const code = t?.code ?? "UNKNOWN";
+    const label = t?.label ?? "Unknown / non decoded";
+    const field = t?.eventField ?? null;
+    const b = buckets.get(code) ?? {
+      code,
+      label,
+      eventField: field,
+      spend: 0,
+      impressions: 0,
+      resultCount: 0,
+      campaigns: new Set<string>(),
+    };
+    b.spend += Math.max(0, r.amount_spent);
+    b.impressions += Math.max(0, r.impressions);
+    if (field) b.resultCount += readEventCount(r, field);
+    if (r.campaign_name) b.campaigns.add(r.campaign_name);
+    buckets.set(code, b);
+  }
+  return [...buckets.values()]
+    .map((b) => ({
+      code: b.code,
+      label: b.label,
+      campaignCount: b.campaigns.size,
+      spend: Math.round(b.spend * 100) / 100,
+      impressions: b.impressions,
+      resultCount: Math.round(b.resultCount * 100) / 100,
+      cpr:
+        b.resultCount > 0
+          ? Math.round((b.spend / b.resultCount) * 100) / 100
+          : null,
+      campaignNames: [...b.campaigns].sort(),
+    }))
+    .sort((a, b) => b.spend - a.spend);
+}
+
+/** Build the campaign-type-assignments list (per la UI override).
+ *  Una riga per ogni campagna unica nel file: nome, decodifica auto,
+ *  override (se settato). */
+export function buildCampaignTypeAssignments(
+  rows: MetaPerfRow[],
+  overrides: Record<string, string> = {},
+): CampaignTypeAssignment[] {
+  const seen = new Map<string, CampaignTypeAssignment>();
+  for (const r of rows) {
+    const name = r.campaign_name;
+    if (!name || seen.has(name)) continue;
+    const decoded = decodeCampaignType(name);
+    seen.set(name, {
+      campaignName: name,
+      decodedCode: decoded?.code ?? null,
+      decodedLabel: decoded?.label ?? null,
+      overrideCode: overrides[name] ?? null,
+    });
+  }
+  return [...seen.values()].sort((a, b) =>
+    a.campaignName.localeCompare(b.campaignName),
+  );
+}
+
+/** Spend share per creative type (image / video / carousel / ...). */
+export function aggregateCreativeTypeMix(
+  rows: MetaPerfRow[],
+): { name: string; value: number }[] {
+  const map = new Map<string, number>();
+  for (const r of rows) {
+    if (!r.creative_type) continue;
+    map.set(
+      r.creative_type,
+      (map.get(r.creative_type) ?? 0) + Math.max(0, r.amount_spent),
+    );
+  }
+  return [...map.entries()]
+    .map(([name, value]) => ({
+      name,
+      value: Math.round(value * 100) / 100,
+    }))
+    .sort((a, b) => b.value - a.value);
+}
+
+/** Numero totale asset per creative type (somma di creative_count
+ *  dedup per (campaign,ad_set,ad) per non contare due volte la
+ *  stessa creativity quando piu' righe la riferiscono). */
+export function aggregateCreativeCountByType(
+  rows: MetaPerfRow[],
+): { name: string; count: number }[] {
+  const seen = new Set<string>();
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    if (!r.creative_type || r.creative_count == null) continue;
+    const dedupKey = `${r.creative_type}|${r.ad_name ?? ""}|${r.ad_set_name ?? ""}|${r.campaign_name ?? ""}`;
+    if (seen.has(dedupKey)) continue;
+    seen.add(dedupKey);
+    counts.set(
+      r.creative_type,
+      (counts.get(r.creative_type) ?? 0) + (r.creative_count ?? 0),
+    );
+  }
+  return [...counts.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+// Re-export type for convenience in route handler.
+export type { CampaignType };
 
 /** Bucket rows by date, sum spend/impressions/clicks/results. */
 export function aggregateTimeSeries(rows: MetaPerfRow[]): MetaTimeSeriesPoint[] {
