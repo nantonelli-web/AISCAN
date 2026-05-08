@@ -14,15 +14,15 @@ export const dynamic = "force-dynamic";
 export default async function ImportDashboardPage({
   params,
 }: {
-  params: Promise<{ clientId: string; importId: string }>;
+  params: Promise<{ clientId: string; brandId: string; importId: string }>;
 }) {
-  const { clientId, importId } = await params;
+  const { clientId, brandId, importId } = await params;
   const { profile } = await getSessionUser();
   const supabase = await createClient();
   const locale = await getLocale();
   const t = serverT(locale);
 
-  const [{ data: imp }, { data: client }] = await Promise.all([
+  const [{ data: imp }, { data: client }, { data: brand }] = await Promise.all([
     supabase
       .from("mait_perf_imports")
       .select(
@@ -36,16 +36,30 @@ export default async function ImportDashboardPage({
       .eq("id", clientId)
       .eq("workspace_id", profile.workspace_id!)
       .maybeSingle(),
+    supabase
+      .from("mait_competitors")
+      .select("id, page_name, client_id")
+      .eq("id", brandId)
+      .eq("workspace_id", profile.workspace_id!)
+      .maybeSingle(),
   ]);
 
-  if (!imp || !client || imp.client_id !== clientId) notFound();
+  if (
+    !imp ||
+    !client ||
+    !brand ||
+    imp.client_id !== clientId ||
+    brand.client_id !== clientId
+  ) {
+    notFound();
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3 print:hidden">
         <DynamicBackLink
-          fallbackHref={`/adv-performance/${clientId}`}
-          label={client.name}
+          fallbackHref={`/adv-performance/${clientId}/${brandId}`}
+          label={brand.page_name}
         />
         <PrintButton label={t("common", "print")} variant="outline" />
       </div>
@@ -55,9 +69,11 @@ export default async function ImportDashboardPage({
           <TrendingUp className="size-5" />
         </div>
         <div className="space-y-1 min-w-0">
-          <p className="eyebrow">{t("advPerformance", "dashboardTitle").toUpperCase()}</p>
+          <p className="eyebrow">
+            {client.name} · {t("advPerformance", "dashboardTitle").toUpperCase()}
+          </p>
           <h1 className="text-3xl font-serif tracking-tight truncate">
-            {client.name}
+            {brand.page_name}
           </h1>
           <div className="flex items-center gap-2 flex-wrap text-sm text-muted-foreground">
             <Badge variant="outline" className="text-[10px] uppercase">

@@ -250,6 +250,10 @@ export interface PerfImportListItem {
   id: string;
   workspace_id: string;
   client_id: string;
+  /** Brand a cui appartengono questi dati performance. Nullable
+   *  per backward compat (import caricati prima della migration
+   *  0043 non hanno il brand). */
+  brand_id: string | null;
   channel: PerfChannel;
   period_from: string;
   period_to: string;

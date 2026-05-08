@@ -2299,6 +2299,77 @@ const translations = {
       it: "L'export non contiene la colonna 'Week'. Confronto disponibile solo per file settimanali.",
       en: "Export has no 'Week' column. Available only for weekly files.",
     },
+    // Brand picker (dentro un client)
+    brandPickerTitle: { it: "Scegli il brand", en: "Pick a brand" },
+    brandPickerSubtitle: {
+      it: "Seleziona il brand di {client} per cui vuoi caricare e analizzare i dati di performance.",
+      en: "Pick the brand of {client} to upload and analyse performance data for.",
+    },
+    noBrandsTitle: {
+      it: "Nessun brand per questo cliente",
+      en: "No brands for this client",
+    },
+    noBrandsBody: {
+      it: "Per analizzare le performance devi prima creare almeno un brand sotto questo cliente. Una volta creato, torna qui per caricare il primo export.",
+      en: "To analyse performance you first need to create at least one brand under this client. Once created, return here to upload the first export.",
+    },
+    createBrandCta: { it: "Crea brand", en: "Create brand" },
+    backToBrands: { it: "Torna ai brand", en: "Back to brands" },
+    brandImportsCount: {
+      it: "{n} export caricato",
+      en: "{n} export uploaded",
+    },
+    brandImportsCountPlural: {
+      it: "{n} export caricati",
+      en: "{n} exports uploaded",
+    },
+    // Brand detail (lista import + upload central)
+    uploadHeroTitle: {
+      it: "Carica il primo export di {brand}",
+      en: "Upload the first export for {brand}",
+    },
+    uploadHeroBody: {
+      it: "Trascina un file CSV o XLSX esportato da Meta Ads Manager (o clicca per selezionarlo). Lo analizziamo, validiamo le metriche e ti portiamo subito al dashboard interattivo con confronti, KPI e insight.",
+      en: "Drag a CSV or XLSX exported from Meta Ads Manager (or click to pick). We parse it, validate metrics and take you straight to the interactive dashboard with comparisons, KPIs and insights.",
+    },
+    uploadDropHint: {
+      it: "Trascina qui il file o clicca per selezionarlo",
+      en: "Drop the file here or click to select",
+    },
+    uploadDropFormats: {
+      it: "Accetta CSV, XLSX (max ~50MB)",
+      en: "Accepts CSV, XLSX (~50MB max)",
+    },
+    importsListTitle: {
+      it: "Export caricati",
+      en: "Uploaded exports",
+    },
+    importsListSubtitle: {
+      it: "Ogni riga e' un periodo di reporting. Click sulla freccia per aprire il dashboard, sul cestino per rimuovere l'import.",
+      en: "Each row is one reporting period. Click the chevron to open the dashboard, the trash icon to remove the import.",
+    },
+    quickUpload: { it: "Carica nuovo export", en: "Upload new export" },
+    // Hero home page
+    homeHeroTagline: {
+      it: "Da export Meta a insight in 30 secondi",
+      en: "From Meta exports to insights in 30 seconds",
+    },
+    homeHeroBody: {
+      it: "Carica i CSV o XLSX di Meta Ads Manager dei tuoi brand: AISCAN normalizza i dati, calcola KPI di volume, traffico ed efficienza, decodifica le tipologie di campagna dai nomi e ti porta subito al dashboard.",
+      en: "Upload Meta Ads Manager CSV or XLSX exports for your brands: AISCAN normalises the data, computes volume / traffic / efficiency KPIs, decodes campaign types from names and takes you straight to the dashboard.",
+    },
+    homeHeroPill1: { it: "KPI consolidati", en: "Consolidated KPIs" },
+    homeHeroPill2: { it: "Confronti tra settimane", en: "Week-vs-week" },
+    homeHeroPill3: { it: "Distribuzione per paese", en: "Country breakdown" },
+    homeHeroPill4: { it: "Tipologia campagna", en: "Campaign type decode" },
+    homeClientsTitle: {
+      it: "I tuoi clienti",
+      en: "Your clients",
+    },
+    homeClientsSubtitle: {
+      it: "Apri un cliente per scegliere il brand e analizzare le sue performance.",
+      en: "Open a client to pick a brand and analyse its performance.",
+    },
     kpiSpend: { it: "Spesa", en: "Spend" },
     kpiImpressions: { it: "Impression", en: "Impressions" },
     kpiClicks: { it: "Click", en: "Clicks" },

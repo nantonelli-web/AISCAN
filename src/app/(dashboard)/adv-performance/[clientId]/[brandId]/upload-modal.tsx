@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Upload, Loader2, AlertTriangle, Check, X } from "lucide-react";
@@ -24,11 +24,15 @@ interface SummaryPreview {
 
 export function UploadModal({
   clientId,
+  brandId,
   open,
+  presetFile,
   onClose,
 }: {
   clientId: string;
+  brandId: string;
   open: boolean;
+  presetFile?: File | null;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -50,6 +54,13 @@ export function UploadModal({
     fileName: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Quando l'utente apre il modal con un file gia' droppato (drag
+  // dall'empty state) lo pre-popoliamo cosi puo confermare
+  // direttamente.
+  useEffect(() => {
+    if (open && presetFile) setFile(presetFile);
+  }, [open, presetFile]);
 
   function reset() {
     setFile(null);
@@ -114,6 +125,7 @@ export function UploadModal({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           client_id: clientId,
+          brand_id: brandId,
           channel,
           file_path: urlJson.storagePath,
           file_name: urlJson.fileName ?? file.name,
@@ -160,7 +172,7 @@ export function UploadModal({
       // Success — go directly to dashboard
       toast.success(t("advPerformance", "saved"));
       router.push(
-        `/adv-performance/${clientId}/${importJson.import_id}`,
+        `/adv-performance/${clientId}/${brandId}/${importJson.import_id}`,
       );
       router.refresh();
       onClose();

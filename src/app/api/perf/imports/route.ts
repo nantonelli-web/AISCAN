@@ -14,6 +14,10 @@ export const maxDuration = 60;
 
 const postSchema = z.object({
   client_id: z.string().uuid(),
+  /** Brand a cui appartengono questi dati performance (un
+   *  mait_competitors.id). Optional per supportare upload legacy
+   *  pre-migration 0043. */
+  brand_id: z.string().uuid().optional().nullable(),
   channel: z.enum(["meta", "google", "tiktok", "snapchat"]),
   file_path: z.string().min(1),
   file_name: z.string().min(1).max(300),
@@ -113,6 +117,7 @@ export async function POST(req: Request) {
       .insert({
         workspace_id: profile.workspace_id,
         client_id: parsed.data.client_id,
+        brand_id: parsed.data.brand_id ?? null,
         channel: parsed.data.channel,
         period_from: periodFrom ?? "1970-01-01",
         period_to: periodTo ?? "1970-01-01",
@@ -163,30 +168,62 @@ export async function POST(req: Request) {
     }
   }
 
-  // 4. Insert the import header
-  const { data: imp, error: impErr } = await admin
-    .from("mait_perf_imports")
-    .insert({
-      workspace_id: profile.workspace_id,
-      client_id: parsed.data.client_id,
-      channel: parsed.data.channel,
-      period_from: periodFrom,
-      period_to: periodTo,
-      file_path: parsed.data.file_path,
-      file_format: parsed.data.file_format,
-      file_name: parsed.data.file_name,
-      status: "validated",
-      currency: parsedFile.currency,
-      row_count: summary.rowCount,
-      total_spend: summary.totalSpend,
-      total_impressions: summary.totalImpressions,
-      diagnostics,
-      raw_meta: { detectedColumns: parsedFile.detectedColumns },
-      created_by: user.id,
-      validated_at: new Date().toISOString(),
-    })
-    .select("id")
-    .single();
+  // 4. Insert the import header. Try with brand_id; fall back
+  // without it if migration 0043 isn't applied yet.
+  const baseHeader = {
+    workspace_id: profile.workspace_id,
+    client_id: parsed.data.client_id,
+    channel: parsed.data.channel,
+    period_from: periodFrom,
+    period_to: periodTo,
+    file_path: parsed.data.file_path,
+    file_format: parsed.data.file_format,
+    file_name: parsed.data.file_name,
+    status: "validated",
+    currency: parsedFile.currency,
+    row_count: summary.rowCount,
+    total_spend: summary.totalSpend,
+    total_impressions: summary.totalImpressions,
+    diagnostics,
+    raw_meta: { detectedColumns: parsedFile.detectedColumns },
+    created_by: user.id,
+    validated_at: new Date().toISOString(),
+  };
+  let imp: { id: string } | null = null;
+  let impErr: { message: string } | null = null;
+  {
+    const first = await admin
+      .from("mait_perf_imports")
+      .insert({ ...baseHeader, brand_id: parsed.data.brand_id ?? null })
+      .select("id")
+      .single();
+    if (first.data) {
+      imp = first.data;
+    } else if (
+      first.error &&
+      /\bbrand_id\b/.test(first.error.message ?? "") &&
+      /(schema cache|column|does not exist)/i.test(first.error.message ?? "")
+    ) {
+      console.warn(
+        "[perf/imports] migration 0043 not applied — retrying without brand_id",
+      );
+      diagnostics.push({
+        severity: "warning",
+        code: "migration_pending",
+        message:
+          "Migration 0043 non applicata: l'import non e' associato a un brand specifico. Applica la SQL nel Supabase SQL Editor per attivare la separazione per brand.",
+      });
+      const second = await admin
+        .from("mait_perf_imports")
+        .insert({ ...baseHeader, diagnostics })
+        .select("id")
+        .single();
+      imp = second.data ?? null;
+      impErr = second.error;
+    } else {
+      impErr = first.error;
+    }
+  }
   if (impErr || !imp) {
     console.error("[perf/imports] insert header failed:", impErr);
     return NextResponse.json(
@@ -350,21 +387,51 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const clientId = url.searchParams.get("client_id");
+  const brandId = url.searchParams.get("brand_id");
   const channel = url.searchParams.get("channel");
 
-  let q = supabase
-    .from("mait_perf_imports")
-    .select(
-      "id, workspace_id, client_id, channel, period_from, period_to, status, currency, row_count, total_spend, total_impressions, file_name, created_at",
-    )
-    .eq("workspace_id", profile.workspace_id)
-    .order("period_from", { ascending: false });
-  if (clientId) q = q.eq("client_id", clientId);
-  if (channel) q = q.eq("channel", channel);
+  // Try with brand_id in the SELECT first; fall back to the
+  // legacy schema if the migration isn't applied yet.
+  const fullCols =
+    "id, workspace_id, client_id, brand_id, channel, period_from, period_to, status, currency, row_count, total_spend, total_impressions, file_name, created_at";
+  const legacyCols =
+    "id, workspace_id, client_id, channel, period_from, period_to, status, currency, row_count, total_spend, total_impressions, file_name, created_at";
 
-  const { data, error } = await q;
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  const runFull = async () => {
+    let q = supabase
+      .from("mait_perf_imports")
+      .select(fullCols as never)
+      .eq("workspace_id", profile.workspace_id!)
+      .order("period_from", { ascending: false });
+    if (clientId) q = q.eq("client_id", clientId);
+    if (brandId) q = q.eq("brand_id", brandId);
+    if (channel) q = q.eq("channel", channel);
+    return q;
+  };
+  const runLegacy = async () => {
+    let q = supabase
+      .from("mait_perf_imports")
+      .select(legacyCols as never)
+      .eq("workspace_id", profile.workspace_id!)
+      .order("period_from", { ascending: false });
+    if (clientId) q = q.eq("client_id", clientId);
+    if (channel) q = q.eq("channel", channel);
+    return q;
+  };
+
+  let result: { data: unknown; error: { message: string } | null } =
+    (await runFull()) as { data: unknown; error: { message: string } | null };
+  if (
+    result.error &&
+    /\bbrand_id\b/.test(result.error.message ?? "")
+  ) {
+    result = (await runLegacy()) as {
+      data: unknown;
+      error: { message: string } | null;
+    };
   }
-  return NextResponse.json({ imports: data ?? [] });
+  if (result.error) {
+    return NextResponse.json({ error: result.error.message }, { status: 500 });
+  }
+  return NextResponse.json({ imports: result.data ?? [] });
 }
