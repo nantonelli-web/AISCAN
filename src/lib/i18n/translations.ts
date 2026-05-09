@@ -2228,10 +2228,10 @@ const translations = {
       en: "No uploads for this client yet. Upload the first export to start.",
     },
     uploadCta: { it: "Carica dati", en: "Upload data" },
-    uploadTitle: { it: "Carica export Meta", en: "Upload Meta export" },
+    uploadTitle: { it: "Carica export piattaforma", en: "Upload platform export" },
     uploadDescription: {
-      it: "Trascina qui il file CSV o XLSX scaricato da Meta Ads Manager (o equivalente). Verifichiamo lo schema e mostriamo l'anteprima prima di salvare.",
-      en: "Drop a CSV or XLSX file exported from Meta Ads Manager (or equivalent). We'll verify the schema and show a preview before saving.",
+      it: "Trascina qui il file CSV o XLSX scaricato dalla piattaforma advertising scelta (Meta Ads Manager, Snapchat Ads, ecc). Verifichiamo lo schema e mostriamo l'anteprima prima di salvare.",
+      en: "Drop a CSV or XLSX file exported from the chosen advertising platform (Meta Ads Manager, Snapchat Ads, etc). We'll verify the schema and show a preview before saving.",
     },
     uploadFileLabel: { it: "File", en: "File" },
     uploadChannelLabel: { it: "Canale", en: "Channel" },
@@ -2329,8 +2329,8 @@ const translations = {
       en: "Upload the first export for {brand}",
     },
     uploadHeroBody: {
-      it: "Trascina un file CSV o XLSX esportato da Meta Ads Manager (o clicca per selezionarlo). Lo analizziamo, validiamo le metriche e ti portiamo subito al dashboard interattivo con confronti, KPI e insight.",
-      en: "Drag a CSV or XLSX exported from Meta Ads Manager (or click to pick). We parse it, validate metrics and take you straight to the interactive dashboard with comparisons, KPIs and insights.",
+      it: "Trascina un file CSV o XLSX esportato dalla piattaforma advertising scelta (Meta Ads Manager, Snapchat Ads, ecc) o clicca per selezionarlo. Lo analizziamo, validiamo le metriche e ti portiamo subito al dashboard interattivo con confronti, KPI e insight.",
+      en: "Drag a CSV or XLSX exported from the chosen advertising platform (Meta Ads Manager, Snapchat Ads, etc) or click to pick. We parse it, validate metrics and take you straight to the interactive dashboard with comparisons, KPIs and insights.",
     },
     uploadDropHint: {
       it: "Trascina qui il file o clicca per selezionarlo",
@@ -2355,12 +2355,12 @@ const translations = {
     },
     // Hero home page
     homeHeroTagline: {
-      it: "Da export Meta a insight in 30 secondi",
-      en: "From Meta exports to insights in 30 seconds",
+      it: "Da export ad insight in 30 secondi",
+      en: "From ad exports to insights in 30 seconds",
     },
     homeHeroBody: {
-      it: "Carica i CSV o XLSX di Meta Ads Manager dei tuoi brand: AISCAN normalizza i dati, calcola KPI di volume, traffico ed efficienza, decodifica le tipologie di campagna dai nomi e ti porta subito al dashboard.",
-      en: "Upload Meta Ads Manager CSV or XLSX exports for your brands: AISCAN normalises the data, computes volume / traffic / efficiency KPIs, decodes campaign types from names and takes you straight to the dashboard.",
+      it: "Carica i CSV o XLSX delle piattaforme advertising dei tuoi brand: AISCAN normalizza i dati, calcola KPI di volume, traffico ed efficienza, decodifica le tipologie di campagna dai nomi e ti porta subito al dashboard.",
+      en: "Upload CSV or XLSX exports from your brands' advertising platforms: AISCAN normalises the data, computes volume / traffic / efficiency KPIs, decodes campaign types from names and takes you straight to the dashboard.",
     },
     homeHeroPill1: { it: "KPI consolidati", en: "Consolidated KPIs" },
     homeHeroPill2: { it: "Confronti tra settimane", en: "Week-vs-week" },
