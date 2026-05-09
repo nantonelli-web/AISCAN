@@ -128,6 +128,11 @@ export async function POST(
     sections: sectionsToGen,
     tier,
     locale,
+    channel: (dashboard.imp.channel as
+      | "meta"
+      | "snapchat"
+      | "google"
+      | "tiktok") ?? "meta",
   });
   if (!out || Object.keys(out.sections).length === 0) {
     await refundCredits(user.id, action, "Adv Performance AI failed");

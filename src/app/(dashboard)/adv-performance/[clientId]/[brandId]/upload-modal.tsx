@@ -3,12 +3,21 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Upload, Loader2, AlertTriangle, Check, X } from "lucide-react";
+import {
+  Upload,
+  Loader2,
+  AlertTriangle,
+  Check,
+  X,
+  UploadCloud,
+  FileSpreadsheet,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { useT } from "@/lib/i18n/context";
+import { CURRENCY_OPTIONS } from "@/lib/perf/currencies";
 import type { PerfDiagnostic } from "@/types/perf";
 
 type Channel = "meta" | "google" | "tiktok" | "snapchat";
@@ -40,9 +49,11 @@ export function UploadModal({
   const [file, setFile] = useState<File | null>(null);
   const [channel, setChannel] = useState<Channel>("meta");
   const [mode, setMode] = useState<SaveMode>("append");
-  // Currency manuale per Snapchat (Meta la deduce dall'header).
-  const [currencyOverride, setCurrencyOverride] = useState("USD");
+  // Currency manuale per channel che non includono il codice
+  // valuta nei header (Snapchat e altri canali futuri).
+  const [currencyOverride, setCurrencyOverride] = useState("AED");
   const [step, setStep] = useState<Step>("pick");
+  const [dragActive, setDragActive] = useState(false);
   // Validation result kept for confirm step
   const [validationResult, setValidationResult] = useState<{
     importId: string | null;
@@ -257,34 +268,102 @@ export function UploadModal({
               {channel === "snapchat" && (
                 <div className="space-y-2">
                   <Label htmlFor="perf-currency">Valuta</Label>
-                  <Input
+                  <select
                     id="perf-currency"
-                    type="text"
                     value={currencyOverride}
                     onChange={(e) =>
                       setCurrencyOverride(e.target.value.toUpperCase())
                     }
-                    maxLength={5}
-                    placeholder="USD / EUR / AED"
-                    className="uppercase"
-                  />
+                    className="flex h-9 w-full rounded-md border border-border bg-muted px-3 py-1 text-sm text-foreground"
+                  >
+                    <optgroup label="Piu' usate">
+                      {CURRENCY_OPTIONS.filter(
+                        (c) => c.group === "primary",
+                      ).map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Tutte le altre">
+                      {CURRENCY_OPTIONS.filter((c) => c.group === "rest").map(
+                        (c) => (
+                          <option key={c.code} value={c.code}>
+                            {c.label}
+                          </option>
+                        ),
+                      )}
+                    </optgroup>
+                  </select>
                   <p className="text-[11px] text-muted-foreground">
-                    L&apos;export Snapchat non include il codice valuta.
-                    Indicalo a mano (3 lettere ISO).
+                    Il file di questo canale non include il codice
+                    valuta. Selezionalo qui.
                   </p>
                 </div>
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="perf-file">
-                  {t("advPerformance", "uploadFileLabel")}
-                </Label>
-                <Input
-                  id="perf-file"
-                  type="file"
-                  accept=".csv,.xlsx"
-                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                />
+                <Label>{t("advPerformance", "uploadFileLabel")}</Label>
+                <label
+                  htmlFor="perf-file-drop"
+                  className={`block rounded-xl border-2 border-dashed px-5 py-8 text-center cursor-pointer transition-all ${
+                    dragActive
+                      ? "border-gold bg-amber-500/10"
+                      : "border-border hover:border-gold/60 hover:bg-muted/40"
+                  }`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragActive(true);
+                  }}
+                  onDragLeave={() => setDragActive(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragActive(false);
+                    const f = e.dataTransfer.files?.[0];
+                    if (!f) return;
+                    if (!/\.(csv|xlsx)$/i.test(f.name)) {
+                      toast.error("Solo file CSV o XLSX");
+                      return;
+                    }
+                    setFile(f);
+                  }}
+                >
+                  <input
+                    id="perf-file-drop"
+                    type="file"
+                    accept=".csv,.xlsx"
+                    className="sr-only"
+                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                  />
+                  {file ? (
+                    <div className="flex items-center justify-center gap-2.5">
+                      <div className="size-9 rounded-md bg-emerald-500/15 text-emerald-500 grid place-items-center">
+                        <FileSpreadsheet className="size-4" />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-sm font-medium truncate max-w-[300px]">
+                          {file.name}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {(file.size / 1024).toFixed(1)} KB · click per
+                          cambiare
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="size-11 rounded-full bg-gradient-to-br from-amber-500/30 to-sky-500/20 text-amber-600 grid place-items-center mx-auto mb-2">
+                        <UploadCloud className="size-5" />
+                      </div>
+                      <p className="text-sm font-medium">
+                        Trascina qui il file o clicca per selezionarlo
+                      </p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Accetta CSV, XLSX
+                      </p>
+                    </>
+                  )}
+                </label>
               </div>
 
               <div className="space-y-2">

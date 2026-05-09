@@ -110,7 +110,7 @@ const SECTION_DESCR_IT: Record<PerfSection, string> = {
   creatives:
     "Distribuzione tipo creativita' (image / video / carousel / collection) per spesa + numero medio di asset attivi per settimana. Spiega che mix creativo e' adottato e se e' coerente con un funnel sano (es. video per awareness, image per remarketing).",
   objective:
-    "Distribuzione spesa per obiettivo Meta (sales, traffic, awareness, ecc). Spiega la coerenza con il funnel del brand.",
+    "Distribuzione spesa per obiettivo della campagna (sales, traffic, awareness, ecc). Spiega la coerenza con il funnel del brand.",
 };
 
 const SECTION_DESCR_EN: Record<PerfSection, string> = {
@@ -131,7 +131,7 @@ const SECTION_DESCR_EN: Record<PerfSection, string> = {
   creatives:
     "Creative type breakdown (image / video / carousel / collection) by spend + average number of active assets per week. Comment on the creative mix and whether it's funnel-coherent (e.g. video for awareness, image for remarketing).",
   objective:
-    "Spend distribution by Meta objective (sales, traffic, awareness, etc). Comment on coherence with the brand's funnel.",
+    "Spend distribution by campaign objective (sales, traffic, awareness, etc). Comment on coherence with the brand's funnel.",
 };
 
 /** Costruisce il payload "compatto" del dashboard per il prompt.
@@ -248,14 +248,20 @@ function buildPrompt(
   data: PerfDashboardData,
   sections: PerfSection[],
   locale: "it" | "en",
+  channel: "meta" | "snapchat" | "google" | "tiktok",
 ): string {
   const langName = locale === "it" ? "italiano" : "inglese";
   const section_descr = locale === "it" ? SECTION_DESCR_IT : SECTION_DESCR_EN;
   const sectionList = sections
     .map((s) => `- ${s}: ${section_descr[s]}`)
     .join("\n");
+  const ch =
+    CHANNEL_PROMPT_INFO[channel] ?? CHANNEL_PROMPT_INFO.meta;
 
-  return `Sei un analista marketing senior specializzato in paid advertising su Meta. Analizzi i dati di performance di una campagna pubblicitaria e produci insight utili al marketing manager del brand.
+  return `Sei un analista marketing senior specializzato in paid advertising. Stai analizzando dati di performance di campagne **${ch.name}** per un brand. Importante: ragiona usando i benchmark della piattaforma corretta — NON applicare benchmark di altre piattaforme (es. non confrontare CPM Snapchat con benchmark Meta).
+
+PIATTAFORMA E CONTESTO:
+${ch.benchmarks}
 
 DATI DEL PERIODO ANALIZZATO:
 ${buildDashboardSnapshot(data)}
@@ -296,7 +302,39 @@ interface RunOptions {
   sections: PerfSection[];
   tier: PerfModelTier;
   locale: "it" | "en";
+  /** Canale advertising — guida il prompt per benchmark e contesto
+   *  corretti (es. CTR Snapchat ≠ Meta). */
+  channel: "meta" | "snapchat" | "google" | "tiktok";
 }
+
+/** Etichette descrittive per il prompt — il modello deve sapere
+ *  CHE PIATTAFORMA sta analizzando per non citare benchmark
+ *  sbagliati o feature non disponibili. */
+const CHANNEL_PROMPT_INFO: Record<
+  string,
+  { name: string; benchmarks: string }
+> = {
+  meta: {
+    name: "Meta Ads (Facebook + Instagram)",
+    benchmarks:
+      "Benchmark di riferimento Meta: CTR medio 1-2% su feed/stories, CPM tipico 5-15$ in mercati maturi, frequenza ottimale <3, ROAS sano >2 per e-commerce. La piattaforma offre Reach/Frequency esposti, fenomeno di ad fatigue dopo frequency >3.",
+  },
+  snapchat: {
+    name: "Snapchat Ads",
+    benchmarks:
+      "Benchmark di riferimento Snapchat: CTR medio 1-3% (piu' alto di Meta grazie al formato full-screen), CPM tipico 2-8$ (piu' basso di Meta), audience predominante 13-34 anni. Snapchat NON espone Reach o Frequency nei dati per riga, e il funnel commerciale e' meno maturo di Meta — non confrontare i KPI con benchmark Meta. Le campagne Traffic puntano alle Landing Page Views, le Sales agli Adds To Cart e Purchases.",
+  },
+  google: {
+    name: "Google Ads",
+    benchmarks:
+      "Benchmark di riferimento Google: CTR Search 3-5%, CTR Display 0.5-1%, Quality Score, Impression Share, ROAS dipende dalla parola chiave.",
+  },
+  tiktok: {
+    name: "TikTok Ads",
+    benchmarks:
+      "Benchmark di riferimento TikTok: CTR 1-2%, audience giovane, formato full-screen video, attenzione bassa al singolo ad ma alto engagement organico se la creativita' e' nativa.",
+  },
+};
 
 export async function runPerfAnalysis(
   opts: RunOptions,
@@ -310,7 +348,12 @@ export async function runPerfAnalysis(
     return null;
   }
   const model = TIER_MODEL[opts.tier];
-  const prompt = buildPrompt(opts.data, opts.sections, opts.locale);
+  const prompt = buildPrompt(
+    opts.data,
+    opts.sections,
+    opts.locale,
+    opts.channel,
+  );
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 120_000);

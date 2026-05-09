@@ -2204,8 +2204,8 @@ const translations = {
   advPerformance: {
     title: { it: "Adv Performance", en: "Adv Performance" },
     subtitle: {
-      it: "Carica i file di export delle campagne (Meta, Google, TikTok, Snapchat) e ottieni un report interattivo con KPI, trend e confronti.",
-      en: "Upload campaign export files (Meta, Google, TikTok, Snapchat) and get an interactive report with KPIs, trends and comparisons.",
+      it: "Carica i file delle piattaforme advertising e ottieni un report interattivo con KPI, trend e confronti.",
+      en: "Upload files from the advertising platforms and get an interactive report with KPIs, trends and comparisons.",
     },
     backLabel: { it: "Indietro", en: "Back" },
     noClientsTitle: { it: "Nessun cliente nel workspace", en: "No clients in workspace" },
@@ -2224,14 +2224,14 @@ const translations = {
     lastPeriod: { it: "Ultimo periodo", en: "Last period" },
     channelsCovered: { it: "Canali", en: "Channels" },
     noImportsYet: {
-      it: "Nessun upload per questo cliente. Carica il primo export per iniziare.",
-      en: "No uploads for this client yet. Upload the first export to start.",
+      it: "Nessun upload per questo cliente. Carica il primo file per iniziare.",
+      en: "No uploads for this client yet. Upload the first file to start.",
     },
-    uploadCta: { it: "Carica dati", en: "Upload data" },
-    uploadTitle: { it: "Carica export piattaforma", en: "Upload platform export" },
+    uploadCta: { it: "Carica file", en: "Upload file" },
+    uploadTitle: { it: "Carica file", en: "Upload file" },
     uploadDescription: {
-      it: "Trascina qui il file CSV o XLSX scaricato dalla piattaforma advertising scelta (Meta Ads Manager, Snapchat Ads, ecc). Verifichiamo lo schema e mostriamo l'anteprima prima di salvare.",
-      en: "Drop a CSV or XLSX file exported from the chosen advertising platform (Meta Ads Manager, Snapchat Ads, etc). We'll verify the schema and show a preview before saving.",
+      it: "Trascina qui il file CSV o XLSX scaricato dalla piattaforma advertising. Verifichiamo lo schema e mostriamo l'anteprima prima di salvare.",
+      en: "Drop a CSV or XLSX file exported from the advertising platform. We'll verify the schema and show a preview before saving.",
     },
     uploadFileLabel: { it: "File", en: "File" },
     uploadChannelLabel: { it: "Canale", en: "Channel" },
@@ -2296,8 +2296,8 @@ const translations = {
       en: "Pick which week to view and which to use as comparison.",
     },
     weeksUnavailable: {
-      it: "L'export non contiene la colonna 'Week'. Confronto disponibile solo per file settimanali.",
-      en: "Export has no 'Week' column. Available only for weekly files.",
+      it: "Il file non contiene la colonna 'Week'. Confronto disponibile solo per file settimanali.",
+      en: "The file has no 'Week' column. Available only for weekly files.",
     },
     // Brand picker (dentro un client)
     brandPickerTitle: { it: "Scegli il brand", en: "Pick a brand" },
@@ -2310,27 +2310,27 @@ const translations = {
       en: "No brands for this client",
     },
     noBrandsBody: {
-      it: "Per analizzare le performance devi prima creare almeno un brand sotto questo cliente. Una volta creato, torna qui per caricare il primo export.",
-      en: "To analyse performance you first need to create at least one brand under this client. Once created, return here to upload the first export.",
+      it: "Per analizzare le performance devi prima creare almeno un brand sotto questo cliente. Una volta creato, torna qui per caricare il primo file.",
+      en: "To analyse performance you first need to create at least one brand under this client. Once created, return here to upload the first file.",
     },
     createBrandCta: { it: "Crea brand", en: "Create brand" },
     backToBrands: { it: "Torna ai brand", en: "Back to brands" },
     brandImportsCount: {
-      it: "{n} export caricato",
-      en: "{n} export uploaded",
+      it: "{n} file caricato",
+      en: "{n} file uploaded",
     },
     brandImportsCountPlural: {
-      it: "{n} export caricati",
-      en: "{n} exports uploaded",
+      it: "{n} file caricati",
+      en: "{n} files uploaded",
     },
     // Brand detail (lista import + upload central)
     uploadHeroTitle: {
-      it: "Carica il primo export di {brand}",
-      en: "Upload the first export for {brand}",
+      it: "Carica il primo file di {brand}",
+      en: "Upload the first file for {brand}",
     },
     uploadHeroBody: {
-      it: "Trascina un file CSV o XLSX esportato dalla piattaforma advertising scelta (Meta Ads Manager, Snapchat Ads, ecc) o clicca per selezionarlo. Lo analizziamo, validiamo le metriche e ti portiamo subito al dashboard interattivo con confronti, KPI e insight.",
-      en: "Drag a CSV or XLSX exported from the chosen advertising platform (Meta Ads Manager, Snapchat Ads, etc) or click to pick. We parse it, validate metrics and take you straight to the interactive dashboard with comparisons, KPIs and insights.",
+      it: "Trascina un file CSV o XLSX esportato dalla piattaforma advertising o clicca per selezionarlo. Lo analizziamo, validiamo le metriche e ti portiamo subito al dashboard interattivo con confronti, KPI e insight.",
+      en: "Drag a CSV or XLSX exported from the advertising platform or click to pick. We parse it, validate metrics and take you straight to the interactive dashboard with comparisons, KPIs and insights.",
     },
     uploadDropHint: {
       it: "Trascina qui il file o clicca per selezionarlo",
@@ -2348,19 +2348,19 @@ const translations = {
       it: "Ogni riga e' un periodo di reporting. Click sulla freccia per aprire il dashboard, sul cestino per rimuovere l'import.",
       en: "Each row is one reporting period. Click the chevron to open the dashboard, the trash icon to remove the import.",
     },
-    quickUpload: { it: "Carica nuovo export", en: "Upload new export" },
+    quickUpload: { it: "Carica nuovo file", en: "Upload new file" },
     backToImportsList: {
-      it: "Tutti gli export di {brand}",
-      en: "All exports for {brand}",
+      it: "Tutti i file di {brand}",
+      en: "All files for {brand}",
     },
     // Hero home page
     homeHeroTagline: {
-      it: "Da export ad insight in 30 secondi",
-      en: "From ad exports to insights in 30 seconds",
+      it: "Da file ad insight in 30 secondi",
+      en: "From files to insights in 30 seconds",
     },
     homeHeroBody: {
       it: "Carica i CSV o XLSX delle piattaforme advertising dei tuoi brand: AISCAN normalizza i dati, calcola KPI di volume, traffico ed efficienza, decodifica le tipologie di campagna dai nomi e ti porta subito al dashboard.",
-      en: "Upload CSV or XLSX exports from your brands' advertising platforms: AISCAN normalises the data, computes volume / traffic / efficiency KPIs, decodes campaign types from names and takes you straight to the dashboard.",
+      en: "Upload CSV or XLSX from your brands' advertising platforms: AISCAN normalises the data, computes volume / traffic / efficiency KPIs, decodes campaign types from names and takes you straight to the dashboard.",
     },
     homeHeroPill1: { it: "KPI consolidati", en: "Consolidated KPIs" },
     homeHeroPill2: { it: "Confronti tra settimane", en: "Week-vs-week" },
