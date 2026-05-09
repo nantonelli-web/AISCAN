@@ -8,6 +8,7 @@ import {
   validateMetaParse,
   summariseMetaRows,
 } from "@/lib/perf/meta-validator";
+import { parseSnapchatExport } from "@/lib/perf/snapchat-parser";
 import type { PerfDiagnostic } from "@/types/perf";
 
 export const maxDuration = 60;
@@ -19,6 +20,9 @@ const postSchema = z.object({
    *  pre-migration 0043. */
   brand_id: z.string().uuid().optional().nullable(),
   channel: z.enum(["meta", "google", "tiktok", "snapchat"]),
+  /** Currency manuale, usato solo per channel=snapchat dove
+   *  l'export non porta il codice currency nel header. */
+  currency_override: z.string().min(3).max(8).optional().nullable(),
   file_path: z.string().min(1),
   file_name: z.string().min(1).max(300),
   file_format: z.enum(["csv", "xlsx"]),
@@ -66,11 +70,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  if (parsed.data.channel !== "meta") {
+  if (
+    parsed.data.channel !== "meta" &&
+    parsed.data.channel !== "snapchat"
+  ) {
     return NextResponse.json(
       {
         error:
-          "Channel not supported yet. Only 'meta' is available in this release.",
+          "Channel not supported yet. Available: 'meta', 'snapchat'.",
       },
       { status: 400 },
     );
@@ -96,18 +103,58 @@ export async function POST(req: Request) {
   const arrayBuffer = await downloadRes.data.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
-  // 2. Parse + validate
-  const parsedFile = await parseMetaExport(buffer, parsed.data.file_name);
-  const validatorDiagnostics = validateMetaParse(parsedFile);
-  const diagnostics: PerfDiagnostic[] = [
-    ...parsedFile.diagnostics,
-    ...validatorDiagnostics,
-  ];
+  // 2. Parse + validate (branching su channel)
+  const isSnap = parsed.data.channel === "snapchat";
+  let metaParsed:
+    | Awaited<ReturnType<typeof parseMetaExport>>
+    | null = null;
+  let snapParsed:
+    | Awaited<ReturnType<typeof parseSnapchatExport>>
+    | null = null;
+  const diagnostics: PerfDiagnostic[] = [];
+  if (isSnap) {
+    snapParsed = await parseSnapchatExport(buffer, parsed.data.file_name);
+    diagnostics.push(...snapParsed.diagnostics);
+  } else {
+    metaParsed = await parseMetaExport(buffer, parsed.data.file_name);
+    diagnostics.push(
+      ...metaParsed.diagnostics,
+      ...validateMetaParse(metaParsed),
+    );
+  }
   const hasErrors = diagnostics.some((d) => d.severity === "error");
-  const summary = summariseMetaRows(parsedFile.rows);
-  const periodFrom =
-    parsed.data.period_from_override ?? parsedFile.periodFrom;
-  const periodTo = parsed.data.period_to_override ?? parsedFile.periodTo;
+  const summary = isSnap
+    ? {
+        rowCount: snapParsed!.rows.length,
+        totalSpend: snapParsed!.rows.reduce(
+          (s, r) => s + (r.amount_spent || 0),
+          0,
+        ),
+        totalImpressions: snapParsed!.rows.reduce(
+          (s, r) => s + (r.paid_impressions || 0),
+          0,
+        ),
+        uniqueCampaigns: new Set(
+          snapParsed!.rows.map((r) => r.campaign_name).filter(Boolean),
+        ).size,
+      }
+    : summariseMetaRows(metaParsed!.rows);
+  const detectedPeriodFrom = isSnap
+    ? snapParsed!.periodFrom
+    : metaParsed!.periodFrom;
+  const detectedPeriodTo = isSnap
+    ? snapParsed!.periodTo
+    : metaParsed!.periodTo;
+  const detectedColumns = isSnap
+    ? snapParsed!.detectedColumns
+    : metaParsed!.detectedColumns;
+  // Currency: Meta la deduce dall'header (es. "Amount spent (AED)"),
+  // Snapchat richiede l'override manuale dell'utente.
+  const detectedCurrency = isSnap
+    ? (parsed.data.currency_override ?? null)
+    : metaParsed!.currency;
+  const periodFrom = parsed.data.period_from_override ?? detectedPeriodFrom;
+  const periodTo = parsed.data.period_to_override ?? detectedPeriodTo;
 
   // If errors, persist a "failed" import header (so the user sees
   // it in their list with diagnostics) but do NOT write rows.
@@ -125,12 +172,12 @@ export async function POST(req: Request) {
         file_format: parsed.data.file_format,
         file_name: parsed.data.file_name,
         status: "failed",
-        currency: parsedFile.currency,
+        currency: detectedCurrency,
         row_count: 0,
         total_spend: 0,
         total_impressions: 0,
         diagnostics,
-        raw_meta: { detectedColumns: parsedFile.detectedColumns },
+        raw_meta: { detectedColumns: detectedColumns },
         created_by: user.id,
       })
       .select("id")
@@ -143,7 +190,7 @@ export async function POST(req: Request) {
         summary,
         period_from: periodFrom,
         period_to: periodTo,
-        currency: parsedFile.currency,
+        currency: detectedCurrency,
       },
       { status: 422 },
     );
@@ -180,12 +227,12 @@ export async function POST(req: Request) {
     file_format: parsed.data.file_format,
     file_name: parsed.data.file_name,
     status: "validated",
-    currency: parsedFile.currency,
+    currency: detectedCurrency,
     row_count: summary.rowCount,
     total_spend: summary.totalSpend,
     total_impressions: summary.totalImpressions,
     diagnostics,
-    raw_meta: { detectedColumns: parsedFile.detectedColumns },
+    raw_meta: { detectedColumns: detectedColumns },
     created_by: user.id,
     validated_at: new Date().toISOString(),
   };
@@ -232,48 +279,76 @@ export async function POST(req: Request) {
     );
   }
 
-  // 5. Bulk-insert rows in chunks
+  // 5. Bulk-insert rows in chunks (target table dipende dal channel)
   const CHUNK = 500;
-  const rowsForInsert = parsedFile.rows.map((r) => ({
-    workspace_id: profile.workspace_id,
-    import_id: imp.id,
-    client_id: parsed.data.client_id,
-    date: r.date,
-    week: r.week,
-    campaign_name: r.campaign_name,
-    campaign_id: r.campaign_id,
-    ad_set_name: r.ad_set_name,
-    ad_set_id: r.ad_set_id,
-    ad_name: r.ad_name,
-    ad_id: r.ad_id,
-    objective: r.objective,
-    buying_type: r.buying_type,
-    amount_spent: r.amount_spent,
-    impressions: r.impressions,
-    reach: r.reach,
-    frequency: r.frequency,
-    clicks: r.clicks,
-    link_clicks: r.link_clicks,
-    unique_clicks: r.unique_clicks,
-    unique_link_clicks: r.unique_link_clicks,
-    ctr: r.ctr,
-    link_ctr: r.link_ctr,
-    cpm: r.cpm,
-    cpc: r.cpc,
-    link_cpc: r.link_cpc,
-    results: r.results,
-    result_indicator: r.result_indicator,
-    cost_per_result: r.cost_per_result,
-    purchase_roas: r.purchase_roas,
-    purchases: r.purchases,
-    purchase_value: r.purchase_value,
-    quality_ranking: r.quality_ranking,
-    engagement_rate_ranking: r.engagement_rate_ranking,
-    conversion_rate_ranking: r.conversion_rate_ranking,
-    creative_type: r.creative_type,
-    creative_count: r.creative_count,
-    raw_data: r.raw_data,
-  }));
+  const targetTable = isSnap
+    ? "mait_perf_snapchat_rows"
+    : "mait_perf_meta_rows";
+  const rowsForInsert = isSnap
+    ? snapParsed!.rows.map((r) => ({
+        workspace_id: profile.workspace_id,
+        import_id: imp.id,
+        client_id: parsed.data.client_id,
+        date: r.date,
+        week: r.week,
+        campaign_name: r.campaign_name,
+        campaign_id: r.campaign_id,
+        ad_set_name: r.ad_set_name,
+        ad_set_id: r.ad_set_id,
+        ad_name: r.ad_name,
+        ad_id: r.ad_id,
+        creative_id: r.creative_id,
+        amount_spent: r.amount_spent,
+        paid_impressions: r.paid_impressions,
+        clicks: r.clicks,
+        landing_page_views: r.landing_page_views,
+        adds_to_cart: r.adds_to_cart,
+        purchases: r.purchases,
+        purchase_value: r.purchase_value,
+        creative_type: r.creative_type,
+        creative_count: r.creative_count,
+        raw_data: r.raw_data,
+      }))
+    : metaParsed!.rows.map((r) => ({
+        workspace_id: profile.workspace_id,
+        import_id: imp.id,
+        client_id: parsed.data.client_id,
+        date: r.date,
+        week: r.week,
+        campaign_name: r.campaign_name,
+        campaign_id: r.campaign_id,
+        ad_set_name: r.ad_set_name,
+        ad_set_id: r.ad_set_id,
+        ad_name: r.ad_name,
+        ad_id: r.ad_id,
+        objective: r.objective,
+        buying_type: r.buying_type,
+        amount_spent: r.amount_spent,
+        impressions: r.impressions,
+        reach: r.reach,
+        frequency: r.frequency,
+        clicks: r.clicks,
+        link_clicks: r.link_clicks,
+        unique_clicks: r.unique_clicks,
+        unique_link_clicks: r.unique_link_clicks,
+        ctr: r.ctr,
+        link_ctr: r.link_ctr,
+        cpm: r.cpm,
+        cpc: r.cpc,
+        link_cpc: r.link_cpc,
+        results: r.results,
+        result_indicator: r.result_indicator,
+        cost_per_result: r.cost_per_result,
+        purchase_roas: r.purchase_roas,
+        purchases: r.purchases,
+        purchase_value: r.purchase_value,
+        quality_ranking: r.quality_ranking,
+        engagement_rate_ranking: r.engagement_rate_ranking,
+        conversion_rate_ranking: r.conversion_rate_ranking,
+        creative_type: r.creative_type,
+        creative_count: r.creative_count,
+        raw_data: r.raw_data,
+      }));
   // Detect if optional columns are present. If the first insert
   // fails with PGRST204 schema-cache miss for creative_* (mig 0041)
   // or week (mig 0042), strip those fields and retry. Diagnostics
@@ -295,7 +370,7 @@ export async function POST(req: Request) {
       }
       return out;
     });
-    const { error } = await admin.from("mait_perf_meta_rows").insert(payload);
+    const { error } = await admin.from(targetTable).insert(payload);
     if (error) {
       const msg = error.message || "";
       const has = (re: RegExp) => re.test(msg);
@@ -363,7 +438,7 @@ export async function POST(req: Request) {
     summary,
     period_from: periodFrom,
     period_to: periodTo,
-    currency: parsedFile.currency,
+    currency: detectedCurrency,
   });
 }
 

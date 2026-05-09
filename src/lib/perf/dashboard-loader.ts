@@ -84,44 +84,128 @@ export async function loadDashboardData(
   }
   if (!imp) return null;
   if (imp.status !== "validated") return null;
-  if (imp.channel !== "meta") return null;
+  if (imp.channel !== "meta" && imp.channel !== "snapchat") return null;
 
-  // Rows (fallback progressivo per migrations 0041/0042)
+  // Rows: branching su channel. Per Meta carichiamo dalla tabella
+  // dedicata; per Snapchat dalla nuova mait_perf_snapchat_rows e
+  // mappiamo i campi al MetaPerfRow shape per riusare aggregator.
   const PAGE = 1000;
   const SAFETY_CAP = 50_000;
   const rows: MetaPerfRow[] = [];
-  const fullCols =
-    "date, week, campaign_name, ad_set_name, ad_name, objective, amount_spent, impressions, reach, frequency, clicks, link_clicks, unique_clicks, unique_link_clicks, ctr, link_ctr, cpm, cpc, link_cpc, results, result_indicator, cost_per_result, purchase_roas, purchases, purchase_value, creative_type, creative_count, raw_data";
-  const noWeekCols =
-    "date, campaign_name, ad_set_name, ad_name, objective, amount_spent, impressions, reach, frequency, clicks, link_clicks, unique_clicks, unique_link_clicks, ctr, link_ctr, cpm, cpc, link_cpc, results, result_indicator, cost_per_result, purchase_roas, purchases, purchase_value, creative_type, creative_count, raw_data";
-  const legacyCols =
-    "date, campaign_name, ad_set_name, ad_name, objective, amount_spent, impressions, reach, frequency, clicks, link_clicks, unique_clicks, unique_link_clicks, ctr, link_ctr, cpm, cpc, link_cpc, results, result_indicator, cost_per_result, purchase_roas, purchases, purchase_value, raw_data";
-  let level: "full" | "noWeek" | "legacy" = "full";
-  for (let offset = 0; offset < SAFETY_CAP; offset += PAGE) {
-    const cols =
-      level === "full" ? fullCols : level === "noWeek" ? noWeekCols : legacyCols;
-    const { data, error } = await supabase
-      .from("mait_perf_meta_rows")
-      .select(cols as never)
-      .eq("import_id", id)
-      .range(offset, offset + PAGE - 1);
-    if (error) {
-      const msg = error.message ?? "";
-      if (level === "full" && /\bweek\b/i.test(msg)) {
-        level = "noWeek";
-        offset -= PAGE;
-        continue;
+  if (imp.channel === "snapchat") {
+    type SnapDbRow = {
+      date: string | null;
+      week: string | null;
+      campaign_name: string | null;
+      campaign_id: string | null;
+      ad_set_name: string | null;
+      ad_set_id: string | null;
+      ad_name: string | null;
+      ad_id: string | null;
+      creative_id: string | null;
+      amount_spent: number | null;
+      paid_impressions: number | null;
+      clicks: number | null;
+      landing_page_views: number | null;
+      adds_to_cart: number | null;
+      purchases: number | null;
+      purchase_value: number | null;
+      creative_type: string | null;
+      creative_count: number | null;
+      raw_data: Record<string, unknown> | null;
+    };
+    for (let offset = 0; offset < SAFETY_CAP; offset += PAGE) {
+      const { data, error } = await supabase
+        .from("mait_perf_snapchat_rows")
+        .select("*")
+        .eq("import_id", id)
+        .range(offset, offset + PAGE - 1);
+      if (error || !data || data.length === 0) break;
+      const snapRows = data as unknown as SnapDbRow[];
+      for (const sr of snapRows) {
+        // Mappa al MetaPerfRow shape. I campi non disponibili
+        // (reach, frequency, ctr/cpm/cpc, ranking) sono null/0.
+        // raw_data viene arricchito coi field Snapchat per
+        // l'aggregator delle campaign types (es. ATC eventField =
+        // raw:Adds to cart).
+        const enrichedRaw = { ...(sr.raw_data ?? {}) };
+        enrichedRaw["Adds to cart"] = sr.adds_to_cart ?? 0;
+        enrichedRaw["Landing page views"] = sr.landing_page_views ?? 0;
+        rows.push({
+          date: sr.date ?? "1970-01-01",
+          week: sr.week,
+          campaign_name: sr.campaign_name,
+          campaign_id: sr.campaign_id,
+          ad_set_name: sr.ad_set_name,
+          ad_set_id: sr.ad_set_id,
+          ad_name: sr.ad_name,
+          ad_id: sr.ad_id,
+          objective: null,
+          buying_type: null,
+          amount_spent: sr.amount_spent ?? 0,
+          impressions: sr.paid_impressions ?? 0,
+          reach: 0,
+          frequency: null,
+          clicks: sr.clicks ?? 0,
+          link_clicks: sr.clicks ?? 0,
+          unique_clicks: 0,
+          unique_link_clicks: 0,
+          ctr: null,
+          link_ctr: null,
+          cpm: null,
+          cpc: null,
+          link_cpc: null,
+          results: null,
+          result_indicator: null,
+          cost_per_result: null,
+          purchase_roas: null,
+          purchases: sr.purchases ?? 0,
+          purchase_value: sr.purchase_value ?? 0,
+          quality_ranking: null,
+          engagement_rate_ranking: null,
+          conversion_rate_ranking: null,
+          creative_type: sr.creative_type,
+          creative_count: sr.creative_count,
+          raw_data: enrichedRaw,
+        });
       }
-      if (level !== "legacy" && /creative_(type|count)/.test(msg)) {
-        level = "legacy";
-        offset -= PAGE;
-        continue;
-      }
-      break;
+      if (snapRows.length < PAGE) break;
     }
-    if (!data || data.length === 0) break;
-    rows.push(...(data as unknown as MetaPerfRow[]));
-    if (data.length < PAGE) break;
+  } else {
+    // Meta — fallback progressivo per migrations 0041/0042
+    const fullCols =
+      "date, week, campaign_name, ad_set_name, ad_name, objective, amount_spent, impressions, reach, frequency, clicks, link_clicks, unique_clicks, unique_link_clicks, ctr, link_ctr, cpm, cpc, link_cpc, results, result_indicator, cost_per_result, purchase_roas, purchases, purchase_value, creative_type, creative_count, raw_data";
+    const noWeekCols =
+      "date, campaign_name, ad_set_name, ad_name, objective, amount_spent, impressions, reach, frequency, clicks, link_clicks, unique_clicks, unique_link_clicks, ctr, link_ctr, cpm, cpc, link_cpc, results, result_indicator, cost_per_result, purchase_roas, purchases, purchase_value, creative_type, creative_count, raw_data";
+    const legacyCols =
+      "date, campaign_name, ad_set_name, ad_name, objective, amount_spent, impressions, reach, frequency, clicks, link_clicks, unique_clicks, unique_link_clicks, ctr, link_ctr, cpm, cpc, link_cpc, results, result_indicator, cost_per_result, purchase_roas, purchases, purchase_value, raw_data";
+    let level: "full" | "noWeek" | "legacy" = "full";
+    for (let offset = 0; offset < SAFETY_CAP; offset += PAGE) {
+      const cols =
+        level === "full" ? fullCols : level === "noWeek" ? noWeekCols : legacyCols;
+      const { data, error } = await supabase
+        .from("mait_perf_meta_rows")
+        .select(cols as never)
+        .eq("import_id", id)
+        .range(offset, offset + PAGE - 1);
+      if (error) {
+        const msg = error.message ?? "";
+        if (level === "full" && /\bweek\b/i.test(msg)) {
+          level = "noWeek";
+          offset -= PAGE;
+          continue;
+        }
+        if (level !== "legacy" && /creative_(type|count)/.test(msg)) {
+          level = "legacy";
+          offset -= PAGE;
+          continue;
+        }
+        break;
+      }
+      if (!data || data.length === 0) break;
+      rows.push(...(data as unknown as MetaPerfRow[]));
+      if (data.length < PAGE) break;
+    }
   }
 
   // Backfill week da raw_data
@@ -161,7 +245,14 @@ export async function loadDashboardData(
       comparisonAggregate = aggregateKpis(cmpRows);
       comparisonLabel = `${opts.weekCompare} vs ${opts.weekCurrent}`;
     }
-  } else if (mode !== "week" && mode !== "none") {
+  } else if (
+    mode !== "week" &&
+    mode !== "none" &&
+    imp.channel === "meta"
+  ) {
+    // buildComparison oggi supporta solo Meta (multi-import history
+    // del singolo client). Snapchat per ora resta limitato a "none"
+    // o "week" (intra-file).
     const cmp = await buildComparison(
       supabase,
       {
@@ -194,7 +285,7 @@ export async function loadDashboardData(
   const data: PerfDashboardData = {
     importId: id,
     clientId: imp.client_id,
-    channel: "meta",
+    channel: imp.channel as "meta" | "snapchat",
     periodFrom: imp.period_from,
     periodTo: imp.period_to,
     currency: imp.currency,

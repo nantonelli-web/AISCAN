@@ -40,6 +40,8 @@ export function UploadModal({
   const [file, setFile] = useState<File | null>(null);
   const [channel, setChannel] = useState<Channel>("meta");
   const [mode, setMode] = useState<SaveMode>("append");
+  // Currency manuale per Snapchat (Meta la deduce dall'header).
+  const [currencyOverride, setCurrencyOverride] = useState("USD");
   const [step, setStep] = useState<Step>("pick");
   // Validation result kept for confirm step
   const [validationResult, setValidationResult] = useState<{
@@ -131,6 +133,9 @@ export function UploadModal({
           file_name: urlJson.fileName ?? file.name,
           file_format: fileFormat,
           mode,
+          ...(channel === "snapchat" && currencyOverride
+            ? { currency_override: currencyOverride.toUpperCase() }
+            : {}),
         }),
       });
       const importJson = (await importRes.json()) as {
@@ -235,6 +240,9 @@ export function UploadModal({
                   className="flex h-9 w-full rounded-md border border-border bg-muted px-3 py-1 text-sm text-foreground"
                 >
                   <option value="meta">{t("advPerformance", "channelMeta")}</option>
+                  <option value="snapchat">
+                    {t("advPerformance", "channelSnapchat")}
+                  </option>
                   <option value="google" disabled>
                     {t("advPerformance", "channelGoogle")} —{" "}
                     {t("advPerformance", "comingSoon")}
@@ -243,12 +251,29 @@ export function UploadModal({
                     {t("advPerformance", "channelTiktok")} —{" "}
                     {t("advPerformance", "comingSoon")}
                   </option>
-                  <option value="snapchat" disabled>
-                    {t("advPerformance", "channelSnapchat")} —{" "}
-                    {t("advPerformance", "comingSoon")}
-                  </option>
                 </select>
               </div>
+
+              {channel === "snapchat" && (
+                <div className="space-y-2">
+                  <Label htmlFor="perf-currency">Valuta</Label>
+                  <Input
+                    id="perf-currency"
+                    type="text"
+                    value={currencyOverride}
+                    onChange={(e) =>
+                      setCurrencyOverride(e.target.value.toUpperCase())
+                    }
+                    maxLength={5}
+                    placeholder="USD / EUR / AED"
+                    className="uppercase"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    L&apos;export Snapchat non include il codice valuta.
+                    Indicalo a mano (3 lettere ISO).
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="perf-file">
