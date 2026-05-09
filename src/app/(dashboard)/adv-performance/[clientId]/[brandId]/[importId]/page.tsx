@@ -10,6 +10,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { DynamicBackLink } from "@/components/ui/dynamic-back-link";
 import { PrintButton } from "@/components/ui/print-button";
+import { ExportPptxButton } from "@/components/perf/export-pptx-button";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { formatDate } from "@/lib/utils";
 import { DashboardClient } from "./dashboard-client";
@@ -107,7 +108,10 @@ export default async function ImportDashboardPage({
             brand.page_name,
           )}
         />
-        <PrintButton label={t("common", "print")} variant="outline" />
+        <div className="flex items-center gap-2">
+          <ExportPptxButton importId={importId} />
+          <PrintButton label={t("common", "print")} variant="outline" />
+        </div>
       </div>
 
       <header className="flex items-start gap-3">
