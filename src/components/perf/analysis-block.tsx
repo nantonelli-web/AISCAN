@@ -1,9 +1,70 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Pencil, Save, X as XIcon, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
+/** Trasforma il testo formattato dal modello in JSX leggibile.
+ *  Supporta:
+ *  - paragrafi separati da \n\n
+ *  - bold via **testo**
+ *  - liste con righe che iniziano con "- "
+ *  Nessuna libreria markdown — implementazione minimale a regex
+ *  che evita di bloatare il bundle e ha zero rischi di XSS
+ *  (mai dangerouslySetInnerHTML; tutto in nodi React tipizzati). */
+function renderInline(text: string): ReactNode[] {
+  // Split by **...** preservando i delimitatori in capture group
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (/^\*\*[^*]+\*\*$/.test(part)) {
+      return (
+        <strong key={i} className="font-semibold text-foreground">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
+function FormattedText({ content }: { content: string }) {
+  const blocks = content.trim().split(/\n{2,}/);
+  return (
+    <div className="space-y-2.5">
+      {blocks.map((block, idx) => {
+        const lines = block.split(/\n/);
+        const isList = lines.every((l) => l.trim().startsWith("- "));
+        if (isList && lines.length >= 2) {
+          return (
+            <ul
+              key={idx}
+              className="list-disc pl-5 space-y-1.5 text-sm leading-relaxed text-foreground/90"
+            >
+              {lines.map((l, j) => (
+                <li key={j}>{renderInline(l.replace(/^-\s+/, ""))}</li>
+              ))}
+            </ul>
+          );
+        }
+        // Paragrafo standard. Newlines singoli interni → linebreak.
+        return (
+          <p
+            key={idx}
+            className="text-sm leading-relaxed text-foreground/90"
+          >
+            {lines.map((l, j) => (
+              <span key={j}>
+                {renderInline(l)}
+                {j < lines.length - 1 && <br />}
+              </span>
+            ))}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
 
 /**
  * AnalysisBlock — render del testo AI per una specifica sezione
@@ -159,9 +220,7 @@ export function AnalysisBlock({
               </div>
             </div>
           ) : (
-            <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
-              {analysis.content}
-            </p>
+            <FormattedText content={analysis.content} />
           )}
         </div>
       </div>

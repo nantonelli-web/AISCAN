@@ -260,12 +260,22 @@ function buildPrompt(
 DATI DEL PERIODO ANALIZZATO:
 ${buildDashboardSnapshot(data)}
 
-ISTRUZIONI:
+ISTRUZIONI DI CONTENUTO:
 1. Per ognuna delle sezioni elencate sotto, scrivi un'analisi discorsiva in ${langName}. Tono professionale ma non rigido — non scolastico, non da AI generica. Ogni frase deve avere un peso informativo: zero fuffa, zero filler ("Come si puo' notare", "E' importante sottolineare").
 2. Spiega cosa significa il dato in termini di marketing concreti, e MOTIVA perche' la metrica si trova in quella zona di valore. Cita il numero del payload per ancorare la lettura, ma non duplicarlo: spiegalo. Quando hai ROAS=0 o purchase_value=0, segnalalo come "tracking conversion non configurato" e spiega come affrontare la cosa.
 3. Quando rilevante, integra una RACCOMANDAZIONE OPERATIVA basata su best practice del paid (es. test A/B sulla creativity migliore, shift budget, pausa campagne sotto-performanti, frequency capping se >3, ecc). La raccomandazione deve essere concreta e azionabile.
 4. La lunghezza varia in base alla profondita' del dato — non gonfiare. Una sezione con poco da dire puo' essere 2-3 frasi; una sezione ricca puo' essere 5-8.
 5. Non inventare numeri. Cita solo cifre presenti nel payload. Se manca un dato, non riempire (es. ROAS senza purchase value).
+
+ISTRUZIONI DI FORMATTAZIONE (importanti per la leggibilita'):
+6. SCANDISCI il testo in PARAGRAFI distinti separati da una riga vuota (\\n\\n). Ogni paragrafo = un punto. Tipico: paragrafo 1 = lettura del dato; paragrafo 2 = motivazione/spiegazione; paragrafo 3 = raccomandazione operativa. Niente muro di testo unico.
+7. Usa il GRASSETTO markdown **testo** per evidenziare:
+   - metriche chiave e numeri rilevanti (es. **CPC 0,45 AED**, **ROAS 1,8**)
+   - conclusioni importanti (es. **margine di miglioramento sul CTR**)
+   - le raccomandazioni operative (la prima frase di ogni raccomandazione)
+   Non abusarne: 2-4 grassetti per paragrafo al massimo, solo dove guidano davvero l'occhio.
+8. Quando proponi PIU' AZIONI distinti, usa una lista con trattini (una azione per riga, riga che inizia con "- "). Tieni le voci compatte (max una frase ciascuna).
+9. NIENTE titoli markdown (#, ##), niente \`code\`, niente link, niente tabelle. Solo paragrafi, **bold** e liste con "- ".
 
 SEZIONI DA GENERARE:
 ${sectionList}
@@ -275,7 +285,7 @@ OUTPUT: rispondi SOLO con un JSON valido nella forma:
 ${sections.map((s) => `  "${s}": "..."`).join(",\n")}
 }
 
-Niente markdown wrapping (\`\`\`json), niente preamble, niente postamble. Il valore di ogni chiave e' una stringa di testo discorsivo (no markdown, no bullet, frasi complete separate da spazi singoli o newlines \\n quando vuoi un nuovo paragrafo).`;
+Niente markdown wrapping (\`\`\`json), niente preamble, niente postamble. Il valore di ogni chiave e' una stringa con paragrafi separati da \\n\\n, eventuali **bold** markdown e liste con "- ".`;
 }
 
 /* ─── OpenRouter call ────────────────────────────────────── */
