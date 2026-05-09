@@ -466,16 +466,27 @@ function addKpiGrid(slide: PptxGenJS.Slide, cards: KpiCard[], area: Box) {
       fontFace: "Calibri",
       charSpacing: 80,
     });
+    // Font size adattato alla larghezza della card e alla
+    // lunghezza del valore: card stretta (3 col 4-card) -> 18pt;
+    // valore lungo (>11 char incl. simbolo valuta) -> 16pt;
+    // standard 4 col grid -> 18pt. La h del text box e' calcolata
+    // a margine generoso cosi non viene mai troncato.
+    const valueLen = c.value.length;
+    let valueFontSize = 18;
+    if (cardW < 2.6) valueFontSize = 16;
+    if (valueLen > 12) valueFontSize = 16;
+    if (valueLen > 16) valueFontSize = 14;
     slide.addText(c.value, {
       x: x + 0.18,
-      y: y + 0.46,
+      y: y + 0.5,
       w: cardW - 0.36,
-      h: cardH - 0.6,
-      fontSize: 22,
+      h: cardH - 0.65,
+      fontSize: valueFontSize,
       bold: true,
       color: COLORS.text,
       fontFace: "Calibri",
       valign: "middle",
+      shrinkText: true,
     });
   });
 }
@@ -507,21 +518,22 @@ function buildOverview(ctx: BuildContext) {
     },
   ];
 
-  // KPI grid in alto (2 righe x 4 colonne, ~2.6" altezza totale)
+  // KPI grid: 2 righe x 4 colonne. Altezza 3.0" -> ogni card
+  // ~1.4" che e' l'optimum per label 9pt + value 18pt.
   const kpiArea: Box = {
     x: MARGIN,
     y: CONTENT_TOP,
     w: INNER_W,
-    h: 2.6,
+    h: 3.0,
   };
   addKpiGrid(slide, cards, kpiArea);
 
   // Analysis sotto
   addAnalysisBox(slide, findAnalysis(ctx.o.analyses, "overview"), {
     x: MARGIN,
-    y: kpiArea.y + kpiArea.h + 0.25,
+    y: kpiArea.y + kpiArea.h + 0.3,
     w: INNER_W,
-    h: CONTENT_BOTTOM - (kpiArea.y + kpiArea.h + 0.25),
+    h: CONTENT_BOTTOM - (kpiArea.y + kpiArea.h + 0.3),
   });
 }
 
@@ -612,64 +624,81 @@ function buildTimeSeries(ctx: BuildContext) {
   const spend = ctx.o.data.timeSeries.map((p) => p.spend);
   const imp = ctx.o.data.timeSeries.map((p) => p.impressions);
 
-  // Combo chart: bar (spend) primary axis + line (impressions)
-  // secondary axis. pptxgenjs ChartType.bar / .line / .line3D —
-  // per il dual-axis usiamo ChartType.bar con un single series e
-  // un secondo addChart line sotto. Cosi e' piu' leggibile e
-  // garantisce che il rendering sia coerente in PowerPoint Web.
-  slide.addChart(
-    ctx.pres.ChartType.bar,
-    [
+  // Combo chart UNICO: bar (spesa, asse Y primario) + line
+  // (impressioni, asse Y secondario). Single graphic frame -> no
+  // piu' disaccoppiamento visivo. La signature pptxgenjs per i
+  // multi-type chart e' `addChart(IChartMulti[], data, opts)` —
+  // il `data` non viene usato quando type e' un array, ma serve
+  // ad allineare la signature. Cast as never per soddisfare TS.
+  const comboTypes: PptxGenJS.IChartMulti[] = [
+    {
+      type: ctx.pres.ChartType.bar,
+      data: [
+        {
+          name: `Spesa${ctx.o.data.currency ? ` (${ctx.o.data.currency})` : ""}`,
+          labels,
+          values: spend,
+        },
+      ],
+      options: {
+        barDir: "col",
+        chartColors: [COLORS.gold],
+      },
+    },
+    {
+      type: ctx.pres.ChartType.line,
+      data: [
+        {
+          name: "Impressioni",
+          labels,
+          values: imp,
+        },
+      ],
+      options: {
+        chartColors: [COLORS.blue],
+        lineSize: 2.5,
+        secondaryValAxis: true,
+        secondaryCatAxis: true,
+      },
+    },
+  ];
+  const comboOpts = {
+    x: MARGIN,
+    y: CONTENT_TOP,
+    w: INNER_W,
+    h: 4.0,
+    catAxisLabelFontSize: 9,
+    valAxisLabelFontSize: 9,
+    showLegend: true,
+    legendFontSize: 10,
+    legendPos: "t",
+    catAxisLabelRotate: -30,
+    valAxes: [
       {
-        name: `Spesa${ctx.o.data.currency ? ` (${ctx.o.data.currency})` : ""}`,
-        labels,
-        values: spend,
+        showValAxisTitle: true,
+        valAxisTitle: `Spesa${ctx.o.data.currency ? ` (${ctx.o.data.currency})` : ""}`,
+        valAxisTitleFontSize: 9,
+        valAxisLabelColor: COLORS.gold,
+      },
+      {
+        showValAxisTitle: true,
+        valAxisTitle: "Impressioni",
+        valAxisTitleFontSize: 9,
+        valAxisLabelColor: COLORS.blue,
+        valGridLine: { style: "none" },
       },
     ],
-    {
-      x: MARGIN,
-      y: CONTENT_TOP,
-      w: INNER_W,
-      h: 2.3,
-      barDir: "col",
-      chartColors: [COLORS.gold],
-      catAxisLabelFontSize: 9,
-      valAxisLabelFontSize: 9,
-      showLegend: true,
-      legendFontSize: 10,
-      legendPos: "t",
-      catAxisLabelRotate: -30,
-    },
-  );
-  slide.addChart(
-    ctx.pres.ChartType.line,
-    [
-      {
-        name: "Impressioni",
-        labels,
-        values: imp,
-      },
+    catAxes: [
+      { catAxisLabelFontSize: 9, catAxisLabelRotate: -30 },
+      { catAxisHidden: true },
     ],
-    {
-      x: MARGIN,
-      y: CONTENT_TOP + 2.4,
-      w: INNER_W,
-      h: 1.6,
-      chartColors: [COLORS.blue],
-      catAxisLabelFontSize: 8,
-      valAxisLabelFontSize: 8,
-      showLegend: true,
-      legendFontSize: 9,
-      legendPos: "t",
-      lineSize: 2,
-      catAxisLabelRotate: -30,
-    },
-  );
+  };
+  slide.addChart(comboTypes as never, comboOpts as never);
   addAnalysisBox(slide, findAnalysis(ctx.o.analyses, "timeSeries"), {
     x: MARGIN,
-    y: CONTENT_TOP + 4.1,
+    y: CONTENT_TOP + 4.2,
     w: INNER_W,
-    h: CONTENT_BOTTOM - (CONTENT_TOP + 4.1),
+    h: CONTENT_BOTTOM - (CONTENT_TOP + 4.2),
   });
 }
 
