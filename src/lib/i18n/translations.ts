@@ -2345,8 +2345,8 @@ const translations = {
       en: "Uploaded files",
     },
     importsListSubtitle: {
-      it: "Ogni riga e' un periodo di reporting. Click sulla freccia per aprire il dashboard, sul cestino per rimuovere l'import.",
-      en: "Each row is one reporting period. Click the chevron to open the dashboard, the trash icon to remove the import.",
+      it: "Ogni riga e' un periodo di reporting. Click su una riga per aprire il dashboard, sul cestino per rimuovere il file.",
+      en: "Each row is one reporting period. Click a row to open the dashboard, the trash icon to remove the file.",
     },
     quickUpload: { it: "Carica nuovo file", en: "Upload new file" },
     backToImportsList: {

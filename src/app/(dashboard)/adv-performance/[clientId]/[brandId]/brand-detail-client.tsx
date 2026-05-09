@@ -187,82 +187,87 @@ export function BrandDetailClient({
             {initialImports.map((imp) => {
               const isDeleting = deletingId === imp.id;
               const isFailed = imp.status === "failed";
+              const ch = CHANNEL_PILL[imp.channel] ?? CHANNEL_PILL.meta;
+              const ChIcon = ch.icon;
+              const cardInner = (
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div
+                    className={`size-11 rounded-lg ${ch.bg} ${ch.text} grid place-items-center shrink-0 ring-1 ring-inset ring-current/15`}
+                    title={ch.label}
+                  >
+                    <ChIcon className="size-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-xs font-bold ${ch.text}`}>
+                        {ch.label}
+                      </span>
+                      <span className="text-muted-foreground/40">·</span>
+                      <p className="text-sm font-medium tabular-nums">
+                        {formatDate(imp.period_from)} →{" "}
+                        {formatDate(imp.period_to)}
+                      </p>
+                      {isFailed && (
+                        <Badge
+                          variant="outline"
+                          className="text-[9px] text-rose-400 border-rose-400/40"
+                        >
+                          failed
+                        </Badge>
+                      )}
+                    </div>
+                    {imp.file_name && (
+                      <p className="text-[11.5px] text-muted-foreground mt-1 truncate flex items-center gap-1.5">
+                        <FileSpreadsheet className="size-3 shrink-0" />
+                        {imp.file_name}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0 print:hidden">
+                    {!isFailed && (
+                      <ChevronRight
+                        className="size-4 text-muted-foreground group-hover:text-foreground transition-colors"
+                        aria-hidden
+                      />
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        deleteImport(imp.id);
+                      }}
+                      disabled={isDeleting}
+                      className="size-8 p-0 text-muted-foreground hover:text-rose-400"
+                    >
+                      {isDeleting ? (
+                        <RefreshCw className="size-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="size-3.5" />
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              );
+              const cardCls = isFailed
+                ? "border-rose-400/40"
+                : "hover:border-gold/40 hover:shadow-sm transition-all cursor-pointer group";
+              if (isFailed) {
+                return (
+                  <Card key={imp.id} className={cardCls}>
+                    {cardInner}
+                  </Card>
+                );
+              }
               return (
-                <Card
+                <Link
                   key={imp.id}
-                  className={
-                    isFailed
-                      ? "border-rose-400/40"
-                      : "hover:border-gold/40 transition-colors"
-                  }
+                  href={`/adv-performance/${clientId}/${brandId}/${imp.id}`}
+                  className="block"
                 >
-                  <CardContent className="p-4 flex items-center gap-4">
-                    {(() => {
-                      const ch = CHANNEL_PILL[imp.channel] ?? CHANNEL_PILL.meta;
-                      const ChIcon = ch.icon;
-                      return (
-                        <div
-                          className={`size-11 rounded-lg ${ch.bg} ${ch.text} grid place-items-center shrink-0 ring-1 ring-inset ring-current/15`}
-                          title={ch.label}
-                        >
-                          <ChIcon className="size-5" />
-                        </div>
-                      );
-                    })()}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span
-                          className={`text-xs font-bold ${(CHANNEL_PILL[imp.channel] ?? CHANNEL_PILL.meta).text}`}
-                        >
-                          {(CHANNEL_PILL[imp.channel] ?? CHANNEL_PILL.meta).label}
-                        </span>
-                        <span className="text-muted-foreground/40">·</span>
-                        <p className="text-sm font-medium tabular-nums">
-                          {formatDate(imp.period_from)} →{" "}
-                          {formatDate(imp.period_to)}
-                        </p>
-                        {isFailed && (
-                          <Badge
-                            variant="outline"
-                            className="text-[9px] text-rose-400 border-rose-400/40"
-                          >
-                            failed
-                          </Badge>
-                        )}
-                      </div>
-                      {imp.file_name && (
-                        <p className="text-[11.5px] text-muted-foreground mt-1 truncate flex items-center gap-1.5">
-                          <FileSpreadsheet className="size-3 shrink-0" />
-                          {imp.file_name}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0 print:hidden">
-                      {!isFailed && (
-                        <Link
-                          href={`/adv-performance/${clientId}/${brandId}/${imp.id}`}
-                          className="size-8 rounded-md border border-border grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted"
-                          aria-label="Open dashboard"
-                        >
-                          <ChevronRight className="size-4" />
-                        </Link>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteImport(imp.id)}
-                        disabled={isDeleting}
-                        className="size-8 p-0 text-muted-foreground hover:text-rose-400"
-                      >
-                        {isDeleting ? (
-                          <RefreshCw className="size-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="size-3.5" />
-                        )}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                  <Card className={cardCls}>{cardInner}</Card>
+                </Link>
               );
             })}
           </div>
