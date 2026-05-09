@@ -214,7 +214,6 @@ function addHeader(slide: PptxGenJS.Slide, ctx: BuildContext, title: string) {
     bold: true,
     color: COLORS.text,
     fontFace: "Calibri",
-    charSpacing: 20,
   });
 
   // Divider
@@ -263,7 +262,6 @@ function addAnalysisBox(
     bold: true,
     color: COLORS.violet,
     fontFace: "Calibri",
-    charSpacing: 20,
   });
 
   // Body
@@ -306,7 +304,6 @@ function buildCover(ctx: BuildContext) {
     bold: true,
     color: COLORS.muted,
     fontFace: "Calibri",
-    charSpacing: 20,
   });
   slide.addText(ctx.o.brandName, {
     x: 0.8,
@@ -355,7 +352,6 @@ function buildCover(ctx: BuildContext) {
     bold: true,
     color: COLORS.muted,
     fontFace: "Calibri",
-    charSpacing: 20,
   });
   slide.addText(ch.name, {
     x: startX + 0.3,
@@ -388,7 +384,6 @@ function buildCover(ctx: BuildContext) {
     bold: true,
     color: COLORS.muted,
     fontFace: "Calibri",
-    charSpacing: 20,
   });
   slide.addText(`${ctx.o.data.periodFrom} → ${ctx.o.data.periodTo}`, {
     x: periodX + 0.3,
@@ -464,7 +459,6 @@ function addKpiGrid(slide: PptxGenJS.Slide, cards: KpiCard[], area: Box) {
       bold: true,
       color: COLORS.muted,
       fontFace: "Calibri",
-      charSpacing: 20,
     });
     // Font size adattato alla larghezza della card e alla
     // lunghezza del valore: card stretta (3 col 4-card) -> 18pt;
