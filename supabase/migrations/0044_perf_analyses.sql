@@ -28,12 +28,14 @@ create index if not exists idx_perf_analyses_import
 
 alter table mait_perf_analyses enable row level security;
 
+-- Nota: mait_users.id e' direttamente l'auth.users(id), quindi
+-- workspace lookup e': workspace_id where mait_users.id = auth.uid().
 drop policy if exists "perf_analyses_select" on mait_perf_analyses;
 create policy "perf_analyses_select"
   on mait_perf_analyses for select
   using (
     workspace_id in (
-      select workspace_id from mait_users where auth_id = auth.uid()
+      select workspace_id from mait_users where id = auth.uid()
     )
   );
 
@@ -42,7 +44,7 @@ create policy "perf_analyses_insert"
   on mait_perf_analyses for insert
   with check (
     workspace_id in (
-      select workspace_id from mait_users where auth_id = auth.uid()
+      select workspace_id from mait_users where id = auth.uid()
     )
   );
 
@@ -51,12 +53,12 @@ create policy "perf_analyses_update"
   on mait_perf_analyses for update
   using (
     workspace_id in (
-      select workspace_id from mait_users where auth_id = auth.uid()
+      select workspace_id from mait_users where id = auth.uid()
     )
   )
   with check (
     workspace_id in (
-      select workspace_id from mait_users where auth_id = auth.uid()
+      select workspace_id from mait_users where id = auth.uid()
     )
   );
 
@@ -65,6 +67,6 @@ create policy "perf_analyses_delete"
   on mait_perf_analyses for delete
   using (
     workspace_id in (
-      select workspace_id from mait_users where auth_id = auth.uid()
+      select workspace_id from mait_users where id = auth.uid()
     )
   );
