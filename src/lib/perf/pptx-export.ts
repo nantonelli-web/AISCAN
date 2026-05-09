@@ -673,6 +673,18 @@ function buildTimeSeries(ctx: BuildContext) {
   });
 }
 
+/** Helper: dato un nRows totali (inclusa header) e l'area
+ *  disponibile, ritorna rowH/h tali che la tabella non
+ *  overflowi mai. rowH e' clamped a [0.26, 0.42] per leggibilita'. */
+function fitTable(
+  nRows: number,
+  maxAreaH: number,
+): { rowH: number; tableH: number } {
+  const rowH = Math.min(0.42, Math.max(0.26, maxAreaH / nRows));
+  const tableH = rowH * nRows;
+  return { rowH, tableH };
+}
+
 /* ─── Top campaigns ───────────────────────────────────── */
 
 function buildTopCampaigns(ctx: BuildContext) {
@@ -680,7 +692,12 @@ function buildTopCampaigns(ctx: BuildContext) {
   const slide = ctx.pres.addSlide();
   addHeader(slide, ctx, "Top campagne");
   const cur = ctx.o.data.currency;
-  const top = ctx.o.data.topByCampaignSpend.slice(0, 10);
+  // Limitiamo a 8 cosi' lasciamo spazio decente all'analisi sotto.
+  const top = ctx.o.data.topByCampaignSpend.slice(0, 8);
+  const nRows = top.length + 1; // + header
+  // Area massima per la tabella (lascia min 2.0" all'analisi)
+  const maxTableH = CONTENT_BOTTOM - CONTENT_TOP - 2.3; // ~3.4
+  const { rowH, tableH } = fitTable(nRows, maxTableH);
   const tableRows: PptxGenJS.TableRow[] = [
     [
       { text: "CAMPAGNA", options: { bold: true, fontSize: 10, color: COLORS.muted, fill: { color: COLORS.bgLight } } },
@@ -704,16 +721,15 @@ function buildTopCampaigns(ctx: BuildContext) {
     x: MARGIN,
     y: CONTENT_TOP,
     w: INNER_W,
+    h: tableH,
     colW: [INNER_W * 0.42, INNER_W * 0.16, INNER_W * 0.16, INNER_W * 0.13, INNER_W * 0.13],
     border: { type: "solid", pt: 0.5, color: COLORS.border },
     fontFace: "Calibri",
     color: COLORS.text,
-    rowH: 0.32,
+    rowH,
   });
 
-  // Calcolo y dell'analisi in base a quante righe ha la tabella
-  const tableH = 0.32 * (top.length + 1) + 0.1;
-  const aY = Math.min(CONTENT_TOP + tableH + 0.3, 5.2);
+  const aY = CONTENT_TOP + tableH + 0.3;
   addAnalysisBox(slide, findAnalysis(ctx.o.analyses, "topCampaigns"), {
     x: MARGIN,
     y: aY,
@@ -768,17 +784,21 @@ function buildCountries(ctx: BuildContext) {
       return r;
     }),
   ];
+  const { rowH, tableH } = fitTable(
+    cs.length + 1,
+    CONTENT_BOTTOM - CONTENT_TOP - 2.5,
+  );
   slide.addTable(rows, {
     x: MARGIN,
     y: CONTENT_TOP,
     w: INNER_W,
+    h: tableH,
     border: { type: "solid", pt: 0.5, color: COLORS.border },
     fontFace: "Calibri",
     color: COLORS.text,
-    rowH: 0.36,
+    rowH,
   });
-  const tableH = 0.36 * (cs.length + 1) + 0.1;
-  const aY = Math.min(CONTENT_TOP + tableH + 0.3, 4.8);
+  const aY = CONTENT_TOP + tableH + 0.3;
   addAnalysisBox(slide, findAnalysis(ctx.o.analyses, "countries"), {
     x: MARGIN,
     y: aY,
@@ -834,17 +854,21 @@ function buildCampaignTypes(ctx: BuildContext) {
       return r;
     }),
   ];
+  const { rowH, tableH } = fitTable(
+    ts.length + 1,
+    CONTENT_BOTTOM - CONTENT_TOP - 2.5,
+  );
   slide.addTable(tableRows, {
     x: MARGIN,
     y: CONTENT_TOP,
     w: INNER_W,
+    h: tableH,
     border: { type: "solid", pt: 0.5, color: COLORS.border },
     fontFace: "Calibri",
     color: COLORS.text,
-    rowH: 0.36,
+    rowH,
   });
-  const tableH = 0.36 * (ts.length + 1) + 0.1;
-  const aY = Math.min(CONTENT_TOP + tableH + 0.3, 4.8);
+  const aY = CONTENT_TOP + tableH + 0.3;
   addAnalysisBox(slide, findAnalysis(ctx.o.analyses, "campaignTypes"), {
     x: MARGIN,
     y: aY,
@@ -933,15 +957,17 @@ function buildCreatives(ctx: BuildContext) {
         },
       ]),
     ];
+    const cFit = fitTable(counts.length + 1, tableArea.h - 0.5);
     slide.addTable(rows, {
       x: tableArea.x,
       y: tableArea.y + 0.5,
       w: tableArea.w,
+      h: cFit.tableH,
       colW: [tableArea.w * 0.6, tableArea.w * 0.4],
       border: { type: "solid", pt: 0.5, color: COLORS.border },
       fontFace: "Calibri",
       color: COLORS.text,
-      rowH: 0.4,
+      rowH: cFit.rowH,
     });
   }
 
