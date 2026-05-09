@@ -53,6 +53,11 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useT } from "@/lib/i18n/context";
+import { AnalysisCta } from "@/components/perf/analysis-cta";
+import {
+  AnalysisBlock,
+  type SectionAnalysis,
+} from "@/components/perf/analysis-block";
 import type {
   PerfDashboardData,
   MetaKpiAggregate,
@@ -303,6 +308,50 @@ export function DashboardClient({ importId }: { importId: string }) {
   const [data, setData] = useState<PerfDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [analyses, setAnalyses] = useState<Record<string, SectionAnalysis>>({});
+
+  // Helper per mappare lo stato comparison nei params (sia per
+  // dashboard fetch sia per il CTA analysis che vuole essere
+  // coerente con quello che l'utente sta vedendo).
+  const compareParams = useMemo(() => {
+    const p: Record<string, string> = { compare: mode };
+    if (mode === "custom" && customFrom && customTo) {
+      p.compare_from = customFrom;
+      p.compare_to = customTo;
+    }
+    if (mode === "week" && weekCurrent && weekCompare) {
+      p.week_current = weekCurrent;
+      p.week_compare = weekCompare;
+    }
+    return p;
+  }, [mode, customFrom, customTo, weekCurrent, weekCompare]);
+
+  // Carica le analisi salvate ogni volta che cambia l'import.
+  const loadAnalyses = async () => {
+    try {
+      const r = await fetch(`/api/perf/imports/${importId}/analysis`, {
+        cache: "no-store",
+      });
+      if (!r.ok) return;
+      const j = (await r.json()) as { analyses?: SectionAnalysis[] };
+      const map: Record<string, SectionAnalysis> = {};
+      for (const a of j.analyses ?? []) map[a.section] = a;
+      setAnalyses(map);
+    } catch {
+      /* ignored */
+    }
+  };
+  useEffect(() => {
+    loadAnalyses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importId]);
+
+  const updateAnalysis = (next: SectionAnalysis | null) => {
+    if (!next) return;
+    setAnalyses((prev) => ({ ...prev, [next.section]: next }));
+  };
+
+  const hasAnyAnalysis = Object.keys(analyses).length > 0;
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -407,6 +456,16 @@ export function DashboardClient({ importId }: { importId: string }) {
           Aggiornamento dati…
         </div>
       )}
+
+      {/* AI analysis CTA — top */}
+      <AnalysisCta
+        importId={importId}
+        hasAnalyses={hasAnyAnalysis}
+        position="top"
+        onGenerated={loadAnalyses}
+        compareParams={compareParams}
+      />
+
       {/* Comparison switcher */}
       <Card className="print:hidden">
         <CardContent className="p-5 space-y-3">
@@ -633,6 +692,12 @@ export function DashboardClient({ importId }: { importId: string }) {
             tone="purple"
           />
         </div>
+        <AnalysisBlock
+          importId={importId}
+          section="overview"
+          analysis={analyses.overview ?? null}
+          onUpdated={updateAnalysis}
+        />
       </section>
 
       {/* Purchases & ROI */}
@@ -678,6 +743,12 @@ export function DashboardClient({ importId }: { importId: string }) {
               forceTwoDecimals
             />
           </div>
+          <AnalysisBlock
+            importId={importId}
+            section="purchases"
+            analysis={analyses.purchases ?? null}
+            onUpdated={updateAnalysis}
+          />
         </section>
       )}
 
@@ -716,6 +787,12 @@ export function DashboardClient({ importId }: { importId: string }) {
               tone="rose"
             />
           </div>
+          <AnalysisBlock
+            importId={importId}
+            section="engagement"
+            analysis={analyses.engagement ?? null}
+            onUpdated={updateAnalysis}
+          />
         </section>
       )}
 
@@ -790,53 +867,67 @@ export function DashboardClient({ importId }: { importId: string }) {
                 />
               </ComposedChart>
             </ResponsiveContainer>
+            <AnalysisBlock
+              importId={importId}
+              section="timeSeries"
+              analysis={analyses.timeSeries ?? null}
+              onUpdated={updateAnalysis}
+            />
           </CardContent>
         </Card>
       )}
 
       {/* Top campaigns */}
-      <div className={`grid gap-4 ${hasRoasData ? "lg:grid-cols-2" : ""}`}>
-        {data.topByCampaignSpend.length > 0 && (
-          <Card>
-            <CardContent className="p-5 space-y-3">
-              <SectionHeader
-                icon={DollarSign}
-                tone="gold"
-                title={t("advPerformance", "topCampaignsBySpend")}
-              />
-              <HorizontalBarChart
-                data={data.topByCampaignSpend.map((c) => ({
-                  name: c.campaign_name,
-                  spend: c.spend,
-                }))}
-                dataKey="spend"
-                label={t("advPerformance", "kpiSpend")}
-                color="#d9a82f"
-              />
-            </CardContent>
-          </Card>
-        )}
-        {hasRoasData && data.topByCampaignRoas.length > 0 && (
-          <Card>
-            <CardContent className="p-5 space-y-3">
-              <SectionHeader
-                icon={Target}
-                tone="green"
-                title={t("advPerformance", "topCampaignsByRoas")}
-              />
-              <HorizontalBarChart
-                data={data.topByCampaignRoas.map((c) => ({
-                  name: c.campaign_name,
-                  roas: c.roas ?? 0,
-                }))}
-                dataKey="roas"
-                label={t("advPerformance", "kpiRoas")}
-                color="#6b8e6b"
-              />
-            </CardContent>
-          </Card>
-        )}
-      </div>
+      {data.topByCampaignSpend.length > 0 && (
+        <section className="space-y-3">
+          <div className={`grid gap-4 ${hasRoasData ? "lg:grid-cols-2" : ""}`}>
+            <Card>
+              <CardContent className="p-5 space-y-3">
+                <SectionHeader
+                  icon={DollarSign}
+                  tone="gold"
+                  title={t("advPerformance", "topCampaignsBySpend")}
+                />
+                <HorizontalBarChart
+                  data={data.topByCampaignSpend.map((c) => ({
+                    name: c.campaign_name,
+                    spend: c.spend,
+                  }))}
+                  dataKey="spend"
+                  label={t("advPerformance", "kpiSpend")}
+                  color="#d9a82f"
+                />
+              </CardContent>
+            </Card>
+            {hasRoasData && data.topByCampaignRoas.length > 0 && (
+              <Card>
+                <CardContent className="p-5 space-y-3">
+                  <SectionHeader
+                    icon={Target}
+                    tone="green"
+                    title={t("advPerformance", "topCampaignsByRoas")}
+                  />
+                  <HorizontalBarChart
+                    data={data.topByCampaignRoas.map((c) => ({
+                      name: c.campaign_name,
+                      roas: c.roas ?? 0,
+                    }))}
+                    dataKey="roas"
+                    label={t("advPerformance", "kpiRoas")}
+                    color="#6b8e6b"
+                  />
+                </CardContent>
+              </Card>
+            )}
+          </div>
+          <AnalysisBlock
+            importId={importId}
+            section="topCampaigns"
+            analysis={analyses.topCampaigns ?? null}
+            onUpdated={updateAnalysis}
+          />
+        </section>
+      )}
 
       {/* Country breakdown */}
       {data.countries.length > 0 &&
@@ -964,6 +1055,12 @@ export function DashboardClient({ importId }: { importId: string }) {
                   </tbody>
                 </table>
               </div>
+              <AnalysisBlock
+                importId={importId}
+                section="countries"
+                analysis={analyses.countries ?? null}
+                onUpdated={updateAnalysis}
+              />
             </CardContent>
           </Card>
         )}
@@ -975,6 +1072,8 @@ export function DashboardClient({ importId }: { importId: string }) {
           breakdown={data.campaignTypes}
           assignments={data.campaignTypeAssignments}
           currency={data.currency}
+          analysis={analyses.campaignTypes ?? null}
+          onAnalysisUpdated={updateAnalysis}
           onOverridesSaved={() => {
             window.location.reload();
           }}
@@ -984,6 +1083,7 @@ export function DashboardClient({ importId }: { importId: string }) {
       {/* Creative type mix + asset count */}
       {(data.creativeTypeMix.length > 0 ||
         data.creativeCountByType.length > 0) && (
+        <section className="space-y-3">
         <div className="grid gap-4 lg:grid-cols-2">
           {data.creativeTypeMix.length > 0 && (
             <Card>
@@ -1035,6 +1135,13 @@ export function DashboardClient({ importId }: { importId: string }) {
             />
           )}
         </div>
+        <AnalysisBlock
+          importId={importId}
+          section="creatives"
+          analysis={analyses.creatives ?? null}
+          onUpdated={updateAnalysis}
+        />
+        </section>
       )}
 
       {/* Objective mix */}
@@ -1079,9 +1186,24 @@ export function DashboardClient({ importId }: { importId: string }) {
                   />
                 </PieChart>
               </ResponsiveContainer>
+              <AnalysisBlock
+                importId={importId}
+                section="objective"
+                analysis={analyses.objective ?? null}
+                onUpdated={updateAnalysis}
+              />
             </CardContent>
           </Card>
         )}
+
+      {/* AI analysis CTA — bottom (rigenera) */}
+      <AnalysisCta
+        importId={importId}
+        hasAnalyses={hasAnyAnalysis}
+        position="bottom"
+        onGenerated={loadAnalyses}
+        compareParams={compareParams}
+      />
     </div>
   );
 }
@@ -1167,12 +1289,16 @@ function CampaignTypesPanel({
   assignments,
   currency,
   onOverridesSaved,
+  analysis,
+  onAnalysisUpdated,
 }: {
   importId: string;
   breakdown: CampaignTypeBreakdown[];
   assignments: CampaignTypeAssignment[];
   currency: string | null;
   onOverridesSaved: () => void;
+  analysis: SectionAnalysis | null;
+  onAnalysisUpdated: (next: SectionAnalysis | null) => void;
 }) {
   const { t } = useT();
   const [editing, setEditing] = useState(false);
@@ -1361,6 +1487,13 @@ function CampaignTypesPanel({
             </tbody>
           </table>
         </div>
+
+        <AnalysisBlock
+          importId={importId}
+          section="campaignTypes"
+          analysis={analysis}
+          onUpdated={onAnalysisUpdated}
+        />
 
         {editing && (
           <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4 print:hidden">
