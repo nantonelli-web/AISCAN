@@ -101,7 +101,7 @@ export default async function ImportDashboardPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3 print:hidden">
         <DynamicBackLink
-          fallbackHref={`/adv-performance/${clientId}/${brandId}`}
+          fallbackHref={`/ads-analysis/${clientId}/${brandId}`}
           label={t("advPerformance", "backToImportsList").replace(
             "{brand}",
             brand.page_name,

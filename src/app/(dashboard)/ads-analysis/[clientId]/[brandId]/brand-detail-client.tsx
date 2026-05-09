@@ -240,7 +240,7 @@ export function BrandDetailClient({
                     <div className="flex items-center gap-1.5 shrink-0 print:hidden">
                       {!isFailed && (
                         <Link
-                          href={`/adv-performance/${clientId}/${brandId}/${imp.id}`}
+                          href={`/ads-analysis/${clientId}/${brandId}/${imp.id}`}
                           className="size-8 rounded-md border border-border grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted"
                           aria-label="Open dashboard"
                         >

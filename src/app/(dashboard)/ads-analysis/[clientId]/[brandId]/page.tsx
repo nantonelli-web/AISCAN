@@ -69,7 +69,7 @@ export default async function BrandPerfDetailPage({
   return (
     <div className="space-y-6">
       <DynamicBackLink
-        fallbackHref={`/adv-performance/${clientId}`}
+        fallbackHref={`/ads-analysis/${clientId}`}
         label={t("advPerformance", "backToBrands")}
       />
 

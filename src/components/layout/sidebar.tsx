@@ -58,6 +58,7 @@ const navGroups: NavGroup[] = [
       { href: "/library", key: "library", icon: Library, aliases: [] },
       { href: "/brands/compare", key: "compare", icon: GitCompareArrows, aliases: ["/brands/compare"] },
       { href: "/benchmarks", key: "benchmarks", icon: Target, aliases: [] },
+      { href: "/ads-analysis", key: "advPerformance", icon: TrendingUp, aliases: [] },
     ],
   },
   {
@@ -65,7 +66,6 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/collections", key: "collections", icon: FolderHeart, aliases: [] },
       { href: "/report", key: "report", icon: FileText, aliases: [] },
-      { href: "/adv-performance", key: "advPerformance", icon: TrendingUp, aliases: [] },
     ],
   },
   {

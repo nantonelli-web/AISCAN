@@ -99,7 +99,7 @@ export default async function ClientBrandPickerPage({
   return (
     <div className="space-y-6">
       <DynamicBackLink
-        fallbackHref="/adv-performance"
+        fallbackHref="/ads-analysis"
         label={t("advPerformance", "title")}
       />
 
@@ -200,7 +200,7 @@ export default async function ClientBrandPickerPage({
             {enriched.map((b) => (
               <Link
                 key={b.id}
-                href={`/adv-performance/${clientId}/${b.id}`}
+                href={`/ads-analysis/${clientId}/${b.id}`}
                 className="block group"
               >
                 <Card className="h-full hover:border-gold/50 hover:shadow-md transition-all relative overflow-hidden">
