@@ -488,7 +488,7 @@ export function ReportBuilder({
             {/* Adv Performance e' un modulo separato (upload + dashboard
                 interattivo). Da qui linko alla sua landing — niente
                 stato condiviso col flusso PPTX/PDF. */}
-            <Link href="/ads-analysis">
+            <Link href="/adv-performance">
               <Button variant="outline" size="sm">
                 {t("advPerformance", "title")}
               </Button>

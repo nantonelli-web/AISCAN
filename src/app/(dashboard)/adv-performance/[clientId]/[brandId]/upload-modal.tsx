@@ -188,7 +188,7 @@ export function UploadModal({
       // Success — go directly to dashboard
       toast.success(t("advPerformance", "saved"));
       router.push(
-        `/ads-analysis/${clientId}/${brandId}/${importJson.import_id}`,
+        `/adv-performance/${clientId}/${brandId}/${importJson.import_id}`,
       );
       router.refresh();
       onClose();

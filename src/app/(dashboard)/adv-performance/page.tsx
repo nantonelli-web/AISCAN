@@ -276,7 +276,7 @@ export default async function AdvPerformancePage() {
               return (
                 <Link
                   key={c.id}
-                  href={`/ads-analysis/${c.id}`}
+                  href={`/adv-performance/${c.id}`}
                   className="block group"
                 >
                   <Card className="h-full hover:border-gold/50 hover:shadow-md transition-all relative overflow-hidden">

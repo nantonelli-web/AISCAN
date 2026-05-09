@@ -58,7 +58,7 @@ const navGroups: NavGroup[] = [
       { href: "/library", key: "library", icon: Library, aliases: [] },
       { href: "/brands/compare", key: "compare", icon: GitCompareArrows, aliases: ["/brands/compare"] },
       { href: "/benchmarks", key: "benchmarks", icon: Target, aliases: [] },
-      { href: "/ads-analysis", key: "advPerformance", icon: TrendingUp, aliases: [] },
+      { href: "/adv-performance", key: "advPerformance", icon: TrendingUp, aliases: [] },
     ],
   },
   {
