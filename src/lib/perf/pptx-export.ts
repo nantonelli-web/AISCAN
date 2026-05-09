@@ -14,6 +14,9 @@
  * PowerPoint / Google Slides).
  *
  * Lib: pptxgenjs (~200KB, server-side, no deps esterne).
+ *
+ * Layout: 16:9 widescreen 13.333" x 7.5" (default moderno
+ * PowerPoint). Tutte le posizioni si riferiscono a questa area.
  */
 
 import PptxGenJS from "pptxgenjs";
@@ -30,9 +33,20 @@ interface BuildOptions {
   analyses: AnalysisRow[];
   clientName: string;
   brandName: string;
-  /** Channel canonical key per il pill colorato. */
   channel: "meta" | "snapchat" | "google" | "tiktok";
 }
+
+/* ─── Layout geometry ──────────────────────────────────── */
+
+const SLIDE_W = 13.333;
+const SLIDE_H = 7.5;
+const MARGIN = 0.5;
+const INNER_W = SLIDE_W - 2 * MARGIN; // 12.333
+const HEADER_TOP = 0.3;
+const TITLE_TOP = 0.65;
+const DIVIDER_Y = 1.25;
+const CONTENT_TOP = 1.5;
+const CONTENT_BOTTOM = 7.2;
 
 const COLORS = {
   gold: "D9A82F",
@@ -47,6 +61,7 @@ const COLORS = {
   border: "E5E7EB",
   bgLight: "F9FAFB",
   white: "FFFFFF",
+  violet: "8B5CF6",
 } as const;
 
 const CHANNEL_LABEL: Record<string, { name: string; color: string }> = {
@@ -82,7 +97,6 @@ function fmtMoney(n: number | null | undefined, currency: string | null): string
   return currency ? `${v} ${currency}` : v;
 }
 
-/** Trasforma un paragrafo con **bold** in array di runs pptx. */
 function inlineRuns(text: string): { text: string; options?: { bold?: boolean } }[] {
   const parts = text.split(/(\*\*[^*]+\*\*)/g).filter((p) => p !== "");
   return parts.map((p) => {
@@ -93,8 +107,6 @@ function inlineRuns(text: string): { text: string; options?: { bold?: boolean } 
   });
 }
 
-/** Trasforma il content del modello in array di "blocchi" pptx
- *  testuali, con runs per il bold + bullet per le liste. */
 function buildTextRuns(content: string) {
   const blocks = content.trim().split(/\n{2,}/);
   const out: PptxGenJS.TextProps[] = [];
@@ -132,7 +144,6 @@ function buildTextRuns(content: string) {
       });
     }
     if (idx < blocks.length - 1) {
-      // Paragraph break
       out.push({ text: "", options: { breakLine: true } });
     }
   });
@@ -155,87 +166,112 @@ interface BuildContext {
 
 function addHeader(slide: PptxGenJS.Slide, ctx: BuildContext, title: string) {
   const ch = CHANNEL_LABEL[ctx.o.channel] ?? CHANNEL_LABEL.meta;
+
+  // Eyebrow: cliente · brand (top-left)
   slide.addText(
     [
       {
         text: ctx.o.clientName,
         options: { bold: true, color: COLORS.text },
       },
-      {
-        text: " · ",
-        options: { color: COLORS.muted },
-      },
-      {
-        text: ctx.o.brandName,
-        options: { color: COLORS.text },
-      },
+      { text: " · ", options: { color: COLORS.muted } },
+      { text: ctx.o.brandName, options: { color: COLORS.text } },
     ],
     {
-      x: 0.4,
-      y: 0.25,
-      w: 6,
+      x: MARGIN,
+      y: HEADER_TOP,
+      w: 8,
       h: 0.3,
       fontSize: 10,
       fontFace: "Calibri",
     },
   );
+
+  // Channel pill (top-right)
+  const pillW = 1.6;
   slide.addText(ch.name, {
-    x: 8.5,
-    y: 0.2,
-    w: 1.2,
-    h: 0.35,
-    fontSize: 10,
+    x: SLIDE_W - MARGIN - pillW,
+    y: HEADER_TOP - 0.03,
+    w: pillW,
+    h: 0.36,
+    fontSize: 11,
     fontFace: "Calibri",
     bold: true,
     color: ch.color,
     align: "center",
     valign: "middle",
-    fill: { color: ch.color, transparency: 90 },
+    fill: { color: ch.color, transparency: 88 },
+    rectRadius: 0.05,
   });
+
+  // Title
   slide.addText(title.toUpperCase(), {
-    x: 0.4,
-    y: 0.6,
-    w: 9.2,
+    x: MARGIN,
+    y: TITLE_TOP,
+    w: INNER_W,
     h: 0.5,
-    fontSize: 18,
+    fontSize: 22,
     bold: true,
     color: COLORS.text,
     fontFace: "Calibri",
+    charSpacing: 30,
   });
-  // Bottom divider
+
+  // Divider
   slide.addShape("rect" as never, {
-    x: 0.4,
-    y: 1.15,
-    w: 9.2,
+    x: MARGIN,
+    y: DIVIDER_Y,
+    w: INNER_W,
     h: 0.02,
     fill: { color: COLORS.border },
     line: { color: COLORS.border, width: 0 },
   });
 }
 
+interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 function addAnalysisBox(
   slide: PptxGenJS.Slide,
   analysis: AnalysisRow | null,
-  area: { x: number; y: number; w: number; h: number },
+  area: Box,
 ) {
   if (!analysis || !analysis.content) return;
-  // Etichetta "ANALISI AI"
-  slide.addText("ANALISI AI", {
+
+  // Background sottile violet per delimitare l'analisi.
+  slide.addShape("roundRect" as never, {
     x: area.x,
     y: area.y,
+    w: area.w,
+    h: area.h,
+    rectRadius: 0.06,
+    fill: { color: COLORS.violet, transparency: 95 },
+    line: { color: COLORS.violet, width: 0.5, transparency: 70 },
+  });
+
+  // Etichetta
+  slide.addText("ANALISI AI", {
+    x: area.x + 0.18,
+    y: area.y + 0.1,
     w: 2,
     h: 0.25,
     fontSize: 8,
     bold: true,
-    color: "8A6BB0",
+    color: COLORS.violet,
     fontFace: "Calibri",
-    charSpacing: 50,
+    charSpacing: 80,
   });
+
+  // Body
   slide.addText(buildTextRuns(analysis.content), {
-    x: area.x,
-    y: area.y + 0.3,
-    w: area.w,
-    h: area.h - 0.3,
+    x: area.x + 0.18,
+    y: area.y + 0.42,
+    w: area.w - 0.36,
+    h: area.h - 0.55,
     fontSize: 10,
     fontFace: "Calibri",
     color: COLORS.text,
@@ -244,130 +280,203 @@ function addAnalysisBox(
   });
 }
 
+/* ─── Cover slide ──────────────────────────────────────── */
+
 function buildCover(ctx: BuildContext) {
   const slide = ctx.pres.addSlide();
   slide.background = { color: COLORS.white };
   const ch = CHANNEL_LABEL[ctx.o.channel] ?? CHANNEL_LABEL.meta;
-  // Top-left brand mark (gradient bar)
+
+  // Top accent bar
   slide.addShape("rect" as never, {
     x: 0,
     y: 0,
-    w: 10,
-    h: 0.15,
+    w: SLIDE_W,
+    h: 0.18,
     fill: { color: COLORS.gold },
     line: { color: COLORS.gold, width: 0 },
   });
+
   slide.addText("ADV PERFORMANCE REPORT", {
-    x: 0.6,
-    y: 1.2,
-    w: 8.8,
-    h: 0.4,
-    fontSize: 12,
+    x: 0.8,
+    y: 1.4,
+    w: SLIDE_W - 1.6,
+    h: 0.5,
+    fontSize: 14,
     bold: true,
     color: COLORS.muted,
     fontFace: "Calibri",
-    charSpacing: 80,
+    charSpacing: 100,
   });
   slide.addText(ctx.o.brandName, {
-    x: 0.6,
-    y: 1.7,
-    w: 8.8,
-    h: 1.2,
-    fontSize: 44,
+    x: 0.8,
+    y: 2.0,
+    w: SLIDE_W - 1.6,
+    h: 1.4,
+    fontSize: 56,
     bold: true,
     color: COLORS.text,
     fontFace: "Calibri",
   });
   slide.addText(ctx.o.clientName, {
-    x: 0.6,
-    y: 2.95,
-    w: 8.8,
+    x: 0.8,
+    y: 3.5,
+    w: SLIDE_W - 1.6,
     h: 0.5,
-    fontSize: 18,
+    fontSize: 22,
     color: COLORS.muted,
     fontFace: "Calibri",
   });
-  // Channel + period card
+
+  // Two info boxes side-by-side (channel + period)
+  const boxW = 5.5;
+  const boxH = 1.5;
+  const boxY = 4.6;
+  const gap = 0.5;
+  const totalW = 2 * boxW + gap;
+  const startX = (SLIDE_W - totalW) / 2;
+
+  // Channel box
   slide.addShape("roundRect" as never, {
-    x: 0.6,
-    y: 3.8,
-    w: 4.2,
-    h: 1.4,
+    x: startX,
+    y: boxY,
+    w: boxW,
+    h: boxH,
     rectRadius: 0.1,
     fill: { color: ch.color, transparency: 92 },
-    line: { color: ch.color, width: 0.5, transparency: 80 },
+    line: { color: ch.color, width: 0.7, transparency: 75 },
   });
   slide.addText("CANALE", {
-    x: 0.85,
-    y: 3.95,
-    w: 3.5,
+    x: startX + 0.3,
+    y: boxY + 0.2,
+    w: boxW - 0.6,
     h: 0.3,
-    fontSize: 8,
+    fontSize: 9,
     bold: true,
     color: COLORS.muted,
     fontFace: "Calibri",
-    charSpacing: 50,
+    charSpacing: 100,
   });
   slide.addText(ch.name, {
-    x: 0.85,
-    y: 4.2,
-    w: 3.5,
-    h: 0.5,
-    fontSize: 22,
+    x: startX + 0.3,
+    y: boxY + 0.55,
+    w: boxW - 0.6,
+    h: 0.7,
+    fontSize: 28,
     bold: true,
     color: ch.color,
     fontFace: "Calibri",
   });
+
+  // Period box
+  const periodX = startX + boxW + gap;
   slide.addShape("roundRect" as never, {
-    x: 5,
-    y: 3.8,
-    w: 4.4,
-    h: 1.4,
+    x: periodX,
+    y: boxY,
+    w: boxW,
+    h: boxH,
     rectRadius: 0.1,
     fill: { color: COLORS.gold, transparency: 92 },
-    line: { color: COLORS.gold, width: 0.5, transparency: 80 },
+    line: { color: COLORS.gold, width: 0.7, transparency: 75 },
   });
   slide.addText("PERIODO", {
-    x: 5.25,
-    y: 3.95,
-    w: 4,
+    x: periodX + 0.3,
+    y: boxY + 0.2,
+    w: boxW - 0.6,
     h: 0.3,
-    fontSize: 8,
+    fontSize: 9,
     bold: true,
     color: COLORS.muted,
     fontFace: "Calibri",
-    charSpacing: 50,
+    charSpacing: 100,
   });
   slide.addText(`${ctx.o.data.periodFrom} → ${ctx.o.data.periodTo}`, {
-    x: 5.25,
-    y: 4.2,
-    w: 4,
+    x: periodX + 0.3,
+    y: boxY + 0.55,
+    w: boxW - 0.6,
     h: 0.5,
-    fontSize: 18,
+    fontSize: 22,
     bold: true,
     color: COLORS.text,
     fontFace: "Calibri",
   });
   if (ctx.o.data.currency) {
     slide.addText(`Valuta: ${ctx.o.data.currency}`, {
-      x: 5.25,
-      y: 4.7,
-      w: 4,
+      x: periodX + 0.3,
+      y: boxY + 1.05,
+      w: boxW - 0.6,
       h: 0.3,
-      fontSize: 11,
+      fontSize: 12,
       color: COLORS.muted,
       fontFace: "Calibri",
     });
   }
+
   // Footer
   slide.addText("Generato da AISCAN", {
-    x: 0.6,
-    y: 7,
-    w: 8.8,
+    x: 0.8,
+    y: SLIDE_H - 0.5,
+    w: SLIDE_W - 1.6,
     h: 0.3,
-    fontSize: 9,
+    fontSize: 10,
     color: COLORS.muted,
     fontFace: "Calibri",
+    align: "center",
+  });
+}
+
+/* ─── KPI grid (overview) ─────────────────────────────── */
+
+interface KpiCard {
+  label: string;
+  value: string;
+  color: string;
+}
+
+function addKpiGrid(slide: PptxGenJS.Slide, cards: KpiCard[], area: Box) {
+  const cols = cards.length <= 3 ? cards.length : 4;
+  const rows = Math.ceil(cards.length / cols);
+  const gap = 0.18;
+  const cardW = (area.w - gap * (cols - 1)) / cols;
+  const cardH = (area.h - gap * (rows - 1)) / rows;
+
+  cards.forEach((c, i) => {
+    const r = Math.floor(i / cols);
+    const col = i % cols;
+    const x = area.x + col * (cardW + gap);
+    const y = area.y + r * (cardH + gap);
+
+    slide.addShape("roundRect" as never, {
+      x,
+      y,
+      w: cardW,
+      h: cardH,
+      rectRadius: 0.08,
+      fill: { color: c.color, transparency: 92 },
+      line: { color: c.color, width: 0.6, transparency: 75 },
+    });
+    slide.addText(c.label.toUpperCase(), {
+      x: x + 0.18,
+      y: y + 0.15,
+      w: cardW - 0.36,
+      h: 0.28,
+      fontSize: 9,
+      bold: true,
+      color: COLORS.muted,
+      fontFace: "Calibri",
+      charSpacing: 80,
+    });
+    slide.addText(c.value, {
+      x: x + 0.18,
+      y: y + 0.46,
+      w: cardW - 0.36,
+      h: cardH - 0.6,
+      fontSize: 22,
+      bold: true,
+      color: COLORS.text,
+      fontFace: "Calibri",
+      valign: "middle",
+    });
   });
 }
 
@@ -376,71 +485,43 @@ function buildOverview(ctx: BuildContext) {
   addHeader(slide, ctx, "Panoramica metriche");
   const k = ctx.o.data.current;
   const cur = ctx.o.data.currency;
-  const cards: { label: string; value: string; color: string }[] = [
-    {
-      label: "Spesa",
-      value: fmtMoney(k.amountSpent, cur),
-      color: COLORS.gold,
-    },
+  const cards: KpiCard[] = [
+    { label: "Spesa", value: fmtMoney(k.amountSpent, cur), color: COLORS.gold },
     { label: "Impressioni", value: fmtNum(k.impressions), color: COLORS.blue },
     { label: "Click", value: fmtNum(k.effectiveClicks), color: COLORS.blue },
     { label: "Reach", value: fmtNum(k.reach), color: COLORS.purple },
     {
       label: "CTR",
-      value: k.effectiveCtr != null ? `${fmtNum(k.effectiveCtr, { decimals: 2 })}%` : "—",
+      value:
+        k.effectiveCtr != null
+          ? `${fmtNum(k.effectiveCtr, { decimals: 2 })}%`
+          : "—",
       color: COLORS.green,
     },
     { label: "CPM", value: fmtMoney(k.cpm, cur), color: COLORS.amber },
     { label: "CPC", value: fmtMoney(k.effectiveCpc, cur), color: COLORS.amber },
-    { label: "Frequenza", value: fmtNum(k.frequency, { decimals: 2 }), color: COLORS.purple },
+    {
+      label: "Frequenza",
+      value: fmtNum(k.frequency, { decimals: 2 }),
+      color: COLORS.purple,
+    },
   ];
-  // 4 colonne x 2 righe — area: x 0.4-9.6 (9.2), y 1.4-3.6 (2.2)
-  const cols = 4;
-  const rows = Math.ceil(cards.length / cols);
-  const cardW = 9.2 / cols - 0.1;
-  const cardH = 2.2 / rows - 0.1;
-  cards.forEach((c, i) => {
-    const r = Math.floor(i / cols);
-    const col = i % cols;
-    const x = 0.4 + col * (cardW + 0.13);
-    const y = 1.4 + r * (cardH + 0.13);
-    slide.addShape("roundRect" as never, {
-      x,
-      y,
-      w: cardW,
-      h: cardH,
-      rectRadius: 0.05,
-      fill: { color: c.color, transparency: 92 },
-      line: { color: c.color, width: 0.5, transparency: 80 },
-    });
-    slide.addText(c.label.toUpperCase(), {
-      x: x + 0.15,
-      y: y + 0.1,
-      w: cardW - 0.3,
-      h: 0.25,
-      fontSize: 8,
-      bold: true,
-      color: COLORS.muted,
-      fontFace: "Calibri",
-      charSpacing: 50,
-    });
-    slide.addText(c.value, {
-      x: x + 0.15,
-      y: y + 0.4,
-      w: cardW - 0.3,
-      h: cardH - 0.5,
-      fontSize: 18,
-      bold: true,
-      color: COLORS.text,
-      fontFace: "Calibri",
-      valign: "middle",
-    });
-  });
+
+  // KPI grid in alto (2 righe x 4 colonne, ~2.6" altezza totale)
+  const kpiArea: Box = {
+    x: MARGIN,
+    y: CONTENT_TOP,
+    w: INNER_W,
+    h: 2.6,
+  };
+  addKpiGrid(slide, cards, kpiArea);
+
+  // Analysis sotto
   addAnalysisBox(slide, findAnalysis(ctx.o.analyses, "overview"), {
-    x: 0.4,
-    y: 3.85,
-    w: 9.2,
-    h: 3.5,
+    x: MARGIN,
+    y: kpiArea.y + kpiArea.h + 0.25,
+    w: INNER_W,
+    h: CONTENT_BOTTOM - (kpiArea.y + kpiArea.h + 0.25),
   });
 }
 
@@ -450,58 +531,31 @@ function buildPurchases(ctx: BuildContext) {
   const slide = ctx.pres.addSlide();
   addHeader(slide, ctx, "Acquisti & ROI");
   const cur = ctx.o.data.currency;
-  const cards = [
-    { label: "Acquisti", value: fmtNum(k.purchases) },
+  const cards: KpiCard[] = [
+    { label: "Acquisti", value: fmtNum(k.purchases), color: COLORS.green },
     {
       label: "Costo per acquisto",
       value: fmtMoney(k.costPerPurchase, cur),
+      color: COLORS.amber,
     },
     {
       label: "ROAS",
       value: fmtNum(k.roas ?? 0, { decimals: 2 }),
+      color: COLORS.green,
     },
   ];
-  const cardW = 2.9;
-  const cardH = 1.2;
-  cards.forEach((c, i) => {
-    const x = 0.4 + i * (cardW + 0.15);
-    slide.addShape("roundRect" as never, {
-      x,
-      y: 1.4,
-      w: cardW,
-      h: cardH,
-      rectRadius: 0.05,
-      fill: { color: COLORS.green, transparency: 92 },
-      line: { color: COLORS.green, width: 0.5, transparency: 80 },
-    });
-    slide.addText(c.label.toUpperCase(), {
-      x: x + 0.15,
-      y: 1.5,
-      w: cardW - 0.3,
-      h: 0.25,
-      fontSize: 8,
-      bold: true,
-      color: COLORS.muted,
-      fontFace: "Calibri",
-      charSpacing: 50,
-    });
-    slide.addText(c.value, {
-      x: x + 0.15,
-      y: 1.8,
-      w: cardW - 0.3,
-      h: 0.7,
-      fontSize: 22,
-      bold: true,
-      color: COLORS.text,
-      fontFace: "Calibri",
-      valign: "middle",
-    });
-  });
+  const kpiArea: Box = {
+    x: MARGIN,
+    y: CONTENT_TOP,
+    w: INNER_W,
+    h: 1.4,
+  };
+  addKpiGrid(slide, cards, kpiArea);
   addAnalysisBox(slide, findAnalysis(ctx.o.analyses, "purchases"), {
-    x: 0.4,
-    y: 2.85,
-    w: 9.2,
-    h: 4.5,
+    x: MARGIN,
+    y: kpiArea.y + kpiArea.h + 0.3,
+    w: INNER_W,
+    h: CONTENT_BOTTOM - (kpiArea.y + kpiArea.h + 0.3),
   });
 }
 
@@ -516,54 +570,39 @@ function buildEngagement(ctx: BuildContext) {
   }
   const slide = ctx.pres.addSlide();
   addHeader(slide, ctx, "Engagement & Social");
-  const cards = [
-    { label: "Post engagement", value: fmtNum(k.postEngagements) },
-    { label: "Visite profilo IG", value: fmtNum(k.instagramProfileVisits) },
-    { label: "Follow IG", value: fmtNum(k.instagramFollows) },
+  const cards: KpiCard[] = [
+    {
+      label: "Post engagement",
+      value: fmtNum(k.postEngagements),
+      color: COLORS.rose,
+    },
+    {
+      label: "Visite profilo IG",
+      value: fmtNum(k.instagramProfileVisits),
+      color: COLORS.purple,
+    },
+    {
+      label: "Follow IG",
+      value: fmtNum(k.instagramFollows),
+      color: COLORS.rose,
+    },
   ];
-  const cardW = 2.9;
-  const cardH = 1.2;
-  cards.forEach((c, i) => {
-    const x = 0.4 + i * (cardW + 0.15);
-    slide.addShape("roundRect" as never, {
-      x,
-      y: 1.4,
-      w: cardW,
-      h: cardH,
-      rectRadius: 0.05,
-      fill: { color: COLORS.rose, transparency: 92 },
-      line: { color: COLORS.rose, width: 0.5, transparency: 80 },
-    });
-    slide.addText(c.label.toUpperCase(), {
-      x: x + 0.15,
-      y: 1.5,
-      w: cardW - 0.3,
-      h: 0.25,
-      fontSize: 8,
-      bold: true,
-      color: COLORS.muted,
-      fontFace: "Calibri",
-      charSpacing: 50,
-    });
-    slide.addText(c.value, {
-      x: x + 0.15,
-      y: 1.8,
-      w: cardW - 0.3,
-      h: 0.7,
-      fontSize: 22,
-      bold: true,
-      color: COLORS.text,
-      fontFace: "Calibri",
-      valign: "middle",
-    });
-  });
+  const kpiArea: Box = {
+    x: MARGIN,
+    y: CONTENT_TOP,
+    w: INNER_W,
+    h: 1.4,
+  };
+  addKpiGrid(slide, cards, kpiArea);
   addAnalysisBox(slide, findAnalysis(ctx.o.analyses, "engagement"), {
-    x: 0.4,
-    y: 2.85,
-    w: 9.2,
-    h: 4.5,
+    x: MARGIN,
+    y: kpiArea.y + kpiArea.h + 0.3,
+    w: INNER_W,
+    h: CONTENT_BOTTOM - (kpiArea.y + kpiArea.h + 0.3),
   });
 }
+
+/* ─── Time series ─────────────────────────────────────── */
 
 function buildTimeSeries(ctx: BuildContext) {
   if (ctx.o.data.timeSeries.length === 0) return;
@@ -572,6 +611,12 @@ function buildTimeSeries(ctx: BuildContext) {
   const labels = ctx.o.data.timeSeries.map((p) => p.date);
   const spend = ctx.o.data.timeSeries.map((p) => p.spend);
   const imp = ctx.o.data.timeSeries.map((p) => p.impressions);
+
+  // Combo chart: bar (spend) primary axis + line (impressions)
+  // secondary axis. pptxgenjs ChartType.bar / .line / .line3D —
+  // per il dual-axis usiamo ChartType.bar con un single series e
+  // un secondo addChart line sotto. Cosi e' piu' leggibile e
+  // garantisce che il rendering sia coerente in PowerPoint Web.
   slide.addChart(
     ctx.pres.ChartType.bar,
     [
@@ -582,16 +627,16 @@ function buildTimeSeries(ctx: BuildContext) {
       },
     ],
     {
-      x: 0.4,
-      y: 1.4,
-      w: 9.2,
-      h: 3.0,
+      x: MARGIN,
+      y: CONTENT_TOP,
+      w: INNER_W,
+      h: 2.3,
       barDir: "col",
       chartColors: [COLORS.gold],
-      catAxisLabelFontSize: 8,
-      valAxisLabelFontSize: 8,
+      catAxisLabelFontSize: 9,
+      valAxisLabelFontSize: 9,
       showLegend: true,
-      legendFontSize: 9,
+      legendFontSize: 10,
       legendPos: "t",
       catAxisLabelRotate: -30,
     },
@@ -606,26 +651,29 @@ function buildTimeSeries(ctx: BuildContext) {
       },
     ],
     {
-      x: 0.4,
-      y: 4.5,
-      w: 9.2,
-      h: 1.2,
+      x: MARGIN,
+      y: CONTENT_TOP + 2.4,
+      w: INNER_W,
+      h: 1.6,
       chartColors: [COLORS.blue],
-      catAxisLabelFontSize: 7,
-      valAxisLabelFontSize: 7,
+      catAxisLabelFontSize: 8,
+      valAxisLabelFontSize: 8,
       showLegend: true,
-      legendFontSize: 8,
+      legendFontSize: 9,
       legendPos: "t",
       lineSize: 2,
+      catAxisLabelRotate: -30,
     },
   );
   addAnalysisBox(slide, findAnalysis(ctx.o.analyses, "timeSeries"), {
-    x: 0.4,
-    y: 5.8,
-    w: 9.2,
-    h: 1.6,
+    x: MARGIN,
+    y: CONTENT_TOP + 4.1,
+    w: INNER_W,
+    h: CONTENT_BOTTOM - (CONTENT_TOP + 4.1),
   });
 }
+
+/* ─── Top campaigns ───────────────────────────────────── */
 
 function buildTopCampaigns(ctx: BuildContext) {
   if (ctx.o.data.topByCampaignSpend.length === 0) return;
@@ -635,39 +683,46 @@ function buildTopCampaigns(ctx: BuildContext) {
   const top = ctx.o.data.topByCampaignSpend.slice(0, 10);
   const tableRows: PptxGenJS.TableRow[] = [
     [
-      { text: "CAMPAGNA", options: { bold: true, fontSize: 9, color: COLORS.muted } },
-      { text: "SPESA", options: { bold: true, fontSize: 9, color: COLORS.muted, align: "right" } },
-      { text: "IMPR.", options: { bold: true, fontSize: 9, color: COLORS.muted, align: "right" } },
-      { text: "CLICK", options: { bold: true, fontSize: 9, color: COLORS.muted, align: "right" } },
-      { text: "ROAS", options: { bold: true, fontSize: 9, color: COLORS.muted, align: "right" } },
+      { text: "CAMPAGNA", options: { bold: true, fontSize: 10, color: COLORS.muted, fill: { color: COLORS.bgLight } } },
+      { text: "SPESA", options: { bold: true, fontSize: 10, color: COLORS.muted, align: "right", fill: { color: COLORS.bgLight } } },
+      { text: "IMPRESSIONI", options: { bold: true, fontSize: 10, color: COLORS.muted, align: "right", fill: { color: COLORS.bgLight } } },
+      { text: "CLICK", options: { bold: true, fontSize: 10, color: COLORS.muted, align: "right", fill: { color: COLORS.bgLight } } },
+      { text: "ROAS", options: { bold: true, fontSize: 10, color: COLORS.muted, align: "right", fill: { color: COLORS.bgLight } } },
     ],
     ...top.map((c) => [
-      { text: c.campaign_name, options: { fontSize: 9 } },
-      { text: fmtMoney(c.spend, cur), options: { fontSize: 9, align: "right" as const } },
-      { text: fmtNum(c.impressions), options: { fontSize: 9, align: "right" as const } },
-      { text: fmtNum(c.clicks), options: { fontSize: 9, align: "right" as const } },
+      { text: c.campaign_name, options: { fontSize: 10 } },
+      { text: fmtMoney(c.spend, cur), options: { fontSize: 10, align: "right" as const } },
+      { text: fmtNum(c.impressions), options: { fontSize: 10, align: "right" as const } },
+      { text: fmtNum(c.clicks), options: { fontSize: 10, align: "right" as const } },
       {
         text: c.roas != null ? fmtNum(c.roas, { decimals: 2 }) : "—",
-        options: { fontSize: 9, align: "right" as const },
+        options: { fontSize: 10, align: "right" as const },
       },
     ]),
   ];
   slide.addTable(tableRows, {
-    x: 0.4,
-    y: 1.4,
-    w: 9.2,
-    colW: [3.4, 1.6, 1.4, 1.4, 1.4],
+    x: MARGIN,
+    y: CONTENT_TOP,
+    w: INNER_W,
+    colW: [INNER_W * 0.42, INNER_W * 0.16, INNER_W * 0.16, INNER_W * 0.13, INNER_W * 0.13],
     border: { type: "solid", pt: 0.5, color: COLORS.border },
     fontFace: "Calibri",
     color: COLORS.text,
+    rowH: 0.32,
   });
+
+  // Calcolo y dell'analisi in base a quante righe ha la tabella
+  const tableH = 0.32 * (top.length + 1) + 0.1;
+  const aY = Math.min(CONTENT_TOP + tableH + 0.3, 5.2);
   addAnalysisBox(slide, findAnalysis(ctx.o.analyses, "topCampaigns"), {
-    x: 0.4,
-    y: 4.6,
-    w: 9.2,
-    h: 2.8,
+    x: MARGIN,
+    y: aY,
+    w: INNER_W,
+    h: CONTENT_BOTTOM - aY,
   });
 }
+
+/* ─── Country breakdown ───────────────────────────────── */
 
 function buildCountries(ctx: BuildContext) {
   const cs = ctx.o.data.countries;
@@ -677,18 +732,19 @@ function buildCountries(ctx: BuildContext) {
   const cur = ctx.o.data.currency;
   const totalSpend = cs.reduce((s, c) => s + c.spend, 0);
   const showPurch = cs.some((c) => c.purchases > 0);
+
   const headerRow: PptxGenJS.TableCell[] = [
-    { text: "PAESE", options: { bold: true, fontSize: 9, color: COLORS.muted } },
-    { text: "CAMP.", options: { bold: true, fontSize: 9, color: COLORS.muted, align: "right" } },
-    { text: "SPESA", options: { bold: true, fontSize: 9, color: COLORS.muted, align: "right" } },
-    { text: "%", options: { bold: true, fontSize: 9, color: COLORS.muted, align: "right" } },
-    { text: "IMPR.", options: { bold: true, fontSize: 9, color: COLORS.muted, align: "right" } },
-    { text: "CLICK", options: { bold: true, fontSize: 9, color: COLORS.muted, align: "right" } },
+    { text: "PAESE", options: { bold: true, fontSize: 10, color: COLORS.muted, fill: { color: COLORS.bgLight } } },
+    { text: "CAMPAGNE", options: { bold: true, fontSize: 10, color: COLORS.muted, align: "right", fill: { color: COLORS.bgLight } } },
+    { text: "SPESA", options: { bold: true, fontSize: 10, color: COLORS.muted, align: "right", fill: { color: COLORS.bgLight } } },
+    { text: "% SPESA", options: { bold: true, fontSize: 10, color: COLORS.muted, align: "right", fill: { color: COLORS.bgLight } } },
+    { text: "IMPRESSIONI", options: { bold: true, fontSize: 10, color: COLORS.muted, align: "right", fill: { color: COLORS.bgLight } } },
+    { text: "CLICK", options: { bold: true, fontSize: 10, color: COLORS.muted, align: "right", fill: { color: COLORS.bgLight } } },
   ];
   if (showPurch) {
     headerRow.push({
-      text: "ACQ.",
-      options: { bold: true, fontSize: 9, color: COLORS.muted, align: "right" },
+      text: "ACQUISTI",
+      options: { bold: true, fontSize: 10, color: COLORS.muted, align: "right", fill: { color: COLORS.bgLight } },
     });
   }
   const rows: PptxGenJS.TableRow[] = [
@@ -696,37 +752,42 @@ function buildCountries(ctx: BuildContext) {
     ...cs.map((c) => {
       const pct = totalSpend > 0 ? (c.spend / totalSpend) * 100 : 0;
       const r: PptxGenJS.TableCell[] = [
-        { text: `${c.code} · ${c.label}`, options: { fontSize: 9 } },
-        { text: fmtNum(c.campaignCount), options: { fontSize: 9, align: "right" as const } },
-        { text: fmtMoney(c.spend, cur), options: { fontSize: 9, align: "right" as const } },
-        { text: `${fmtNum(pct, { decimals: 1 })}%`, options: { fontSize: 9, align: "right" as const } },
-        { text: fmtNum(c.impressions), options: { fontSize: 9, align: "right" as const } },
-        { text: fmtNum(c.clicks), options: { fontSize: 9, align: "right" as const } },
+        { text: `${c.code} · ${c.label}`, options: { fontSize: 10 } },
+        { text: fmtNum(c.campaignCount), options: { fontSize: 10, align: "right" as const } },
+        { text: fmtMoney(c.spend, cur), options: { fontSize: 10, align: "right" as const } },
+        { text: `${fmtNum(pct, { decimals: 1 })}%`, options: { fontSize: 10, align: "right" as const } },
+        { text: fmtNum(c.impressions), options: { fontSize: 10, align: "right" as const } },
+        { text: fmtNum(c.clicks), options: { fontSize: 10, align: "right" as const } },
       ];
       if (showPurch) {
         r.push({
           text: fmtNum(c.purchases),
-          options: { fontSize: 9, align: "right" as const },
+          options: { fontSize: 10, align: "right" as const, bold: c.purchases > 0 },
         });
       }
       return r;
     }),
   ];
   slide.addTable(rows, {
-    x: 0.4,
-    y: 1.4,
-    w: 9.2,
+    x: MARGIN,
+    y: CONTENT_TOP,
+    w: INNER_W,
     border: { type: "solid", pt: 0.5, color: COLORS.border },
     fontFace: "Calibri",
     color: COLORS.text,
+    rowH: 0.36,
   });
+  const tableH = 0.36 * (cs.length + 1) + 0.1;
+  const aY = Math.min(CONTENT_TOP + tableH + 0.3, 4.8);
   addAnalysisBox(slide, findAnalysis(ctx.o.analyses, "countries"), {
-    x: 0.4,
-    y: 4.4,
-    w: 9.2,
-    h: 3.0,
+    x: MARGIN,
+    y: aY,
+    w: INNER_W,
+    h: CONTENT_BOTTOM - aY,
   });
 }
+
+/* ─── Campaign types ──────────────────────────────────── */
 
 function buildCampaignTypes(ctx: BuildContext) {
   const ts = ctx.o.data.campaignTypes;
@@ -736,61 +797,63 @@ function buildCampaignTypes(ctx: BuildContext) {
   const cur = ctx.o.data.currency;
   const showPurch = ts.some((b) => b.purchases > 0);
   const head: PptxGenJS.TableCell[] = [
-    { text: "TIPO", options: { bold: true, fontSize: 9, color: COLORS.muted } },
-    { text: "CAMP.", options: { bold: true, fontSize: 9, color: COLORS.muted, align: "right" } },
-    { text: "SPESA", options: { bold: true, fontSize: 9, color: COLORS.muted, align: "right" } },
-    { text: "RISULT.", options: { bold: true, fontSize: 9, color: COLORS.muted, align: "right" } },
-    { text: "CPR", options: { bold: true, fontSize: 9, color: COLORS.muted, align: "right" } },
+    { text: "TIPO", options: { bold: true, fontSize: 10, color: COLORS.muted, fill: { color: COLORS.bgLight } } },
+    { text: "CAMPAGNE", options: { bold: true, fontSize: 10, color: COLORS.muted, align: "right", fill: { color: COLORS.bgLight } } },
+    { text: "SPESA", options: { bold: true, fontSize: 10, color: COLORS.muted, align: "right", fill: { color: COLORS.bgLight } } },
+    { text: "RISULTATI", options: { bold: true, fontSize: 10, color: COLORS.muted, align: "right", fill: { color: COLORS.bgLight } } },
+    { text: "CPR", options: { bold: true, fontSize: 10, color: COLORS.muted, align: "right", fill: { color: COLORS.bgLight } } },
   ];
   if (showPurch) {
     head.push({
-      text: "ACQ.",
-      options: { bold: true, fontSize: 9, color: COLORS.muted, align: "right" },
+      text: "ACQUISTI",
+      options: { bold: true, fontSize: 10, color: COLORS.muted, align: "right", fill: { color: COLORS.bgLight } },
     });
   }
   const tableRows: PptxGenJS.TableRow[] = [
     head,
     ...ts.map((b) => {
       const r: PptxGenJS.TableCell[] = [
-        {
-          text: `${b.code} · ${b.label}`,
-          options: { fontSize: 9 },
-        },
-        { text: fmtNum(b.campaignCount), options: { fontSize: 9, align: "right" as const } },
-        { text: fmtMoney(b.spend, cur), options: { fontSize: 9, align: "right" as const } },
+        { text: `${b.code} · ${b.label}`, options: { fontSize: 10, bold: true } },
+        { text: fmtNum(b.campaignCount), options: { fontSize: 10, align: "right" as const } },
+        { text: fmtMoney(b.spend, cur), options: { fontSize: 10, align: "right" as const } },
         {
           text: b.resultCount > 0 ? fmtNum(b.resultCount) : "—",
-          options: { fontSize: 9, align: "right" as const },
+          options: { fontSize: 10, align: "right" as const },
         },
         {
           text: b.cpr != null ? fmtMoney(b.cpr, cur) : "—",
-          options: { fontSize: 9, align: "right" as const },
+          options: { fontSize: 10, align: "right" as const },
         },
       ];
       if (showPurch) {
         r.push({
           text: b.purchases > 0 ? fmtNum(b.purchases) : "—",
-          options: { fontSize: 9, align: "right" as const },
+          options: { fontSize: 10, align: "right" as const, bold: b.purchases > 0 },
         });
       }
       return r;
     }),
   ];
   slide.addTable(tableRows, {
-    x: 0.4,
-    y: 1.4,
-    w: 9.2,
+    x: MARGIN,
+    y: CONTENT_TOP,
+    w: INNER_W,
     border: { type: "solid", pt: 0.5, color: COLORS.border },
     fontFace: "Calibri",
     color: COLORS.text,
+    rowH: 0.36,
   });
+  const tableH = 0.36 * (ts.length + 1) + 0.1;
+  const aY = Math.min(CONTENT_TOP + tableH + 0.3, 4.8);
   addAnalysisBox(slide, findAnalysis(ctx.o.analyses, "campaignTypes"), {
-    x: 0.4,
-    y: 4.4,
-    w: 9.2,
-    h: 3.0,
+    x: MARGIN,
+    y: aY,
+    w: INNER_W,
+    h: CONTENT_BOTTOM - aY,
   });
 }
+
+/* ─── Creatives ───────────────────────────────────────── */
 
 function buildCreatives(ctx: BuildContext) {
   const mix = ctx.o.data.creativeTypeMix;
@@ -798,6 +861,21 @@ function buildCreatives(ctx: BuildContext) {
   if (mix.length === 0 && counts.length === 0) return;
   const slide = ctx.pres.addSlide();
   addHeader(slide, ctx, "Distribuzione creativita'");
+
+  const colW = (INNER_W - 0.4) / 2;
+  const chartArea: Box = {
+    x: MARGIN,
+    y: CONTENT_TOP,
+    w: colW,
+    h: 3.5,
+  };
+  const tableArea: Box = {
+    x: MARGIN + colW + 0.4,
+    y: CONTENT_TOP,
+    w: colW,
+    h: 3.5,
+  };
+
   if (mix.length > 0) {
     slide.addChart(
       ctx.pres.ChartType.pie,
@@ -809,64 +887,80 @@ function buildCreatives(ctx: BuildContext) {
         },
       ],
       {
-        x: 0.4,
-        y: 1.4,
-        w: 4.4,
-        h: 3.0,
+        x: chartArea.x,
+        y: chartArea.y,
+        w: chartArea.w,
+        h: chartArea.h,
         chartColors: PIE_PALETTE,
         showLegend: true,
-        legendFontSize: 9,
+        legendFontSize: 10,
         legendPos: "b",
         showPercent: true,
-        dataLabelFontSize: 8,
+        dataLabelFontSize: 9,
         dataLabelColor: COLORS.white,
       },
     );
   }
+
   if (counts.length > 0) {
+    slide.addText(`Asset attivi / settimana (${ctx.o.data.creativeCountLabel})`, {
+      x: tableArea.x,
+      y: tableArea.y,
+      w: tableArea.w,
+      h: 0.35,
+      fontSize: 11,
+      bold: true,
+      color: COLORS.text,
+      fontFace: "Calibri",
+    });
     const head: PptxGenJS.TableCell[] = [
       {
         text: "TIPO",
-        options: { bold: true, fontSize: 9, color: COLORS.muted },
+        options: { bold: true, fontSize: 10, color: COLORS.muted, fill: { color: COLORS.bgLight } },
       },
       {
-        text: `ASSET / SETT. (${ctx.o.data.creativeCountLabel})`,
-        options: { bold: true, fontSize: 9, color: COLORS.muted, align: "right" },
+        text: "ASSET",
+        options: { bold: true, fontSize: 10, color: COLORS.muted, align: "right", fill: { color: COLORS.bgLight } },
       },
     ];
     const rows: PptxGenJS.TableRow[] = [
       head,
       ...counts.map((c) => [
-        { text: c.name, options: { fontSize: 10 } },
+        { text: c.name, options: { fontSize: 11 } },
         {
           text: fmtNum(c.count, { decimals: 1 }),
-          options: { fontSize: 11, align: "right" as const, bold: true },
+          options: { fontSize: 12, align: "right" as const, bold: true },
         },
       ]),
     ];
     slide.addTable(rows, {
-      x: 5.0,
-      y: 1.4,
-      w: 4.6,
-      colW: [2.6, 2.0],
+      x: tableArea.x,
+      y: tableArea.y + 0.5,
+      w: tableArea.w,
+      colW: [tableArea.w * 0.6, tableArea.w * 0.4],
       border: { type: "solid", pt: 0.5, color: COLORS.border },
       fontFace: "Calibri",
       color: COLORS.text,
+      rowH: 0.4,
     });
   }
+
   addAnalysisBox(slide, findAnalysis(ctx.o.analyses, "creatives"), {
-    x: 0.4,
-    y: 4.6,
-    w: 9.2,
-    h: 2.8,
+    x: MARGIN,
+    y: CONTENT_TOP + 3.7,
+    w: INNER_W,
+    h: CONTENT_BOTTOM - (CONTENT_TOP + 3.7),
   });
 }
+
+/* ─── Objective mix ───────────────────────────────────── */
 
 function buildObjective(ctx: BuildContext) {
   const om = ctx.o.data.objectiveMix;
   if (om.length === 0 || !om.some((o) => o.name && o.name !== "—")) return;
   const slide = ctx.pres.addSlide();
   addHeader(slide, ctx, "Distribuzione per obiettivo");
+  const chartW = 7;
   slide.addChart(
     ctx.pres.ChartType.pie,
     [
@@ -877,24 +971,24 @@ function buildObjective(ctx: BuildContext) {
       },
     ],
     {
-      x: 1.5,
-      y: 1.4,
-      w: 7,
-      h: 3.0,
+      x: (SLIDE_W - chartW) / 2,
+      y: CONTENT_TOP,
+      w: chartW,
+      h: 3.5,
       chartColors: PIE_PALETTE,
       showLegend: true,
-      legendFontSize: 10,
+      legendFontSize: 11,
       legendPos: "r",
       showPercent: true,
-      dataLabelFontSize: 9,
+      dataLabelFontSize: 10,
       dataLabelColor: COLORS.white,
     },
   );
   addAnalysisBox(slide, findAnalysis(ctx.o.analyses, "objective"), {
-    x: 0.4,
-    y: 4.6,
-    w: 9.2,
-    h: 2.8,
+    x: MARGIN,
+    y: CONTENT_TOP + 3.7,
+    w: INNER_W,
+    h: CONTENT_BOTTOM - (CONTENT_TOP + 3.7),
   });
 }
 
@@ -902,14 +996,17 @@ function buildObjective(ctx: BuildContext) {
 
 export async function buildPerfPptx(opts: BuildOptions): Promise<Buffer> {
   const pres = new PptxGenJS();
-  pres.layout = "LAYOUT_WIDE"; // 13.333 x 7.5 inches
   pres.title = `${opts.brandName} — Adv Performance`;
   pres.author = "AISCAN";
   pres.company = opts.clientName;
 
-  // Override layout per usare 10x7.5 (standard 16:9 con margini comodi)
-  pres.defineLayout({ name: "AISCAN", width: 10, height: 7.5 });
-  pres.layout = "AISCAN";
+  // Layout 16:9 widescreen — formato standard moderno PowerPoint.
+  pres.defineLayout({
+    name: "AISCAN_WIDESCREEN",
+    width: SLIDE_W,
+    height: SLIDE_H,
+  });
+  pres.layout = "AISCAN_WIDESCREEN";
 
   const ctx: BuildContext = { pres, o: opts };
 
@@ -924,8 +1021,6 @@ export async function buildPerfPptx(opts: BuildOptions): Promise<Buffer> {
   buildCreatives(ctx);
   buildObjective(ctx);
 
-  // pptxgenjs `write` ritorna Promise<Buffer | string | Blob | ArrayBuffer>
-  // a seconda del runtime; in Node 20 con outputType "nodebuffer" e' Buffer.
   const buf = (await pres.write({
     outputType: "nodebuffer",
   })) as Buffer;
