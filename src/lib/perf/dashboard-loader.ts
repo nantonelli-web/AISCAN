@@ -219,6 +219,51 @@ export async function loadDashboardData(
     }
   }
 
+  // Backfill purchase_value / purchases da raw_data quando il
+  // parser dell'import precedente non aveva i sinonimi corretti
+  // (es. "Purchases conversion value" plurale aggiunto 2026-05-10
+  // dopo la prima ondata di import). Senza questo gli import
+  // gia' salvati avrebbero ROAS=0 finche' non vengono ri-caricati.
+  const readNum = (v: unknown): number | null => {
+    if (v == null) return null;
+    if (typeof v === "number") return Number.isFinite(v) ? v : null;
+    const s = String(v).replace(/[^\d.,-]/g, "").replace(/\.(?=\d{3}\b)/g, "");
+    const n = Number.parseFloat(s.replace(",", "."));
+    return Number.isFinite(n) ? n : null;
+  };
+  const PV_KEYS = [
+    "Purchases conversion value",
+    "Purchase conversion value",
+    "Website purchases conversion value",
+    "Website purchase conversion value",
+    "Purchases value",
+    "Purchase value",
+    "Valore di conversione degli acquisti",
+  ];
+  const P_KEYS = ["Purchases", "Acquisti", "Website purchases"];
+  for (const r of rows) {
+    const raw = r.raw_data as Record<string, unknown> | undefined;
+    if (!raw) continue;
+    if ((r.purchase_value ?? 0) === 0) {
+      for (const k of PV_KEYS) {
+        const v = readNum(raw[k]);
+        if (v != null && v > 0) {
+          r.purchase_value = v;
+          break;
+        }
+      }
+    }
+    if ((r.purchases ?? 0) === 0) {
+      for (const k of P_KEYS) {
+        const v = readNum(raw[k]);
+        if (v != null && v > 0) {
+          r.purchases = v;
+          break;
+        }
+      }
+    }
+  }
+
   const overrides = (imp.campaign_type_overrides ?? {}) as Record<
     string,
     string

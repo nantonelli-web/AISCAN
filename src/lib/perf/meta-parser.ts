@@ -131,8 +131,15 @@ const COLUMN_SYNONYMS: Record<string, string[]> = {
     "acquisti (sito web)",
   ],
   purchase_value: [
+    // Singular + plural forms — i file Meta esportano sia
+    // "Purchase conversion value" sia "Purchases conversion value"
+    // a seconda dello schema scelto / colonna selezionata. Tenere
+    // entrambe.
+    "website purchases conversion value",
     "website purchase conversion value",
+    "purchases conversion value",
     "purchase conversion value",
+    "purchases value",
     "purchase value",
     "valore di conversione degli acquisti",
     "valore acquisti sul sito web",
