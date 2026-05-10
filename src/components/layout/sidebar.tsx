@@ -65,7 +65,10 @@ const navGroups: NavGroup[] = [
     key: "groupBuild",
     items: [
       { href: "/collections", key: "collections", icon: FolderHeart, aliases: [] },
-      { href: "/report", key: "report", icon: FileText, aliases: [] },
+      // Report nascosto durante test (2026-05-10). Codice + route
+      // /report mantenuti — quando si decide il da farsi, basta
+      // riabilitare questa entry.
+      // { href: "/report", key: "report", icon: FileText, aliases: [] },
     ],
   },
   {
