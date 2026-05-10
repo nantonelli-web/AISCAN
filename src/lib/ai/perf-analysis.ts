@@ -244,6 +244,46 @@ function buildDashboardSnapshot(data: PerfDashboardData): string {
   return lines.join("\n");
 }
 
+/** Calcola gli "obiettivi dichiarati" delle campagne nel periodo
+ *  e identifica le metriche che NON sono obiettivo di nessuna
+ *  campagna (= side benefit). Questa info finisce nel prompt cosi
+ *  il modello commenta positivamente i side benefit invece di
+ *  giudicarli criticamente come scarsi. */
+function buildObjectivesContext(data: PerfDashboardData): string {
+  const types = data.campaignTypes;
+  if (types.length === 0) return "";
+  const codes = new Set(types.map((t) => t.code));
+  const labels = types
+    .map((t) => `${t.code} (${t.label}) — ${t.campaignCount} campagne`)
+    .join("; ");
+
+  // Determina quali metriche-bonus sono SIDE BENEFIT (no campaign
+  // type relevant attivo nel periodo) vs OBIETTIVO DIRETTO.
+  const isPurchaseObjective = codes.has("PURCHASE") || codes.has("PUR") || codes.has("PURCH");
+  const isIgFollowObjective =
+    codes.has("IGFOLLOW") || codes.has("IGFOLLOWS");
+  const isIgVisitObjective =
+    codes.has("IGVISIT") || codes.has("IGVISITS");
+  const isEngagementObjective =
+    codes.has("ENG") || codes.has("ENGAGEMENT") || codes.has("POSTENG");
+
+  const flags: string[] = [];
+  flags.push(
+    `- acquisti (purchases): ${isPurchaseObjective ? "OBIETTIVO DIRETTO di almeno una campagna" : "SIDE BENEFIT — nessuna campagna ha 'PURCHASE' come tipo decoded; gli acquisti registrati sono extra rispetto all'obiettivo dichiarato"}`,
+  );
+  flags.push(
+    `- IG follows: ${isIgFollowObjective ? "OBIETTIVO DIRETTO" : "SIDE BENEFIT — nessuna campagna mira a far crescere i follower IG"}`,
+  );
+  flags.push(
+    `- IG profile visits: ${isIgVisitObjective ? "OBIETTIVO DIRETTO" : "SIDE BENEFIT — nessuna campagna mira a portare traffico al profilo IG"}`,
+  );
+  flags.push(
+    `- post engagement (like/commenti/share): ${isEngagementObjective ? "OBIETTIVO DIRETTO" : "SIDE BENEFIT — l'engagement organico arriva 'on top' agli obiettivi reali del paid"}`,
+  );
+
+  return `\n=== OBIETTIVI DELLE CAMPAGNE ===\nTipologie attive nel periodo: ${labels}\n\nCLASSIFICAZIONE METRICHE:\n${flags.join("\n")}\n`;
+}
+
 function buildPrompt(
   data: PerfDashboardData,
   sections: PerfSection[],
@@ -257,31 +297,35 @@ function buildPrompt(
     .join("\n");
   const ch =
     CHANNEL_PROMPT_INFO[channel] ?? CHANNEL_PROMPT_INFO.meta;
+  const objectivesContext = buildObjectivesContext(data);
 
   return `Sei un analista marketing senior specializzato in paid advertising. Stai analizzando dati di performance di campagne **${ch.name}** per un brand. Importante: ragiona usando i benchmark della piattaforma corretta — NON applicare benchmark di altre piattaforme (es. non confrontare CPM Snapchat con benchmark Meta).
 
 PIATTAFORMA E CONTESTO:
 ${ch.benchmarks}
-
+${objectivesContext}
 DATI DEL PERIODO ANALIZZATO:
 ${buildDashboardSnapshot(data)}
 
 ISTRUZIONI DI CONTENUTO:
 1. Per ognuna delle sezioni elencate sotto, scrivi un'analisi discorsiva in ${langName}. Tono professionale ma non rigido — non scolastico, non da AI generica. Ogni frase deve avere un peso informativo: zero fuffa, zero filler ("Come si puo' notare", "E' importante sottolineare").
 2. Spiega cosa significa il dato in termini di marketing concreti, e MOTIVA perche' la metrica si trova in quella zona di valore. Cita il numero del payload per ancorare la lettura, ma non duplicarlo: spiegalo. Quando hai ROAS=0 o purchase_value=0, segnalalo come "tracking conversion non configurato" e spiega come affrontare la cosa.
-3. Quando rilevante, integra una RACCOMANDAZIONE OPERATIVA basata su best practice del paid (es. test A/B sulla creativity migliore, shift budget, pausa campagne sotto-performanti, frequency capping se >3, ecc). La raccomandazione deve essere concreta e azionabile.
-4. La lunghezza varia in base alla profondita' del dato — non gonfiare. Una sezione con poco da dire puo' essere 2-3 frasi; una sezione ricca puo' essere 5-8.
-5. Non inventare numeri. Cita solo cifre presenti nel payload. Se manca un dato, non riempire (es. ROAS senza purchase value).
+3. **PESA L'OBIETTIVO DELLE CAMPAGNE — REGOLA CRITICA**: prima di giudicare una metrica, leggi la sezione OBIETTIVI DELLE CAMPAGNE in cima al payload. Se la metrica e' classificata SIDE BENEFIT (nessuna campagna nel periodo aveva quell'obiettivo dichiarato), il commento deve essere POSITIVO — i numeri sono valore aggiunto "on top" rispetto all'obiettivo reale, non un funnel da giudicare in efficienza assoluta. Se la metrica e' OBIETTIVO DIRETTO, valutala criticamente vs benchmark.
+   - Esempio CORRETTO (SIDE BENEFIT): "Il funnel non puntava al profilo IG, eppure le campagne hanno generato **1.803 visite e 90 nuovi follow** come effetto collaterale. Sono numeri di brand-lift extra rispetto agli obiettivi commerciali (ATC/VC), un valore aggiunto da non sottovalutare."
+   - Esempio SBAGLIATO (da NON FARE): "Solo 90 follow su 105k engagement: il funnel di conversione non sta funzionando" — sbagliato perche' tratta una metrica side-benefit come se fosse un obiettivo da ottimizzare.
+4. Quando rilevante, integra una RACCOMANDAZIONE OPERATIVA basata su best practice del paid (es. test A/B sulla creativity migliore, shift budget, pausa campagne sotto-performanti, frequency capping se >3, ecc). La raccomandazione deve essere concreta e azionabile, e coerente con l'obiettivo della campagna (non suggerire di "ottimizzare il funnel di follow" se nessuna campagna mira ai follow).
+5. La lunghezza varia in base alla profondita' del dato — non gonfiare. Una sezione con poco da dire puo' essere 2-3 frasi; una sezione ricca puo' essere 5-8.
+6. Non inventare numeri. Cita solo cifre presenti nel payload. Se manca un dato, non riempire (es. ROAS senza purchase value).
 
 ISTRUZIONI DI FORMATTAZIONE (importanti per la leggibilita'):
-6. SCANDISCI il testo in PARAGRAFI distinti separati da una riga vuota (\\n\\n). Ogni paragrafo = un punto. Tipico: paragrafo 1 = lettura del dato; paragrafo 2 = motivazione/spiegazione; paragrafo 3 = raccomandazione operativa. Niente muro di testo unico.
-7. Usa il GRASSETTO markdown **testo** per evidenziare:
+7. SCANDISCI il testo in PARAGRAFI distinti separati da una riga vuota (\\n\\n). Ogni paragrafo = un punto. Tipico: paragrafo 1 = lettura del dato; paragrafo 2 = motivazione/spiegazione; paragrafo 3 = raccomandazione operativa. Niente muro di testo unico.
+8. Usa il GRASSETTO markdown **testo** per evidenziare:
    - metriche chiave e numeri rilevanti (es. **CPC 0,45 AED**, **ROAS 1,8**)
    - conclusioni importanti (es. **margine di miglioramento sul CTR**)
    - le raccomandazioni operative (la prima frase di ogni raccomandazione)
    Non abusarne: 2-4 grassetti per paragrafo al massimo, solo dove guidano davvero l'occhio.
-8. Quando proponi PIU' AZIONI distinti, usa una lista con trattini (una azione per riga, riga che inizia con "- "). Tieni le voci compatte (max una frase ciascuna).
-9. NIENTE titoli markdown (#, ##), niente \`code\`, niente link, niente tabelle. Solo paragrafi, **bold** e liste con "- ".
+9. Quando proponi PIU' AZIONI distinti, usa una lista con trattini (una azione per riga, riga che inizia con "- "). Tieni le voci compatte (max una frase ciascuna).
+10. NIENTE titoli markdown (#, ##), niente \`code\`, niente link, niente tabelle. Solo paragrafi, **bold** e liste con "- ".
 
 SEZIONI DA GENERARE:
 ${sectionList}

@@ -889,25 +889,27 @@ export function DashboardClient({ importId }: { importId: string }) {
         </Card>
       )}
 
-      {/* Top campaigns */}
-      {data.topByCampaignSpend.length > 0 && (
+      {/* Top campaigns: ordine per RISULTATI type-specifici (no
+          piu' "per spesa" generico — meno utile dell'analisi di
+          quale campagna performa di piu' sull'obiettivo) */}
+      {data.topByCampaignResults.length > 0 && (
         <section className="space-y-3">
           <div className={`grid gap-4 ${hasRoasData ? "lg:grid-cols-2" : ""}`}>
             <Card>
               <CardContent className="p-5 space-y-3">
                 <SectionHeader
-                  icon={DollarSign}
-                  tone="gold"
-                  title={t("advPerformance", "topCampaignsBySpend")}
+                  icon={Target}
+                  tone="green"
+                  title={t("advPerformance", "topCampaignsByResults")}
                 />
                 <HorizontalBarChart
-                  data={data.topByCampaignSpend.map((c) => ({
+                  data={data.topByCampaignResults.map((c) => ({
                     name: c.campaign_name,
-                    spend: c.spend,
+                    results: c.results,
                   }))}
-                  dataKey="spend"
-                  label={t("advPerformance", "kpiSpend")}
-                  color="#d9a82f"
+                  dataKey="results"
+                  label={t("advPerformance", "ctResults")}
+                  color="#6b8e6b"
                 />
               </CardContent>
             </Card>
@@ -915,8 +917,8 @@ export function DashboardClient({ importId }: { importId: string }) {
               <Card>
                 <CardContent className="p-5 space-y-3">
                   <SectionHeader
-                    icon={Target}
-                    tone="green"
+                    icon={DollarSign}
+                    tone="gold"
                     title={t("advPerformance", "topCampaignsByRoas")}
                   />
                   <HorizontalBarChart
@@ -926,7 +928,7 @@ export function DashboardClient({ importId }: { importId: string }) {
                     }))}
                     dataKey="roas"
                     label={t("advPerformance", "kpiRoas")}
-                    color="#6b8e6b"
+                    color="#d9a82f"
                   />
                 </CardContent>
               </Card>

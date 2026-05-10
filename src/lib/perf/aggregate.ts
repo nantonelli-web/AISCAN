@@ -519,6 +519,71 @@ export function topCampaigns(
     .slice(0, n);
 }
 
+/** Top campagne ordinate per RISULTATI type-specifici (es. ATC →
+ *  Adds to cart, VC → Content views, PURCH → purchases). Usa il
+ *  campaign-decoder per scegliere il giusto eventField, riusando
+ *  le overrides. Per le campagne non decodificate ricade su
+ *  `r.results` se presente, altrimenti effectiveClicks. */
+export function topCampaignsByResults(
+  rows: MetaPerfRow[],
+  overrides: Record<string, string> = {},
+  n = 10,
+): (MetaCampaignAggregate & { resultLabel: string })[] {
+  type Acc = MetaCampaignAggregate & {
+    _purchaseValue: number;
+    eventField: string | null;
+    resultLabel: string;
+  };
+  const map = new Map<string, Acc>();
+  for (const r of rows) {
+    const name = r.campaign_name ?? "—";
+    const t = resolveCampaignType(r.campaign_name, overrides);
+    let acc = map.get(name);
+    if (!acc) {
+      acc = {
+        campaign_name: name,
+        spend: 0,
+        impressions: 0,
+        clicks: 0,
+        results: 0,
+        roas: null,
+        _purchaseValue: 0,
+        eventField: t?.eventField ?? null,
+        resultLabel: t?.label ?? "Risultati",
+      };
+      map.set(name, acc);
+    }
+    acc.spend += Math.max(0, r.amount_spent);
+    acc.impressions += Math.max(0, r.impressions);
+    acc.clicks += Math.max(0, r.clicks);
+    acc._purchaseValue += Math.max(0, r.purchase_value ?? 0);
+    if (acc.eventField) {
+      acc.results += readEventCount(r, acc.eventField);
+    } else if (r.results != null) {
+      acc.results += Math.max(0, r.results);
+    } else {
+      // Fallback: link clicks come proxy ("traffic" implicito)
+      acc.results += Math.max(0, r.link_clicks);
+    }
+  }
+  return [...map.values()]
+    .map((c) => ({
+      campaign_name: c.campaign_name,
+      spend: Math.round(c.spend * 100) / 100,
+      impressions: c.impressions,
+      clicks: c.clicks,
+      results: Math.round(c.results * 100) / 100,
+      roas:
+        c.spend > 0
+          ? Math.round((c._purchaseValue / c.spend) * 100) / 100
+          : null,
+      resultLabel: c.resultLabel,
+    }))
+    .filter((c) => c.results > 0)
+    .sort((a, b) => b.results - a.results)
+    .slice(0, n);
+}
+
 /** Spend share by objective (for the pie chart). */
 export function objectiveMix(
   rows: MetaPerfRow[],

@@ -2484,6 +2484,10 @@ const translations = {
       it: "Top campagne per spesa",
       en: "Top campaigns by spend",
     },
+    topCampaignsByResults: {
+      it: "Top campagne per risultati",
+      en: "Top campaigns by results",
+    },
     topCampaignsByRoas: {
       it: "Top campagne per ROAS",
       en: "Top campaigns by ROAS",

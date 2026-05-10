@@ -212,6 +212,10 @@ export interface PerfDashboardData {
   timeSeries: MetaTimeSeriesPoint[];
   topByCampaignSpend: MetaCampaignAggregate[];
   topByCampaignRoas: MetaCampaignAggregate[];
+  /** Top campagne per risultati type-specifici (es. ATC → Adds
+   *  to cart, VC → Content views). resultLabel descrive cosa
+   *  conta (per UI legend). */
+  topByCampaignResults: (MetaCampaignAggregate & { resultLabel: string })[];
   /** Spend share per Meta objective (può essere vuoto se l'export
    *  non ha la colonna Objective — dashboard nasconde il pannello). */
   objectiveMix: { name: string; value: number }[];
