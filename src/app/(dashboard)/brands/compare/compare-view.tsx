@@ -45,6 +45,7 @@ import {
   youtubeIdFromUrl,
 } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
+import { ExportPptxButton } from "@/components/ui/export-pptx-button";
 import { AnalysisReport } from "./analysis-report";
 import {
   VolumeChart,
@@ -2122,6 +2123,13 @@ export function CompareView({
               {formatTimestamp(cache.created_at, locale)}
             </p>
             <div className="flex items-center gap-2">
+              <ExportPptxButton
+                endpoint={`/api/comparisons/export/pptx?ids=${[...selected]
+                  .sort()
+                  .join(",")}&channel=${channel ?? "meta"}`}
+                variant="ghost"
+                label="Esporta PPTX"
+              />
               <Button
                 size="sm"
                 variant="ghost"

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PrintButton } from "@/components/ui/print-button";
+import { ExportPptxButton } from "@/components/ui/export-pptx-button";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { MetaIcon } from "@/components/ui/meta-icon";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
@@ -280,6 +281,24 @@ export default async function BenchmarksPage({
 
   const suspenseKey = `${channel}|${activeClient ?? "all"}|${activeCountryCodes.join(",")}|${activeBrandIds.join(",")}|${dateFrom}|${dateTo}|${status ?? "all"}`;
 
+  // PPTX export endpoint (with current filters). Disabilitato per i
+  // channel non supportati dall'export (snapchat / youtube / serp).
+  const pptxExportSupported =
+    channel === "meta" ||
+    channel === "google" ||
+    channel === "instagram" ||
+    channel === "tiktok";
+  const pptxParams = new URLSearchParams();
+  pptxParams.set("channel", channel);
+  if (activeBrandIds.length > 0)
+    pptxParams.set("brands", activeBrandIds.join(","));
+  if (!ALL_COUNTRIES_SELECTED)
+    pptxParams.set("countries", activeCountryCodes.join(","));
+  pptxParams.set("from", dateFrom);
+  pptxParams.set("to", dateTo);
+  if (status) pptxParams.set("status", status);
+  const pptxEndpoint = `/api/benchmarks/export/pptx?${pptxParams.toString()}`;
+
   // Big pill — solid gold for active so it stands out. Used for
   // every primary filter row (channel, project, status). Replaces
   // the previous low-contrast bg-gold/15 text-gold style which the
@@ -302,7 +321,12 @@ export default async function BenchmarksPage({
           <h1 className="text-3xl font-serif tracking-tight">{t("benchmarks", "title")}</h1>
           <p className="text-sm text-muted-foreground max-w-2xl text-pretty">{t("benchmarks", "subtitle")}</p>
         </div>
-        <PrintButton label={t("common", "print")} variant="outline" />
+        <div className="flex items-center gap-2">
+          {pptxExportSupported && (
+            <ExportPptxButton endpoint={pptxEndpoint} />
+          )}
+          <PrintButton label={t("common", "print")} variant="outline" />
+        </div>
       </div>
 
       {/* ─── Channel pivot — primary filter ─────────────────
@@ -505,7 +529,12 @@ export default async function BenchmarksPage({
       </Suspense>
 
       <div className="flex justify-center pt-2 print:hidden">
-        <PrintButton label={t("common", "print")} variant="outline" />
+        <div className="flex items-center gap-2">
+          {pptxExportSupported && (
+            <ExportPptxButton endpoint={pptxEndpoint} />
+          )}
+          <PrintButton label={t("common", "print")} variant="outline" />
+        </div>
       </div>
     </div>
   );
