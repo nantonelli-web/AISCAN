@@ -229,6 +229,16 @@ export interface PerfDashboardData {
     ctr: number | null;
     purchases: number;
   }[];
+  /** Stesse metriche del creativeTypeMix ma raggruppate per ad_name
+   *  (singola creativita'). Ordinato per spesa decrescente. */
+  adNameMix: {
+    name: string;
+    value: number;
+    clicks: number;
+    impressions: number;
+    ctr: number | null;
+    purchases: number;
+  }[];
   /** Numero asset per creative type (riferito alla week piu' recente
    *  o, se l'export non ha le week, dedup per ad_name). Evita di
    *  gonfiare il count quando le creativita' si ripetono week per

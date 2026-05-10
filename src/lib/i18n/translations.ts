@@ -2507,6 +2507,14 @@ const translations = {
       it: "Click totali (effective: 'Clicks all' con fallback 'Link clicks') e CTR derivato (click ÷ impression × 100) aggregato per tipo di creatività.",
       en: "Total clicks (effective: Clicks all with Link clicks fallback) and derived CTR (clicks ÷ impressions × 100) aggregated by creative type.",
     },
+    adNameMixTitle: {
+      it: "Performance per creatività",
+      en: "Performance by creative",
+    },
+    adNameMixDescription: {
+      it: "Spesa, click, impression, CTR e acquisti aggregati per singola creatività (campo Ad name). Stesse metriche del blocco per tipo creatività ma a livello di asset. Ordinato per spesa decrescente.",
+      en: "Spend, clicks, impressions, CTR and purchases aggregated by individual creative (Ad name field). Same metrics as the by-type block but at asset level. Sorted by spend descending.",
+    },
     creativeCountByType: { it: "Numero asset per tipo", en: "Asset count by type" },
     creativeCountByTypeHint: {
       it: "Numero medio di asset attivi per settimana, calcolato come (totale asset rilevati nel file) / (numero di settimane). Cosi' il dato riflette il volume di creativita' mediamente live, anche se nel file vengono ripetute settimana per settimana.",

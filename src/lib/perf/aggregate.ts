@@ -333,6 +333,58 @@ export function aggregateCreativeTypeMix(
     .sort((a, b) => b.value - a.value);
 }
 
+/** Spend / click / impression / CTR / acquisti aggregati per ad_name
+ *  (singola creativita'). Stesse metriche del creative-type mix ma
+ *  raggruppate sul nome esatto della creativita'. Le row con
+ *  ad_name null/vuoto vengono saltate.
+ */
+export function aggregateAdNameMix(
+  rows: MetaPerfRow[],
+): {
+  name: string;
+  value: number;
+  clicks: number;
+  impressions: number;
+  ctr: number | null;
+  purchases: number;
+}[] {
+  type Acc = {
+    value: number;
+    clicks: number;
+    impressions: number;
+    purchases: number;
+  };
+  const map = new Map<string, Acc>();
+  for (const r of rows) {
+    const name = r.ad_name?.trim();
+    if (!name) continue;
+    const acc = map.get(name) ?? {
+      value: 0,
+      clicks: 0,
+      impressions: 0,
+      purchases: 0,
+    };
+    acc.value += Math.max(0, r.amount_spent);
+    acc.clicks += r.clicks > 0 ? r.clicks : Math.max(0, r.link_clicks);
+    acc.impressions += Math.max(0, r.impressions);
+    acc.purchases += Math.max(0, r.purchases ?? 0);
+    map.set(name, acc);
+  }
+  return [...map.entries()]
+    .map(([name, a]) => ({
+      name,
+      value: Math.round(a.value * 100) / 100,
+      clicks: a.clicks,
+      impressions: a.impressions,
+      ctr:
+        a.impressions > 0
+          ? Math.round((a.clicks / a.impressions) * 10000) / 100
+          : null,
+      purchases: Math.round(a.purchases * 100) / 100,
+    }))
+    .sort((a, b) => b.value - a.value);
+}
+
 /** Numero asset per creative type. Logica:
  *  - se l'export ha le settimane (column "Week" popolata), conta
  *    le righe per (week, type), poi fa la **media** tra le

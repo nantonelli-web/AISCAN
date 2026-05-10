@@ -1262,6 +1262,88 @@ export function DashboardClient({ importId }: { importId: string }) {
         </section>
       )}
 
+      {/* Performance per ad_name (singola creativita') */}
+      {data.adNameMix.length > 0 && (
+        <Card>
+          <CardContent className="p-5 space-y-4">
+            <SectionHeader
+              icon={ImageIcon}
+              tone="purple"
+              title={t("advPerformance", "adNameMixTitle")}
+              description={t("advPerformance", "adNameMixDescription")}
+            />
+            {(() => {
+              const showPurch = data.adNameMix.some((c) => c.purchases > 0);
+              return (
+                <div className="overflow-x-auto max-h-[480px] overflow-y-auto rounded-md border border-border">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-background z-10">
+                      <tr className="text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
+                        <th className="text-left py-2 px-3 font-semibold">
+                          Ad name
+                        </th>
+                        <th className="text-right py-2 px-3 font-semibold">
+                          Spesa
+                        </th>
+                        <th className="text-right py-2 px-3 font-semibold">
+                          Click
+                        </th>
+                        <th className="text-right py-2 px-3 font-semibold">
+                          Impression
+                        </th>
+                        <th className="text-right py-2 px-3 font-semibold">
+                          CTR
+                        </th>
+                        {showPurch && (
+                          <th className="text-right py-2 px-3 font-semibold">
+                            Acquisti
+                          </th>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {data.adNameMix.map((c) => (
+                        <tr key={c.name} className="hover:bg-muted/30">
+                          <td
+                            className="py-2.5 px-3 font-medium break-all"
+                            title={c.name}
+                          >
+                            {c.name}
+                          </td>
+                          <td className="text-right tabular-nums px-3 font-medium">
+                            {formatMoney(c.value, data.currency)}
+                          </td>
+                          <td className="text-right tabular-nums px-3">
+                            {formatNumber(c.clicks)}
+                          </td>
+                          <td className="text-right tabular-nums px-3 text-muted-foreground">
+                            {formatNumber(c.impressions)}
+                          </td>
+                          <td className="text-right tabular-nums px-3">
+                            {c.ctr != null ? `${formatNumber(c.ctr)}%` : "—"}
+                          </td>
+                          {showPurch && (
+                            <td className="text-right tabular-nums px-3">
+                              {c.purchases > 0 ? (
+                                <span className="text-emerald-500 font-semibold">
+                                  {formatNumber(c.purchases)}
+                                </span>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Objective mix */}
       {data.objectiveMix.length > 0 &&
         data.objectiveMix.some((o) => o.name && o.name !== "—") && (
