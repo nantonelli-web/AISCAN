@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Users, Coins, DollarSign, LogOut, Building2 } from "lucide-react";
+import {
+  LayoutDashboard,
+  Users,
+  Coins,
+  DollarSign,
+  LogOut,
+  Building2,
+  Cpu,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +22,7 @@ const navItems = [
   { href: "/admin/workspaces", label: "Workspaces", icon: Building2 },
   { href: "/admin/credits", label: "Credits", icon: Coins },
   { href: "/admin/costs", label: "Costs", icon: DollarSign },
+  { href: "/admin/models", label: "AI Models", icon: Cpu },
 ] as const;
 
 export function AdminSidebar() {
