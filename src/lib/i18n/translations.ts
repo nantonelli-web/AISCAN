@@ -2514,6 +2514,11 @@ const translations = {
     kpiInstagramVisits: { it: "Visite profilo IG", en: "IG profile visits" },
     kpiInstagramFollows: { it: "Follow IG", en: "IG follows" },
     kpiPurchases: { it: "Acquisti", en: "Purchases" },
+    kpiPurchaseValue: { it: "Ricavi", en: "Revenue" },
+    kpiPurchaseValueHint: {
+      it: "Valore totale degli acquisti registrati nel periodo (somma di Purchases conversion value).",
+      en: "Total revenue from purchases recorded in the period (sum of Purchases conversion value).",
+    },
     kpiCostPerPurchase: { it: "Costo per acquisto", en: "Cost per purchase" },
     engagementSectionTitle: {
       it: "Engagement & Social",

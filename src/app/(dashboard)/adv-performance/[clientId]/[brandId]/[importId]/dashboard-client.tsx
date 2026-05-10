@@ -234,6 +234,7 @@ function buildDeltaMap(
       roas: null,
       frequency: null,
       purchases: null,
+      purchaseValue: null,
       costPerPurchase: null,
       postEngagements: null,
       instagramProfileVisits: null,
@@ -251,6 +252,7 @@ function buildDeltaMap(
     roas: deltaPct(current.roas, prev.roas),
     frequency: deltaPct(current.frequency, prev.frequency),
     purchases: deltaPct(current.purchases, prev.purchases),
+    purchaseValue: deltaPct(current.purchaseValue, prev.purchaseValue),
     costPerPurchase: deltaPctInverse(
       current.costPerPurchase,
       prev.costPerPurchase,
@@ -709,13 +711,23 @@ export function DashboardClient({ importId }: { importId: string }) {
             title={t("advPerformance", "purchasesSectionTitle")}
             description={t("advPerformance", "purchasesSectionDescription")}
           />
-          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 grid-cols-2 sm:grid-cols-2 xl:grid-cols-4">
             <KpiCard
               label={t("advPerformance", "kpiPurchases")}
               value={k.purchases}
               delta={deltas?.purchases ?? null}
               hint={t("advPerformance", "kpiPurchasesHint")}
               icon={ShoppingCart}
+              tone="green"
+            />
+            <KpiCard
+              label={t("advPerformance", "kpiPurchaseValue")}
+              value={k.purchaseValue}
+              delta={deltas?.purchaseValue ?? null}
+              isMoney
+              currency={data.currency}
+              hint={t("advPerformance", "kpiPurchaseValueHint")}
+              icon={DollarSign}
               tone="green"
             />
             <KpiCard
