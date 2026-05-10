@@ -1274,6 +1274,24 @@ export function DashboardClient({ importId }: { importId: string }) {
             />
             {(() => {
               const showPurch = data.adNameMix.some((c) => c.purchases > 0);
+              const totSpend = data.adNameMix.reduce(
+                (s, c) => s + c.value,
+                0,
+              );
+              const totClicks = data.adNameMix.reduce(
+                (s, c) => s + c.clicks,
+                0,
+              );
+              const totImpressions = data.adNameMix.reduce(
+                (s, c) => s + c.impressions,
+                0,
+              );
+              const totPurchases = data.adNameMix.reduce(
+                (s, c) => s + c.purchases,
+                0,
+              );
+              const pct = (part: number, tot: number) =>
+                tot > 0 ? `${((part / tot) * 100).toFixed(1)}%` : "—";
               return (
                 <div className="overflow-x-auto max-h-[480px] overflow-y-auto rounded-md border border-border">
                   <table className="w-full text-sm">
@@ -1311,13 +1329,22 @@ export function DashboardClient({ importId }: { importId: string }) {
                             {c.name}
                           </td>
                           <td className="text-right tabular-nums px-3 font-medium">
-                            {formatMoney(c.value, data.currency)}
+                            <div>{formatMoney(c.value, data.currency)}</div>
+                            <div className="text-[11px] text-muted-foreground font-normal">
+                              {pct(c.value, totSpend)}
+                            </div>
                           </td>
                           <td className="text-right tabular-nums px-3">
-                            {formatNumber(c.clicks)}
+                            <div>{formatNumber(c.clicks)}</div>
+                            <div className="text-[11px] text-muted-foreground">
+                              {pct(c.clicks, totClicks)}
+                            </div>
                           </td>
                           <td className="text-right tabular-nums px-3 text-muted-foreground">
-                            {formatNumber(c.impressions)}
+                            <div>{formatNumber(c.impressions)}</div>
+                            <div className="text-[11px]">
+                              {pct(c.impressions, totImpressions)}
+                            </div>
                           </td>
                           <td className="text-right tabular-nums px-3">
                             {c.ctr != null ? `${formatNumber(c.ctr)}%` : "—"}
@@ -1325,9 +1352,14 @@ export function DashboardClient({ importId }: { importId: string }) {
                           {showPurch && (
                             <td className="text-right tabular-nums px-3">
                               {c.purchases > 0 ? (
-                                <span className="text-emerald-500 font-semibold">
-                                  {formatNumber(c.purchases)}
-                                </span>
+                                <>
+                                  <div className="text-emerald-500 font-semibold">
+                                    {formatNumber(c.purchases)}
+                                  </div>
+                                  <div className="text-[11px] text-muted-foreground font-normal">
+                                    {pct(c.purchases, totPurchases)}
+                                  </div>
+                                </>
                               ) : (
                                 "—"
                               )}
