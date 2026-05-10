@@ -36,6 +36,14 @@ create index if not exists idx_mait_ai_models_unreviewed
   on mait_ai_models (created_at desc)
   where is_active = false and reviewed_at is null;
 
+-- Tabella admin-only: gli endpoint /api/admin/models usano sempre
+-- createAdminClient() (service role key) che bypassa RLS. Abilitiamo
+-- RLS senza policy = nessun accesso per anon/authenticated keys.
+-- Cosi' Supabase non emette il warning "RLS not enabled" e l'unico
+-- vettore di accesso resta il service role (verificato da JWT admin
+-- nei nostri endpoint).
+alter table mait_ai_models enable row level security;
+
 -- Catalogo iniziale: gli stessi modelli AICREA del 2026-04 + i tier
 -- specifici Claude / DeepSeek che AISCAN gia' usa nel modulo Adv
 -- Performance.
