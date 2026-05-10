@@ -2494,6 +2494,14 @@ const translations = {
     },
     objectiveMix: { it: "Distribuzione per obiettivo", en: "Objective mix" },
     creativeTypeMix: { it: "Distribuzione per tipo creatività", en: "Creative type mix" },
+    creativeClicksTitle: {
+      it: "Click e CTR per tipo creatività",
+      en: "Clicks and CTR by creative type",
+    },
+    creativeClicksDescription: {
+      it: "Click totali (effective: 'Clicks all' con fallback 'Link clicks') e CTR derivato (click ÷ impression × 100) aggregato per tipo di creatività.",
+      en: "Total clicks (effective: Clicks all with Link clicks fallback) and derived CTR (clicks ÷ impressions × 100) aggregated by creative type.",
+    },
     creativeCountByType: { it: "Numero asset per tipo", en: "Asset count by type" },
     creativeCountByTypeHint: {
       it: "Numero medio di asset attivi per settimana, calcolato come (totale asset rilevati nel file) / (numero di settimane). Cosi' il dato riflette il volume di creativita' mediamente live, anche se nel file vengono ripetute settimana per settimana.",

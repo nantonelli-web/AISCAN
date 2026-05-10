@@ -1098,12 +1098,10 @@ export function DashboardClient({ importId }: { importId: string }) {
         />
       )}
 
-      {/* Creative type mix + asset count */}
-      {(data.creativeTypeMix.length > 0 ||
-        data.creativeCountByType.length > 0) && (
+      {/* Creative type mix: pie spesa + tabella click/CTR per type */}
+      {data.creativeTypeMix.length > 0 && (
         <section className="space-y-3">
-        <div className="grid gap-4 lg:grid-cols-2">
-          {data.creativeTypeMix.length > 0 && (
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
             <Card>
               <CardContent className="p-5 space-y-4">
                 <SectionHeader
@@ -1145,20 +1143,73 @@ export function DashboardClient({ importId }: { importId: string }) {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-          )}
-          {data.creativeCountByType.length > 0 && (
-            <CreativeAssetCard
-              items={data.creativeCountByType}
-              label={data.creativeCountLabel}
-            />
-          )}
-        </div>
-        <AnalysisBlock
-          importId={importId}
-          section="creatives"
-          analysis={analyses.creatives ?? null}
-          onUpdated={updateAnalysis}
-        />
+            <Card>
+              <CardContent className="p-5 space-y-4">
+                <SectionHeader
+                  icon={MousePointerClick}
+                  tone="blue"
+                  title={t("advPerformance", "creativeClicksTitle")}
+                  description={t(
+                    "advPerformance",
+                    "creativeClicksDescription",
+                  )}
+                />
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
+                        <th className="text-left py-2 font-semibold">Tipo</th>
+                        <th className="text-right py-2 font-semibold">
+                          Click
+                        </th>
+                        <th className="text-right py-2 font-semibold">
+                          Impression
+                        </th>
+                        <th className="text-right py-2 font-semibold">CTR</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {data.creativeTypeMix.map((c, i) => (
+                        <tr key={c.name} className="hover:bg-muted/30">
+                          <td className="py-2.5">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="size-2.5 rounded-sm shrink-0"
+                                style={{
+                                  backgroundColor: `#${PIE_COLORS[i % PIE_COLORS.length]}`,
+                                }}
+                                aria-hidden
+                              />
+                              <span className="capitalize font-medium">
+                                {c.name}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="text-right tabular-nums font-medium">
+                            {formatNumber(c.clicks)}
+                          </td>
+                          <td className="text-right tabular-nums text-muted-foreground">
+                            {formatNumber(c.impressions)}
+                          </td>
+                          <td className="text-right tabular-nums">
+                            {c.ctr != null
+                              ? `${formatNumber(c.ctr)}%`
+                              : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          <AnalysisBlock
+            importId={importId}
+            section="creatives"
+            analysis={analyses.creatives ?? null}
+            onUpdated={updateAnalysis}
+          />
         </section>
       )}
 

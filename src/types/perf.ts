@@ -221,7 +221,13 @@ export interface PerfDashboardData {
   objectiveMix: { name: string; value: number }[];
   /** Spend share per creative type (image / video / carousel / ...).
    *  Può essere vuoto se l'export non ha la colonna creative_type. */
-  creativeTypeMix: { name: string; value: number }[];
+  creativeTypeMix: {
+    name: string;
+    value: number;
+    clicks: number;
+    impressions: number;
+    ctr: number | null;
+  }[];
   /** Numero asset per creative type (riferito alla week piu' recente
    *  o, se l'export non ha le week, dedup per ad_name). Evita di
    *  gonfiare il count quando le creativita' si ripetono week per
