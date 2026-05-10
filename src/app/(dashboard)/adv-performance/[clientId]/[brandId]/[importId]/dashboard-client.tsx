@@ -889,59 +889,63 @@ export function DashboardClient({ importId }: { importId: string }) {
         </Card>
       )}
 
-      {/* Top campaigns: ordine per RISULTATI type-specifici (no
-          piu' "per spesa" generico — meno utile dell'analisi di
-          quale campagna performa di piu' sull'obiettivo) */}
-      {data.topByCampaignResults.length > 0 && (
-        <section className="space-y-3">
-          <div className={`grid gap-4 ${hasRoasData ? "lg:grid-cols-2" : ""}`}>
-            <Card>
-              <CardContent className="p-5 space-y-3">
-                <SectionHeader
-                  icon={Target}
-                  tone="green"
-                  title={t("advPerformance", "topCampaignsByResults")}
-                />
-                <HorizontalBarChart
-                  data={data.topByCampaignResults.map((c) => ({
-                    name: c.campaign_name,
-                    results: c.results,
-                  }))}
-                  dataKey="results"
-                  label={t("advPerformance", "ctResults")}
-                  color="#6b8e6b"
-                />
-              </CardContent>
-            </Card>
-            {hasRoasData && data.topByCampaignRoas.length > 0 && (
-              <Card>
-                <CardContent className="p-5 space-y-3">
-                  <SectionHeader
-                    icon={DollarSign}
-                    tone="gold"
-                    title={t("advPerformance", "topCampaignsByRoas")}
-                  />
-                  <HorizontalBarChart
-                    data={data.topByCampaignRoas.map((c) => ({
-                      name: c.campaign_name,
-                      roas: c.roas ?? 0,
-                    }))}
-                    dataKey="roas"
-                    label={t("advPerformance", "kpiRoas")}
-                    color="#d9a82f"
-                  />
-                </CardContent>
-              </Card>
-            )}
-          </div>
-          <AnalysisBlock
-            importId={importId}
-            section="topCampaigns"
-            analysis={analyses.topCampaigns ?? null}
-            onUpdated={updateAnalysis}
-          />
-        </section>
-      )}
+      {/* TOP CAMPAGNE — NASCOSTE TEMPORANEAMENTE (2026-05-10).
+          Codice + dati lato API + analisi AI section "topCampaigns"
+          tutto preservato. Per riattivare: rimuovi questo blocco
+          commentato e ripristina il JSX qui sotto.
+          Vedi memory: feedback_top_campagne_hidden.md
+          ────────────────────────────────────────────────────────
+          {data.topByCampaignResults.length > 0 && (
+            <section className="space-y-3">
+              <div className={`grid gap-4 ${hasRoasData ? "lg:grid-cols-2" : ""}`}>
+                <Card>
+                  <CardContent className="p-5 space-y-3">
+                    <SectionHeader
+                      icon={Target}
+                      tone="green"
+                      title={t("advPerformance", "topCampaignsByResults")}
+                    />
+                    <HorizontalBarChart
+                      data={data.topByCampaignResults.map((c) => ({
+                        name: c.campaign_name,
+                        results: c.results,
+                      }))}
+                      dataKey="results"
+                      label={t("advPerformance", "ctResults")}
+                      color="#6b8e6b"
+                    />
+                  </CardContent>
+                </Card>
+                {hasRoasData && data.topByCampaignRoas.length > 0 && (
+                  <Card>
+                    <CardContent className="p-5 space-y-3">
+                      <SectionHeader
+                        icon={DollarSign}
+                        tone="gold"
+                        title={t("advPerformance", "topCampaignsByRoas")}
+                      />
+                      <HorizontalBarChart
+                        data={data.topByCampaignRoas.map((c) => ({
+                          name: c.campaign_name,
+                          roas: c.roas ?? 0,
+                        }))}
+                        dataKey="roas"
+                        label={t("advPerformance", "kpiRoas")}
+                        color="#d9a82f"
+                      />
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+              <AnalysisBlock
+                importId={importId}
+                section="topCampaigns"
+                analysis={analyses.topCampaigns ?? null}
+                onUpdated={updateAnalysis}
+              />
+            </section>
+          )}
+      */}
 
       {/* Country breakdown */}
       {data.countries.length > 0 &&
