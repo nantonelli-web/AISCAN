@@ -49,7 +49,7 @@ export default async function CollectionDetailPage({
   return (
     <div className="space-y-6">
       <Link
-        href="/collections"
+        href="/library?tab=collections"
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="size-4" /> {t("collections", "allCollections")}

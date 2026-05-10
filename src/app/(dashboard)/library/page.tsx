@@ -1,14 +1,18 @@
+import Link from "next/link";
 import { getSessionUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent } from "@/components/ui/card";
 import { LibraryFilters } from "./filters";
 import { LibraryItemsView } from "./library-items-view";
+import { CollectionsTab } from "./collections-tab";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { PrintButton } from "@/components/ui/print-button";
 import { DynamicBackLink } from "@/components/ui/dynamic-back-link";
 import { getCompetitors } from "@/lib/library/cached-data";
 import { buildLibraryQuery, buildLibraryCountQuery } from "@/lib/library/build-query";
+import { Library as LibraryIcon, FolderHeart } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type {
   MaitAdExternal,
   MaitOrganicPost,
@@ -20,9 +24,6 @@ import type {
 
 export const dynamic = "force-dynamic";
 
-// 100 per request — user's explicit cap 2026-05-04 ("per ogni
-// pagina carica al massimo 100 creatività"). Initial render and
-// each subsequent Load More fetch the same chunk size.
 const PAGE_SIZE = 100;
 
 interface SearchParams {
@@ -34,8 +35,15 @@ interface SearchParams {
   channel?: string;
   brand?: string;
   client?: string;
-  /** "1" per filtrare solo i post in collaborazione (IG/TikTok). */
   collab?: string;
+  /** "ads" (default) | "collections". Comanda quale tab e' attiva. */
+  tab?: string;
+}
+
+type TabKey = "ads" | "collections";
+
+function parseTab(raw: string | undefined): TabKey {
+  return raw === "collections" ? "collections" : "ads";
 }
 
 export default async function LibraryPage({
@@ -44,16 +52,70 @@ export default async function LibraryPage({
   searchParams: Promise<SearchParams>;
 }) {
   const sp = await searchParams;
+  const tab = parseTab(sp.tab);
   const { profile } = await getSessionUser();
-  const supabase = await createClient();
+  const workspaceId = profile.workspace_id!;
   const locale = await getLocale();
   const t = serverT(locale);
 
+  // Tab switcher (sempre visibile in cima)
+  const tabSwitcher = (
+    <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-card p-1 print:hidden">
+      <Link
+        href={{ pathname: "/library", query: { tab: "ads" } }}
+        className={cn(
+          "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-colors",
+          tab === "ads"
+            ? "bg-gold text-gold-foreground font-medium"
+            : "text-muted-foreground hover:text-foreground hover:bg-muted",
+        )}
+      >
+        <LibraryIcon className="size-3.5" />
+        {t("library", "tabAds")}
+      </Link>
+      <Link
+        href={{ pathname: "/library", query: { tab: "collections" } }}
+        className={cn(
+          "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-colors",
+          tab === "collections"
+            ? "bg-gold text-gold-foreground font-medium"
+            : "text-muted-foreground hover:text-foreground hover:bg-muted",
+        )}
+      >
+        <FolderHeart className="size-3.5" />
+        {t("library", "tabCollections")}
+      </Link>
+    </div>
+  );
+
+  // ─── Tab COLLECTIONS ────────────────────────────────
+  if (tab === "collections") {
+    return (
+      <div className="space-y-6">
+        <DynamicBackLink fallbackHref="/brands" label={t("library", "backLabel")} />
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <h1 className="text-3xl font-serif tracking-tight">
+              {t("library", "title")}
+            </h1>
+            <p className="text-sm text-muted-foreground text-pretty">
+              {t("library", "subtitle")}
+            </p>
+          </div>
+          <PrintButton label={t("common", "print")} variant="outline" />
+        </div>
+        {tabSwitcher}
+        <CollectionsTab workspaceId={workspaceId} t={t} />
+      </div>
+    );
+  }
+
+  // ─── Tab ADS (default) ──────────────────────────────
+  const supabase = await createClient();
   const isInstagram = sp.channel === "instagram";
   const isTiktok = sp.channel === "tiktok";
   const isSnapchat = sp.channel === "snapchat";
   const isYoutube = sp.channel === "youtube";
-  const workspaceId = profile.workspace_id!;
   const admin = createAdminClient();
 
   const [competitors, { data: clientsData }] = await Promise.all([
@@ -76,9 +138,6 @@ export default async function LibraryPage({
         .map((c) => c.id)
     : null;
 
-  // Initial page = first PAGE_SIZE rows. We also fetch the total
-  // matching count in parallel so the UI can show "X di Y" — user
-  // explicitly asked to know the total beyond what's loaded.
   const filterArgs = {
     workspaceId,
     channel: sp.channel,
@@ -100,19 +159,14 @@ export default async function LibraryPage({
   const totalAvailable = totalCount ?? initialList.length;
   const initialHasMore = initialList.length < totalAvailable;
 
-  // Brand attribution: when no single brand is selected, the
-  // grid mixes items from many brands and the user needs to
-  // know which brand each card belongs to.
   const showBrandLabel = !sp.brand;
   const brandNameById = Object.fromEntries(
     competitors.map((c) => [c.id, c.page_name]),
   );
 
-  // Source-section split for ads (when no channel filter).
   const showSourceSections =
     !sp.channel && !isInstagram && !isTiktok && !isSnapchat && !isYoutube;
 
-  // Pick the correct discriminant for the LibraryItemsView seed.
   const initial = (() => {
     if (isInstagram)
       return { kind: "instagram" as const, items: initialList as MaitOrganicPost[] };
@@ -140,6 +194,8 @@ export default async function LibraryPage({
         <PrintButton label={t("common", "print")} variant="outline" />
       </div>
 
+      {tabSwitcher}
+
       <div className="print:hidden">
         <LibraryFilters
           initial={sp}
@@ -156,11 +212,6 @@ export default async function LibraryPage({
         </Card>
       ) : (
         <LibraryItemsView
-          // key forza il remount al cambio di qualsiasi filtro: senza
-          // questo, useState(initial) dentro la view persiste i
-          // vecchi item dopo router.push (es. filtrare TikTok dopo
-          // Instagram continuava a mostrare le card IG iniziali).
-          // Bug segnalato 2026-05-07.
           key={`${sp.channel ?? "all"}|${sp.brand ?? ""}|${sp.client ?? ""}|${sp.q ?? ""}|${sp.platform ?? ""}|${sp.cta ?? ""}|${sp.status ?? ""}|${sp.format ?? ""}|${sp.collab ?? ""}`}
           initial={initial}
           initialHasMore={initialHasMore}

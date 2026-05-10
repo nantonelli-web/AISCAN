@@ -1088,6 +1088,8 @@ const translations = {
     collabFilter: { it: "Collab", en: "Collab" },
     onlyCollab: { it: "Solo collab", en: "Only collab" },
     title: { it: "Creative Library", en: "Creative Library" },
+    tabAds: { it: "Tutte le creativita'", en: "All creatives" },
+    tabCollections: { it: "Le mie collezioni", en: "My collections" },
     subtitle: {
       it: "Tutte le creativit\u00E0 raccolte nel workspace.",
       en: "All creatives collected in the workspace.",

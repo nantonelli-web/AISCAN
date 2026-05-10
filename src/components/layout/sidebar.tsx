@@ -11,8 +11,12 @@ import {
   // Bell,
   Settings,
   GitCompareArrows,
-  FolderHeart,
-  FileText,
+  // FolderHeart / FileText: import preservati commentati per
+  // riattivare velocemente Collections (sub-tab Library da
+  // 2026-05-10) o Report (nascosto da 2026-05-10) come voci
+  // standalone.
+  // FolderHeart,
+  // FileText,
   LogOut,
   Coins,
   Radar,
@@ -55,21 +59,24 @@ const navGroups: NavGroup[] = [
       // entry highlighted while the user is inside /serp or /maps so
       // the visual breadcrumb still works.
       { href: "/monitoring", key: "monitoring", icon: Radar, aliases: ["/serp", "/maps"] },
-      { href: "/library", key: "library", icon: Library, aliases: [] },
+      // /collections e' migrato come tab di /library (2026-05-10);
+      // resta come alias per evidenziare Library quando l'utente e'
+      // dentro /collections/[id] (detail).
+      { href: "/library", key: "library", icon: Library, aliases: ["/collections"] },
       { href: "/brands/compare", key: "compare", icon: GitCompareArrows, aliases: ["/brands/compare"] },
       { href: "/benchmarks", key: "benchmarks", icon: Target, aliases: [] },
       { href: "/adv-performance", key: "advPerformance", icon: TrendingUp, aliases: [] },
     ],
   },
+  // groupBuild (Output) attualmente vuoto: Collections e' migrato
+  // come tab dentro /library (2026-05-10), Report e' nascosto in
+  // attesa di decisione. Il rendering della sidebar skippa
+  // automaticamente i gruppi senza items, quindi il gruppo Output
+  // non appare. Lasciato qui inline per documentare il nesso e
+  // rendere veloce la riattivazione.
   {
     key: "groupBuild",
-    items: [
-      { href: "/collections", key: "collections", icon: FolderHeart, aliases: [] },
-      // Report nascosto durante test (2026-05-10). Codice + route
-      // /report mantenuti — quando si decide il da farsi, basta
-      // riabilitare questa entry.
-      // { href: "/report", key: "report", icon: FileText, aliases: [] },
-    ],
+    items: [],
   },
   {
     key: "groupAccount",
