@@ -2480,6 +2480,11 @@ const translations = {
       it: "Spesa giornaliera in barre, impression sovrapposte come linea. Mostra come il budget e' stato distribuito nei giorni del periodo selezionato e quanto traffico ha generato giorno per giorno.",
       en: "Daily spend as bars, impressions as the overlay line. Shows how budget was distributed across days of the selected period and how much traffic was generated each day.",
     },
+    timeSeriesTitleWeekly: { it: "Andamento settimanale", en: "Weekly trend" },
+    timeSeriesDescriptionWeekly: {
+      it: "Spesa per settimana in barre, impression sovrapposte come linea. Mostra come il budget e' stato distribuito nelle settimane del periodo selezionato e quanto traffico ha generato settimana per settimana.",
+      en: "Weekly spend as bars, impressions as the overlay line. Shows how budget was distributed across weeks of the selected period and how much traffic was generated week over week.",
+    },
     topCampaignsBySpend: {
       it: "Top campagne per spesa",
       en: "Top campaigns by spend",

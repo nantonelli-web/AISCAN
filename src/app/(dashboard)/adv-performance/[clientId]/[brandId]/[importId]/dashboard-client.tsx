@@ -827,8 +827,18 @@ export function DashboardClient({ importId }: { importId: string }) {
             <SectionHeader
               icon={Sparkles}
               tone="gold"
-              title={t("advPerformance", "timeSeriesTitle")}
-              description={t("advPerformance", "timeSeriesDescription")}
+              title={t(
+                "advPerformance",
+                data.weeks.length > 0
+                  ? "timeSeriesTitleWeekly"
+                  : "timeSeriesTitle",
+              )}
+              description={t(
+                "advPerformance",
+                data.weeks.length > 0
+                  ? "timeSeriesDescriptionWeekly"
+                  : "timeSeriesDescription",
+              )}
             />
             <ResponsiveContainer width="100%" height={300}>
               <ComposedChart
