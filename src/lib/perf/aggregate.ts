@@ -286,13 +286,7 @@ export function buildCampaignTypeAssignments(
   );
 }
 
-/** Spend share + click + CTR per creative type. Aggiunge nelle
- *  card del dashboard:
- *    - value:       spesa cumulata (€/AED)
- *    - clicks:      click effettivi (clicks all > 0 ? clicks : link_clicks)
- *    - impressions: impressioni cumulate
- *    - ctr:         clicks / impressions × 100
- */
+/** Spend share + click + CTR + acquisti per creative type. */
 export function aggregateCreativeTypeMix(
   rows: MetaPerfRow[],
 ): {
@@ -301,16 +295,27 @@ export function aggregateCreativeTypeMix(
   clicks: number;
   impressions: number;
   ctr: number | null;
+  purchases: number;
 }[] {
-  type Acc = { value: number; clicks: number; impressions: number };
+  type Acc = {
+    value: number;
+    clicks: number;
+    impressions: number;
+    purchases: number;
+  };
   const map = new Map<string, Acc>();
   for (const r of rows) {
     if (!r.creative_type) continue;
-    const acc =
-      map.get(r.creative_type) ?? { value: 0, clicks: 0, impressions: 0 };
+    const acc = map.get(r.creative_type) ?? {
+      value: 0,
+      clicks: 0,
+      impressions: 0,
+      purchases: 0,
+    };
     acc.value += Math.max(0, r.amount_spent);
     acc.clicks += r.clicks > 0 ? r.clicks : Math.max(0, r.link_clicks);
     acc.impressions += Math.max(0, r.impressions);
+    acc.purchases += Math.max(0, r.purchases ?? 0);
     map.set(r.creative_type, acc);
   }
   return [...map.entries()]
@@ -323,6 +328,7 @@ export function aggregateCreativeTypeMix(
         a.impressions > 0
           ? Math.round((a.clicks / a.impressions) * 10000) / 100
           : null,
+      purchases: Math.round(a.purchases * 100) / 100,
     }))
     .sort((a, b) => b.value - a.value);
 }

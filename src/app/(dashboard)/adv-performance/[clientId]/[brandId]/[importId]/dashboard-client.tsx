@@ -136,6 +136,7 @@ function KpiCard({
   icon: Icon = Activity,
   tone = "slate",
   forceTwoDecimals = false,
+  hideIfZero = false,
 }: {
   label: string;
   value: number | null;
@@ -148,7 +149,12 @@ function KpiCard({
   icon?: React.ComponentType<{ className?: string }>;
   tone?: AccentTone;
   forceTwoDecimals?: boolean;
+  /** Se true, la card non viene renderizzata quando il valore e'
+   *  null o 0. Utile per KPI accessori (engagement, IG follow,
+   *  ricavi) dove '0' significa 'non rilevante' invece di 'errore'. */
+  hideIfZero?: boolean;
 }) {
+  if (hideIfZero && (value == null || value === 0)) return null;
   const fmt = (n: number) =>
     forceTwoDecimals
       ? new Intl.NumberFormat("en-US", {
@@ -653,6 +659,7 @@ export function DashboardClient({ importId }: { importId: string }) {
             hint={t("advPerformance", "kpiReachHint")}
             icon={Users}
             tone="purple"
+            hideIfZero
           />
           <KpiCard
             label={t("advPerformance", "kpiCtr")}
@@ -692,6 +699,7 @@ export function DashboardClient({ importId }: { importId: string }) {
             hint={t("advPerformance", "kpiFrequencyHint")}
             icon={Repeat}
             tone="purple"
+            hideIfZero
           />
         </div>
         <AnalysisBlock
@@ -729,6 +737,7 @@ export function DashboardClient({ importId }: { importId: string }) {
               hint={t("advPerformance", "kpiPurchaseValueHint")}
               icon={DollarSign}
               tone="green"
+              hideIfZero
             />
             <KpiCard
               label={t("advPerformance", "kpiCostPerPurchase")}
@@ -781,6 +790,7 @@ export function DashboardClient({ importId }: { importId: string }) {
               hint={t("advPerformance", "kpiPostEngagementsHint")}
               icon={Heart}
               tone="rose"
+              hideIfZero
             />
             <KpiCard
               label={t("advPerformance", "kpiInstagramVisits")}
@@ -789,6 +799,7 @@ export function DashboardClient({ importId }: { importId: string }) {
               hint={t("advPerformance", "kpiInstagramVisitsHint")}
               icon={Camera}
               tone="purple"
+              hideIfZero
             />
             <KpiCard
               label={t("advPerformance", "kpiInstagramFollows")}
@@ -797,6 +808,7 @@ export function DashboardClient({ importId }: { importId: string }) {
               hint={t("advPerformance", "kpiInstagramFollowsHint")}
               icon={UserPlus}
               tone="rose"
+              hideIfZero
             />
           </div>
           <AnalysisBlock
@@ -1154,53 +1166,80 @@ export function DashboardClient({ importId }: { importId: string }) {
                     "creativeClicksDescription",
                   )}
                 />
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
-                        <th className="text-left py-2 font-semibold">Tipo</th>
-                        <th className="text-right py-2 font-semibold">
-                          Click
-                        </th>
-                        <th className="text-right py-2 font-semibold">
-                          Impression
-                        </th>
-                        <th className="text-right py-2 font-semibold">CTR</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {data.creativeTypeMix.map((c, i) => (
-                        <tr key={c.name} className="hover:bg-muted/30">
-                          <td className="py-2.5">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className="size-2.5 rounded-sm shrink-0"
-                                style={{
-                                  backgroundColor: `#${PIE_COLORS[i % PIE_COLORS.length]}`,
-                                }}
-                                aria-hidden
-                              />
-                              <span className="capitalize font-medium">
-                                {c.name}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="text-right tabular-nums font-medium">
-                            {formatNumber(c.clicks)}
-                          </td>
-                          <td className="text-right tabular-nums text-muted-foreground">
-                            {formatNumber(c.impressions)}
-                          </td>
-                          <td className="text-right tabular-nums">
-                            {c.ctr != null
-                              ? `${formatNumber(c.ctr)}%`
-                              : "—"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                {(() => {
+                  const showPurch = data.creativeTypeMix.some(
+                    (c) => c.purchases > 0,
+                  );
+                  return (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
+                            <th className="text-left py-2 font-semibold">
+                              Tipo
+                            </th>
+                            <th className="text-right py-2 font-semibold">
+                              Click
+                            </th>
+                            <th className="text-right py-2 font-semibold">
+                              Impression
+                            </th>
+                            <th className="text-right py-2 font-semibold">
+                              CTR
+                            </th>
+                            {showPurch && (
+                              <th className="text-right py-2 font-semibold">
+                                Acquisti
+                              </th>
+                            )}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {data.creativeTypeMix.map((c, i) => (
+                            <tr key={c.name} className="hover:bg-muted/30">
+                              <td className="py-2.5">
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className="size-2.5 rounded-sm shrink-0"
+                                    style={{
+                                      backgroundColor: `#${PIE_COLORS[i % PIE_COLORS.length]}`,
+                                    }}
+                                    aria-hidden
+                                  />
+                                  <span className="capitalize font-medium">
+                                    {c.name}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="text-right tabular-nums font-medium">
+                                {formatNumber(c.clicks)}
+                              </td>
+                              <td className="text-right tabular-nums text-muted-foreground">
+                                {formatNumber(c.impressions)}
+                              </td>
+                              <td className="text-right tabular-nums">
+                                {c.ctr != null
+                                  ? `${formatNumber(c.ctr)}%`
+                                  : "—"}
+                              </td>
+                              {showPurch && (
+                                <td className="text-right tabular-nums">
+                                  {c.purchases > 0 ? (
+                                    <span className="text-emerald-500 font-semibold">
+                                      {formatNumber(c.purchases)}
+                                    </span>
+                                  ) : (
+                                    "—"
+                                  )}
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </div>

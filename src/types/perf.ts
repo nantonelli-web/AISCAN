@@ -227,6 +227,7 @@ export interface PerfDashboardData {
     clicks: number;
     impressions: number;
     ctr: number | null;
+    purchases: number;
   }[];
   /** Numero asset per creative type (riferito alla week piu' recente
    *  o, se l'export non ha le week, dedup per ad_name). Evita di
