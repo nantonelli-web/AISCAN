@@ -21,6 +21,7 @@ import {
   parseLocalNumber,
   parseDate,
 } from "./meta-parser";
+import { isoWeekToMonday } from "./iso-week";
 import type { PerfDiagnostic } from "@/types/perf";
 
 export interface SnapchatPerfRow {
@@ -307,29 +308,12 @@ export async function parseSnapchatExport(
         : String(weekRaw).trim().toLowerCase().replace(/\s+/g, " ");
 
     // Se non abbiamo reporting_starts ma abbiamo "week 16",
-    // approssimiamo a Monday della week 16 dell'anno corrente
-    // (heuristic — l'utente raramente confronta a livello
-    // giornaliero su Snapchat).
+    // ricostruiamo il lunedi' ISO della week (helper condiviso
+    // con meta-parser per coerenza tra i canali).
     if (!date && week) {
-      const m = /week\s+(\d{1,2})(?:\s+(\d{4}))?/i.exec(week);
-      if (m) {
-        const w = Number.parseInt(m[1], 10);
-        const y = m[2]
-          ? Number.parseInt(m[2], 10)
-          : new Date().getUTCFullYear();
-        if (Number.isFinite(w) && w >= 1 && w <= 53) {
-          // ISO week 1: 4-jan or first Thursday of January.
-          const jan4 = new Date(Date.UTC(y, 0, 4));
-          const day = jan4.getUTCDay() || 7;
-          const monW1 = new Date(jan4);
-          monW1.setUTCDate(jan4.getUTCDate() - day + 1);
-          const target = new Date(monW1);
-          target.setUTCDate(monW1.getUTCDate() + (w - 1) * 7);
-          date = target.toISOString().slice(0, 10);
-        }
-      }
+      date = isoWeekToMonday(week);
     }
-    if (!date) continue; // no date → skip
+    if (!date) continue;
 
     if (periodFrom == null || date < periodFrom) periodFrom = date;
     if (periodTo == null || date > periodTo) periodTo = date;

@@ -25,6 +25,7 @@ import type {
   MetaParseResult,
   PerfDiagnostic,
 } from "@/types/perf";
+import { isoWeekToMonday } from "./iso-week";
 
 /* ─── Column synonyms ─────────────────────────────────────────
  * Map normalised key → array of possible source column names
@@ -489,10 +490,21 @@ export async function parseMetaExport(
     );
     if (allEmpty) continue;
 
-    // Date — prefer explicit Day column; fallback to Reporting starts
+    // Date — preferenza:
+    //  1. column "Day" o "Reporting starts" (date esplicita)
+    //  2. column "Week" → ricostruiamo il lunedi' ISO della week
+    //     (anno preso dal token o dall'anno corrente). Cosi i file
+    //     che escono da Meta/Snapchat con SOLO la column Week
+    //     finiscono comunque nella time series con date valide.
     const dayValue = get(row, "day") ?? get(row, "reporting_starts");
-    const date = parseDate(dayValue);
-    if (!date) continue; // can't bucket without a date — skip silently
+    let date = parseDate(dayValue);
+    if (!date) {
+      const weekValue = get(row, "week");
+      if (weekValue) {
+        date = isoWeekToMonday(String(weekValue));
+      }
+    }
+    if (!date) continue; // ne' Day ne' Week riconoscibili — skip
 
     if (periodFrom == null || date < periodFrom) periodFrom = date;
     if (periodTo == null || date > periodTo) periodTo = date;
