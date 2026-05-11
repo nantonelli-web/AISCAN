@@ -50,15 +50,23 @@ export async function POST(req: Request) {
   // Guard contro "ghost scan": senza webhook secret o app URL,
   // Apify non puo' richiamarci → il job resterebbe in 'running' per
   // sempre e gli ads scrapati non verrebbero mai persistiti. Meglio
-  // rifiutare lo start in modo esplicito.
-  if (!process.env.APIFY_WEBHOOK_SECRET || !process.env.NEXT_PUBLIC_APP_URL) {
-    return NextResponse.json(
-      {
-        error:
-          "Webhook config mancante (APIFY_WEBHOOK_SECRET o NEXT_PUBLIC_APP_URL). Lo scan non puo' partire senza webhook, altrimenti i dati Apify non rientrerebbero in app.",
-      },
-      { status: 503 },
-    );
+  // rifiutare lo start in modo esplicito e dire quale env var manca.
+  {
+    const missing: string[] = [];
+    if (!process.env.APIFY_WEBHOOK_SECRET) missing.push("APIFY_WEBHOOK_SECRET");
+    if (!process.env.NEXT_PUBLIC_APP_URL) missing.push("NEXT_PUBLIC_APP_URL");
+    if (missing.length > 0) {
+      console.error(
+        `[Google scan] webhook env vars mancanti su questa function: ${missing.join(", ")}`,
+      );
+      return NextResponse.json(
+        {
+          error: `Webhook config mancante: ${missing.join(", ")}. Verifica che siano settate in Vercel per l'ambiente corrente (Production e Preview) e fai un redeploy.`,
+          missing,
+        },
+        { status: 503 },
+      );
+    }
   }
 
   // Validate ownership via RLS read

@@ -96,14 +96,22 @@ export async function POST(req: Request) {
       { status: 503 },
     );
   }
-  if (!process.env.APIFY_WEBHOOK_SECRET || !process.env.NEXT_PUBLIC_APP_URL) {
-    return NextResponse.json(
-      {
-        error:
-          "Webhook config mancante (APIFY_WEBHOOK_SECRET o NEXT_PUBLIC_APP_URL). Il batch non puo' partire senza webhook.",
-      },
-      { status: 503 },
-    );
+  {
+    const missing: string[] = [];
+    if (!process.env.APIFY_WEBHOOK_SECRET) missing.push("APIFY_WEBHOOK_SECRET");
+    if (!process.env.NEXT_PUBLIC_APP_URL) missing.push("NEXT_PUBLIC_APP_URL");
+    if (missing.length > 0) {
+      console.error(
+        `[Batch Google] webhook env vars mancanti su questa function: ${missing.join(", ")}`,
+      );
+      return NextResponse.json(
+        {
+          error: `Webhook config mancante: ${missing.join(", ")}. Verifica che siano settate in Vercel per l'ambiente corrente (Production e Preview) e fai un redeploy.`,
+          missing,
+        },
+        { status: 503 },
+      );
+    }
   }
 
   const admin = createAdminClient();
