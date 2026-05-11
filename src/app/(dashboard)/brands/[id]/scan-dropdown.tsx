@@ -902,18 +902,19 @@ export function ScanDropdown({
               the DB (survives a reload). The channel buttons below
               are hidden in this state so the user cannot accidentally
               fire a second scan while one is running. */}
-      {/* Banner orfano: job 'running' partito >35 min fa, il run Apify
-          e' sicuramente finito ma il webhook non e' arrivato (es. env
-          vars settate dopo lo start). Bottone Recupera dati triggera
-          il reconcile endpoint. */}
+      {/* Banner job non finalizzato: 'running' >35 min con apify_run_id
+          valorizzato. Il run Apify e' sicuramente finito (timeoutSecs
+          cap 30 min) ma il webhook non e' arrivato (es. env vars
+          settate dopo lo start). Bottone Recupera dati triggera il
+          reconcile endpoint. */}
       {hasOrphanRunningJob && !showStop && (
         <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-4 flex flex-wrap items-center gap-4">
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-foreground">
-              Scan Google orfano rilevato
+              Scan Google non finalizzato
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {"Lo scan e' partito piu' di 35 minuti fa senza ricevere il callback Apify. Probabilmente Apify ha gia' finito ma noi non l'abbiamo saputo. Clicca per recuperare i dati."}
+              {"Lo scan e' partito piu' di 35 minuti fa: probabilmente Apify ha gia' finito ma noi non abbiamo ricevuto il callback. Clicca per recuperare i dati gia' raccolti."}
             </p>
           </div>
           <Button
