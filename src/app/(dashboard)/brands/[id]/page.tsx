@@ -278,12 +278,28 @@ export default async function CompetitorDetailPage({
     })
     .sort((a, b) => b.count - a.count);
 
-  // A fresh-enough running job (<10 min) means the scan is genuinely in
-  // flight. Beyond that the cron cleanup will flip it to failed, so we
-  // intentionally skip displaying a stale stop button for zombie rows.
-  const tenMinAgoMs = Date.now() - 10 * 60_000;
+  // Async flow: Apify timeoutSecs lato run e' 30 min. Allarghiamo la
+  // finestra "fresh-enough" a 35 min (30 + 5 buffer) cosi un brand
+  // grosso che impiega 12 min vede il banner Stop fino a fine run.
+  const FRESH_RUNNING_WINDOW_MS = 35 * 60_000;
+  const cutoff = Date.now() - FRESH_RUNNING_WINDOW_MS;
   const hasRunningJob = jobsList.some(
-    (j) => j.status === "running" && j.started_at && new Date(j.started_at).getTime() > tenMinAgoMs
+    (j) =>
+      j.status === "running" &&
+      j.started_at &&
+      new Date(j.started_at).getTime() > cutoff,
+  );
+  // Job orfani: status='running' ma partiti piu' di 35 min fa → il run
+  // Apify e' sicuramente terminato (timeoutSecs cap a 30 min) ma il
+  // webhook non e' mai arrivato. Mostriamo un banner dedicato col
+  // bottone "Recupera dati" cosi l'utente puo' triggerare il reconcile
+  // manualmente senza dover aprire la cronologia.
+  const hasOrphanRunningJob = jobsList.some(
+    (j) =>
+      j.status === "running" &&
+      j.started_at &&
+      new Date(j.started_at).getTime() <= cutoff &&
+      !!j.apify_run_id,
   );
 
   // PostgREST returns the JSON-path projections as their underlying
@@ -511,6 +527,7 @@ export default async function CompetitorDetailPage({
             hasYoutubeConfig={!!c.youtube_channel_url}
             scanCountries={c.country}
             hasRunningJob={hasRunningJob}
+            hasOrphanRunningJob={hasOrphanRunningJob}
             // Cache hint per il canale Google: ultimo job successful o
             // parziale per questo brand. Il dropdown usa questo per
             // mostrare un prompt di conferma se l'utente prova a

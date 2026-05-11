@@ -70,6 +70,12 @@ interface Props {
   scanCountries: string | null;
   /** DB-confirmed running job; shows Stop even after a page reload. */
   hasRunningJob?: boolean;
+  /** Job 'running' partito >35 min fa con apify_run_id valorizzato:
+   *  il run Apify e' sicuramente finito (timeoutSecs=30min cap) ma
+   *  il webhook non e' mai arrivato (es. env vars deployate dopo lo
+   *  start). Mostra banner ambra con bottone "Recupera dati" cosi
+   *  l'utente puo' triggerare manualmente il reconcile. */
+  hasOrphanRunningJob?: boolean;
   /** Timestamp dell'ultimo scan Google completato (succeeded o
    *  partial). Se entro 24h dal click su "Scan Google", chiediamo
    *  conferma all'utente prima di bruciare di nuovo i crediti. */
@@ -110,6 +116,7 @@ export function ScanDropdown({
   hasSnapchatConfig,
   hasYoutubeConfig,
   hasRunningJob = false,
+  hasOrphanRunningJob = false,
   googleLastScanAt = null,
   googlePartialJob = null,
 }: Props) {
@@ -895,6 +902,32 @@ export function ScanDropdown({
               the DB (survives a reload). The channel buttons below
               are hidden in this state so the user cannot accidentally
               fire a second scan while one is running. */}
+      {/* Banner orfano: job 'running' partito >35 min fa, il run Apify
+          e' sicuramente finito ma il webhook non e' arrivato (es. env
+          vars settate dopo lo start). Bottone Recupera dati triggera
+          il reconcile endpoint. */}
+      {hasOrphanRunningJob && !showStop && (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-4 flex flex-wrap items-center gap-4">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground">
+              Scan Google orfano rilevato
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {"Lo scan e' partito piu' di 35 minuti fa senza ricevere il callback Apify. Probabilmente Apify ha gia' finito ma noi non l'abbiamo saputo. Clicca per recuperare i dati."}
+            </p>
+          </div>
+          <Button
+            onClick={reconcileGoogleScan}
+            variant="outline"
+            size="sm"
+            className="shrink-0 border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/15 gap-2"
+          >
+            <RefreshCw className="size-4" />
+            Recupera dati
+          </Button>
+        </div>
+      )}
+
       {showStop && (
         <div className="rounded-md border border-red-400/30 bg-red-400/5 p-4 flex flex-wrap items-center gap-4">
           <div className="flex-1 min-w-0">
