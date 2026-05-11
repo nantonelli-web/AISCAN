@@ -16,6 +16,7 @@ import {
   Globe2,
   CalendarRange,
   Square,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -170,6 +171,7 @@ export function BatchScanPanel({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [stopping, setStopping] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
   const [batchId, setBatchId] = useState<string | null>(null);
   const [pollResult, setPollResult] = useState<BatchStatusResponse | null>(
     null,
@@ -290,6 +292,50 @@ export function BatchScanPanel({
     setBatchId(null);
     setPollResult(null);
     setSelected(new Set());
+  }
+
+  async function reconcileBatch() {
+    if (!batchId) return;
+    const ok = window.confirm(
+      "Forza il recupero dei dati per tutti i job del batch in corso?\n\nServe quando Apify ha gia' completato i run ma noi non abbiamo ricevuto il webhook (es. il batch e' partito con la config sbagliata e i webhook arrivano con un secret non valido). Andiamo direttamente su Apify, leggiamo lo stato di ogni run e finalizziamo i job — niente nuovi crediti spesi.",
+    );
+    if (!ok) return;
+    setReconciling(true);
+    const toastId = toast.loading("Reconcile job del batch in corso…");
+    try {
+      const res = await fetch("/api/apify/scan-google/reconcile", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        toast.error(j.error ?? "Reconcile failed", { id: toastId });
+        return;
+      }
+      const list = (j.reconciled ?? []) as Array<{
+        outcome: string;
+        records_count?: number;
+      }>;
+      const finalized = list.filter((r) =>
+        r.outcome.startsWith("finalized"),
+      ).length;
+      const stillRunning = list.filter(
+        (r) => r.outcome === "still_running",
+      ).length;
+      toast.success(
+        `Reconcile: ${finalized} job finalizzati${stillRunning > 0 ? `, ${stillRunning} ancora in corso lato Apify` : ""}.`,
+        { id: toastId, duration: 10000 },
+      );
+      // Il polling esistente raccogliera' il nuovo status alla
+      // prossima iterazione.
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Network error", {
+        id: toastId,
+      });
+    } finally {
+      setReconciling(false);
+    }
   }
 
   async function stopBatch() {
@@ -476,22 +522,39 @@ export function BatchScanPanel({
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap">
                       {polling && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={stopBatch}
-                          disabled={stopping}
-                          className="h-8 bg-background border-red-500 text-red-600 hover:bg-red-500 hover:text-white hover:border-red-500 gap-1.5"
-                        >
-                          {stopping ? (
-                            <Loader2 className="size-3.5 animate-spin" />
-                          ) : (
-                            <Square className="size-3.5 fill-current" />
-                          )}
-                          {stopping ? "Fermo…" : "Stop batch"}
-                        </Button>
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={reconcileBatch}
+                            disabled={reconciling || stopping}
+                            className="h-8 gap-1.5"
+                            title="Forza recupero dati dai run Apify gia' completati quando il webhook non arriva"
+                          >
+                            {reconciling ? (
+                              <Loader2 className="size-3.5 animate-spin" />
+                            ) : (
+                              <RefreshCw className="size-3.5" />
+                            )}
+                            Recupera dati
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={stopBatch}
+                            disabled={stopping || reconciling}
+                            className="h-8 bg-background border-red-500 text-red-600 hover:bg-red-500 hover:text-white hover:border-red-500 gap-1.5"
+                          >
+                            {stopping ? (
+                              <Loader2 className="size-3.5 animate-spin" />
+                            ) : (
+                              <Square className="size-3.5 fill-current" />
+                            )}
+                            {stopping ? "Fermo…" : "Stop batch"}
+                          </Button>
+                        </>
                       )}
                       {!polling && (
                         <Button
