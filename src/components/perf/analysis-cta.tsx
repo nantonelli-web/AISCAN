@@ -139,8 +139,8 @@ export function AnalysisCta({
         position === "bottom" ? "mt-2" : ""
       }`}
     >
-      <CardContent className="p-5 space-y-3">
-        <div className="flex items-start gap-3 flex-wrap">
+      <CardContent className="p-5 space-y-4">
+        <div className="flex items-start gap-3">
           <div className="size-10 rounded-lg bg-violet-500/15 text-violet-500 grid place-items-center shrink-0">
             <Sparkles className="size-5" />
           </div>
@@ -148,29 +148,49 @@ export function AnalysisCta({
             <h3 className="text-sm font-semibold uppercase tracking-wider">
               Analisi AI {position === "top" ? "del periodo" : "— rigenera"}
             </h3>
-            <p className="text-[11.5px] text-muted-foreground">
+            <p className="text-[12px] text-muted-foreground leading-relaxed">
               {hasAnalyses
                 ? "Analisi gia' presenti per questo dashboard. Rigenera con un nuovo modello o quando i dati cambiano. Le sezioni modificate manualmente vengono preservate."
                 : "Genera commenti discorsivi per ogni blocco del dashboard, con motivazioni dei trend e suggerimenti operativi basati su best practice del paid advertising."}
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+        </div>
+
+        <div className="flex items-center justify-between gap-3 flex-wrap pt-1 border-t border-violet-500/15">
+          <div className="flex items-center gap-2 min-w-0 pt-3">
+            <span className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold">
+              Modello
+            </span>
+            <Badge
+              variant="outline"
+              className="text-[11px] py-0.5 px-2 border-violet-500/40 text-violet-500 bg-violet-500/10 font-medium"
+            >
+              {selected.title}
+            </Badge>
             <button
               type="button"
               onClick={() => setOpen((s) => !s)}
-              className="text-[11px] inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+              className="text-[11.5px] inline-flex items-center gap-1 text-muted-foreground hover:text-foreground rounded-md px-2 py-1 hover:bg-muted/60 transition-colors"
+              aria-expanded={open}
             >
+              {open ? "Nascondi opzioni" : "Cambia"}
               <ChevronDown
                 className={`size-3.5 transition-transform ${open ? "rotate-180" : ""}`}
               />
-              {open ? "Nascondi opzioni" : "Modello & opzioni"}
             </button>
+          </div>
+          <div className="flex items-center gap-2 pt-3">
+            <span className="text-[11px] text-muted-foreground tabular-nums">
+              Costo:{" "}
+              <span className="font-semibold text-foreground">
+                {selected.cost} crediti
+              </span>
+            </span>
             <Button
               type="button"
-              size="sm"
               onClick={generate}
               disabled={busy}
-              className="gap-1.5 bg-violet-500 hover:bg-violet-600 text-white"
+              className="gap-2 bg-violet-500 hover:bg-violet-600 text-white h-10 px-4"
             >
               {busy ? (
                 <Loader2 className="size-4 animate-spin" />
@@ -179,19 +199,13 @@ export function AnalysisCta({
               ) : (
                 <Sparkles className="size-4" />
               )}
-              {hasAnalyses ? "Rigenera" : "Genera analisi"}
-              <Badge
-                variant="outline"
-                className="ml-1 text-[10px] px-1.5 py-0 border-white/30 text-white/90 bg-white/10"
-              >
-                {selected.cost}cr
-              </Badge>
+              {hasAnalyses ? "Rigenera analisi" : "Genera analisi"}
             </Button>
           </div>
         </div>
 
         {open && (
-          <div className="grid gap-2 sm:grid-cols-3 pt-2 border-t border-violet-500/20">
+          <div className="grid gap-2 sm:grid-cols-3 pt-3 border-t border-violet-500/15">
             {TIER_OPTIONS.map((opt) => {
               const active = opt.key === tier;
               return (
