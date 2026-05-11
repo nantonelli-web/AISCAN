@@ -14,9 +14,22 @@ import {
   ChevronUp,
   Folder,
   Globe2,
+  CalendarRange,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  DateRangeShortcuts,
+  defaultPresets,
+} from "@/components/ui/date-range-shortcuts";
+import { useT } from "@/lib/i18n/context";
+
+function daysAgo(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
 
 /**
  * Inline batch-scan panel.
@@ -149,6 +162,7 @@ export function BatchScanPanel({
   clients: ClientRow[];
 }) {
   const router = useRouter();
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const [channel, setChannel] = useState<Channel>("google");
   const [clientFilter, setClientFilter] = useState<string | null>(null);
@@ -158,7 +172,18 @@ export function BatchScanPanel({
   const [pollResult, setPollResult] = useState<BatchStatusResponse | null>(
     null,
   );
+  // Date range del batch. Default vuoto → applichiamo "ultimi 30
+  // giorni" alla submit (allineato al pattern dello scan singolo).
+  // Su Google il range e' solo metadata sulla row del job (la
+  // libreria pubblica viene salvata intera, vedi SCAN_DATE_BEHAVIOR.md
+  // §2). Su Meta — quando lo porteremo async — il range diventera'
+  // filtro alla fonte.
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const panelRef = useRef<HTMLDivElement | null>(null);
+
+  const effectiveFrom = dateFrom || daysAgo(30);
+  const effectiveTo = dateTo || new Date().toISOString().slice(0, 10);
 
   // Eligible brands: hanno config per il canale selezionato + match il filtro client
   const eligibleBrands = useMemo(() => {
@@ -225,6 +250,8 @@ export function BatchScanPanel({
         body: JSON.stringify({
           competitor_ids: Array.from(selected),
           max_items: 500,
+          date_from: effectiveFrom,
+          date_to: effectiveTo,
         }),
       });
       const j = (await res.json()) as BatchResponse;
@@ -530,6 +557,68 @@ export function BatchScanPanel({
                     )}
                   </div>
                 </div>
+              )}
+            </div>
+
+            {/* Periodo di scansione (date range). Default vuoto =
+                ultimi 30 giorni applicati al momento della submit.
+                Su Google e' solo metadata storico sul job; su Meta
+                (futuro async) sara' filtro alla fonte. */}
+            <div>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <CalendarRange className="size-3.5 text-muted-foreground" />
+                <span className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold">
+                  Periodo di scansione
+                </span>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  placeholder={daysAgo(30)}
+                  aria-label="Da"
+                  disabled={!!batchId}
+                  className="text-sm h-9 w-40"
+                />
+                <span className="text-sm text-muted-foreground">→</span>
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  aria-label="A"
+                  disabled={!!batchId}
+                  className="text-sm h-9 w-40"
+                />
+                {(dateFrom || dateTo) && !batchId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDateFrom("");
+                      setDateTo("");
+                    }}
+                    className="text-xs text-muted-foreground hover:text-foreground underline"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+              <div className="mt-1.5">
+                <DateRangeShortcuts
+                  presets={defaultPresets((s, k) => t(s, k))}
+                  activeFrom={dateFrom}
+                  activeTo={dateTo}
+                  onPick={(r) => {
+                    if (batchId) return;
+                    setDateFrom(r.from);
+                    setDateTo(r.to);
+                  }}
+                />
+              </div>
+              {!dateFrom && !dateTo && (
+                <p className="text-[11px] text-muted-foreground mt-1.5">
+                  {`Default: ultimi 30 giorni (${effectiveFrom} → ${effectiveTo}). Il range verra' memorizzato come metadata su ogni job.`}
+                </p>
               )}
             </div>
 
