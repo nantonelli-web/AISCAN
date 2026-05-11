@@ -254,7 +254,7 @@ export function AnalysisCta({
             {open && grouped.length > 0 && (
               <div
                 ref={popoverRef}
-                className="absolute left-0 top-full mt-1.5 z-50 w-[320px] max-h-[360px] overflow-y-auto rounded-lg border border-border bg-popover shadow-lg p-1"
+                className="absolute left-0 top-full mt-1.5 z-[100] w-[320px] max-h-[360px] overflow-y-auto rounded-lg border border-border bg-background shadow-xl shadow-black/10 dark:shadow-black/50 p-1"
                 role="listbox"
               >
                 {grouped.map(([provider, list]) => (
