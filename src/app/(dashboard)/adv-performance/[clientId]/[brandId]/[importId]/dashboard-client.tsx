@@ -1180,6 +1180,20 @@ export function DashboardClient({ importId }: { importId: string }) {
                   const showPurch = data.creativeTypeMix.some(
                     (c) => c.purchases > 0,
                   );
+                  const totClicks = data.creativeTypeMix.reduce(
+                    (s, c) => s + c.clicks,
+                    0,
+                  );
+                  const totImpressions = data.creativeTypeMix.reduce(
+                    (s, c) => s + c.impressions,
+                    0,
+                  );
+                  const totPurchases = data.creativeTypeMix.reduce(
+                    (s, c) => s + c.purchases,
+                    0,
+                  );
+                  const pct = (part: number, tot: number) =>
+                    tot > 0 ? `${((part / tot) * 100).toFixed(1)}%` : "—";
                   return (
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
@@ -1222,10 +1236,16 @@ export function DashboardClient({ importId }: { importId: string }) {
                                 </div>
                               </td>
                               <td className="text-right tabular-nums font-medium">
-                                {formatNumber(c.clicks)}
+                                <div>{formatNumber(c.clicks)}</div>
+                                <div className="text-[11px] text-muted-foreground font-normal">
+                                  {pct(c.clicks, totClicks)}
+                                </div>
                               </td>
                               <td className="text-right tabular-nums text-muted-foreground">
-                                {formatNumber(c.impressions)}
+                                <div>{formatNumber(c.impressions)}</div>
+                                <div className="text-[11px]">
+                                  {pct(c.impressions, totImpressions)}
+                                </div>
                               </td>
                               <td className="text-right tabular-nums">
                                 {c.ctr != null
@@ -1235,9 +1255,14 @@ export function DashboardClient({ importId }: { importId: string }) {
                               {showPurch && (
                                 <td className="text-right tabular-nums">
                                   {c.purchases > 0 ? (
-                                    <span className="text-emerald-500 font-semibold">
-                                      {formatNumber(c.purchases)}
-                                    </span>
+                                    <>
+                                      <div className="text-emerald-500 font-semibold">
+                                        {formatNumber(c.purchases)}
+                                      </div>
+                                      <div className="text-[11px] text-muted-foreground font-normal">
+                                        {pct(c.purchases, totPurchases)}
+                                      </div>
+                                    </>
                                   ) : (
                                     "—"
                                   )}
