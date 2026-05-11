@@ -925,3 +925,353 @@ export async function scrapeGoogleAds(
     },
   };
 }
+
+// ─── Async start/finalize (webhook-driven) ───
+//
+// scrapeGoogleAds() sopra e' sincrono-bloccante (poll fino a 280s).
+// Per brand grossi tipo Elena Mirò (377 pages × silva skipDetails=false
+// = ~10min reali) sforiamo il timeout Vercel di 5min.
+//
+// Async pattern: il route lancia startGoogleAdsScan e ritorna subito
+// con runId. Apify chiama il nostro webhook /api/apify/webhooks/
+// google-ads quando il run finisce (SUCCEEDED, ABORTED, FAILED,
+// TIMED-OUT). Il webhook handler chiama finalizeGoogleAdsScan per
+// fetch dataset + normalize + return records → poi persiste su DB.
+
+export interface StartScanResult {
+  runId: string;
+  datasetId: string;
+  actorId: string;
+  input: Record<string, unknown>;
+  /** URL-driven region list, salvato in scan_options per essere
+   *  riusato nel finalize (normalizeSilva ne ha bisogno per scan_countries). */
+  urlRegionList: string[];
+  /** Apify credentials usate: il webhook handler le rifetcha dal
+   *  workspace_id quindi non serve passarle in giro, ma le ritorniamo
+   *  per debug/audit. */
+  credentialsHash?: string;
+}
+
+/**
+ * Fire-and-forget: registra il run su Apify con webhook config e
+ * ritorna immediatamente. Niente polling, niente fetch dataset.
+ *
+ * Il webhook URL deve essere pubblicamente raggiungibile (NEXT_PUBLIC_
+ * APP_URL). Apify chiamera' quel URL con l'header x-aiscan-secret =
+ * APIFY_WEBHOOK_SECRET cosi possiamo distinguere chiamate legittime
+ * da chiamate spoofate.
+ */
+export async function startGoogleAdsScan(
+  opts: GoogleScrapeOptions,
+): Promise<StartScanResult> {
+  const creds = await getApifyCredentials(opts.workspaceId);
+  const token = creds.token;
+
+  const maxAds = opts.maxResults ?? 200;
+
+  const urlRegionList: string[] = (() => {
+    if (!isMemoActor && !isSilvaActor) return [];
+    const regions = (opts.country ?? "")
+      .split(",")
+      .map((c) => c.trim().toUpperCase())
+      .filter(Boolean);
+    return regions.length > 0 ? regions : ["anywhere"];
+  })();
+
+  // Build actor input — stessa logica di scrapeGoogleAds().
+  const memoMaxPerRegion = Math.max(
+    50,
+    Math.floor(maxAds / Math.max(1, urlRegionList.length)),
+  );
+  const silvaResultsLimit = Math.max(
+    50,
+    Math.floor(maxAds / Math.max(1, urlRegionList.length)),
+  );
+  const input: Record<string, unknown> = isMemoActor
+    ? { maxItems: memoMaxPerRegion }
+    : isSilvaActor
+      ? {
+          resultsLimit: silvaResultsLimit,
+          skipDetails: false,
+          ocr: false,
+        }
+      : { maxAds };
+
+  if (isMemoActor || isSilvaActor) {
+    const baseUrl = "https://adstransparency.google.com";
+    function urlForRegion(region: string): string {
+      if (opts.advertiserId) {
+        return `${baseUrl}/advertiser/${encodeURIComponent(opts.advertiserId)}?region=${encodeURIComponent(region)}`;
+      }
+      if (opts.advertiserDomain) {
+        const cleaned = cleanAdvertiserDomain(opts.advertiserDomain);
+        if (!cleaned) {
+          throw new Error(
+            `Dominio Google Ads non valido: "${opts.advertiserDomain}". Usa solo il dominio (es. axelarigato.com).`,
+          );
+        }
+        return `${baseUrl}/?region=${encodeURIComponent(region)}&domain=${encodeURIComponent(cleaned)}`;
+      }
+      if (opts.advertiserName) {
+        return `${baseUrl}/?region=${encodeURIComponent(region)}&advertiser=${encodeURIComponent(opts.advertiserName)}`;
+      }
+      throw new Error(
+        "Google Ads scrape requires advertiserId, advertiserDomain, or advertiserName",
+      );
+    }
+    const urls = urlRegionList.map(urlForRegion);
+    input.startUrls = isSilvaActor ? urls.map((url) => ({ url })) : urls;
+  } else if (opts.advertiserId) {
+    input.advertiserIds = [opts.advertiserId];
+  } else if (opts.advertiserDomain) {
+    const cleaned = cleanAdvertiserDomain(opts.advertiserDomain);
+    if (!cleaned) {
+      throw new Error(
+        `Dominio Google Ads non valido: "${opts.advertiserDomain}". Usa solo il dominio (es. axelarigato.com).`,
+      );
+    }
+    input.domains = [cleaned];
+  } else if (opts.advertiserName) {
+    input.searchTerms = [opts.advertiserName];
+  } else {
+    throw new Error(
+      "Google Ads scrape requires advertiserId, advertiserDomain, or advertiserName",
+    );
+  }
+
+  // Cap timeout lato Apify: 30 min e' largo abbastanza per brand
+  // giganti (Elena Mirò ~10 min reali). Oltre i 30 min Apify abortira'
+  // automaticamente e chiamera' il webhook con ACTOR.RUN.TIMED_OUT.
+  const apifyTimeoutSecs = 1800;
+
+  // Webhook config: Apify chiamera' il nostro endpoint a ogni evento
+  // del run. Il header x-aiscan-secret e' il "share secret" che
+  // distingue chiamate legittime da spoofing.
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
+  const webhookSecret = process.env.APIFY_WEBHOOK_SECRET ?? "";
+  if (!appUrl) {
+    console.warn(
+      "[Google Ads] NEXT_PUBLIC_APP_URL non settata: webhook non sara' raggiungibile (Apify non potra' callbackare).",
+    );
+  }
+  if (!webhookSecret) {
+    console.warn(
+      "[Google Ads] APIFY_WEBHOOK_SECRET non settata: il webhook accettera' qualunque payload (insicuro).",
+    );
+  }
+  const webhooks =
+    appUrl && webhookSecret
+      ? [
+          {
+            eventTypes: [
+              "ACTOR.RUN.SUCCEEDED",
+              "ACTOR.RUN.FAILED",
+              "ACTOR.RUN.ABORTED",
+              "ACTOR.RUN.TIMED_OUT",
+            ],
+            requestUrl: `${appUrl}/api/apify/webhooks/google-ads`,
+            headersTemplate: JSON.stringify({
+              "x-aiscan-secret": webhookSecret,
+            }),
+            payloadTemplate: JSON.stringify({
+              eventType: "{{eventType}}",
+              runId: "{{resource.id}}",
+              status: "{{resource.status}}",
+              datasetId: "{{resource.defaultDatasetId}}",
+              actorId: "{{resource.actId}}",
+            }),
+          },
+        ]
+      : undefined;
+
+  console.log(
+    `[Google Ads start] actor=${GOOGLE_ACTOR_ID} (mode=${isSilvaActor ? "silva" : isMemoActor ? "memo23" : "automation-lab"}) timeoutSecs=${apifyTimeoutSecs} webhook=${webhooks ? "yes" : "no"}`,
+  );
+
+  // POST /acts/{actor}/runs?timeout=...&webhooks=...
+  // I parametri webhooks possono andare in query (URL-encoded JSON)
+  // oppure nel body. Apify accetta entrambi, ma con webhooks complessi
+  // (multi-event + headers) e' piu' pulito tenerli nel body... ma
+  // Apify documenta solo il query param. Andiamo via query per
+  // sicurezza.
+  const params = new URLSearchParams();
+  params.set("timeout", String(apifyTimeoutSecs));
+  if (webhooks) {
+    // Apify accetta l'array webhooks come query param base64'd.
+    const encoded = Buffer.from(JSON.stringify(webhooks)).toString("base64");
+    params.set("webhooks", encoded);
+  }
+  const actorPath = `/acts/${encodeURIComponent(GOOGLE_ACTOR_ID)}/runs?${params.toString()}`;
+  const run = await apifyFetch(
+    actorPath,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+    token,
+  );
+
+  const runId: string = run.data?.id ?? run.id ?? "";
+  const datasetId: string =
+    run.data?.defaultDatasetId ?? run.defaultDatasetId ?? "";
+
+  console.log(
+    `[Google Ads start] Run created: runId=${runId} datasetId=${datasetId}`,
+  );
+
+  if (!runId || !datasetId) {
+    throw new Error("Apify run started but no runId/datasetId returned.");
+  }
+
+  return {
+    runId,
+    datasetId,
+    actorId: GOOGLE_ACTOR_ID,
+    input,
+    urlRegionList,
+  };
+}
+
+export interface FinalizeScanArgs {
+  workspaceId: string;
+  runId: string;
+  datasetId: string;
+  /** Lo stato finale del run come riportato dal webhook
+   *  (SUCCEEDED / ABORTED / FAILED / TIMED-OUT). */
+  apifyStatus: string;
+  /** Opzioni dello scan originale (snapshot salvato in scan_options
+   *  al momento della startGoogleAdsScan). Servono per dedup,
+   *  advertiser filter, date filter, urlRegionList. */
+  opts: GoogleScrapeOptions;
+  urlRegionList: string[];
+}
+
+export interface FinalizeScanResult {
+  records: NormalizedAd[];
+  costCu: number;
+  /** True se il run e' arrivato a SUCCEEDED; false se abbiamo
+   *  recuperato solo un dataset parziale (status != SUCCEEDED ma
+   *  dataset con items). */
+  complete: boolean;
+  rawItemCount: number;
+}
+
+/**
+ * Webhook-side finalize: fetch dataset (anche parziale), normalize,
+ * dedup, filtri client-side, ritorna records + costCu.
+ * NON persiste su DB — quella e' responsabilita' del chiamante (il
+ * webhook handler) cosi separiamo I/O da business logic.
+ */
+export async function finalizeGoogleAdsScan(
+  args: FinalizeScanArgs,
+): Promise<FinalizeScanResult> {
+  const { workspaceId, runId, datasetId, apifyStatus, opts } = args;
+  const urlRegionList = args.urlRegionList ?? [];
+  const memoRegionList = isMemoActor ? urlRegionList : [];
+
+  const creds = await getApifyCredentials(workspaceId);
+  const token = creds.token;
+
+  const complete = apifyStatus === "SUCCEEDED";
+
+  // Fetch dataset (anche se non SUCCEEDED — Apify conserva gli items
+  // gia' scritti). Stessa pagination + safety cap di scrapeGoogleAds.
+  const items: Array<RawGoogleAd | MemoRawGoogleAd> = [];
+  const pageSize = 1000;
+  const safetyCap = 50_000;
+  for (let offset = 0; offset < safetyCap; offset += pageSize) {
+    const page = await apifyFetch(
+      `/datasets/${datasetId}/items?format=json&limit=${pageSize}&offset=${offset}`,
+      undefined,
+      token,
+    );
+    const pageItems: Array<RawGoogleAd | MemoRawGoogleAd> = Array.isArray(page)
+      ? page
+      : page.items ?? [];
+    if (pageItems.length === 0) break;
+    items.push(...pageItems);
+    if (pageItems.length < pageSize) break;
+  }
+
+  console.log(
+    `[Google Ads finalize] runId=${runId} status=${apifyStatus} rawItems=${items.length}`,
+  );
+
+  if (items.length === 0) {
+    let costCu = 0;
+    try {
+      const runInfo = await apifyFetch(
+        `/actor-runs/${runId}`,
+        undefined,
+        token,
+      );
+      costCu = runInfo.data?.usageTotalUsd ?? 0;
+    } catch {
+      /* ignore */
+    }
+    return { records: [], costCu, complete, rawItemCount: 0 };
+  }
+
+  let records = items
+    .map((it) =>
+      isSilvaActor
+        ? normalizeSilva(it as SilvaRawGoogleAd, urlRegionList)
+        : isMemoActor
+          ? normalizeMemo(it as MemoRawGoogleAd, memoRegionList)
+          : normalize(it as RawGoogleAd),
+    )
+    .filter((a): a is NormalizedAd => !!a.ad_archive_id);
+
+  // Advertiser filtering (stessa logica di scrapeGoogleAds).
+  if ((isMemoActor || isSilvaActor) && opts.advertiserId) {
+    const expected = opts.advertiserId;
+    records = records.filter((r) => {
+      const adv = (r.raw_data as Record<string, unknown>)?.advertiserId;
+      return typeof adv === "string" ? adv === expected : true;
+    });
+  } else if ((isMemoActor || isSilvaActor) && opts.advertiserDomain) {
+    const counts = new Map<string, number>();
+    for (const r of records) {
+      const adv = (r.raw_data as Record<string, unknown>)?.advertiserId;
+      if (typeof adv === "string" && adv) {
+        counts.set(adv, (counts.get(adv) ?? 0) + 1);
+      }
+    }
+    const dominant = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (dominant) {
+      records = records.filter(
+        (r) =>
+          (r.raw_data as Record<string, unknown>)?.advertiserId === dominant,
+      );
+    }
+  }
+
+  if (isMemoActor || isSilvaActor) {
+    records = dedupeMemoNormalized(records);
+  }
+
+  if (opts.dateFrom || opts.dateTo) {
+    const from = opts.dateFrom ? new Date(opts.dateFrom).getTime() : 0;
+    const to = opts.dateTo
+      ? new Date(opts.dateTo).getTime() + 86_400_000
+      : Infinity;
+    records = records.filter((r) => {
+      const start = r.start_date ? new Date(r.start_date).getTime() : 0;
+      return start >= from && start <= to;
+    });
+  }
+
+  let costCu = 0;
+  try {
+    const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
+    costCu = runInfo.data?.usageTotalUsd ?? 0;
+  } catch {
+    /* ignore */
+  }
+
+  console.log(
+    `[Google Ads finalize] Done: rawItems=${items.length} → normalized=${records.length}, costCu=$${costCu.toFixed(3)}, complete=${complete}`,
+  );
+
+  return { records, costCu, complete, rawItemCount: items.length };
+}

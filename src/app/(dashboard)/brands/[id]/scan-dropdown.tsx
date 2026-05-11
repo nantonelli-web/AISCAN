@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
@@ -119,6 +119,11 @@ export function ScanDropdown({
   const { t } = useT();
   const [loading, setLoading] = useState<ScanTarget | null>(null);
   const [stopping, setStopping] = useState(false);
+  /** Job-id Google async in attesa di webhook. Quando settato,
+   *  l'useEffect dedicato fa polling su /api/apify/jobs/{id}/status
+   *  ogni 8s finche' non e' terminal (succeeded/partial/failed). */
+  const [googleScanJobId, setGoogleScanJobId] = useState<string | null>(null);
+  const googleScanToastIdRef = useRef<string | number | null>(null);
 
   // Shared date range
   const [dateFrom, setDateFrom] = useState("");
@@ -168,9 +173,94 @@ export function ScanDropdown({
     } finally {
       setLoading(null);
       setStopping(false);
+      // Reset del polling Google async (l'abort triggera comunque
+      // il webhook che marchera' il job come failed, ma noi smettiamo
+      // di pollare subito per UX).
+      if (googleScanJobId) {
+        setGoogleScanJobId(null);
+        if (googleScanToastIdRef.current) {
+          toast.dismiss(googleScanToastIdRef.current);
+          googleScanToastIdRef.current = null;
+        }
+      }
       router.refresh();
     }
   }
+
+  // Polling per scan Google async. Si attiva quando scanGoogle() lancia
+  // il run e ottiene un job_id; finisce quando il webhook ha aggiornato
+  // lo status del job nel DB.
+  useEffect(() => {
+    if (!googleScanJobId) return;
+    let cancelled = false;
+    const pollStartedAt = Date.now();
+    const POLL_MS = 8000;
+    const MAX_MS = 35 * 60 * 1000;
+
+    async function poll() {
+      if (cancelled) return;
+      try {
+        const r = await fetch(`/api/apify/jobs/${googleScanJobId}/status`, {
+          cache: "no-store",
+        });
+        if (!r.ok) throw new Error(`status ${r.status}`);
+        const j = (await r.json()) as {
+          status: string;
+          records_count: number;
+          error: string | null;
+          terminal: boolean;
+        };
+        if (j.terminal) {
+          if (googleScanToastIdRef.current) {
+            toast.dismiss(googleScanToastIdRef.current);
+            googleScanToastIdRef.current = null;
+          }
+          if (j.status === "succeeded") {
+            toast.success(
+              `${j.records_count} Google Ads ${t("scan", "adsSynced")} (${rangeLabel})`,
+            );
+          } else if (j.status === "partial") {
+            toast.success(
+              `${j.records_count} Google Ads sincronizzate (scan parziale, ${rangeLabel})`,
+              { duration: 10000 },
+            );
+          } else {
+            toast.error(
+              `Google Ads scan failed: ${j.error ?? "errore"}`,
+              { duration: 10000 },
+            );
+          }
+          setGoogleScanJobId(null);
+          setLoading(null);
+          focusChannel("google");
+          return;
+        }
+        if (Date.now() - pollStartedAt > MAX_MS) {
+          if (googleScanToastIdRef.current) {
+            toast.dismiss(googleScanToastIdRef.current);
+            googleScanToastIdRef.current = null;
+          }
+          toast.error(
+            "Scan Google in corso da piu' di 35 minuti — controlla manualmente",
+            { duration: 10000 },
+          );
+          setGoogleScanJobId(null);
+          setLoading(null);
+          return;
+        }
+        if (!cancelled) setTimeout(poll, POLL_MS);
+      } catch (e) {
+        console.warn("[scanGoogle poll]", e);
+        if (!cancelled) setTimeout(poll, POLL_MS);
+      }
+    }
+    const handle = setTimeout(poll, POLL_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [googleScanJobId]);
 
   // Effective range: custom or last 30 days
   const effectiveFrom = dateFrom || daysAgo(30);
@@ -228,10 +318,16 @@ export function ScanDropdown({
 
   async function scanGoogle() {
     if (rangeExceeded) return;
+    // Async flow: la POST ritorna in <2s con un job_id. Il polling
+    // (useEffect sopra) si occupa di mostrare il toast finale quando
+    // Apify chiama il webhook e il job diventa terminal.
     const controller = new AbortController();
     abortRef.current = controller;
     setLoading("google");
-    const toastId = toast.loading(t("scan", "scrapingGoogleInProgress"));
+    const toastId = toast.loading(
+      `${t("scan", "scrapingGoogleInProgress")} — puoi continuare a lavorare, ti avviseremo`,
+    );
+    googleScanToastIdRef.current = toastId;
     try {
       const res = await fetch("/api/apify/scan-google", {
         method: "POST",
@@ -247,21 +343,32 @@ export function ScanDropdown({
       const json = await res.json();
       if (!res.ok) {
         toast.error(json.error ?? "Google Ads scrape failed", { id: toastId });
-        if (json.debug) console.error("[AISCAN Google scan error]", json);
-      } else {
-        if (json.debug) console.log("[AISCAN Google scan debug]", json.debug);
-        toast.success(`${json.records} Google Ads ${t("scan", "adsSynced")} (${rangeLabel})`, { id: toastId });
-        focusChannel("google");
+        googleScanToastIdRef.current = null;
+        setLoading(null);
+        return;
       }
+      if (!json.job_id) {
+        toast.error("Risposta inattesa: no job_id", { id: toastId });
+        googleScanToastIdRef.current = null;
+        setLoading(null);
+        return;
+      }
+      // Da qui in poi gestisce tutto il polling useEffect. Non
+      // resettiamo setLoading: il pulsante deve restare 'loading'
+      // finche' il webhook ha terminato.
+      setGoogleScanJobId(json.job_id);
     } catch (e) {
       if ((e as Error).name === "AbortError") {
         toast.dismiss(toastId);
       } else {
-        toast.error(e instanceof Error ? e.message : "Network error", { id: toastId });
+        toast.error(e instanceof Error ? e.message : "Network error", {
+          id: toastId,
+        });
       }
+      googleScanToastIdRef.current = null;
+      setLoading(null);
     } finally {
       abortRef.current = null;
-      setLoading(null);
     }
   }
 

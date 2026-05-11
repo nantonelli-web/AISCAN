@@ -3,13 +3,18 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  scrapeGoogleAds,
+  startGoogleAdsScan,
   cleanAdvertiserDomain,
 } from "@/lib/apify/google-ads-service";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 import { checkScanConcurrency } from "@/lib/rate-limit/scan-concurrency";
 
-export const maxDuration = 300;
+// Async fire-and-forget: lanciamo il run su Apify e ritorniamo
+// immediatamente. La finalizzazione (fetch dataset + upsert ads)
+// avviene in /api/apify/webhooks/google-ads quando Apify ci chiama
+// alla fine del run. Quindi un cap di 30s e' piu' che sufficiente
+// per kick-off + insert job + qualche retry transient.
+export const maxDuration = 30;
 
 const schema = z.object({
   competitor_id: z.string().uuid(),
@@ -38,7 +43,7 @@ export async function POST(req: Request) {
         error:
           "APIFY_API_TOKEN non configurato. Aggiungilo nelle Environment Variables di Vercel e ridepiega.",
       },
-      { status: 503 }
+      { status: 503 },
     );
   }
 
@@ -46,7 +51,7 @@ export async function POST(req: Request) {
   const { data: competitor, error: compErr } = await supabase
     .from("mait_competitors")
     .select(
-      "id, workspace_id, page_name, google_advertiser_id, google_domain, country"
+      "id, workspace_id, page_name, google_advertiser_id, google_domain, country",
     )
     .eq("id", parsed.data.competitor_id)
     .single();
@@ -54,7 +59,7 @@ export async function POST(req: Request) {
   if (compErr || !competitor) {
     return NextResponse.json(
       { error: "Competitor not found" },
-      { status: 404 }
+      { status: 404 },
     );
   }
 
@@ -64,20 +69,26 @@ export async function POST(req: Request) {
         error:
           "Nessun Google Advertiser ID o dominio configurato per questo competitor.",
       },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   const admin = createAdminClient();
 
-  // Cleanup stale jobs + concurrency gate BEFORE charging credits.
-  const tenMinAgoPre = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  // Cleanup stale jobs prima del concurrency gate. Async flow:
+  // un job 'running' senza webhook_received_at dopo 35 min e' stale
+  // (il run Apify avrebbe timeoutato a 30 min e ci avrebbe chiamato).
+  const staleCutoff = new Date(Date.now() - 35 * 60 * 1000).toISOString();
   await admin
     .from("mait_scrape_jobs")
-    .update({ status: "failed", completed_at: new Date().toISOString(), error: "Timeout (stale)" })
+    .update({
+      status: "failed",
+      completed_at: new Date().toISOString(),
+      error: "Timeout (stale, no webhook received within 35min)",
+    })
     .eq("competitor_id", competitor.id)
     .eq("status", "running")
-    .lt("started_at", tenMinAgoPre);
+    .lt("started_at", staleCutoff);
 
   const rate = await checkScanConcurrency(admin, {
     workspaceId: competitor.workspace_id,
@@ -87,9 +98,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: rate.reason }, { status: 429 });
   }
 
-  const credits = await consumeCredits(user.id, "scan_google", `Google Ads scan: ${competitor.page_name}`);
+  const credits = await consumeCredits(
+    user.id,
+    "scan_google",
+    `Google Ads scan: ${competitor.page_name}`,
+  );
   if (!credits.ok) {
-    return NextResponse.json({ error: "Insufficient credits", balance: credits.balance, cost: 2 }, { status: 402 });
+    return NextResponse.json(
+      { error: "Insufficient credits", balance: credits.balance, cost: 2 },
+      { status: 402 },
+    );
   }
 
   // Auto-heal legacy google_domain values stored as full URLs.
@@ -104,8 +122,25 @@ export async function POST(req: Request) {
     }
   }
 
-  // Create job row — persist the requested window so the brand list
-  // can show "scan period from → to" alongside the run date.
+  // Snapshot delle opzioni: il webhook handler le riusera' per
+  // ricostruire il filtro advertiser-id, il filtro date range,
+  // il dedup, ecc. Salviamo TUTTO cio' che serve a finalize().
+  const scanOptions = {
+    advertiserId: competitor.google_advertiser_id ?? null,
+    advertiserDomain: competitor.google_domain ?? null,
+    advertiserName:
+      !competitor.google_advertiser_id && !competitor.google_domain
+        ? competitor.page_name ?? null
+        : null,
+    dateFrom: parsed.data.date_from ?? null,
+    dateTo: parsed.data.date_to ?? null,
+    maxResults: parsed.data.max_items ?? 500,
+    country: competitor.country ?? null,
+    competitorPageName: competitor.page_name ?? null,
+  };
+
+  // Create job row PRIMA di lanciare Apify cosi se l'insert fallisce
+  // (unique violation: gia' running) non sprechiamo una run.
   const { data: job, error: jobErr } = await admin
     .from("mait_scrape_jobs")
     .insert({
@@ -115,169 +150,64 @@ export async function POST(req: Request) {
       source: "google",
       date_from: parsed.data.date_from ?? null,
       date_to: parsed.data.date_to ?? null,
+      created_by: user.id,
     })
     .select("id")
     .single();
 
   if (jobErr || !job) {
-    // Unique violation on the partial index "one running scan per
-    // competitor" (migration 0033). Means a concurrent request beat
-    // us to it after we passed the rate-limit check — surface it as
-    // the same 429 / "already_running" the rate check would have
-    // returned, refund the credits we just consumed, and let the
-    // user retry once the running scan finishes.
     if ((jobErr as { code?: string } | null)?.code === "23505") {
       await refundCredits(
         user.id,
         "scan_google",
         `Google Ads scan race-rejected: ${competitor.page_name}`,
       );
-      return NextResponse.json(
-        { error: "already_running" },
-        { status: 429 },
-      );
+      return NextResponse.json({ error: "already_running" }, { status: 429 });
     }
     return NextResponse.json(
       { error: jobErr?.message ?? "Job error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 
   try {
-    const result = await scrapeGoogleAds({
-      advertiserId: competitor.google_advertiser_id ?? undefined,
-      advertiserDomain: competitor.google_domain ?? undefined,
-      advertiserName: !competitor.google_advertiser_id && !competitor.google_domain
-        ? competitor.page_name ?? undefined
-        : undefined,
-      dateFrom: parsed.data.date_from,
-      dateTo: parsed.data.date_to,
-      maxResults: parsed.data.max_items ?? 500,
-      // Pass through the workspace's per-brand country list so the
-      // memo23 actor can scope its Transparency-Center crawl to the
-      // regions we actually care about (instead of region=anywhere
-      // which triggered an 870-page global sweep on Karen Millen).
-      // Legacy automation-lab actor ignores this — its API returns
-      // ALL regions regardless.
-      country: competitor.country ?? undefined,
-      // BYO dispatch: subscription-mode workspaces hit their own
-      // Apify account; credit-mode workspaces stay on env.
+    const result = await startGoogleAdsScan({
+      advertiserId: scanOptions.advertiserId ?? undefined,
+      advertiserDomain: scanOptions.advertiserDomain ?? undefined,
+      advertiserName: scanOptions.advertiserName ?? undefined,
+      dateFrom: scanOptions.dateFrom ?? undefined,
+      dateTo: scanOptions.dateTo ?? undefined,
+      maxResults: scanOptions.maxResults,
+      country: scanOptions.country ?? undefined,
       workspaceId: competitor.workspace_id,
     });
 
-    // Abort checkpoint #1: user clicked Stop while Apify was still
-    // returning. Skip the upsert + final update so partial data
-    // never lands in mait_ads_external and the job row keeps the
-    // failed/aborted state set by /api/apify/abort.
-    {
-      const { data: jobNow } = await admin
-        .from("mait_scrape_jobs")
-        .select("status")
-        .eq("id", job.id)
-        .maybeSingle();
-      if (jobNow?.status === "failed") {
-        await refundCredits(
-          user.id,
-          "scan_google",
-          `Google Ads scan aborted: ${competitor.page_name}`,
-        );
-        return NextResponse.json({
-          ok: false,
-          aborted: true,
-          job_id: job.id,
-          records: 0,
-        });
-      }
-    }
-
-    // Upsert ads (no image download — Google CDN URLs are persistent)
-    if (result.records.length > 0) {
-      // Stamp the moment we observed each ad in our scan. Independent
-      // of silva's `lastShown` (Google catalog) — useful as a
-      // transparency signal on the ad-detail page so the user can
-      // distinguish "Google's catalog says X" from "we last saw it
-      // ourselves on Y".
-      const seenAt = new Date().toISOString();
-      const rows = result.records.map((r) => ({
-        ...r,
-        source: "google" as const,
-        workspace_id: competitor.workspace_id,
-        competitor_id: competitor.id,
-        last_seen_in_scan_at: seenAt,
-      }));
-
-      const { error: upErr } = await admin
-        .from("mait_ads_external")
-        .upsert(rows, { onConflict: "workspace_id,ad_archive_id,source" });
-      if (upErr) throw upErr;
-    }
-
-    // Abort checkpoint #2: stop landed AFTER the upsert (rare, narrow
-    // race). Some partial data is in DB; we keep the job row honestly
-    // marked failed/aborted instead of overwriting to succeeded.
-    {
-      const { data: jobNow } = await admin
-        .from("mait_scrape_jobs")
-        .select("status")
-        .eq("id", job.id)
-        .maybeSingle();
-      if (jobNow?.status === "failed") {
-        await refundCredits(
-          user.id,
-          "scan_google",
-          `Google Ads scan aborted (post-commit): ${competitor.page_name}`,
-        );
-        return NextResponse.json({
-          ok: false,
-          aborted: true,
-          partial_records: result.records.length,
-          job_id: job.id,
-        });
-      }
-    }
-
+    // Update job con runId+datasetId+scan_options. Il webhook handler
+    // matcha su apify_run_id e usa scan_options per ricostruire opts.
     await admin
       .from("mait_scrape_jobs")
       .update({
-        status: "succeeded",
-        completed_at: new Date().toISOString(),
-        records_count: result.records.length,
-        cost_cu: result.costCu,
         apify_run_id: result.runId,
-        // BYO audit trail (Phase 3).
-        key_used: result.credentials?.keyRecordId ?? null,
-        billing_mode_at_run: result.credentials?.billingMode ?? null,
+        dataset_id: result.datasetId,
+        scan_options: {
+          ...scanOptions,
+          urlRegionList: result.urlRegionList,
+          actorId: result.actorId,
+        },
       })
       .eq("id", job.id);
-
-    await admin
-      .from("mait_competitors")
-      .update({ last_scraped_at: new Date().toISOString() })
-      .eq("id", competitor.id);
-
-    if (result.records.length > 0) {
-      await admin.from("mait_alerts").insert({
-        workspace_id: competitor.workspace_id,
-        competitor_id: competitor.id,
-        type: "new_ads",
-        message: `${result.records.length} Google Ads sincronizzate.`,
-      });
-
-      // Mark any cached comparisons that include this competitor as stale
-      await admin
-        .from("mait_comparisons")
-        .update({ stale: true, updated_at: new Date().toISOString() })
-        .contains("competitor_ids", [competitor.id]);
-    }
 
     return NextResponse.json({
       ok: true,
       job_id: job.id,
-      records: result.records.length,
-      debug: { startUrl: result.startUrl, ...result.debug },
+      run_id: result.runId,
+      dataset_id: result.datasetId,
+      status: "running",
+      message:
+        "Scan avviato. Riceverai i risultati appena Apify completera' il run (la pagina si aggiornera' da sola).",
     });
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : "Scrape failed";
+    const message = e instanceof Error ? e.message : "Scrape start failed";
     const billingCode =
       e && typeof e === "object" && "code" in (e as object)
         ? ((e as { code: unknown }).code as string)
@@ -290,10 +220,16 @@ export async function POST(req: Request) {
         error: message,
       })
       .eq("id", job.id);
-    // Refund credits on failure (no-op in subscription mode).
-    await refundCredits(user.id, "scan_google", `Google Ads scan: ${competitor.page_name}`);
+    await refundCredits(
+      user.id,
+      "scan_google",
+      `Google Ads scan start-failed: ${competitor.page_name}`,
+    );
     const httpStatus =
       billingCode === "MISSING_KEY" || billingCode === "INVALID_KEY" ? 400 : 500;
-    return NextResponse.json({ error: message, code: billingCode }, { status: httpStatus });
+    return NextResponse.json(
+      { error: message, code: billingCode },
+      { status: httpStatus },
+    );
   }
 }
