@@ -15,6 +15,7 @@ import {
   Folder,
   Globe2,
   CalendarRange,
+  Square,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -168,6 +169,7 @@ export function BatchScanPanel({
   const [clientFilter, setClientFilter] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const [batchId, setBatchId] = useState<string | null>(null);
   const [pollResult, setPollResult] = useState<BatchStatusResponse | null>(
     null,
@@ -290,6 +292,40 @@ export function BatchScanPanel({
     setSelected(new Set());
   }
 
+  async function stopBatch() {
+    if (!batchId) return;
+    const ok = window.confirm(
+      "Fermare il batch in corso?\n\nVengono abortiti i run Apify ancora in esecuzione. Gli ads gia' scrapati prima dell'abort vengono salvati comunque (status job 'partial'); i job senza ads vengono marcati 'failed' e i crediti rifondati automaticamente.",
+    );
+    if (!ok) return;
+    setStopping(true);
+    const toastId = toast.loading("Stop batch in corso…");
+    try {
+      const res = await fetch("/api/apify/scan-google/batch/stop", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ batch_id: batchId }),
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        toast.error(j.error ?? "Stop batch failed", { id: toastId });
+        return;
+      }
+      toast.success(
+        `Stop richiesto: ${j.aborted_count ?? 0} run Apify abortiti. I parziali arrivano via webhook nei prossimi secondi.`,
+        { id: toastId, duration: 10000 },
+      );
+      // Lasciamo che il polling esistente raccolga lo stato finale
+      // dei job man mano che i webhook ABORTED arrivano.
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Network error", {
+        id: toastId,
+      });
+    } finally {
+      setStopping(false);
+    }
+  }
+
   // Polling status
   useEffect(() => {
     if (!batchId) return;
@@ -402,16 +438,34 @@ export function BatchScanPanel({
                   <p className="text-[11px] uppercase tracking-wider font-semibold text-violet-500">
                     {polling ? "Batch in esecuzione" : "Batch completato"}
                   </p>
-                  {!polling && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={resetForNewBatch}
-                      className="text-[11px] h-7"
-                    >
-                      Nuovo batch
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {polling && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={stopBatch}
+                        disabled={stopping}
+                        className="text-[11px] h-7 border-red-400/40 text-red-500 hover:bg-red-400/15 hover:border-red-400 gap-1.5"
+                      >
+                        {stopping ? (
+                          <Loader2 className="size-3 animate-spin" />
+                        ) : (
+                          <Square className="size-3 fill-current" />
+                        )}
+                        {stopping ? "Fermo…" : "Stop batch"}
+                      </Button>
+                    )}
+                    {!polling && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={resetForNewBatch}
+                        className="text-[11px] h-7"
+                      >
+                        Nuovo batch
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-3 text-[12.5px]">
                   <span>
