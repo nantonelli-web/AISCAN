@@ -42,6 +42,7 @@ export const PERF_SECTIONS = [
   "campaignTypes",
   "countries",
   "creatives",
+  "adNames",
   "objective",
 ] as const;
 export type PerfSection = (typeof PERF_SECTIONS)[number];
@@ -83,6 +84,7 @@ export function applicableSections(data: PerfDashboardData): PerfSection[] {
   ) {
     out.push("creatives");
   }
+  if (data.adNameMix.length > 0) out.push("adNames");
   if (
     data.objectiveMix.length > 0 &&
     data.objectiveMix.some((o) => o.name && o.name !== "—")
@@ -109,6 +111,8 @@ const SECTION_DESCR_IT: Record<PerfSection, string> = {
     "Distribuzione spesa, impressioni, click e acquisti per paese. Spiega dove si concentra l'investimento, dove c'e' il miglior return, se ci sono paesi con spesa alta ma conversion bassa.",
   creatives:
     "Distribuzione tipo creativita' (image / video / carousel / collection) per spesa + numero medio di asset attivi per settimana. Spiega che mix creativo e' adottato e se e' coerente con un funnel sano (es. video per awareness, image per remarketing).",
+  adNames:
+    "Performance per singola creativita' (campo Ad name). Spesa, click, impression, CTR e acquisti aggregati per asset, con quota % sul totale. Identifica le creativita' top-spender, valuta se la concentrazione e' sana o se poche creative monopolizzano il budget, segnala outlier per CTR/CPA e suggerisci test/scaling/pause coerenti.",
   objective:
     "Distribuzione spesa per obiettivo della campagna (sales, traffic, awareness, ecc). Spiega la coerenza con il funnel del brand.",
 };
@@ -130,6 +134,8 @@ const SECTION_DESCR_EN: Record<PerfSection, string> = {
     "Spend, impressions, clicks and purchases breakdown by country. Comment on where investment concentrates, where return is best, whether some countries have high spend but low conversion.",
   creatives:
     "Creative type breakdown (image / video / carousel / collection) by spend + average number of active assets per week. Comment on the creative mix and whether it's funnel-coherent (e.g. video for awareness, image for remarketing).",
+  adNames:
+    "Per-creative performance (Ad name field). Spend, clicks, impressions, CTR and purchases aggregated by asset, with % share of total. Identify top-spending creatives, judge whether the concentration is healthy or whether a few creatives monopolise budget, flag CTR/CPA outliers and suggest scaling/pausing/testing accordingly.",
   objective:
     "Spend distribution by campaign objective (sales, traffic, awareness, etc). Comment on coherence with the brand's funnel.",
 };
@@ -228,6 +234,15 @@ function buildDashboardSnapshot(data: PerfDashboardData): string {
     );
     for (const c of data.creativeCountByType) {
       lines.push(`${c.name}: ${c.count}`);
+    }
+  }
+
+  if (data.adNameMix.length > 0) {
+    lines.push("\n=== AD NAME MIX (per ad_name, top 20 per spesa) ===");
+    for (const c of data.adNameMix.slice(0, 20)) {
+      lines.push(
+        `${c.name} | spend=${c.value} ${cur}, clicks=${c.clicks}, imp=${c.impressions}, CTR=${c.ctr ?? "—"}%, purchases=${c.purchases}`,
+      );
     }
   }
 

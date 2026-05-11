@@ -1289,116 +1289,124 @@ export function DashboardClient({ importId }: { importId: string }) {
 
       {/* Performance per ad_name (singola creativita') */}
       {data.adNameMix.length > 0 && (
-        <Card>
-          <CardContent className="p-5 space-y-4">
-            <SectionHeader
-              icon={ImageIcon}
-              tone="purple"
-              title={t("advPerformance", "adNameMixTitle")}
-              description={t("advPerformance", "adNameMixDescription")}
-            />
-            {(() => {
-              const showPurch = data.adNameMix.some((c) => c.purchases > 0);
-              const totSpend = data.adNameMix.reduce(
-                (s, c) => s + c.value,
-                0,
-              );
-              const totClicks = data.adNameMix.reduce(
-                (s, c) => s + c.clicks,
-                0,
-              );
-              const totImpressions = data.adNameMix.reduce(
-                (s, c) => s + c.impressions,
-                0,
-              );
-              const totPurchases = data.adNameMix.reduce(
-                (s, c) => s + c.purchases,
-                0,
-              );
-              const pct = (part: number, tot: number) =>
-                tot > 0 ? `${((part / tot) * 100).toFixed(1)}%` : "—";
-              return (
-                <div className="overflow-x-auto max-h-[480px] overflow-y-auto rounded-md border border-border">
-                  <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-background z-10">
-                      <tr className="text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
-                        <th className="text-left py-2 px-3 font-semibold">
-                          Ad name
-                        </th>
-                        <th className="text-right py-2 px-3 font-semibold">
-                          Spesa
-                        </th>
-                        <th className="text-right py-2 px-3 font-semibold">
-                          Click
-                        </th>
-                        <th className="text-right py-2 px-3 font-semibold">
-                          Impression
-                        </th>
-                        <th className="text-right py-2 px-3 font-semibold">
-                          CTR
-                        </th>
-                        {showPurch && (
-                          <th className="text-right py-2 px-3 font-semibold">
-                            Acquisti
+        <section className="space-y-3">
+          <Card>
+            <CardContent className="p-5 space-y-4">
+              <SectionHeader
+                icon={ImageIcon}
+                tone="purple"
+                title={t("advPerformance", "adNameMixTitle")}
+                description={t("advPerformance", "adNameMixDescription")}
+              />
+              {(() => {
+                const showPurch = data.adNameMix.some((c) => c.purchases > 0);
+                const totSpend = data.adNameMix.reduce(
+                  (s, c) => s + c.value,
+                  0,
+                );
+                const totClicks = data.adNameMix.reduce(
+                  (s, c) => s + c.clicks,
+                  0,
+                );
+                const totImpressions = data.adNameMix.reduce(
+                  (s, c) => s + c.impressions,
+                  0,
+                );
+                const totPurchases = data.adNameMix.reduce(
+                  (s, c) => s + c.purchases,
+                  0,
+                );
+                const pct = (part: number, tot: number) =>
+                  tot > 0 ? `${((part / tot) * 100).toFixed(1)}%` : "—";
+                return (
+                  <div className="overflow-x-auto max-h-[480px] overflow-y-auto rounded-md border border-border">
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 bg-background z-10">
+                        <tr className="text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
+                          <th className="text-left py-2 px-3 font-semibold">
+                            Ad name
                           </th>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {data.adNameMix.map((c) => (
-                        <tr key={c.name} className="hover:bg-muted/30">
-                          <td
-                            className="py-2.5 px-3 font-medium break-all"
-                            title={c.name}
-                          >
-                            {c.name}
-                          </td>
-                          <td className="text-right tabular-nums px-3 font-medium">
-                            <div>{formatMoney(c.value, data.currency)}</div>
-                            <div className="text-[11px] text-muted-foreground font-normal">
-                              {pct(c.value, totSpend)}
-                            </div>
-                          </td>
-                          <td className="text-right tabular-nums px-3">
-                            <div>{formatNumber(c.clicks)}</div>
-                            <div className="text-[11px] text-muted-foreground">
-                              {pct(c.clicks, totClicks)}
-                            </div>
-                          </td>
-                          <td className="text-right tabular-nums px-3 text-muted-foreground">
-                            <div>{formatNumber(c.impressions)}</div>
-                            <div className="text-[11px]">
-                              {pct(c.impressions, totImpressions)}
-                            </div>
-                          </td>
-                          <td className="text-right tabular-nums px-3">
-                            {c.ctr != null ? `${formatNumber(c.ctr)}%` : "—"}
-                          </td>
+                          <th className="text-right py-2 px-3 font-semibold">
+                            Spesa
+                          </th>
+                          <th className="text-right py-2 px-3 font-semibold">
+                            Click
+                          </th>
+                          <th className="text-right py-2 px-3 font-semibold">
+                            Impression
+                          </th>
+                          <th className="text-right py-2 px-3 font-semibold">
+                            CTR
+                          </th>
                           {showPurch && (
-                            <td className="text-right tabular-nums px-3">
-                              {c.purchases > 0 ? (
-                                <>
-                                  <div className="text-emerald-500 font-semibold">
-                                    {formatNumber(c.purchases)}
-                                  </div>
-                                  <div className="text-[11px] text-muted-foreground font-normal">
-                                    {pct(c.purchases, totPurchases)}
-                                  </div>
-                                </>
-                              ) : (
-                                "—"
-                              )}
-                            </td>
+                            <th className="text-right py-2 px-3 font-semibold">
+                              Acquisti
+                            </th>
                           )}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              );
-            })()}
-          </CardContent>
-        </Card>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {data.adNameMix.map((c) => (
+                          <tr key={c.name} className="hover:bg-muted/30">
+                            <td
+                              className="py-2.5 px-3 font-medium break-all"
+                              title={c.name}
+                            >
+                              {c.name}
+                            </td>
+                            <td className="text-right tabular-nums px-3 font-medium">
+                              <div>{formatMoney(c.value, data.currency)}</div>
+                              <div className="text-[11px] text-muted-foreground font-normal">
+                                {pct(c.value, totSpend)}
+                              </div>
+                            </td>
+                            <td className="text-right tabular-nums px-3">
+                              <div>{formatNumber(c.clicks)}</div>
+                              <div className="text-[11px] text-muted-foreground">
+                                {pct(c.clicks, totClicks)}
+                              </div>
+                            </td>
+                            <td className="text-right tabular-nums px-3 text-muted-foreground">
+                              <div>{formatNumber(c.impressions)}</div>
+                              <div className="text-[11px]">
+                                {pct(c.impressions, totImpressions)}
+                              </div>
+                            </td>
+                            <td className="text-right tabular-nums px-3">
+                              {c.ctr != null ? `${formatNumber(c.ctr)}%` : "—"}
+                            </td>
+                            {showPurch && (
+                              <td className="text-right tabular-nums px-3">
+                                {c.purchases > 0 ? (
+                                  <>
+                                    <div className="text-emerald-500 font-semibold">
+                                      {formatNumber(c.purchases)}
+                                    </div>
+                                    <div className="text-[11px] text-muted-foreground font-normal">
+                                      {pct(c.purchases, totPurchases)}
+                                    </div>
+                                  </>
+                                ) : (
+                                  "—"
+                                )}
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+          <AnalysisBlock
+            importId={importId}
+            section="adNames"
+            analysis={analyses.adNames ?? null}
+            onUpdated={updateAnalysis}
+          />
+        </section>
       )}
 
       {/* Objective mix */}
