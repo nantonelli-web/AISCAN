@@ -159,9 +159,15 @@ function hasChannelConfig(brand: BrandRow, channel: Channel): boolean {
 export function BatchScanPanel({
   brands,
   clients,
+  stuckJobsCount = 0,
 }: {
   brands: BrandRow[];
   clients: ClientRow[];
+  /** Numero di job Google del workspace in stato 'running' da >5min
+   *  con apify_run_id valorizzato. Calcolato server-side in page.tsx.
+   *  Se > 0 il pannello mostra un banner di recovery sempre visibile
+   *  (anche dopo refresh, quando lo state del batchId interno e' perso). */
+  stuckJobsCount?: number;
 }) {
   const router = useRouter();
   const { t } = useT();
@@ -295,13 +301,12 @@ export function BatchScanPanel({
   }
 
   async function reconcileBatch() {
-    if (!batchId) return;
     const ok = window.confirm(
-      "Forza il recupero dei dati per tutti i job del batch in corso?\n\nServe quando Apify ha gia' completato i run ma noi non abbiamo ricevuto il webhook (es. il batch e' partito con la config sbagliata e i webhook arrivano con un secret non valido). Andiamo direttamente su Apify, leggiamo lo stato di ogni run e finalizziamo i job — niente nuovi crediti spesi.",
+      "Forza il recupero dei dati per tutti i job Google in attesa?\n\nServe quando Apify ha gia' completato i run ma noi non abbiamo ricevuto il webhook (es. il batch e' partito con config sbagliata o il browser e' stato refreshato). Andiamo direttamente su Apify, leggiamo lo stato di ogni run e finalizziamo i job — niente nuovi crediti spesi.",
     );
     if (!ok) return;
     setReconciling(true);
-    const toastId = toast.loading("Reconcile job del batch in corso…");
+    const toastId = toast.loading("Reconcile job in corso…");
     try {
       const res = await fetch("/api/apify/scan-google/reconcile", {
         method: "POST",
@@ -327,8 +332,12 @@ export function BatchScanPanel({
         `Reconcile: ${finalized} job finalizzati${stillRunning > 0 ? `, ${stillRunning} ancora in corso lato Apify` : ""}.`,
         { id: toastId, duration: 10000 },
       );
-      // Il polling esistente raccogliera' il nuovo status alla
-      // prossima iterazione.
+      // Se siamo dentro un batch attivo il polling raccogliera' il
+      // nuovo status; altrimenti forziamo refresh della pagina cosi
+      // il banner scompare e le card brand mostrano gli ads nuovi.
+      if (!batchId) {
+        router.refresh();
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Network error", {
         id: toastId,
@@ -494,6 +503,37 @@ export function BatchScanPanel({
             </span>
           </div>
         </button>
+
+        {/* Banner recovery server-side: se ci sono job Google stuck
+            (running >5min con runId), mostriamo sempre il bottone
+            "Recupera dati" — visibile anche dopo refresh quando lo
+            state interno del batch e' perso. Indipendente da batchId. */}
+        {stuckJobsCount > 0 && !batchId && (
+          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 flex flex-wrap items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-semibold text-foreground">
+                {`${stuckJobsCount} scan Google in attesa di finalizzazione`}
+              </p>
+              <p className="text-[11.5px] text-muted-foreground mt-0.5">
+                {"Sono partiti da piu' di 5 minuti ma il webhook Apify non e' arrivato. Probabilmente Apify ha gia' finito: clicca per recuperare i dati senza spendere nuovi crediti."}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={reconcileBatch}
+              disabled={reconciling}
+              className="shrink-0 border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/15 gap-1.5"
+            >
+              {reconciling ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="size-3.5" />
+              )}
+              Recupera dati
+            </Button>
+          </div>
+        )}
 
         {open && (
           <>

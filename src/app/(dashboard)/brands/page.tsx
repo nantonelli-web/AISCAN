@@ -25,7 +25,17 @@ export default async function CompetitorsPage() {
   const locale = await getLocale();
   const t = serverT(locale);
 
-  const [{ data: competitors }, { data: clientsData }, { data: recentJobs }] = await Promise.all([
+  // Job Google "stuck": running da >5 min con apify_run_id valorizzato.
+  // Indicatore di webhook non arrivati / mai consegnati. Banner di
+  // recovery sopra il pannello batch.
+  const stuckCutoffIso = new Date(Date.now() - 5 * 60_000).toISOString();
+
+  const [
+    { data: competitors },
+    { data: clientsData },
+    { data: recentJobs },
+    { data: stuckJobsData },
+  ] = await Promise.all([
     supabase
       .from("mait_competitors")
       .select("id, workspace_id, client_id, page_name, page_id, page_url, category, country, instagram_username, google_advertiser_id, google_domain, profile_picture_url, monitor_config, last_scraped_at, created_at")
@@ -46,6 +56,17 @@ export default async function CompetitorsPage() {
       .eq("workspace_id", profile.workspace_id!)
       .eq("status", "succeeded")
       .order("started_at", { ascending: false }),
+    // Stuck jobs: candidati a reconcile (Apify gia' finito, webhook
+    // non arrivato). Selezioniamo solo source=google perche' il
+    // reconcile esiste solo per Google al momento.
+    admin
+      .from("mait_scrape_jobs")
+      .select("id")
+      .eq("workspace_id", profile.workspace_id!)
+      .eq("source", "google")
+      .eq("status", "running")
+      .not("apify_run_id", "is", null)
+      .lt("started_at", stuckCutoffIso),
   ]);
 
   const list = (competitors ?? []) as MaitCompetitor[];
@@ -172,6 +193,7 @@ export default async function CompetitorsPage() {
             name: c.name,
             color: c.color,
           }))}
+          stuckJobsCount={(stuckJobsData ?? []).length}
         />
       )}
 
