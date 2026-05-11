@@ -571,9 +571,14 @@ export async function scrapeGoogleAds(
   );
   // silva95gustavo enforces resultsLimit per startUrl as well, same
   // rationale as memo23 — divide the caller budget by region count.
-  const silvaResultsLimit = Math.max(
-    50,
-    Math.floor(maxAds / Math.max(1, urlRegionList.length)),
+  // Capped at 100 per region: silva fetches the listing AND each
+  // ad's detail page (skipDetails=false), costing ~1.5s per ad ×
+  // concurrency 8. Above 100 per region we routinely sforiamo the
+  // 280s polling budget (es. Elena Mirò 377 pages → ~10min reali).
+  // Better trade-off: half the ads but a scan that actually finishes.
+  const silvaResultsLimit = Math.min(
+    100,
+    Math.max(50, Math.floor(maxAds / Math.max(1, urlRegionList.length))),
   );
   const input: Record<string, unknown> = isMemoActor
     ? { maxItems: memoMaxPerRegion }
@@ -680,16 +685,15 @@ export async function scrapeGoogleAds(
     throw new Error("Apify run started but no datasetId returned.");
   }
 
-  // Poll until the run finishes. Cap at 4 min to leave 1 min budget
-  // for the dataset fetch + DB upsert + DB updates inside Vercel's
-  // 5-min function cap. silva95gustavo on a real Luisa Viola test
-  // (2026-04-30) emitted ~45 records before our previous 3-min cap
-  // killed it; lifting to 4 min should let typical brands complete.
-  // If a brand still sfora con questo cap, è il segnale che serve
-  // background-job pattern (out of scope of this lift).
+  // Poll until the run finishes. Cap at 4m 40s per sfruttare quasi
+  // tutto il budget Vercel di 5 min, lasciando ~20s per fetch
+  // dataset + DB upsert + transient retry. Se l'actor sfora ancora
+  // (es. brand grossi tipo Elena Mirò con 300+ pages) salviamo
+  // comunque il dataset parziale invece di buttarlo via — vedi
+  // ramo `partialSave` qui sotto.
   let status = run.data?.status ?? run.status ?? "RUNNING";
   let pollCount = 0;
-  const maxWait = 4 * 60 * 1000;
+  const maxWait = 280 * 1000;
 
   while (
     (status === "RUNNING" || status === "READY") &&
@@ -702,27 +706,41 @@ export async function scrapeGoogleAds(
     console.log(`[Google Ads] Poll #${pollCount}: status=${status} elapsed=${Math.round((Date.now() - t0) / 1000)}s`);
   }
 
+  // Partial save: anche quando il run non e' SUCCEEDED, Apify
+  // conserva nel dataset gli items gia' scritti prima dell'abort.
+  // Per brand grossi (es. Elena Mirò con 377 pages × silva
+  // skipDetails=false) il caso "run abortito ma ho 142 ads in
+  // mano" e' frequente: e' meglio salvare i 142 che buttarli e
+  // tornare zero al chiamante.
+  let partialSave = false;
   if (status !== "SUCCEEDED") {
     const elapsed = Math.round((Date.now() - t0) / 1000);
-    console.error(`[Google Ads] FAILED: status=${status} after ${pollCount} polls, ${elapsed}s`);
-    // Cost containment: when our wait expires, abort the Apify run
-    // so usage stops accumulating. Without this, a 5-min Vercel
-    // timeout left the actor crawling for hours -- exactly what
-    // the user hit on the first memo23 test ($1.17 and climbing
-    // before manual abort). Best-effort: if the abort itself
-    // fails we still throw the original timeout error.
+    console.error(`[Google Ads] Run not SUCCEEDED: status=${status} after ${pollCount} polls, ${elapsed}s`);
+    // Cost containment: se siamo noi a essere scaduti (status ancora
+    // RUNNING/READY), abortiamo l'actor side cosi non continua a
+    // consumare crediti Apify a vuoto. Best-effort.
     if (status === "RUNNING" || status === "READY") {
       try {
         await apifyFetch(`/actor-runs/${runId}/abort`, { method: "POST" }, token);
         console.warn(`[Google Ads] Aborted run ${runId} on our side after ${elapsed}s`);
+        partialSave = true;
       } catch (abortErr) {
         console.error(
           `[Google Ads] Failed to abort run ${runId}:`,
           abortErr instanceof Error ? abortErr.message : abortErr,
         );
       }
+    } else if (status === "ABORTED" || status === "TIMED-OUT" || status === "FAILED") {
+      // Run gia' chiuso da Apify per timeout proprio o errore: il
+      // dataset puo' comunque contenere items utili.
+      partialSave = true;
     }
-    throw new Error(`Apify run ended with status: ${status}`);
+    if (!partialSave) {
+      throw new Error(`Apify run ended with status: ${status}`);
+    }
+    console.warn(
+      `[Google Ads] Partial save: status=${status}, tentiamo di leggere il dataset parziale`,
+    );
   }
 
   // Fetch dataset with pagination. The previous limit=1000 silently
@@ -749,8 +767,21 @@ export async function scrapeGoogleAds(
   }
 
   if (items.length === 0) {
+    // Se il run e' andato in timeout e il dataset e' anche vuoto,
+    // throwiamo: meglio dire al chiamante "scan fallita" cosi il
+    // route puo' refundare i crediti.
+    if (partialSave) {
+      throw new Error(
+        `Apify run ended with status: ${status} (no partial items to save)`,
+      );
+    }
     console.warn(`[Google Ads] Dataset empty after SUCCEEDED run`);
   } else {
+    if (partialSave) {
+      console.warn(
+        `[Google Ads] Partial save: salvati ${items.length} items dal run abortito (status=${status})`,
+      );
+    }
     // First-run debugging: log the keys of the first item (and the
     // first variant when a Transparency-style actor is in play) so
     // we can spot a real schema and tighten the normaliser without
