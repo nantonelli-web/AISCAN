@@ -332,6 +332,56 @@ export function ScanDropdown({
     }
   }
 
+  async function reconcileGoogleScan() {
+    const ok = window.confirm(
+      "Forza il recupero dei dati per lo scan Google in corso?\n\nServe quando lo scan e' partito senza webhook configurato (es. dopo aver settato APIFY_WEBHOOK_SECRET): controlliamo direttamente Apify, se ha finito recuperiamo gli ads e finalizziamo il job.",
+    );
+    if (!ok) return;
+    const toastId = toast.loading("Reconcile scan Google in corso…");
+    try {
+      const res = await fetch("/api/apify/scan-google/reconcile", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        toast.error(j.error ?? "Reconcile failed", { id: toastId });
+        return;
+      }
+      const list = (j.reconciled ?? []) as Array<{
+        outcome: string;
+        records_count?: number;
+        page_name: string | null;
+        message?: string;
+      }>;
+      if (list.length === 0) {
+        toast.info("Nessun job da riconciliare trovato", { id: toastId });
+        return;
+      }
+      const lines = list
+        .map((r) => {
+          const name = r.page_name ?? "(brand)";
+          if (r.outcome === "finalized_succeeded")
+            return `✓ ${name}: ${r.records_count} ads salvati`;
+          if (r.outcome === "finalized_partial")
+            return `~ ${name}: ${r.records_count} ads (parziale)`;
+          if (r.outcome === "finalized_failed")
+            return `✗ ${name}: failed (crediti rifondati)`;
+          if (r.outcome === "still_running")
+            return `· ${name}: ancora in corso su Apify`;
+          return `? ${name}: ${r.outcome}`;
+        })
+        .join(" — ");
+      toast.success(`Reconcile: ${lines}`, { id: toastId, duration: 15000 });
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Network error", {
+        id: toastId,
+      });
+    }
+  }
+
   async function resumeGoogleScan() {
     if (!googlePartialJob?.jobId) return;
     const ok = window.confirm(
@@ -855,16 +905,28 @@ export function ScanDropdown({
               {t("scan", "scanInProgressHelp")}
             </p>
           </div>
-          <Button
-            onClick={stopScan}
-            disabled={stopping}
-            variant="outline"
-            size="lg"
-            className={cn("h-10 px-4 gap-2 cursor-pointer border-red-400/40 text-red-400 hover:bg-red-400/15 hover:border-red-400 shrink-0")}
-          >
-            <Square className="size-5 fill-current" />
-            {stopping ? t("scan", "stopping") : "Stop"}
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              onClick={reconcileGoogleScan}
+              variant="outline"
+              size="sm"
+              className="cursor-pointer gap-1.5"
+              title="Forza il recupero dati se lo scan Apify e' finito ma il webhook non e' arrivato"
+            >
+              <RefreshCw className="size-3.5" />
+              Recupera dati
+            </Button>
+            <Button
+              onClick={stopScan}
+              disabled={stopping}
+              variant="outline"
+              size="lg"
+              className={cn("h-10 px-4 gap-2 cursor-pointer border-red-400/40 text-red-400 hover:bg-red-400/15 hover:border-red-400")}
+            >
+              <Square className="size-5 fill-current" />
+              {stopping ? t("scan", "stopping") : "Stop"}
+            </Button>
+          </div>
         </div>
       )}
 

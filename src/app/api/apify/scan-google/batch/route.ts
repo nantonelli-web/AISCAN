@@ -96,6 +96,15 @@ export async function POST(req: Request) {
       { status: 503 },
     );
   }
+  if (!process.env.APIFY_WEBHOOK_SECRET || !process.env.NEXT_PUBLIC_APP_URL) {
+    return NextResponse.json(
+      {
+        error:
+          "Webhook config mancante (APIFY_WEBHOOK_SECRET o NEXT_PUBLIC_APP_URL). Il batch non puo' partire senza webhook.",
+      },
+      { status: 503 },
+    );
+  }
 
   const admin = createAdminClient();
 
