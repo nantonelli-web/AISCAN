@@ -317,6 +317,10 @@ export function DashboardClient({ importId }: { importId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [analyses, setAnalyses] = useState<Record<string, SectionAnalysis>>({});
+  /** true se l'utente vede analisi salvate in una lingua diversa da
+   *  quella corrente (es. UI in EN ma rows solo in IT). L'UI mostra
+   *  un hint che invita a rigenerare per tradurre. */
+  const [analysesCrossLocale, setAnalysesCrossLocale] = useState(false);
 
   // Helper per mappare lo stato comparison nei params (sia per
   // dashboard fetch sia per il CTA analysis che vuole essere
@@ -341,10 +345,14 @@ export function DashboardClient({ importId }: { importId: string }) {
         cache: "no-store",
       });
       if (!r.ok) return;
-      const j = (await r.json()) as { analyses?: SectionAnalysis[] };
+      const j = (await r.json()) as {
+        analyses?: SectionAnalysis[];
+        cross_locale?: boolean;
+      };
       const map: Record<string, SectionAnalysis> = {};
       for (const a of j.analyses ?? []) map[a.section] = a;
       setAnalyses(map);
+      setAnalysesCrossLocale(Boolean(j.cross_locale));
     } catch {
       /* ignored */
     }
@@ -472,6 +480,7 @@ export function DashboardClient({ importId }: { importId: string }) {
         position="top"
         onGenerated={loadAnalyses}
         compareParams={compareParams}
+        crossLocale={analysesCrossLocale}
       />
 
       {/* Comparison switcher */}
@@ -1468,6 +1477,7 @@ export function DashboardClient({ importId }: { importId: string }) {
         position="bottom"
         onGenerated={loadAnalyses}
         compareParams={compareParams}
+        crossLocale={analysesCrossLocale}
       />
     </div>
   );

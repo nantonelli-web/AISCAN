@@ -8,13 +8,17 @@ import {
   RefreshCw,
   Check,
   ChevronDown,
+  Zap,
+  Brain,
+  Crown,
+  Languages,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 /**
  * AnalysisCta — pannello "Genera analisi AI" in cima e in fondo al
- * dashboard import. Il modello LLM e' scelto da una lista letta da
+ * dashboard import. Il modello LLM si sceglie da una lista letta da
  * /api/ai/models (catalogo mait_ai_models gestito da Admin). Il
  * costo in crediti viene dal record del modello stesso. Il modello
  * scelto e' persistito in localStorage cosi resta coerente fra
@@ -42,7 +46,6 @@ function saveModelId(id: string) {
   window.localStorage.setItem(STORAGE_KEY, id);
 }
 
-/** Etichette user-friendly per il chip provider. */
 const PROVIDER_LABEL: Record<string, string> = {
   anthropic: "Anthropic",
   openai: "OpenAI",
@@ -52,9 +55,41 @@ const PROVIDER_LABEL: Record<string, string> = {
   meta: "Meta",
 };
 
-function providerLabel(p: string): string {
-  return PROVIDER_LABEL[p] ?? p.charAt(0).toUpperCase() + p.slice(1);
+/** Pallini-colore per il chip provider — un colpo d'occhio per
+ *  distinguere senza dover leggere il nome. */
+const PROVIDER_DOT: Record<string, string> = {
+  anthropic: "bg-amber-500",
+  openai: "bg-emerald-500",
+  google: "bg-sky-500",
+  deepseek: "bg-violet-500",
+  mistral: "bg-orange-500",
+  meta: "bg-blue-600",
+};
+
+/** Hint user-friendly per orientare la scelta. Basato sul costo
+ *  in crediti (proxy ragionevole della profondita'/qualita' del
+ *  modello) + tag esplicito sul model_id quando rilevante. */
+function modelHint(m: AiModel): { tag: string; tone: "fast" | "balanced" | "premium"; icon: typeof Zap } {
+  const id = m.model_id.toLowerCase();
+  if (id.includes("sonnet") || id.includes("gpt-4.1") || id.includes("gemini-2.5-pro")) {
+    return { tag: "Profondo, analisi articolate", tone: "premium", icon: Crown };
+  }
+  if (m.credits_cost <= 1) {
+    return { tag: "Veloce ed economico", tone: "fast", icon: Zap };
+  }
+  return { tag: "Buon equilibrio qualità/costo", tone: "balanced", icon: Brain };
 }
+
+const TONE_BG: Record<"fast" | "balanced" | "premium", string> = {
+  fast: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  balanced: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+  premium: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+};
+
+/** Il default consigliato e' Claude Haiku 4.5 (claude-haiku-4-5):
+ *  italiano nativo + costo minimo. Mostriamo un badge "consigliato"
+ *  per orientare l'utente senza forzarlo. */
+const RECOMMENDED_MODEL_ID = "claude-haiku-4-5";
 
 export function AnalysisCta({
   importId,
@@ -65,12 +100,17 @@ export function AnalysisCta({
    *  delle analisi (se l'utente ha filtrato per week, l'analisi
    *  riguarda solo quella week). */
   compareParams,
+  /** True quando le analisi visualizzate sono in lingua diversa da
+   *  quella corrente (es. UI in EN ma rows solo in IT). Mostriamo
+   *  un hint che invita a rigenerare per tradurre. */
+  crossLocale,
 }: {
   importId: string;
   hasAnalyses: boolean;
   position: "top" | "bottom";
   onGenerated: () => void;
   compareParams?: Record<string, string>;
+  crossLocale?: boolean;
 }) {
   const [models, setModels] = useState<AiModel[]>([]);
   const [modelId, setModelId] = useState<string | null>(() =>
@@ -81,7 +121,6 @@ export function AnalysisCta({
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
 
-  // Fetch catalogo modelli attivi dall'Admin.
   useEffect(() => {
     let alive = true;
     fetch("/api/ai/models")
@@ -90,14 +129,14 @@ export function AnalysisCta({
         if (!alive) return;
         const list = j.models ?? [];
         setModels(list);
-        // Se il model_id salvato non esiste piu' nel catalogo,
-        // selezioniamo il primo (lista gia' ordinata per costo ASC
-        // dall'API). Stesso fallback se non c'e' nulla in storage.
         const stored = loadStoredModelId();
         if (!stored || !list.some((m) => m.model_id === stored)) {
-          if (list[0]) {
-            setModelId(list[0].model_id);
-            saveModelId(list[0].model_id);
+          // Default: consigliato se presente, altrimenti il piu' economico.
+          const pick =
+            list.find((m) => m.model_id === RECOMMENDED_MODEL_ID) ?? list[0];
+          if (pick) {
+            setModelId(pick.model_id);
+            saveModelId(pick.model_id);
           }
         }
       })
@@ -109,7 +148,6 @@ export function AnalysisCta({
     };
   }, []);
 
-  // Chiudi il popover su click outside.
   useEffect(() => {
     if (!open) return;
     function onDocClick(e: MouseEvent) {
@@ -132,9 +170,6 @@ export function AnalysisCta({
     [models, modelId],
   );
 
-  // Raggruppa modelli per provider per il popover (preserva l'ordine
-  // costo ASC restituito dall'API: ogni gruppo mantiene il proprio
-  // ordine interno).
   const grouped = useMemo(() => {
     const map = new Map<string, AiModel[]>();
     for (const m of models) {
@@ -195,6 +230,7 @@ export function AnalysisCta({
 
   const cost = selected?.credits_cost ?? null;
   const noModels = models.length === 0;
+  const selectedHint = selected ? modelHint(selected) : null;
 
   return (
     <Card
@@ -219,8 +255,17 @@ export function AnalysisCta({
           </div>
         </div>
 
+        {crossLocale && hasAnalyses && (
+          <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-700 dark:text-amber-400">
+            <Languages className="size-3.5 shrink-0 mt-0.5" />
+            <span>
+              {"Le analisi mostrate sono in un'altra lingua. Rigenera per ottenerle nella lingua attiva."}
+            </span>
+          </div>
+        )}
+
         <div className="flex items-center justify-between gap-3 flex-wrap pt-3 border-t border-violet-500/15">
-          <div className="flex items-center gap-2 min-w-0 relative">
+          <div className="flex items-center gap-2 min-w-0 relative flex-wrap">
             <span className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold shrink-0">
               Modello
             </span>
@@ -235,11 +280,12 @@ export function AnalysisCta({
             >
               {selected ? (
                 <>
-                  <span className="text-violet-500 truncate max-w-[200px]">
+                  <span
+                    className={`size-2 rounded-full ${PROVIDER_DOT[selected.provider] ?? "bg-muted-foreground"}`}
+                    aria-hidden
+                  />
+                  <span className="text-foreground truncate max-w-[220px]">
                     {selected.display_name}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground tabular-nums">
-                    {selected.credits_cost} cr
                   </span>
                 </>
               ) : (
@@ -251,43 +297,74 @@ export function AnalysisCta({
                 className={`size-3.5 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
               />
             </button>
+            {selectedHint && (
+              <span
+                className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium ${TONE_BG[selectedHint.tone]}`}
+                title={selectedHint.tag}
+              >
+                <selectedHint.icon className="size-3" />
+                {selectedHint.tag}
+              </span>
+            )}
             {open && grouped.length > 0 && (
               <div
                 ref={popoverRef}
-                className="absolute left-0 top-full mt-1.5 z-[100] w-[320px] max-h-[360px] overflow-y-auto rounded-lg border border-border bg-background shadow-xl shadow-black/10 dark:shadow-black/50 p-1"
+                className="absolute left-0 top-full mt-1.5 z-[100] w-[420px] max-h-[420px] overflow-y-auto rounded-lg border border-border bg-background shadow-xl shadow-black/10 dark:shadow-black/50 p-1"
                 role="listbox"
               >
                 {grouped.map(([provider, list]) => (
                   <div key={provider} className="py-1">
-                    <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
-                      {providerLabel(provider)}
+                    <div className="flex items-center gap-1.5 px-2 py-1 text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold">
+                      <span
+                        className={`size-1.5 rounded-full ${PROVIDER_DOT[provider] ?? "bg-muted-foreground"}`}
+                        aria-hidden
+                      />
+                      {PROVIDER_LABEL[provider] ?? provider}
                     </div>
                     {list.map((m) => {
                       const active = m.model_id === modelId;
+                      const isRecommended = m.model_id === RECOMMENDED_MODEL_ID;
+                      const hint = modelHint(m);
+                      const HintIcon = hint.icon;
                       return (
                         <button
                           key={m.model_id}
                           type="button"
                           onClick={() => pickModel(m.model_id)}
-                          className={`w-full flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] transition-colors ${
+                          className={`w-full flex items-start gap-2 rounded-md px-2 py-2 text-left transition-colors ${
                             active
-                              ? "bg-violet-500/15 text-foreground"
-                              : "hover:bg-muted/60 text-foreground"
+                              ? "bg-violet-500/10 ring-1 ring-violet-500/40"
+                              : "hover:bg-muted/60"
                           }`}
                           role="option"
                           aria-selected={active}
                         >
-                          <span className="flex items-center gap-1.5 min-w-0">
+                          <span className="mt-0.5 shrink-0">
                             {active ? (
-                              <Check className="size-3.5 text-violet-500 shrink-0" />
+                              <Check className="size-4 text-violet-500" />
                             ) : (
-                              <span className="size-3.5 shrink-0" aria-hidden />
+                              <span className="size-4 inline-block" aria-hidden />
                             )}
-                            <span className="truncate font-medium">
-                              {m.display_name}
+                          </span>
+                          <span className="flex-1 min-w-0">
+                            <span className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[13px] font-medium text-foreground truncate">
+                                {m.display_name}
+                              </span>
+                              {isRecommended && (
+                                <span className="text-[9px] uppercase tracking-wider rounded px-1 py-0 bg-violet-500/15 text-violet-600 dark:text-violet-400 font-semibold">
+                                  Consigliato
+                                </span>
+                              )}
+                            </span>
+                            <span
+                              className={`mt-0.5 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] font-medium ${TONE_BG[hint.tone]}`}
+                            >
+                              <HintIcon className="size-2.5" />
+                              {hint.tag}
                             </span>
                           </span>
-                          <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                          <span className="shrink-0 text-[11.5px] text-muted-foreground tabular-nums pt-0.5">
                             {m.credits_cost} cr
                           </span>
                         </button>

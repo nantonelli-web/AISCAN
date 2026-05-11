@@ -294,11 +294,10 @@ export async function POST(
 
 /**
  * GET /api/perf/imports/[id]/analysis
- * Ritorna tutte le analisi salvate per l'import nel locale corrente.
- * Se non esistono righe per il locale corrente ma ci sono righe in
- * altra lingua, l'utente vedra' lo stato "nessuna analisi" e potra'
- * generarla nella lingua attiva (no fallback cross-lingua per non
- * mostrare contenuto nella lingua sbagliata).
+ * Ritorna le analisi nel locale corrente. Se per quel locale non
+ * ci sono righe, fallback a quelle in altra lingua (l'UI mostra
+ * un hint "disponibile in italiano/inglese, rigenera per tradurre")
+ * cosi l'utente non vede una pagina vuota dopo aver cambiato lingua.
  */
 export async function GET(
   _req: Request,
@@ -313,15 +312,36 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const locale = ((await getLocale()) as "it" | "en") ?? "it";
-  const { data, error } = await supabase
+  const primary = await supabase
     .from("mait_perf_analyses")
     .select(
       "section, content, model_tier, model_id, edited_by_user, updated_at, locale",
     )
     .eq("import_id", id)
     .eq("locale", locale);
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (primary.error) {
+    return NextResponse.json({ error: primary.error.message }, { status: 500 });
   }
-  return NextResponse.json({ analyses: (data ?? []) as AnalysisRow[] });
+  if ((primary.data ?? []).length > 0) {
+    return NextResponse.json({
+      analyses: primary.data as AnalysisRow[],
+      locale,
+      cross_locale: false,
+    });
+  }
+  // Fallback cross-locale
+  const fb = await supabase
+    .from("mait_perf_analyses")
+    .select(
+      "section, content, model_tier, model_id, edited_by_user, updated_at, locale",
+    )
+    .eq("import_id", id);
+  if (fb.error) {
+    return NextResponse.json({ error: fb.error.message }, { status: 500 });
+  }
+  return NextResponse.json({
+    analyses: (fb.data ?? []) as AnalysisRow[],
+    locale,
+    cross_locale: (fb.data ?? []).length > 0,
+  });
 }
