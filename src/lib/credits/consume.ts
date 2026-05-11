@@ -156,3 +156,66 @@ export async function refundCredits(
     p_reason: `Refund: ${reason}`,
   });
 }
+
+/**
+ * Charge an arbitrary credit amount (not tied to a CreditAction).
+ * Useful when the cost is driven by runtime data — e.g. AI analysis
+ * paid per-model with `credits_cost` stored in `mait_ai_models`.
+ * Same subscription-mode short-circuit as `consumeCredits`.
+ */
+export async function consumeCreditsCustom(
+  userId: string,
+  amount: number,
+  reason: string,
+  referenceId?: string,
+): Promise<{ ok: boolean; balance: number }> {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { ok: false, balance: 0 };
+  }
+  const admin = createAdminClient();
+  const { ownerId, workspaceId } = await resolveOwnerAndWorkspace(admin, userId);
+
+  if (await isSubscriptionMode(admin, workspaceId)) {
+    return { ok: true, balance: -1 };
+  }
+
+  const { data, error } = await admin.rpc("mait_consume_credits", {
+    p_user_id: ownerId,
+    p_amount: Math.round(amount),
+    p_reason: reason,
+    p_reference_id: referenceId ?? null,
+  });
+
+  if (error) {
+    console.error("[credits] consume(custom) error:", error);
+    return { ok: false, balance: 0 };
+  }
+
+  const ok = data === true;
+  const { data: user } = await admin
+    .from("mait_users")
+    .select("credits_balance")
+    .eq("id", ownerId)
+    .single();
+
+  return { ok, balance: user?.credits_balance ?? 0 };
+}
+
+/** Refund an arbitrary credit amount (companion to consumeCreditsCustom). */
+export async function refundCreditsCustom(
+  userId: string,
+  amount: number,
+  reason: string,
+): Promise<void> {
+  if (!Number.isFinite(amount) || amount <= 0) return;
+  const admin = createAdminClient();
+  const { ownerId, workspaceId } = await resolveOwnerAndWorkspace(admin, userId);
+
+  if (await isSubscriptionMode(admin, workspaceId)) return;
+
+  await admin.rpc("mait_add_credits", {
+    p_user_id: ownerId,
+    p_amount: Math.round(amount),
+    p_reason: `Refund: ${reason}`,
+  });
+}

@@ -62,7 +62,7 @@ export async function PATCH(
         import_id: id,
         section,
         content: parsed.data.content,
-        model_tier: "pragmatic", // valore fittizio per row creata da edit pure
+        model_tier: "manual", // sentinella per row creata/aggiornata da edit pure
         edited_by_user: true,
         created_by: user.id,
         updated_at: now,

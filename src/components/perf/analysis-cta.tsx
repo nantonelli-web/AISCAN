@@ -1,73 +1,59 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Sparkles,
   Loader2,
   RefreshCw,
-  CheckCircle2,
+  Check,
   ChevronDown,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 
 /**
- * AnalysisCta — pannello "Genera analisi AI" che si mostra in
- * cima e in fondo al dashboard import. Espone:
- * - tier picker (cheap/pragmatic/premium) col tier consigliato
- *   evidenziato. Persistito in localStorage cosi e' coerente
- *   fra le visite.
- * - bottone "Genera" (prima volta) / "Rigenera" (analisi gia'
- *   presenti) con loading state.
- * - mostra cost in credits e label del modello sottostante.
+ * AnalysisCta — pannello "Genera analisi AI" in cima e in fondo al
+ * dashboard import. Il modello LLM e' scelto da una lista letta da
+ * /api/ai/models (catalogo mait_ai_models gestito da Admin). Il
+ * costo in crediti viene dal record del modello stesso. Il modello
+ * scelto e' persistito in localStorage cosi resta coerente fra
+ * visite.
  */
 
-export type TierKey = "cheap" | "pragmatic" | "premium";
-
-interface TierOption {
-  key: TierKey;
-  title: string;
-  desc: string;
-  cost: number;
-  recommended?: boolean;
+interface AiModel {
+  model_id: string;
+  display_name: string;
+  provider: string;
+  credits_cost: number;
+  openrouter_id: string | null;
+  supports_vision: boolean;
 }
 
-const TIER_OPTIONS: TierOption[] = [
-  {
-    key: "cheap",
-    title: "Essenziale",
-    desc: "Analisi rapida. DeepSeek V3.2.",
-    cost: 1,
-  },
-  {
-    key: "pragmatic",
-    title: "Consigliato",
-    desc: "Equilibrio qualita'/costo. Claude Haiku 4.5 — italiano nativo, ragionamento chiaro.",
-    cost: 3,
-    recommended: true,
-  },
-  {
-    key: "premium",
-    title: "Avanzato",
-    desc: "Massima profondita'. Claude Sonnet 4.5 — analisi dettagliate, raccomandazioni piu' articolate.",
-    cost: 8,
-  },
-];
+const STORAGE_KEY = "aiscan.perf.model_id";
 
-const STORAGE_KEY = "aiscan.perf.tier";
-
-function loadTier(): TierKey {
-  if (typeof window === "undefined") return "pragmatic";
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (raw === "cheap" || raw === "pragmatic" || raw === "premium") return raw;
-  return "pragmatic";
+function loadStoredModelId(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(STORAGE_KEY);
 }
 
-function saveTier(t: TierKey) {
+function saveModelId(id: string) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, t);
+  window.localStorage.setItem(STORAGE_KEY, id);
+}
+
+/** Etichette user-friendly per il chip provider. */
+const PROVIDER_LABEL: Record<string, string> = {
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  google: "Google",
+  deepseek: "DeepSeek",
+  mistral: "Mistral",
+  meta: "Meta",
+};
+
+function providerLabel(p: string): string {
+  return PROVIDER_LABEL[p] ?? p.charAt(0).toUpperCase() + p.slice(1);
 }
 
 export function AnalysisCta({
@@ -86,13 +72,83 @@ export function AnalysisCta({
   onGenerated: () => void;
   compareParams?: Record<string, string>;
 }) {
-  const [tier, setTier] = useState<TierKey>(() => loadTier());
-  const [open, setOpen] = useState(false);
+  const [models, setModels] = useState<AiModel[]>([]);
+  const [modelId, setModelId] = useState<string | null>(() =>
+    loadStoredModelId(),
+  );
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
 
-  function pickTier(t: TierKey) {
-    setTier(t);
-    saveTier(t);
+  // Fetch catalogo modelli attivi dall'Admin.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/ai/models")
+      .then((r) => r.json())
+      .then((j: { models?: AiModel[] }) => {
+        if (!alive) return;
+        const list = j.models ?? [];
+        setModels(list);
+        // Se il model_id salvato non esiste piu' nel catalogo,
+        // selezioniamo il primo (lista gia' ordinata per costo ASC
+        // dall'API). Stesso fallback se non c'e' nulla in storage.
+        const stored = loadStoredModelId();
+        if (!stored || !list.some((m) => m.model_id === stored)) {
+          if (list[0]) {
+            setModelId(list[0].model_id);
+            saveModelId(list[0].model_id);
+          }
+        }
+      })
+      .catch((e) => {
+        console.error("[AnalysisCta] models fetch failed:", e);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Chiudi il popover su click outside.
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      const t = e.target as Node;
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(t) &&
+        triggerRef.current &&
+        !triggerRef.current.contains(t)
+      ) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  const selected = useMemo(
+    () => models.find((m) => m.model_id === modelId) ?? null,
+    [models, modelId],
+  );
+
+  // Raggruppa modelli per provider per il popover (preserva l'ordine
+  // costo ASC restituito dall'API: ogni gruppo mantiene il proprio
+  // ordine interno).
+  const grouped = useMemo(() => {
+    const map = new Map<string, AiModel[]>();
+    for (const m of models) {
+      const key = m.provider;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(m);
+    }
+    return Array.from(map.entries());
+  }, [models]);
+
+  function pickModel(id: string) {
+    setModelId(id);
+    saveModelId(id);
+    setOpen(false);
   }
 
   async function generate() {
@@ -102,7 +158,7 @@ export function AnalysisCta({
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          tier,
+          model_id: modelId ?? undefined,
           force_overwrite_edited: false,
           ...(compareParams ?? {}),
         }),
@@ -111,7 +167,7 @@ export function AnalysisCta({
       if (!res.ok) {
         if (res.status === 402) {
           toast.error(
-            `Crediti insufficienti (saldo: ${j.balance ?? "?"}). Tier: ${j.tier ?? tier}.`,
+            `Crediti insufficienti (saldo: ${j.balance ?? "?"}). Costo: ${j.cost ?? "?"} cr.`,
           );
         } else {
           toast.error(j.error ?? "Generazione fallita");
@@ -123,7 +179,6 @@ export function AnalysisCta({
         `Analisi generata (${j.sections_generated} sezioni${skipped > 0 ? ", " + skipped + " manuali preservate" : ""})`,
       );
       onGenerated();
-      setOpen(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Errore");
     } finally {
@@ -131,7 +186,8 @@ export function AnalysisCta({
     }
   }
 
-  const selected = TIER_OPTIONS.find((o) => o.key === tier) ?? TIER_OPTIONS[1];
+  const cost = selected?.credits_cost ?? null;
+  const noModels = models.length === 0;
 
   return (
     <Card
@@ -156,40 +212,98 @@ export function AnalysisCta({
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3 flex-wrap pt-1 border-t border-violet-500/15">
-          <div className="flex items-center gap-2 min-w-0 pt-3">
-            <span className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold">
+        <div className="flex items-center justify-between gap-3 flex-wrap pt-3 border-t border-violet-500/15">
+          <div className="flex items-center gap-2 min-w-0 relative">
+            <span className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold shrink-0">
               Modello
             </span>
-            <Badge
-              variant="outline"
-              className="text-[11px] py-0.5 px-2 border-violet-500/40 text-violet-500 bg-violet-500/10 font-medium"
-            >
-              {selected.title}
-            </Badge>
             <button
+              ref={triggerRef}
               type="button"
               onClick={() => setOpen((s) => !s)}
-              className="text-[11.5px] inline-flex items-center gap-1 text-muted-foreground hover:text-foreground rounded-md px-2 py-1 hover:bg-muted/60 transition-colors"
+              disabled={noModels}
+              className="inline-flex items-center gap-2 rounded-md border border-violet-500/40 bg-violet-500/10 hover:bg-violet-500/20 px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               aria-expanded={open}
+              aria-haspopup="listbox"
             >
-              {open ? "Nascondi opzioni" : "Cambia"}
+              {selected ? (
+                <>
+                  <span className="text-violet-500 truncate max-w-[200px]">
+                    {selected.display_name}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground tabular-nums">
+                    {selected.credits_cost} cr
+                  </span>
+                </>
+              ) : (
+                <span className="text-muted-foreground">
+                  {noModels ? "Nessun modello attivo" : "Seleziona…"}
+                </span>
+              )}
               <ChevronDown
-                className={`size-3.5 transition-transform ${open ? "rotate-180" : ""}`}
+                className={`size-3.5 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
               />
             </button>
+            {open && grouped.length > 0 && (
+              <div
+                ref={popoverRef}
+                className="absolute left-0 top-full mt-1.5 z-50 w-[320px] max-h-[360px] overflow-y-auto rounded-lg border border-border bg-popover shadow-lg p-1"
+                role="listbox"
+              >
+                {grouped.map(([provider, list]) => (
+                  <div key={provider} className="py-1">
+                    <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                      {providerLabel(provider)}
+                    </div>
+                    {list.map((m) => {
+                      const active = m.model_id === modelId;
+                      return (
+                        <button
+                          key={m.model_id}
+                          type="button"
+                          onClick={() => pickModel(m.model_id)}
+                          className={`w-full flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] transition-colors ${
+                            active
+                              ? "bg-violet-500/15 text-foreground"
+                              : "hover:bg-muted/60 text-foreground"
+                          }`}
+                          role="option"
+                          aria-selected={active}
+                        >
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            {active ? (
+                              <Check className="size-3.5 text-violet-500 shrink-0" />
+                            ) : (
+                              <span className="size-3.5 shrink-0" aria-hidden />
+                            )}
+                            <span className="truncate font-medium">
+                              {m.display_name}
+                            </span>
+                          </span>
+                          <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                            {m.credits_cost} cr
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-2 pt-3">
-            <span className="text-[11px] text-muted-foreground tabular-nums">
-              Costo:{" "}
-              <span className="font-semibold text-foreground">
-                {selected.cost} crediti
+          <div className="flex items-center gap-3">
+            {cost != null && (
+              <span className="text-[11.5px] text-muted-foreground tabular-nums">
+                Costo:{" "}
+                <span className="font-semibold text-foreground">
+                  {cost} {cost === 1 ? "credito" : "crediti"}
+                </span>
               </span>
-            </span>
+            )}
             <Button
               type="button"
               onClick={generate}
-              disabled={busy}
+              disabled={busy || noModels}
               className="gap-2 bg-violet-500 hover:bg-violet-600 text-white h-10 px-4"
             >
               {busy ? (
@@ -203,62 +317,6 @@ export function AnalysisCta({
             </Button>
           </div>
         </div>
-
-        {open && (
-          <div className="grid gap-2 sm:grid-cols-3 pt-3 border-t border-violet-500/15">
-            {TIER_OPTIONS.map((opt) => {
-              const active = opt.key === tier;
-              return (
-                <button
-                  key={opt.key}
-                  type="button"
-                  onClick={() => pickTier(opt.key)}
-                  className={`text-left rounded-lg border p-3 transition-colors ${
-                    active
-                      ? "border-violet-500 bg-violet-500/10 ring-1 ring-violet-500/40"
-                      : "border-border hover:border-violet-500/40 hover:bg-muted/40"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span
-                      className={`text-xs font-semibold ${active ? "text-violet-500" : "text-foreground"}`}
-                    >
-                      {opt.title}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      {opt.recommended && (
-                        <Badge
-                          variant="outline"
-                          className="text-[9px] py-0 px-1.5 text-amber-500 border-amber-500/40"
-                        >
-                          consigliato
-                        </Badge>
-                      )}
-                      <span
-                        className={`inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${
-                          active
-                            ? "bg-violet-500 text-white"
-                            : "bg-muted text-foreground"
-                        }`}
-                      >
-                        {opt.cost}cr
-                      </span>
-                    </div>
-                  </div>
-                  <p className="text-[10.5px] text-muted-foreground leading-snug mt-1">
-                    {opt.desc}
-                  </p>
-                  {active && (
-                    <p className="text-[10px] text-violet-500 mt-1 inline-flex items-center gap-1">
-                      <CheckCircle2 className="size-3" />
-                      Selezionato
-                    </p>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
       </CardContent>
     </Card>
   );

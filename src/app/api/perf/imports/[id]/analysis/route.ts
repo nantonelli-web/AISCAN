@@ -3,15 +3,16 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser } from "@/lib/auth/session";
-import { consumeCredits, refundCredits } from "@/lib/credits/consume";
-import { aiAnalysisAction } from "@/config/pricing";
+import {
+  consumeCreditsCustom,
+  refundCreditsCustom,
+} from "@/lib/credits/consume";
 import { loadDashboardData } from "@/lib/perf/dashboard-loader";
 import {
   runPerfAnalysis,
   applicableSections,
   PERF_SECTIONS,
-  PERF_DEFAULT_TIER,
-  type PerfModelTier,
+  PERF_DEFAULT_OPENROUTER_ID,
   type PerfSection,
 } from "@/lib/ai/perf-analysis";
 import { getLocale } from "@/lib/i18n/server";
@@ -29,7 +30,11 @@ interface AnalysisRow {
 }
 
 const postSchema = z.object({
-  tier: z.enum(["cheap", "pragmatic", "premium"]).optional(),
+  /** Slug del modello scelto (mait_ai_models.model_id, es.
+   *  'claude-haiku-4-5'). Opzionale: se assente o non risolvibile,
+   *  fallback al primo modello attivo con minor costo, o al
+   *  default hardcoded. */
+  model_id: z.string().min(1).max(120).optional(),
   /** Se settato, rigenera solo le sezioni elencate.
    *  Default: rigenera tutte le sezioni applicabili. */
   sections: z.array(z.enum(PERF_SECTIONS)).optional(),
@@ -77,8 +82,45 @@ export async function POST(
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
-  const tier: PerfModelTier = parsed.data.tier ?? PERF_DEFAULT_TIER;
   const locale = ((await getLocale()) as "it" | "en") ?? "it";
+
+  // Risolvi il modello: lookup esplicito in mait_ai_models (admin).
+  // Se model_id assente o non valido → primo attivo per costo ASC.
+  interface ModelRow {
+    model_id: string;
+    openrouter_id: string | null;
+    credits_cost: number;
+    display_name: string;
+  }
+  const adminPre = createAdminClient();
+  let modelRow: ModelRow | null = null;
+  if (parsed.data.model_id) {
+    const { data: m } = await adminPre
+      .from("mait_ai_models")
+      .select("model_id, openrouter_id, credits_cost, display_name")
+      .eq("model_id", parsed.data.model_id)
+      .eq("is_active", true)
+      .not("openrouter_id", "is", null)
+      .maybeSingle();
+    modelRow = (m as ModelRow | null) ?? null;
+  }
+  if (!modelRow) {
+    const { data: fallback } = await adminPre
+      .from("mait_ai_models")
+      .select("model_id, openrouter_id, credits_cost, display_name")
+      .eq("is_active", true)
+      .not("openrouter_id", "is", null)
+      .order("credits_cost", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    modelRow = (fallback as ModelRow | null) ?? null;
+  }
+  // Ultimo fallback: hardcoded default (es. catalogo non popolato).
+  const modelOpenrouterId =
+    modelRow?.openrouter_id ?? PERF_DEFAULT_OPENROUTER_ID;
+  const modelSlug = modelRow?.model_id ?? "default";
+  const modelCost = modelRow?.credits_cost ?? 3;
+  const modelDisplay = modelRow?.display_name ?? "Default model";
 
   // 1. Load dashboard payload (riusa la stessa logica del route
   //    /dashboard cosi i numeri sono identici).
@@ -107,16 +149,20 @@ export async function POST(
     return NextResponse.json({ error: "No applicable sections" }, { status: 400 });
   }
 
-  // 3. Charge credits
-  const action = aiAnalysisAction(tier);
-  const credit = await consumeCredits(
+  // 3. Charge credits (costo dinamico dal catalogo modelli)
+  const credit = await consumeCreditsCustom(
     user.id,
-    action,
-    `Adv Performance AI (${tier})`,
+    modelCost,
+    `Adv Performance AI (${modelDisplay})`,
   );
   if (!credit.ok) {
     return NextResponse.json(
-      { error: "Insufficient credits", balance: credit.balance, tier },
+      {
+        error: "Insufficient credits",
+        balance: credit.balance,
+        cost: modelCost,
+        model: modelDisplay,
+      },
       { status: 402 },
     );
   }
@@ -126,7 +172,7 @@ export async function POST(
     workspaceId: profile.workspace_id,
     data: dashboard.data,
     sections: sectionsToGen,
-    tier,
+    modelOpenrouterId,
     locale,
     channel: (dashboard.imp.channel as
       | "meta"
@@ -135,7 +181,11 @@ export async function POST(
       | "tiktok") ?? "meta",
   });
   if (!out || Object.keys(out.sections).length === 0) {
-    await refundCredits(user.id, action, "Adv Performance AI failed");
+    await refundCreditsCustom(
+      user.id,
+      modelCost,
+      "Adv Performance AI failed",
+    );
     return NextResponse.json(
       { error: "AI generation failed. Credits refunded." },
       { status: 502 },
@@ -169,7 +219,7 @@ export async function POST(
       import_id: id,
       section,
       content,
-      model_tier: tier,
+      model_tier: modelSlug,
       model_id: out.modelId,
       edited_by_user: false,
       created_by: user.id,
@@ -185,7 +235,7 @@ export async function POST(
     writes.push({
       section,
       content,
-      model_tier: tier,
+      model_tier: modelSlug,
       model_id: out.modelId,
       edited_by_user: false,
       updated_at: now,
@@ -194,8 +244,10 @@ export async function POST(
 
   return NextResponse.json({
     ok: true,
-    tier,
+    model_slug: modelSlug,
+    model_display: modelDisplay,
     model_id: out.modelId,
+    cost: modelCost,
     sections_generated: writes.length,
     sections_skipped_edited:
       Array.from(editedSet).filter((s) => sectionsToGen.includes(s as PerfSection))

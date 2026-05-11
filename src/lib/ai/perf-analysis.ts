@@ -20,13 +20,9 @@ export type PerfModelTier = "cheap" | "pragmatic" | "premium";
 
 export const PERF_DEFAULT_TIER: PerfModelTier = "pragmatic";
 
-/** Modelli usati per ogni tier. Singolo agent (no vision needed
- *  per Adv Performance — solo testo). */
-const TIER_MODEL: Record<PerfModelTier, string> = {
-  cheap: "deepseek/deepseek-v3.2",
-  pragmatic: "anthropic/claude-haiku-4.5",
-  premium: "anthropic/claude-sonnet-4.5",
-};
+/** Default fallback (usato dal route se per qualche motivo non si
+ *  riesce a risolvere un modello dal catalogo mait_ai_models). */
+export const PERF_DEFAULT_OPENROUTER_ID = "anthropic/claude-haiku-4.5";
 
 /** Sezioni di analisi disponibili. Ogni sezione corrisponde a un
  *  blocco visuale del dashboard. La generazione one-shot include
@@ -359,7 +355,9 @@ interface RunOptions {
   workspaceId: string;
   data: PerfDashboardData;
   sections: PerfSection[];
-  tier: PerfModelTier;
+  /** OpenRouter model id (es. 'anthropic/claude-haiku-4.5'). Passato
+   *  dal route dopo lookup in mait_ai_models. */
+  modelOpenrouterId: string;
   locale: "it" | "en";
   /** Canale advertising — guida il prompt per benchmark e contesto
    *  corretti (es. CTR Snapchat ≠ Meta). */
@@ -406,7 +404,7 @@ export async function runPerfAnalysis(
     console.error("[perf-analysis] no OpenRouter credentials");
     return null;
   }
-  const model = TIER_MODEL[opts.tier];
+  const model = opts.modelOpenrouterId;
   const prompt = buildPrompt(
     opts.data,
     opts.sections,
