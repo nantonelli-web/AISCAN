@@ -571,14 +571,14 @@ export async function scrapeGoogleAds(
   );
   // silva95gustavo enforces resultsLimit per startUrl as well, same
   // rationale as memo23 — divide the caller budget by region count.
-  // Capped at 100 per region: silva fetches the listing AND each
-  // ad's detail page (skipDetails=false), costing ~1.5s per ad ×
-  // concurrency 8. Above 100 per region we routinely sforiamo the
-  // 280s polling budget (es. Elena Mirò 377 pages → ~10min reali).
-  // Better trade-off: half the ads but a scan that actually finishes.
-  const silvaResultsLimit = Math.min(
-    100,
-    Math.max(50, Math.floor(maxAds / Math.max(1, urlRegionList.length))),
+  // Niente cap secondario: per brand grossi il partial-save sotto
+  // recupera comunque tutto cio' che silva ha scrapato prima dei
+  // 280s, quindi tagliare il budget a priori farebbe perdere ads
+  // utili (es. Elena Mirò: 200 → ~150-180 salvati partial vs 100
+  // → 100 saved clean ma -50/80 ads in meno).
+  const silvaResultsLimit = Math.max(
+    50,
+    Math.floor(maxAds / Math.max(1, urlRegionList.length)),
   );
   const input: Record<string, unknown> = isMemoActor
     ? { maxItems: memoMaxPerRegion }
