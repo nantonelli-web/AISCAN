@@ -398,7 +398,10 @@ export function BatchScanPanel({
       className="border-violet-500/30 bg-gradient-to-br from-violet-500/5 via-fuchsia-500/3 to-transparent"
     >
       <CardContent className="p-5 space-y-4">
-        {/* Header con toggle */}
+        {/* Header con toggle. Quando c'e' un batch in corso, mostra
+            inline il counter + dot pulsante anche se il pannello e'
+            collassato — cosi' l'utente sa sempre se sta succedendo
+            qualcosa. */}
         <button
           type="button"
           onClick={() => setOpen((s) => !s)}
@@ -420,72 +423,147 @@ export function BatchScanPanel({
               </p>
             </div>
           </div>
-          <span className="text-muted-foreground shrink-0">
-            {open ? (
-              <ChevronUp className="size-4" />
-            ) : (
-              <ChevronDown className="size-4" />
+          <div className="flex items-center gap-3 shrink-0">
+            {batchId && pollResult && polling && (
+              <span className="inline-flex items-center gap-2 rounded-full bg-violet-500/15 text-violet-700 dark:text-violet-300 px-2.5 py-1 text-[11.5px] font-medium">
+                <span className="relative flex size-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-violet-500 opacity-75" />
+                  <span className="relative inline-flex size-2 rounded-full bg-violet-500" />
+                </span>
+                Batch in corso · {pollResult.counts.total - pollResult.counts.running}/{pollResult.counts.total}
+              </span>
             )}
-          </span>
+            {batchId && pollResult && !polling && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 px-2.5 py-1 text-[11.5px] font-medium">
+                <CheckCircle2 className="size-3" />
+                Batch completato
+              </span>
+            )}
+            <span className="text-muted-foreground">
+              {open ? (
+                <ChevronUp className="size-4" />
+              ) : (
+                <ChevronDown className="size-4" />
+              )}
+            </span>
+          </div>
         </button>
 
         {open && (
           <>
-            {/* Stato batch (post-launch) */}
-            {batchId && pollResult && (
-              <div className="rounded-lg border border-violet-500/30 bg-violet-500/10 p-3">
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <p className="text-[11px] uppercase tracking-wider font-semibold text-violet-500">
-                    {polling ? "Batch in esecuzione" : "Batch completato"}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    {polling && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={stopBatch}
-                        disabled={stopping}
-                        className="text-[11px] h-7 border-red-400/40 text-red-500 hover:bg-red-400/15 hover:border-red-400 gap-1.5"
-                      >
-                        {stopping ? (
-                          <Loader2 className="size-3 animate-spin" />
-                        ) : (
-                          <Square className="size-3 fill-current" />
-                        )}
-                        {stopping ? "Fermo…" : "Stop batch"}
-                      </Button>
+            {/* Stato batch (post-launch): progress bar prominente,
+                counter sobri, bottone Stop in bianco col bordo rosso
+                cosi' contrasta sul viola del Card parent. */}
+            {batchId && pollResult && (() => {
+              const total = pollResult.counts.total;
+              const completed =
+                pollResult.counts.succeeded +
+                pollResult.counts.partial +
+                pollResult.counts.failed;
+              const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+              return (
+                <div className="rounded-lg border border-border bg-background p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-semibold text-foreground">
+                        {polling
+                          ? `Batch in esecuzione · ${percent}% (${completed}/${total})`
+                          : `Batch completato · ${total} brand`}
+                      </p>
+                      {polling && (
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {`Stiamo aspettando ${pollResult.counts.running} run Apify. Aggiornamento ogni 8s.`}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {polling && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={stopBatch}
+                          disabled={stopping}
+                          className="h-8 bg-background border-red-500 text-red-600 hover:bg-red-500 hover:text-white hover:border-red-500 gap-1.5"
+                        >
+                          {stopping ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Square className="size-3.5 fill-current" />
+                          )}
+                          {stopping ? "Fermo…" : "Stop batch"}
+                        </Button>
+                      )}
+                      {!polling && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={resetForNewBatch}
+                          className="h-8"
+                        >
+                          Nuovo batch
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div
+                    className="h-2 w-full rounded-full bg-muted overflow-hidden"
+                    role="progressbar"
+                    aria-valuenow={percent}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label="Avanzamento batch"
+                  >
+                    <div
+                      className="h-full bg-violet-500 transition-all duration-300"
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
+
+                  {/* Counter compatti: niente sfondi colorati, solo
+                      tipografia + pallini-stato. */}
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] text-muted-foreground">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="size-1.5 rounded-full bg-emerald-500" />
+                      <strong className="text-foreground">
+                        {pollResult.counts.succeeded}
+                      </strong>{" "}
+                      ok
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="size-1.5 rounded-full bg-amber-500" />
+                      <strong className="text-foreground">
+                        {pollResult.counts.partial}
+                      </strong>{" "}
+                      parziali
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="size-1.5 rounded-full bg-red-500" />
+                      <strong className="text-foreground">
+                        {pollResult.counts.failed}
+                      </strong>{" "}
+                      falliti
+                    </span>
+                    {polling && pollResult.counts.running > 0 && (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="size-1.5 rounded-full bg-violet-500 animate-pulse" />
+                        <strong className="text-foreground">
+                          {pollResult.counts.running}
+                        </strong>{" "}
+                        in corso
+                      </span>
                     )}
-                    {!polling && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={resetForNewBatch}
-                        className="text-[11px] h-7"
-                      >
-                        Nuovo batch
-                      </Button>
-                    )}
+                    <span className="ml-auto">
+                      <strong className="text-foreground">
+                        {pollResult.total_records}
+                      </strong>{" "}
+                      ads salvati
+                    </span>
                   </div>
                 </div>
-                <div className="mt-2 flex flex-wrap items-center gap-3 text-[12.5px]">
-                  <span>
-                    <strong>{pollResult.counts.running}</strong> in corso
-                  </span>
-                  <span className="text-emerald-600 dark:text-emerald-400">
-                    <strong>{pollResult.counts.succeeded}</strong> ok
-                  </span>
-                  <span className="text-amber-600 dark:text-amber-400">
-                    <strong>{pollResult.counts.partial}</strong> parziali
-                  </span>
-                  <span className="text-red-500">
-                    <strong>{pollResult.counts.failed}</strong> falliti
-                  </span>
-                  <span className="text-muted-foreground">
-                    · <strong>{pollResult.total_records}</strong> ads salvati
-                  </span>
-                </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Riga filtri: canale + cliente */}
             <div className="space-y-3">
