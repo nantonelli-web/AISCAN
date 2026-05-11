@@ -38,6 +38,13 @@ export const maxDuration = 120;
 
 const schema = z.object({
   job_id: z.string().uuid().optional(),
+  /** Quando passato con job_id, re-elabora il dataset Apify anche se
+   *  il job e' gia' in stato succeeded/partial. Utile per recuperare
+   *  ads "scartati" da filtri pregressi (es. ads scartati dal
+   *  vecchio date filter ora che la persistenza non lo applica piu').
+   *  Il run Apify deve essere ancora disponibile nel pool retention
+   *  (~7 giorni). Non fa nuovi scan, riusa il dataset gia' pagato. */
+  force_refinalize: z.boolean().optional(),
 });
 
 const APIFY_BASE = "https://api.apify.com/v2";
@@ -99,6 +106,9 @@ export async function POST(req: Request) {
 
   // Carica i job da reconcile
   let jobs: JobRow[] = [];
+  const isForceRefinalize = Boolean(
+    parsed.data.job_id && parsed.data.force_refinalize,
+  );
   if (parsed.data.job_id) {
     const { data } = await admin
       .from("mait_scrape_jobs")
@@ -187,7 +197,8 @@ export async function POST(req: Request) {
       continue;
     }
 
-    // Se ancora in corso lato Apify, niente da fare
+    // Se ancora in corso lato Apify, niente da fare (vale anche per
+    // force_refinalize: non si puo' riprocessare un run incompleto).
     if (apifyStatus === "RUNNING" || apifyStatus === "READY") {
       reconciled.push({
         job_id: job.id,
@@ -196,6 +207,20 @@ export async function POST(req: Request) {
         message: `Apify status=${apifyStatus}, lo lasciamo lavorare`,
       });
       continue;
+    }
+
+    // Path force_refinalize: ri-elabora il dataset anche se il job
+    // e' gia' in 'succeeded' o 'partial'. Si limita al lookup + upsert
+    // (idempotente via onConflict workspace_id,ad_archive_id,source)
+    // e aggiorna records_count. NON ri-charge crediti — il run e
+    // il fetch del dataset sono gia' pagati.
+    if (
+      isForceRefinalize &&
+      (job.status === "succeeded" || job.status === "partial")
+    ) {
+      // Salta tutta la logica "trovo job stale" e finalize standard:
+      // entrambi i path producono lo stesso risultato. Lasciamo che il
+      // codice qui sotto faccia la finalize.
     }
 
     if (!datasetId) {
@@ -208,7 +233,7 @@ export async function POST(req: Request) {
           webhook_received_at: new Date().toISOString(),
         })
         .eq("id", job.id);
-      if (job.created_by) {
+      if (job.created_by && !isForceRefinalize) {
         await refundCredits(
           job.created_by,
           "scan_google",
@@ -219,7 +244,9 @@ export async function POST(req: Request) {
         job_id: job.id,
         page_name: pageName,
         outcome: "finalized_failed",
-        message: "Nessun datasetId, marcato failed e crediti rifondati",
+        message: isForceRefinalize
+          ? "Nessun datasetId, impossibile re-elaborare"
+          : "Nessun datasetId, marcato failed e crediti rifondati",
       });
       continue;
     }
@@ -298,7 +325,16 @@ export async function POST(req: Request) {
           .eq("id", job.competitor_id);
       }
 
-      if (finalStatus === "failed" && job.created_by) {
+      if (
+        finalStatus === "failed" &&
+        job.created_by &&
+        !isForceRefinalize
+      ) {
+        // Refund only in stale-orphan path: la prima finalize ha
+        // generato il job 'running' senza mai persistere ads.
+        // In force_refinalize i crediti sono gia' stati spesi e il
+        // dataset Apify e' stato gia' fatturato; il re-process e'
+        // gratis. Mai rifondare due volte.
         await refundCredits(
           job.created_by,
           "scan_google",

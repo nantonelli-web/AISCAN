@@ -559,6 +559,28 @@ export default async function CompetitorDetailPage({
                 completedAt: j.completed_at,
               };
             })()}
+            // Re-finalize affordance: ultimo job Google succeeded/
+            // partial entro 6 giorni con apify_run_id (dataset Apify
+            // ancora disponibile, retention ~7 giorni). Permette di
+            // riprocessare il dataset Apify già pagato senza fare un
+            // nuovo scan — utile dopo modifiche alla logica di
+            // normalizzazione/filtro che hanno scartato ads in passato.
+            googleRefinalizableJob={(() => {
+              const sixDaysAgo = Date.now() - 6 * 86_400_000;
+              const j = jobsList.find(
+                (j) =>
+                  j.source === "google" &&
+                  (j.status === "succeeded" || j.status === "partial") &&
+                  !!j.apify_run_id &&
+                  !!j.started_at &&
+                  new Date(j.started_at).getTime() > sixDaysAgo,
+              );
+              if (!j) return null;
+              return {
+                jobId: j.id,
+                recordsCount: j.records_count ?? 0,
+              };
+            })()}
           />
         </CardContent>
       </Card>

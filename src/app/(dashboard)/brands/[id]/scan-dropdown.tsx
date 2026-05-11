@@ -90,6 +90,13 @@ interface Props {
     recordsCount: number;
     completedAt: string | null;
   } | null;
+  /** Ultimo job Google succeeded/partial con dataset Apify ancora
+   *  disponibile (entro retention ~7 giorni). Permette di
+   *  riprocessare i dati gia' pagati senza fare un nuovo scan. */
+  googleRefinalizableJob?: {
+    jobId: string;
+    recordsCount: number;
+  } | null;
 }
 
 // Loading-state discriminator. Paid+organic Snapchat live on the
@@ -119,6 +126,7 @@ export function ScanDropdown({
   hasOrphanRunningJob = false,
   googleLastScanAt = null,
   googlePartialJob = null,
+  googleRefinalizableJob = null,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -336,6 +344,50 @@ export function ScanDropdown({
     } finally {
       abortRef.current = null;
       setLoading(null);
+    }
+  }
+
+  async function refinalizeGoogleScan() {
+    if (!googleRefinalizableJob?.jobId) return;
+    const ok = window.confirm(
+      `Riprocessare il dataset Apify dello scan Google piu' recente?\n\nNON viene fatto un nuovo scan e non vengono spesi crediti: il dataset e' gia' stato pagato e Apify lo conserva per circa 7 giorni. Riprocessandolo ora i dati gia' raccolti vengono normalizzati e salvati di nuovo con la logica corrente.\n\nUsa questa funzione dopo modifiche alla normalizzazione/filtri (es. quando ti aspetti piu' ads salvati di quanti ne risultano in DB).`,
+    );
+    if (!ok) return;
+    const toastId = toast.loading("Riprocesso dataset Apify…");
+    try {
+      const res = await fetch("/api/apify/scan-google/reconcile", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          job_id: googleRefinalizableJob.jobId,
+          force_refinalize: true,
+        }),
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        toast.error(j.error ?? "Refinalize failed", { id: toastId });
+        return;
+      }
+      const r = (j.reconciled ?? [])[0] as
+        | { outcome: string; records_count?: number; page_name: string | null }
+        | undefined;
+      if (!r) {
+        toast.error("Nessun risultato dal reconcile", { id: toastId });
+        return;
+      }
+      if (r.outcome === "still_running") {
+        toast.info("Lo scan e' ancora in corso su Apify, riprova quando finisce", { id: toastId });
+        return;
+      }
+      toast.success(
+        `Dataset riprocessato: ${r.records_count ?? 0} ads ora in DB`,
+        { id: toastId, duration: 12000 },
+      );
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Network error", {
+        id: toastId,
+      });
     }
   }
 
@@ -1252,6 +1304,25 @@ export function ScanDropdown({
           </div>
         );
       })()}
+
+      {/* Refinalize affordance: piccolo link discreto se c'e' un job
+          Google recente (entro 6 giorni) con dataset Apify ancora
+          disponibile. Permette di riprocessare i dati gia' pagati
+          senza un nuovo scan — utile dopo modifiche alla logica di
+          normalizzazione/filtri. */}
+      {!showStop && googleRefinalizableJob && (
+        <div className="flex items-center justify-end">
+          <button
+            type="button"
+            onClick={refinalizeGoogleScan}
+            className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 inline-flex items-center gap-1"
+            title="Riprocessa il dataset Apify dell'ultimo scan Google senza pagare un nuovo scan"
+          >
+            <RefreshCw className="size-3" />
+            Riprocessa dataset ultimo scan ({googleRefinalizableJob.recordsCount} ads attualmente in DB)
+          </button>
+        </div>
+      )}
     </div>
   );
 }

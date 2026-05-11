@@ -878,18 +878,10 @@ export async function scrapeGoogleAds(
     }
   }
 
-  const beforeFilter = records.length;
-
-  // Client-side date filter
-  if (opts.dateFrom || opts.dateTo) {
-    const from = opts.dateFrom ? new Date(opts.dateFrom).getTime() : 0;
-    const to = opts.dateTo ? new Date(opts.dateTo).getTime() + 86_400_000 : Infinity;
-    records = records.filter((r) => {
-      const start = r.start_date ? new Date(r.start_date).getTime() : 0;
-      return start >= from && start <= to;
-    });
-    console.log(`[Google Ads] Date filter: ${beforeFilter} → ${records.length}`);
-  }
+  // Date filter rimosso intenzionalmente — vedi commento analogo
+  // in finalizeGoogleAdsScan. Salviamo tutta la libreria pubblica
+  // del brand; il range date e' un filtro di visualizzazione, non
+  // di persistenza.
 
   let costCu = 0;
   try {
@@ -1250,16 +1242,15 @@ export async function finalizeGoogleAdsScan(
     records = dedupeMemoNormalized(records);
   }
 
-  if (opts.dateFrom || opts.dateTo) {
-    const from = opts.dateFrom ? new Date(opts.dateFrom).getTime() : 0;
-    const to = opts.dateTo
-      ? new Date(opts.dateTo).getTime() + 86_400_000
-      : Infinity;
-    records = records.filter((r) => {
-      const start = r.start_date ? new Date(r.start_date).getTime() : 0;
-      return start >= from && start <= to;
-    });
-  }
+  // Date filter rimosso intenzionalmente. Strategia: la libreria
+  // Google Ads pubblica di un brand viene salvata in DB nella sua
+  // interezza (tutti gli ads ancora visibili, indipendentemente da
+  // firstShown). Il range date passato al route resta come metadata
+  // sul mait_scrape_jobs (audit "ho lanciato uno scan per gli ultimi
+  // 30 giorni") ma NON taglia cosa va in mait_ads_external. Il
+  // filtro per data e' applicato a runtime sulle view (benchmark,
+  // library, AI analysis) lavorando su tutti i record salvati. Cosi'
+  // un cambio di range non costa un nuovo scan.
 
   let costCu = 0;
   try {
