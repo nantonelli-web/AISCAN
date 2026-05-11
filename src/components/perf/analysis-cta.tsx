@@ -170,7 +170,14 @@ export function AnalysisCta({
             `Crediti insufficienti (saldo: ${j.balance ?? "?"}). Costo: ${j.cost ?? "?"} cr.`,
           );
         } else {
-          toast.error(j.error ?? "Generazione fallita");
+          const detail = Array.isArray(j.details)
+            ? ` — ${j.details.slice(0, 1).join("; ")}`
+            : "";
+          const hint = j.hint ? ` (${j.hint})` : "";
+          toast.error(
+            `${j.error ?? "Generazione fallita"}${detail}${hint}`,
+            { duration: 12000 },
+          );
         }
         return;
       }

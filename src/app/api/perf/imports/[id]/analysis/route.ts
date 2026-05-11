@@ -210,6 +210,7 @@ export async function POST(
   );
 
   const writes: AnalysisRow[] = [];
+  const upsertErrors: string[] = [];
   const now = new Date().toISOString();
   for (const [section, content] of Object.entries(out.sections)) {
     if (!content) continue;
@@ -235,7 +236,13 @@ export async function POST(
       .from("mait_perf_analyses")
       .upsert(row, { onConflict: "import_id,section,locale" });
     if (error) {
-      console.error("[perf/analysis] upsert failed:", error.message);
+      console.error(
+        `[perf/analysis] upsert failed (section=${section}):`,
+        error.message,
+        error.details ?? "",
+        error.hint ?? "",
+      );
+      upsertErrors.push(`${section}: ${error.message}`);
       continue;
     }
     writes.push({
@@ -247,6 +254,28 @@ export async function POST(
       updated_at: now,
       locale,
     });
+  }
+
+  // Se TUTTI gli upsert sono falliti, refund: l'utente ha pagato il
+  // credito ma non ha ricevuto nulla di persistito. Ritorna l'errore
+  // reale del DB cosi si capisce cosa correggere (tipicamente:
+  // migrazioni 0049/0050 non applicate).
+  if (writes.length === 0) {
+    await refundCreditsCustom(
+      user.id,
+      modelCost,
+      "Adv Performance AI: 0 sections persisted",
+    );
+    return NextResponse.json(
+      {
+        error:
+          "Generated analysis could not be persisted (DB rejected upsert). Credits refunded.",
+        details: upsertErrors.slice(0, 3),
+        hint:
+          "Check that Supabase migrations 0049 (drop model_tier check) and 0050 (locale column + unique) have been applied.",
+      },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({
