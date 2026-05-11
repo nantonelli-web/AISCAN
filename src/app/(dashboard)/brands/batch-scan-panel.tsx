@@ -523,7 +523,7 @@ export function BatchScanPanel({
               size="sm"
               onClick={reconcileBatch}
               disabled={reconciling}
-              className="shrink-0 border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/15 gap-1.5"
+              className="shrink-0 bg-background border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-white hover:border-amber-500 gap-1.5"
             >
               {reconciling ? (
                 <Loader2 className="size-3.5 animate-spin" />

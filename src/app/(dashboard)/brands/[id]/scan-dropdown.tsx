@@ -973,7 +973,7 @@ export function ScanDropdown({
             onClick={reconcileGoogleScan}
             variant="outline"
             size="sm"
-            className="shrink-0 border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/15 gap-2"
+            className="shrink-0 bg-background border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-white hover:border-amber-500 gap-2"
           >
             <RefreshCw className="size-4" />
             Recupera dati
@@ -1038,7 +1038,7 @@ export function ScanDropdown({
             disabled={isLoading}
             variant="outline"
             size="sm"
-            className="shrink-0 border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/15"
+            className="shrink-0 bg-background border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-white hover:border-amber-500"
           >
             {loading === "google" ? (
               <RefreshCw className="size-4 animate-spin" />
