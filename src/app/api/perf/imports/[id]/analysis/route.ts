@@ -27,6 +27,7 @@ interface AnalysisRow {
   model_id: string | null;
   edited_by_user: boolean;
   updated_at: string;
+  locale?: string;
 }
 
 const postSchema = z.object({
@@ -193,11 +194,15 @@ export async function POST(
   }
 
   // 5. Persist (skippa sezioni gia' edited unless force flag)
+  //    Scoped al locale corrente: l'utente puo' avere edit IT
+  //    manuali che non vanno toccati quando rigenera in EN, e
+  //    viceversa.
   const admin = createAdminClient();
   const { data: existing } = await admin
     .from("mait_perf_analyses")
     .select("section, edited_by_user")
-    .eq("import_id", id);
+    .eq("import_id", id)
+    .eq("locale", locale);
   const editedSet = new Set(
     ((existing as { section: string; edited_by_user: boolean }[] | null) ?? [])
       .filter((r) => r.edited_by_user)
@@ -221,13 +226,14 @@ export async function POST(
       content,
       model_tier: modelSlug,
       model_id: out.modelId,
+      locale,
       edited_by_user: false,
       created_by: user.id,
       updated_at: now,
     };
     const { error } = await admin
       .from("mait_perf_analyses")
-      .upsert(row, { onConflict: "import_id,section" });
+      .upsert(row, { onConflict: "import_id,section,locale" });
     if (error) {
       console.error("[perf/analysis] upsert failed:", error.message);
       continue;
@@ -239,6 +245,7 @@ export async function POST(
       model_id: out.modelId,
       edited_by_user: false,
       updated_at: now,
+      locale,
     });
   }
 
@@ -258,7 +265,11 @@ export async function POST(
 
 /**
  * GET /api/perf/imports/[id]/analysis
- * Ritorna tutte le analisi salvate per l'import.
+ * Ritorna tutte le analisi salvate per l'import nel locale corrente.
+ * Se non esistono righe per il locale corrente ma ci sono righe in
+ * altra lingua, l'utente vedra' lo stato "nessuna analisi" e potra'
+ * generarla nella lingua attiva (no fallback cross-lingua per non
+ * mostrare contenuto nella lingua sbagliata).
  */
 export async function GET(
   _req: Request,
@@ -272,10 +283,14 @@ export async function GET(
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const locale = ((await getLocale()) as "it" | "en") ?? "it";
   const { data, error } = await supabase
     .from("mait_perf_analyses")
-    .select("section, content, model_tier, model_id, edited_by_user, updated_at")
-    .eq("import_id", id);
+    .select(
+      "section, content, model_tier, model_id, edited_by_user, updated_at, locale",
+    )
+    .eq("import_id", id)
+    .eq("locale", locale);
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

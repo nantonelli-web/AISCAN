@@ -260,16 +260,14 @@ function buildDashboardSnapshot(data: PerfDashboardData): string {
  *  campagna (= side benefit). Questa info finisce nel prompt cosi
  *  il modello commenta positivamente i side benefit invece di
  *  giudicarli criticamente come scarsi. */
-function buildObjectivesContext(data: PerfDashboardData): string {
+function buildObjectivesContext(
+  data: PerfDashboardData,
+  locale: "it" | "en",
+): string {
   const types = data.campaignTypes;
   if (types.length === 0) return "";
   const codes = new Set(types.map((t) => t.code));
-  const labels = types
-    .map((t) => `${t.code} (${t.label}) — ${t.campaignCount} campagne`)
-    .join("; ");
 
-  // Determina quali metriche-bonus sono SIDE BENEFIT (no campaign
-  // type relevant attivo nel periodo) vs OBIETTIVO DIRETTO.
   const isPurchaseObjective = codes.has("PURCHASE") || codes.has("PUR") || codes.has("PURCH");
   const isIgFollowObjective =
     codes.has("IGFOLLOW") || codes.has("IGFOLLOWS");
@@ -278,6 +276,29 @@ function buildObjectivesContext(data: PerfDashboardData): string {
   const isEngagementObjective =
     codes.has("ENG") || codes.has("ENGAGEMENT") || codes.has("POSTENG");
 
+  if (locale === "en") {
+    const labels = types
+      .map((t) => `${t.code} (${t.label}) — ${t.campaignCount} campaigns`)
+      .join("; ");
+    const flags: string[] = [];
+    flags.push(
+      `- purchases: ${isPurchaseObjective ? "DIRECT OBJECTIVE of at least one campaign" : "SIDE BENEFIT — no campaign has 'PURCHASE' as decoded type; recorded purchases are extra vs the declared objective"}`,
+    );
+    flags.push(
+      `- IG follows: ${isIgFollowObjective ? "DIRECT OBJECTIVE" : "SIDE BENEFIT — no campaign aims to grow IG followers"}`,
+    );
+    flags.push(
+      `- IG profile visits: ${isIgVisitObjective ? "DIRECT OBJECTIVE" : "SIDE BENEFIT — no campaign aims to drive traffic to the IG profile"}`,
+    );
+    flags.push(
+      `- post engagement (likes/comments/shares): ${isEngagementObjective ? "DIRECT OBJECTIVE" : "SIDE BENEFIT — organic engagement is 'on top' of the actual paid objectives"}`,
+    );
+    return `\n=== CAMPAIGN OBJECTIVES ===\nTypes active in the period: ${labels}\n\nMETRIC CLASSIFICATION:\n${flags.join("\n")}\n`;
+  }
+
+  const labels = types
+    .map((t) => `${t.code} (${t.label}) — ${t.campaignCount} campagne`)
+    .join("; ");
   const flags: string[] = [];
   flags.push(
     `- acquisti (purchases): ${isPurchaseObjective ? "OBIETTIVO DIRETTO di almeno una campagna" : "SIDE BENEFIT — nessuna campagna ha 'PURCHASE' come tipo decoded; gli acquisti registrati sono extra rispetto all'obiettivo dichiarato"}`,
@@ -291,7 +312,6 @@ function buildObjectivesContext(data: PerfDashboardData): string {
   flags.push(
     `- post engagement (like/commenti/share): ${isEngagementObjective ? "OBIETTIVO DIRETTO" : "SIDE BENEFIT — l'engagement organico arriva 'on top' agli obiettivi reali del paid"}`,
   );
-
   return `\n=== OBIETTIVI DELLE CAMPAGNE ===\nTipologie attive nel periodo: ${labels}\n\nCLASSIFICAZIONE METRICHE:\n${flags.join("\n")}\n`;
 }
 
@@ -301,25 +321,66 @@ function buildPrompt(
   locale: "it" | "en",
   channel: "meta" | "snapchat" | "google" | "tiktok",
 ): string {
-  const langName = locale === "it" ? "italiano" : "inglese";
   const section_descr = locale === "it" ? SECTION_DESCR_IT : SECTION_DESCR_EN;
   const sectionList = sections
     .map((s) => `- ${s}: ${section_descr[s]}`)
     .join("\n");
   const ch =
     CHANNEL_PROMPT_INFO[channel] ?? CHANNEL_PROMPT_INFO.meta;
-  const objectivesContext = buildObjectivesContext(data);
+  const chBenchmarks = ch.benchmarks[locale];
+  const objectivesContext = buildObjectivesContext(data, locale);
+  const snapshot = buildDashboardSnapshot(data);
+
+  if (locale === "en") {
+    return `You are a senior marketing analyst specialised in paid advertising. You are analysing performance data from **${ch.name}** campaigns for a brand. Important: reason using the correct platform's benchmarks — DO NOT apply benchmarks from other platforms (e.g. do not compare Snapchat CPM to Meta benchmarks).
+
+PLATFORM AND CONTEXT:
+${chBenchmarks}
+${objectivesContext}
+PERIOD DATA (labels may be in Italian — translate them naturally in your English narrative):
+${snapshot}
+
+CONTENT INSTRUCTIONS:
+1. For each section listed below, write a discursive analysis **in English**. Professional but not rigid tone — not academic, not generic-AI. Every sentence must carry information weight: zero fluff, zero fillers ("As you can see", "It's important to note").
+2. Explain what the data means in concrete marketing terms, and MOTIVATE why the metric sits where it does. Cite the payload number to anchor the reading, but don't just repeat it: explain it. When ROAS=0 or purchase_value=0, flag it as "conversion tracking not configured" and explain how to address it.
+3. **WEIGH THE CAMPAIGN OBJECTIVE — CRITICAL RULE**: before judging a metric, read the CAMPAIGN OBJECTIVES section at the top of the payload. If the metric is classified as SIDE BENEFIT (no campaign in the period had that as its declared objective), the comment must be POSITIVE — the numbers are added value "on top" of the real objective, not a funnel to judge in absolute efficiency. If the metric is DIRECT OBJECTIVE, evaluate it critically vs benchmarks.
+   - CORRECT example (SIDE BENEFIT): "The funnel did not target the IG profile, yet the campaigns generated **1,803 visits and 90 new follows** as a side effect. These are brand-lift numbers extra vs the commercial objectives (ATC/VC), an added value not to be underestimated."
+   - WRONG example (DO NOT do this): "Only 90 follows on 105k engagement: the conversion funnel isn't working" — wrong because it treats a side-benefit metric as an objective to optimise.
+4. When relevant, include an OPERATIONAL RECOMMENDATION based on paid-advertising best practices (e.g. A/B test on best creative, budget shift, pause under-performing campaigns, frequency capping if >3, etc). The recommendation must be concrete, actionable, and coherent with the campaign objective (don't suggest "optimise the follow funnel" if no campaign targets follows).
+5. Length varies with how much there is to say — don't pad. A section with little to say may be 2-3 sentences; a rich one may be 5-8.
+6. Do not invent numbers. Cite only figures present in the payload. If a value is missing, don't fill in (e.g. ROAS without purchase value).
+
+FORMATTING INSTRUCTIONS (important for readability):
+7. SPLIT the text into distinct PARAGRAPHS separated by a blank line (\\n\\n). Each paragraph = one point. Typical: paragraph 1 = data reading; paragraph 2 = motivation/explanation; paragraph 3 = operational recommendation. No single wall of text.
+8. Use markdown **bold** to highlight:
+   - key metrics and relevant numbers (e.g. **CPC 0.45 AED**, **ROAS 1.8**)
+   - important conclusions (e.g. **room for CTR improvement**)
+   - operational recommendations (first sentence of each recommendation)
+   Don't overuse it: 2-4 bolds per paragraph max, only where they truly guide the eye.
+9. When proposing MULTIPLE distinct ACTIONS, use a dashed list (one action per line, line starting with "- "). Keep entries compact (max one sentence each).
+10. NO markdown headings (#, ##), no \`code\`, no links, no tables. Only paragraphs, **bold**, and "- " lists.
+
+SECTIONS TO GENERATE:
+${sectionList}
+
+OUTPUT: reply ONLY with valid JSON in the form:
+{
+${sections.map((s) => `  "${s}": "..."`).join(",\n")}
+}
+
+No markdown wrapping (\`\`\`json), no preamble, no postamble. Each key's value is a string with paragraphs separated by \\n\\n, optional **bold** markdown, and "- " lists. Write all narrative content **in English**.`;
+  }
 
   return `Sei un analista marketing senior specializzato in paid advertising. Stai analizzando dati di performance di campagne **${ch.name}** per un brand. Importante: ragiona usando i benchmark della piattaforma corretta — NON applicare benchmark di altre piattaforme (es. non confrontare CPM Snapchat con benchmark Meta).
 
 PIATTAFORMA E CONTESTO:
-${ch.benchmarks}
+${chBenchmarks}
 ${objectivesContext}
 DATI DEL PERIODO ANALIZZATO:
-${buildDashboardSnapshot(data)}
+${snapshot}
 
 ISTRUZIONI DI CONTENUTO:
-1. Per ognuna delle sezioni elencate sotto, scrivi un'analisi discorsiva in ${langName}. Tono professionale ma non rigido — non scolastico, non da AI generica. Ogni frase deve avere un peso informativo: zero fuffa, zero filler ("Come si puo' notare", "E' importante sottolineare").
+1. Per ognuna delle sezioni elencate sotto, scrivi un'analisi discorsiva **in italiano**. Tono professionale ma non rigido — non scolastico, non da AI generica. Ogni frase deve avere un peso informativo: zero fuffa, zero filler ("Come si puo' notare", "E' importante sottolineare").
 2. Spiega cosa significa il dato in termini di marketing concreti, e MOTIVA perche' la metrica si trova in quella zona di valore. Cita il numero del payload per ancorare la lettura, ma non duplicarlo: spiegalo. Quando hai ROAS=0 o purchase_value=0, segnalalo come "tracking conversion non configurato" e spiega come affrontare la cosa.
 3. **PESA L'OBIETTIVO DELLE CAMPAGNE — REGOLA CRITICA**: prima di giudicare una metrica, leggi la sezione OBIETTIVI DELLE CAMPAGNE in cima al payload. Se la metrica e' classificata SIDE BENEFIT (nessuna campagna nel periodo aveva quell'obiettivo dichiarato), il commento deve essere POSITIVO — i numeri sono valore aggiunto "on top" rispetto all'obiettivo reale, non un funnel da giudicare in efficienza assoluta. Se la metrica e' OBIETTIVO DIRETTO, valutala criticamente vs benchmark.
    - Esempio CORRETTO (SIDE BENEFIT): "Il funnel non puntava al profilo IG, eppure le campagne hanno generato **1.803 visite e 90 nuovi follow** come effetto collaterale. Sono numeri di brand-lift extra rispetto agli obiettivi commerciali (ATC/VC), un valore aggiunto da non sottovalutare."
@@ -346,7 +407,7 @@ OUTPUT: rispondi SOLO con un JSON valido nella forma:
 ${sections.map((s) => `  "${s}": "..."`).join(",\n")}
 }
 
-Niente markdown wrapping (\`\`\`json), niente preamble, niente postamble. Il valore di ogni chiave e' una stringa con paragrafi separati da \\n\\n, eventuali **bold** markdown e liste con "- ".`;
+Niente markdown wrapping (\`\`\`json), niente preamble, niente postamble. Il valore di ogni chiave e' una stringa con paragrafi separati da \\n\\n, eventuali **bold** markdown e liste con "- ". Scrivi tutto il contenuto narrativo **in italiano**.`;
 }
 
 /* ─── OpenRouter call ────────────────────────────────────── */
@@ -369,27 +430,35 @@ interface RunOptions {
  *  sbagliati o feature non disponibili. */
 const CHANNEL_PROMPT_INFO: Record<
   string,
-  { name: string; benchmarks: string }
+  { name: string; benchmarks: { it: string; en: string } }
 > = {
   meta: {
     name: "Meta Ads (Facebook + Instagram)",
-    benchmarks:
-      "Benchmark di riferimento Meta: CTR medio 1-2% su feed/stories, CPM tipico 5-15$ in mercati maturi, frequenza ottimale <3, ROAS sano >2 per e-commerce. La piattaforma offre Reach/Frequency esposti, fenomeno di ad fatigue dopo frequency >3.",
+    benchmarks: {
+      it: "Benchmark di riferimento Meta: CTR medio 1-2% su feed/stories, CPM tipico 5-15$ in mercati maturi, frequenza ottimale <3, ROAS sano >2 per e-commerce. La piattaforma offre Reach/Frequency esposti, fenomeno di ad fatigue dopo frequency >3.",
+      en: "Meta reference benchmarks: average CTR 1-2% on feed/stories, typical CPM 5-15$ in mature markets, optimal frequency <3, healthy ROAS >2 for e-commerce. The platform exposes Reach/Frequency, ad-fatigue phenomenon kicks in after frequency >3.",
+    },
   },
   snapchat: {
     name: "Snapchat Ads",
-    benchmarks:
-      "Benchmark di riferimento Snapchat: CTR medio 1-3% (piu' alto di Meta grazie al formato full-screen), CPM tipico 2-8$ (piu' basso di Meta), audience predominante 13-34 anni. Snapchat NON espone Reach o Frequency nei dati per riga, e il funnel commerciale e' meno maturo di Meta — non confrontare i KPI con benchmark Meta. Le campagne Traffic puntano alle Landing Page Views, le Sales agli Adds To Cart e Purchases.",
+    benchmarks: {
+      it: "Benchmark di riferimento Snapchat: CTR medio 1-3% (piu' alto di Meta grazie al formato full-screen), CPM tipico 2-8$ (piu' basso di Meta), audience predominante 13-34 anni. Snapchat NON espone Reach o Frequency nei dati per riga, e il funnel commerciale e' meno maturo di Meta — non confrontare i KPI con benchmark Meta. Le campagne Traffic puntano alle Landing Page Views, le Sales agli Adds To Cart e Purchases.",
+      en: "Snapchat reference benchmarks: average CTR 1-3% (higher than Meta thanks to the full-screen format), typical CPM 2-8$ (lower than Meta), predominant audience 13-34 years old. Snapchat does NOT expose Reach or Frequency in per-row data, and the commercial funnel is less mature than Meta — do not compare KPIs to Meta benchmarks. Traffic campaigns target Landing Page Views, Sales campaigns target Adds To Cart and Purchases.",
+    },
   },
   google: {
     name: "Google Ads",
-    benchmarks:
-      "Benchmark di riferimento Google: CTR Search 3-5%, CTR Display 0.5-1%, Quality Score, Impression Share, ROAS dipende dalla parola chiave.",
+    benchmarks: {
+      it: "Benchmark di riferimento Google: CTR Search 3-5%, CTR Display 0.5-1%, Quality Score, Impression Share, ROAS dipende dalla parola chiave.",
+      en: "Google reference benchmarks: Search CTR 3-5%, Display CTR 0.5-1%, Quality Score, Impression Share, ROAS depends on the keyword.",
+    },
   },
   tiktok: {
     name: "TikTok Ads",
-    benchmarks:
-      "Benchmark di riferimento TikTok: CTR 1-2%, audience giovane, formato full-screen video, attenzione bassa al singolo ad ma alto engagement organico se la creativita' e' nativa.",
+    benchmarks: {
+      it: "Benchmark di riferimento TikTok: CTR 1-2%, audience giovane, formato full-screen video, attenzione bassa al singolo ad ma alto engagement organico se la creativita' e' nativa.",
+      en: "TikTok reference benchmarks: CTR 1-2%, young audience, full-screen video format, low attention on the single ad but high organic engagement if the creative is native.",
+    },
   },
 };
 

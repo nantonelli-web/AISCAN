@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser } from "@/lib/auth/session";
 import { PERF_SECTIONS } from "@/lib/ai/perf-analysis";
+import { getLocale } from "@/lib/i18n/server";
 
 const patchSchema = z.object({
   content: z.string().min(1).max(20_000),
@@ -54,6 +55,7 @@ export async function PATCH(
   }
 
   const now = new Date().toISOString();
+  const locale = ((await getLocale()) as "it" | "en") ?? "it";
   const { error } = await admin
     .from("mait_perf_analyses")
     .upsert(
@@ -63,11 +65,12 @@ export async function PATCH(
         section,
         content: parsed.data.content,
         model_tier: "manual", // sentinella per row creata/aggiornata da edit pure
+        locale,
         edited_by_user: true,
         created_by: user.id,
         updated_at: now,
       },
-      { onConflict: "import_id,section" },
+      { onConflict: "import_id,section,locale" },
     );
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -101,11 +104,13 @@ export async function DELETE(
   }
 
   const admin = createAdminClient();
+  const locale = ((await getLocale()) as "it" | "en") ?? "it";
   const { error } = await admin
     .from("mait_perf_analyses")
     .delete()
     .eq("import_id", id)
-    .eq("section", section);
+    .eq("section", section)
+    .eq("locale", locale);
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

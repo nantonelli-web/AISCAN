@@ -5,6 +5,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { loadDashboardData } from "@/lib/perf/dashboard-loader";
 import { buildPerfPptx } from "@/lib/perf/pptx-export";
 import type { ComparisonMode } from "@/lib/perf/comparisons";
+import { getLocale } from "@/lib/i18n/server";
 
 export const maxDuration = 120;
 
@@ -12,6 +13,7 @@ interface AnalysisRow {
   section: string;
   content: string;
   edited_by_user: boolean;
+  locale?: string;
 }
 
 /**
@@ -65,12 +67,25 @@ export async function GET(
 
   const admin = createAdminClient();
 
-  // 2. Carica le analisi salvate
-  const { data: analysesData } = await admin
+  // 2. Carica le analisi salvate per il locale corrente. Se il
+  //    locale attivo non ha righe, fall back a qualsiasi locale
+  //    presente cosi l'export non resta vuoto quando l'utente apre
+  //    il dashboard in EN ma ha generato l'analisi solo in IT.
+  const locale = ((await getLocale()) as "it" | "en") ?? "it";
+  const primary = await admin
     .from("mait_perf_analyses")
-    .select("section, content, edited_by_user")
-    .eq("import_id", id);
-  const analyses = (analysesData ?? []) as AnalysisRow[];
+    .select("section, content, edited_by_user, locale")
+    .eq("import_id", id)
+    .eq("locale", locale);
+  let analysesData = primary.data ?? [];
+  if (analysesData.length === 0) {
+    const fb = await admin
+      .from("mait_perf_analyses")
+      .select("section, content, edited_by_user, locale")
+      .eq("import_id", id);
+    analysesData = fb.data ?? [];
+  }
+  const analyses = analysesData as AnalysisRow[];
 
   // 3. Carica nomi cliente + brand per la cover. brand_id puo'
   // essere null per import legacy pre-migration 0043: in quel caso
