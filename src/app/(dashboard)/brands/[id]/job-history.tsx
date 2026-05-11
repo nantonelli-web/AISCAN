@@ -38,6 +38,13 @@ const statusBadge: Record<
     variant: "muted",
     icon: <Loader2 className="size-3" />,
   },
+  partial: {
+    // Scan abortito o timed-out ma con items salvati. Trattiamo come
+    // un parziale-successo: badge gold attenuato, icona spuntata con
+    // accent meno saturo.
+    variant: "muted",
+    icon: <CheckCircle2 className="size-3 text-amber-500" />,
+  },
 };
 
 export function JobHistory({ jobs }: { jobs: MaitScrapeJob[] }) {

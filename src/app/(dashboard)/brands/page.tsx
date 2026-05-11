@@ -13,6 +13,7 @@ import { CollapsibleClientSection } from "./collapsible-client-section";
 import { PrintButton } from "@/components/ui/print-button";
 import { DynamicBackLink } from "@/components/ui/dynamic-back-link";
 import { BrandCardDeleteButton } from "./brand-card-delete-button";
+import { BatchScanTrigger } from "./batch-scan-trigger";
 import type { MaitCompetitor, MaitClient } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -107,6 +108,15 @@ export default async function CompetitorsPage() {
         description={t("competitors", "subtitle")}
         action={
           <div className="flex items-center gap-3">
+            <BatchScanTrigger
+              brands={list.map((c) => ({
+                id: c.id,
+                page_name: c.page_name,
+                google_advertiser_id: c.google_advertiser_id,
+                google_domain: c.google_domain,
+                last_scraped_at: c.last_scraped_at,
+              }))}
+            />
             <PrintButton label={t("common", "print")} variant="outline" />
             <Button asChild>
               <Link href="/brands/new">

@@ -70,6 +70,20 @@ interface Props {
   scanCountries: string | null;
   /** DB-confirmed running job; shows Stop even after a page reload. */
   hasRunningJob?: boolean;
+  /** Timestamp dell'ultimo scan Google completato (succeeded o
+   *  partial). Se entro 24h dal click su "Scan Google", chiediamo
+   *  conferma all'utente prima di bruciare di nuovo i crediti. */
+  googleLastScanAt?: string | null;
+  /** Ultimo job Google in stato 'partial' che ha un runId Apify
+   *  utilizzabile per resurrect. Se presente, il dropdown mostra un
+   *  CTA "Continua scan" che riprende il run da dove si era fermato
+   *  invece di iniziarne uno nuovo. */
+  googlePartialJob?: {
+    jobId: string;
+    runId: string;
+    recordsCount: number;
+    completedAt: string | null;
+  } | null;
 }
 
 // Loading-state discriminator. Paid+organic Snapchat live on the
@@ -96,6 +110,8 @@ export function ScanDropdown({
   hasSnapchatConfig,
   hasYoutubeConfig,
   hasRunningJob = false,
+  googleLastScanAt = null,
+  googlePartialJob = null,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -316,8 +332,63 @@ export function ScanDropdown({
     }
   }
 
+  async function resumeGoogleScan() {
+    if (!googlePartialJob?.jobId) return;
+    const ok = window.confirm(
+      `Vuoi riprendere lo scan parziale di Google Ads?\n\nL'attore Apify riaprira' il run dallo stato in cui era stato interrotto (queue conservata) e continuera' a scrappare. Verra' addebitato il costo di un nuovo scan (2 crediti).`,
+    );
+    if (!ok) return;
+    setLoading("google");
+    const toastId = toast.loading(
+      "Riprendo lo scan parziale — puoi continuare a lavorare",
+    );
+    googleScanToastIdRef.current = toastId;
+    try {
+      const res = await fetch("/api/apify/scan-google/resume", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ job_id: googlePartialJob.jobId }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error ?? "Resume failed", { id: toastId });
+        googleScanToastIdRef.current = null;
+        setLoading(null);
+        return;
+      }
+      // Attiva il polling come per un nuovo scan: il webhook arrivera'
+      // a completion e cambiera' lo status del job.
+      setGoogleScanJobId(googlePartialJob.jobId);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Network error", {
+        id: toastId,
+      });
+      googleScanToastIdRef.current = null;
+      setLoading(null);
+    }
+  }
+
   async function scanGoogle() {
     if (rangeExceeded) return;
+    // Cache check: se questo brand e' stato scansionato (anche
+    // parziale) negli ultimi 24h chiediamo conferma cosi non bruciamo
+    // 2 crediti su uno scan che probabilmente ritornera' gli stessi
+    // dati. Soglia 24h e' un default sensato: i brand non aggiornano
+    // la propria libreria pubblicitaria piu' frequentemente.
+    if (googleLastScanAt) {
+      const hoursAgo =
+        (Date.now() - new Date(googleLastScanAt).getTime()) / 3_600_000;
+      if (hoursAgo < 24) {
+        const formatted =
+          hoursAgo < 1
+            ? `${Math.round(hoursAgo * 60)} minuti`
+            : `${Math.round(hoursAgo)} ore`;
+        const ok = window.confirm(
+          `Questo brand e' stato scansionato ${formatted} fa.\n\nForzare un nuovo scan ti costera' 2 crediti aggiuntivi. La libreria pubblicitaria di Google difficilmente cambia cosi di frequente — la maggior parte dei brand pubblica nuovi ad ogni qualche settimana.\n\nProcedere comunque?`,
+        );
+        if (!ok) return;
+      }
+    }
     // Async flow: la POST ritorna in <2s con un job_id. Il polling
     // (useEffect sopra) si occupa di mostrare il toast finale quando
     // Apify chiama il webhook e il job diventa terminal.
@@ -793,6 +864,40 @@ export function ScanDropdown({
           >
             <Square className="size-5 fill-current" />
             {stopping ? t("scan", "stopping") : "Stop"}
+          </Button>
+        </div>
+      )}
+
+      {/* Banner resume: c'e' uno scan Google partial pendente che
+          puo' essere ripreso via Apify resurrect. Mostrato solo se
+          non c'e' uno scan in corso (showStop=false) — altrimenti il
+          banner Stop ha la priorita'. */}
+      {!showStop && googlePartialJob && (
+        <div className="flex items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+          <div className="size-8 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-400 grid place-items-center shrink-0">
+            <GoogleLogo className="size-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-foreground">
+              Scan Google parziale disponibile
+            </p>
+            <p className="text-[12px] text-muted-foreground">
+              {`Hai gia' ${googlePartialJob.recordsCount} ads salvati da uno scan precedente che si era interrotto. Puoi riprenderlo da dove era arrivato (2 crediti).`}
+            </p>
+          </div>
+          <Button
+            onClick={resumeGoogleScan}
+            disabled={isLoading}
+            variant="outline"
+            size="sm"
+            className="shrink-0 border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/15"
+          >
+            {loading === "google" ? (
+              <RefreshCw className="size-4 animate-spin" />
+            ) : (
+              <RefreshCw className="size-4" />
+            )}
+            Continua scan
           </Button>
         </div>
       )}

@@ -511,6 +511,37 @@ export default async function CompetitorDetailPage({
             hasYoutubeConfig={!!c.youtube_channel_url}
             scanCountries={c.country}
             hasRunningJob={hasRunningJob}
+            // Cache hint per il canale Google: ultimo job successful o
+            // parziale per questo brand. Il dropdown usa questo per
+            // mostrare un prompt di conferma se l'utente prova a
+            // rilanciare uno scan recente (entro 24h) — evita di
+            // bruciare crediti su uno scan inutile.
+            googleLastScanAt={
+              jobsList.find(
+                (j) =>
+                  j.source === "google" &&
+                  (j.status === "succeeded" || j.status === "partial") &&
+                  !!j.started_at,
+              )?.started_at ?? null
+            }
+            // Resume affordance: l'ultimo job Google che e' partial e
+            // non e' ancora stato resumetato; il dropdown mostra un
+            // CTA "Continua scan" che riapre il run Apify in resurrect.
+            googlePartialJob={(() => {
+              const j = jobsList.find(
+                (j) =>
+                  j.source === "google" &&
+                  j.status === "partial" &&
+                  !!j.apify_run_id,
+              );
+              if (!j) return null;
+              return {
+                jobId: j.id,
+                runId: j.apify_run_id!,
+                recordsCount: j.records_count ?? 0,
+                completedAt: j.completed_at,
+              };
+            })()}
           />
         </CardContent>
       </Card>

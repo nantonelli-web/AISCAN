@@ -1,6 +1,17 @@
 export type Role = "super_admin" | "admin" | "analyst" | "viewer";
 
-export type ScrapeStatus = "pending" | "running" | "succeeded" | "failed";
+export type ScrapeStatus =
+  | "pending"
+  | "running"
+  | "succeeded"
+  | "failed"
+  // 'partial': il run e' stato abortito o ha sforato il timeout ma il
+  // dataset Apify conteneva items utili che abbiamo salvato comunque.
+  // Introdotto in migration 0051 per il flow async webhook-driven di
+  // Google Ads. Side effect: solo job Google possono finire in
+  // 'partial', gli altri canali (sync) usano ancora i 4 valori
+  // originali.
+  | "partial";
 
 export interface MaitWorkspace {
   id: string;
