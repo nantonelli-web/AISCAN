@@ -78,12 +78,35 @@ interface ReconcileResult {
 }
 
 export async function POST(req: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Internal auth: il webhook handler chiama questo endpoint
+  // fire-and-forget per finalizzare il job in background. Usa
+  // l'header x-internal-auth = APIFY_WEBHOOK_SECRET. Quando questo
+  // header e' presente e valido, saltiamo il check sessione utente
+  // e accettiamo job_id senza workspace check (workspace viene letto
+  // dal job stesso).
+  const internalAuth = req.headers.get("x-internal-auth");
+  const webhookSecret = process.env.APIFY_WEBHOOK_SECRET;
+  const isInternal =
+    !!internalAuth && !!webhookSecret && internalAuth === webhookSecret;
+
+  let workspaceId: string | null = null;
+  if (!isInternal) {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const { data: userRow } = await supabase
+      .from("mait_users")
+      .select("workspace_id")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (!userRow?.workspace_id) {
+      return NextResponse.json({ error: "No workspace" }, { status: 403 });
+    }
+    workspaceId = userRow.workspace_id as string;
   }
 
   const body = await req.json().catch(() => ({}));
@@ -92,15 +115,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  const { data: userRow } = await supabase
-    .from("mait_users")
-    .select("workspace_id")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (!userRow?.workspace_id) {
-    return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  // Per chiamate internal, job_id e' obbligatorio (niente
+  // auto-discover senza utente di riferimento).
+  if (isInternal && !parsed.data.job_id) {
+    return NextResponse.json(
+      { error: "Internal call requires job_id" },
+      { status: 400 },
+    );
   }
-  const workspaceId = userRow.workspace_id as string;
 
   const admin = createAdminClient();
 
@@ -110,16 +132,18 @@ export async function POST(req: Request) {
     parsed.data.job_id && parsed.data.force_refinalize,
   );
   if (parsed.data.job_id) {
-    const { data } = await admin
+    let q = admin
       .from("mait_scrape_jobs")
       .select(
         "id, workspace_id, competitor_id, apify_run_id, dataset_id, status, source, scan_options, created_by, started_at, webhook_received_at",
       )
-      .eq("id", parsed.data.job_id)
-      .eq("workspace_id", workspaceId)
-      .maybeSingle();
+      .eq("id", parsed.data.job_id);
+    // Internal: niente workspace filter (chiamato dal webhook,
+    // non da utente). Tutti gli altri path: workspace-scoped.
+    if (workspaceId) q = q.eq("workspace_id", workspaceId);
+    const { data } = await q.maybeSingle();
     if (data) jobs.push(data as JobRow);
-  } else {
+  } else if (workspaceId) {
     // Auto-discover: tutti i job 'running' Google del workspace
     // partiti almeno 5 min fa con un runId valorizzato.
     const cutoff = new Date(Date.now() - 5 * 60_000).toISOString();

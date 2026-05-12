@@ -1,10 +1,5 @@
-import { NextResponse, after } from "next/server";
+import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  finalizeGoogleAdsScan,
-  type FinalizeScanArgs,
-} from "@/lib/apify/google-ads-service";
-import { refundCredits } from "@/lib/credits/consume";
 
 // Apify chiama questo endpoint quando un run Google Ads finisce
 // (SUCCEEDED / ABORTED / FAILED / TIMED-OUT). Il payload e' il
@@ -16,16 +11,20 @@ import { refundCredits } from "@/lib/credits/consume";
 //
 // Idempotenza + ack veloce:
 //   Apify ha un client-side timeout di ~30s sul webhook HTTP; se la
-//   response tarda di piu' marca il dispatch come failed/408 anche
-//   se in realta' il processing e' partito. Per ridurre il rischio
-//   di "ghost running":
-//     - validiamo + parse-iamo il payload
-//     - facciamo il lookup del job
-//     - settiamo webhook_received_at (lock anti-doppia-elaborazione)
-//     - rispondiamo 200 a Apify
-//     - finalize gira via `after()` (Next 15) — la function vive fino a
-//       maxDuration anche dopo aver mandato la response.
-export const maxDuration = 300;
+//   response tarda di piu' marca il dispatch come failed/408. Per
+//   stare ben sotto il limite questo handler fa SOLO:
+//     - validate secret
+//     - parse payload + extract fields (default Apify format)
+//     - lookup job + set webhook_received_at + status='processing'
+//     - fire-and-forget POST a /api/apify/scan-google/reconcile
+//       (internal auth via x-internal-auth header)
+//     - 200 a Apify entro 1s
+//
+//   Il reconcile endpoint ha maxDuration alto e fa il vero finalize.
+//   Vantaggio: non dipende da `after()` (clamped su Hobby plan) ne'
+//   da grace-period Vercel per fire-and-forget locali — il fetch e'
+//   verso un URL esterno, parte come HTTP request sull'event loop.
+export const maxDuration = 30;
 
 interface WebhookPayload {
   // Default Apify payload (webhook persistente senza payloadTemplate)
@@ -176,174 +175,73 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, alreadyProcessed: true });
   }
 
-  // 5. Marca subito webhook_received_at come lock anti-doppia-
-  //    elaborazione. I retry Apify trovano la colonna valorizzata
-  //    e ritornano alreadyProcessed. Settiamo anche status='processing'
-  //    cosi' la UI mostra "in finalizzazione" invece di "running".
+  // 5. Marca webhook_received_at come lock anti-doppia-elaborazione.
+  //    I retry Apify trovano la colonna valorizzata e ritornano
+  //    alreadyProcessed.
   const now = new Date().toISOString();
   await admin
     .from("mait_scrape_jobs")
     .update({ webhook_received_at: now })
     .eq("id", job.id);
 
-  const datasetId = fields.datasetId || job.dataset_id;
-  if (!datasetId) {
-    await admin
-      .from("mait_scrape_jobs")
-      .update({
-        status: "failed",
-        completed_at: now,
-        error: "Webhook received without datasetId",
-      })
-      .eq("id", job.id);
-    return NextResponse.json(
-      { error: "Missing datasetId" },
-      { status: 400 },
+  // 6. POST al reconcile endpoint con awaited-but-capped:
+  //    aspettiamo al MASSIMO 3s che la fetch parta + inizializzi
+  //    TCP. Su Vercel un puro fire-and-forget puo' essere killato
+  //    prima che la connessione si apra. 3s sono lontani dai 30s
+  //    di timeout Apify ma sufficienti per garantire che la
+  //    request raggiunga il reconcile container, che poi gira
+  //    indipendentemente con il suo maxDuration.
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
+  if (appUrl) {
+    const reconcileUrl = `${appUrl}/api/apify/scan-google/reconcile`;
+    const ctrl = new AbortController();
+    const abortTimer = setTimeout(() => ctrl.abort(), 3000);
+    try {
+      const recRes = await fetch(reconcileUrl, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-internal-auth": expected,
+        },
+        body: JSON.stringify({ job_id: job.id }),
+        signal: ctrl.signal,
+        // keepalive: la request continua anche se il caller (questa
+        // function) viene terminato dopo aver mandato la response.
+        keepalive: true,
+      });
+      console.log(
+        `[Google Ads webhook] reconcile triggered for job=${job.id} run=${fields.runId} status=${recRes.status}`,
+      );
+    } catch (err) {
+      // AbortError dopo 3s e' atteso: la richiesta e' partita, il
+      // reconcile sta processando, possiamo chiudere noi.
+      const isAbort =
+        err instanceof Error && err.name === "AbortError";
+      if (isAbort) {
+        console.log(
+          `[Google Ads webhook] reconcile request kept-alive after 3s for job=${job.id}`,
+        );
+      } else {
+        console.error(
+          `[Google Ads webhook] reconcile call failed for job=${job.id}:`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+    } finally {
+      clearTimeout(abortTimer);
+    }
+  } else {
+    console.error(
+      `[Google Ads webhook] cannot schedule reconcile: NEXT_PUBLIC_APP_URL missing on this function`,
     );
   }
 
-  const opts = (job.scan_options ?? {}) as Record<string, unknown>;
-  const competitorPageName =
-    (opts.competitorPageName as string | undefined) ?? "unknown brand";
-
-  // 6. Schedule il finalize via `after()` di Next 15. La function
-  //    rimane viva fino a maxDuration (300s) anche dopo aver mandato
-  //    la response, cosi' Apify riceve l'ACK entro 1s e non triggera
-  //    retry/timeout 408 a meta' lavoro.
-  const finalizeArgs: FinalizeScanArgs = {
-    workspaceId: job.workspace_id,
-    runId: fields.runId,
-    datasetId,
-    apifyStatus: fields.status,
-    opts: {
-      advertiserId: (opts.advertiserId as string | undefined) ?? undefined,
-      advertiserDomain:
-        (opts.advertiserDomain as string | undefined) ?? undefined,
-      advertiserName:
-        (opts.advertiserName as string | undefined) ?? undefined,
-      dateFrom: (opts.dateFrom as string | undefined) ?? undefined,
-      dateTo: (opts.dateTo as string | undefined) ?? undefined,
-      maxResults: (opts.maxResults as number | undefined) ?? 500,
-      country: (opts.country as string | undefined) ?? undefined,
-      workspaceId: job.workspace_id,
-    },
-    urlRegionList: (opts.urlRegionList as string[] | undefined) ?? [],
-  };
-
-  after(async () => {
-    try {
-      const result = await finalizeGoogleAdsScan(finalizeArgs);
-
-      // 7. Persist ads (anche se result.records.length === 0).
-      if (result.records.length > 0 && job.competitor_id) {
-        const seenAt = new Date().toISOString();
-        const rows = result.records.map((r) => ({
-          ...r,
-          source: "google" as const,
-          workspace_id: job.workspace_id,
-          competitor_id: job.competitor_id,
-          last_seen_in_scan_at: seenAt,
-        }));
-
-        const { error: upErr } = await admin
-          .from("mait_ads_external")
-          .upsert(rows, { onConflict: "workspace_id,ad_archive_id,source" });
-        if (upErr) {
-          throw new Error(`Ads upsert failed: ${upErr.message}`);
-        }
-      }
-
-      // 8. Final job status: succeeded vs partial vs failed
-      const finalStatus =
-        result.complete && result.records.length >= 0
-          ? "succeeded"
-          : result.records.length > 0
-            ? "partial"
-            : "failed";
-
-      await admin
-        .from("mait_scrape_jobs")
-        .update({
-          status: finalStatus,
-          completed_at: new Date().toISOString(),
-          records_count: result.records.length,
-          cost_cu: result.costCu,
-          error:
-            finalStatus === "failed"
-              ? `Apify run ended with status ${fields.status} and dataset was empty`
-              : finalStatus === "partial"
-                ? `Apify run did not complete (status=${fields.status}) but ${result.records.length} items were saved before the abort.`
-                : null,
-        })
-        .eq("id", job.id);
-
-      if (job.competitor_id) {
-        await admin
-          .from("mait_competitors")
-          .update({ last_scraped_at: new Date().toISOString() })
-          .eq("id", job.competitor_id);
-      }
-
-      // Refund se completamente failed (zero items + not succeeded)
-      if (finalStatus === "failed" && job.created_by) {
-        await refundCredits(
-          job.created_by,
-          "scan_google",
-          `Google Ads scan failed (no items): ${competitorPageName}`,
-        );
-      }
-
-      // Alert + invalidazione cache comparisons solo se abbiamo dati
-      if (result.records.length > 0 && job.competitor_id) {
-        await admin.from("mait_alerts").insert({
-          workspace_id: job.workspace_id,
-          competitor_id: job.competitor_id,
-          type: "new_ads",
-          message:
-            finalStatus === "partial"
-              ? `${result.records.length} Google Ads sincronizzate (scan parziale).`
-              : `${result.records.length} Google Ads sincronizzate.`,
-        });
-
-        await admin
-          .from("mait_comparisons")
-          .update({ stale: true, updated_at: new Date().toISOString() })
-          .contains("competitor_ids", [job.competitor_id]);
-      }
-
-      console.log(
-        `[Google Ads webhook] DONE: job=${job.id} status=${finalStatus} records=${result.records.length} cost=$${result.costCu.toFixed(3)}`,
-      );
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "Finalize failed";
-      console.error(
-        `[Google Ads webhook] FAILED (background): job=${job.id}:`,
-        message,
-      );
-      await admin
-        .from("mait_scrape_jobs")
-        .update({
-          status: "failed",
-          completed_at: new Date().toISOString(),
-          error: message,
-        })
-        .eq("id", job.id);
-      if (job.created_by) {
-        await refundCredits(
-          job.created_by,
-          "scan_google",
-          `Google Ads scan failed in webhook: ${competitorPageName}`,
-        );
-      }
-    }
-  });
-
-  // 9. Ack immediato a Apify (entro 1s, ben dentro il timeout 30s
-  //    lato client). Il finalize prosegue in background via after().
+  // 7. Ack immediato a Apify (entro 1s, ben dentro il timeout 30s
+  //    lato client).
   return NextResponse.json({
     ok: true,
     job_id: job.id,
     status: "processing",
-    message: "Finalize scheduled in background",
+    message: "Reconcile scheduled",
   });
 }
