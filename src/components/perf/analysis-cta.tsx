@@ -189,11 +189,16 @@ export function AnalysisCta({
   async function generate() {
     setBusy(true);
     try {
+      // mode=auto: il server decide. Se non ci sono analisi nel
+      // locale corrente ma esistono in altra lingua → traduce
+      // preservando le personalizzazioni utente. Altrimenti rigenera
+      // dal dato (comportamento storico).
       const res = await fetch(`/api/perf/imports/${importId}/analysis`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           model_id: modelId ?? undefined,
+          mode: "auto",
           force_overwrite_edited: false,
           ...(compareParams ?? {}),
         }),
@@ -217,8 +222,15 @@ export function AnalysisCta({
         return;
       }
       const skipped = j.sections_skipped_edited ?? 0;
+      const verb = j.mode === "translate" ? "tradotta" : "generata";
+      const extra =
+        j.mode === "translate"
+          ? " (personalizzazioni preservate)"
+          : skipped > 0
+            ? `, ${skipped} manuali preservate`
+            : "";
       toast.success(
-        `Analisi generata (${j.sections_generated} sezioni${skipped > 0 ? ", " + skipped + " manuali preservate" : ""})`,
+        `Analisi ${verb} (${j.sections_generated} sezioni${extra})`,
       );
       onGenerated();
     } catch (e) {
@@ -259,7 +271,7 @@ export function AnalysisCta({
           <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-700 dark:text-amber-400">
             <Languages className="size-3.5 shrink-0 mt-0.5" />
             <span>
-              {"Le analisi mostrate sono in un'altra lingua. Rigenera per ottenerle nella lingua attiva."}
+              {"Le analisi mostrate sono in un'altra lingua. Premi \"Traduci nella lingua attiva\" per ottenere la versione tradotta — le tue personalizzazioni manuali vengono preservate."}
             </span>
           </div>
         )}
@@ -392,12 +404,18 @@ export function AnalysisCta({
             >
               {busy ? (
                 <Loader2 className="size-4 animate-spin" />
+              ) : crossLocale && hasAnalyses ? (
+                <Languages className="size-4" />
               ) : hasAnalyses ? (
                 <RefreshCw className="size-4" />
               ) : (
                 <Sparkles className="size-4" />
               )}
-              {hasAnalyses ? "Rigenera analisi" : "Genera analisi"}
+              {crossLocale && hasAnalyses
+                ? "Traduci nella lingua attiva"
+                : hasAnalyses
+                  ? "Rigenera analisi"
+                  : "Genera analisi"}
             </Button>
           </div>
         </div>

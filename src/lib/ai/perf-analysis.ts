@@ -462,6 +462,141 @@ const CHANNEL_PROMPT_INFO: Record<
   },
 };
 
+/**
+ * Traduce un set di sezioni di analisi gia' generate da una lingua a
+ * un'altra, preservando ESATTAMENTE la struttura markdown (grassetti,
+ * elenchi puntati, capoversi). Differenza fondamentale rispetto a
+ * runPerfAnalysis(): NON rigenera dal dato del dashboard, traduce il
+ * testo esistente. Cosi' le personalizzazioni manuali dell'utente non
+ * vanno perse quando cambia lingua.
+ */
+export interface TranslatePerfAnalysisOptions {
+  workspaceId: string;
+  modelOpenrouterId: string;
+  fromLocale: "it" | "en";
+  toLocale: "it" | "en";
+  /** Sezioni da tradurre con il loro contenuto attuale. */
+  sections: { section: PerfSection; content: string }[];
+}
+
+export async function translatePerfAnalysis(
+  opts: TranslatePerfAnalysisOptions,
+): Promise<PerfAnalysisOutput | null> {
+  if (opts.fromLocale === opts.toLocale) {
+    // Niente da tradurre: ritorna le stesse stringhe.
+    const sections: Partial<Record<PerfSection, string>> = {};
+    for (const s of opts.sections) sections[s.section] = s.content;
+    return { sections, modelId: opts.modelOpenrouterId };
+  }
+  const creds = await getOpenRouterCredentials(opts.workspaceId).catch((e) => {
+    console.error("[perf-translate] credentials error:", e);
+    return null;
+  });
+  if (!creds?.token) {
+    console.error("[perf-translate] no OpenRouter credentials");
+    return null;
+  }
+
+  const targetLangLabel = opts.toLocale === "it" ? "Italian" : "English";
+  const sourceLangLabel = opts.fromLocale === "it" ? "Italian" : "English";
+
+  // Passiamo le sezioni come JSON cosi' il modello restituisce lo
+  // stesso JSON ma con il contenuto tradotto. Markdown preservato.
+  const payload: Record<string, string> = {};
+  for (const s of opts.sections) payload[s.section] = s.content;
+
+  const prompt = [
+    `You are translating performance-analysis commentary from ${sourceLangLabel} to ${targetLangLabel}.`,
+    "",
+    "STRICT RULES:",
+    "- Translate EVERY piece of natural language text.",
+    "- Preserve ALL markdown formatting EXACTLY: **bold**, bullet points (lines starting with -), blank lines, capitalisation patterns.",
+    "- Do NOT add or remove information. Do NOT shorten, expand, summarise, or rephrase content beyond what the translation requires.",
+    "- Keep numbers, currencies, percentages, KPI names (CTR, CPM, CPC, ROAS, CPP, CPR, …) and proper nouns unchanged.",
+    "- Keep technical short-codes from campaign names (VC, ATC, PUR, ENG, BAU, …) unchanged.",
+    `- If text is already in ${targetLangLabel}, leave it unchanged.`,
+    "",
+    "Return ONLY a JSON object with the SAME keys as the input. Each value must be the translated string. No prose, no markdown fences.",
+    "",
+    "INPUT JSON:",
+    JSON.stringify(payload, null, 2),
+  ].join("\n");
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 120_000);
+  let res: Response;
+  try {
+    res = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${creds.token}`,
+        "http-referer":
+          process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+        "x-title": "AISCAN - Adv Performance Translation",
+      },
+      body: JSON.stringify({
+        model: opts.modelOpenrouterId,
+        max_tokens: 5000,
+        messages: [{ role: "user", content: prompt }],
+      }),
+      signal: controller.signal,
+    });
+  } catch (e) {
+    clearTimeout(timeout);
+    console.error("[perf-translate] fetch error:", e);
+    return null;
+  }
+  clearTimeout(timeout);
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "<no body>");
+    console.error(
+      `[perf-translate] OpenRouter ${res.status} ${res.statusText} (model=${opts.modelOpenrouterId}): ${body.slice(0, 500)}`,
+    );
+    return null;
+  }
+  const body = (await res.json()) as {
+    choices?: { message?: { content?: string } }[];
+  };
+  const text = body.choices?.[0]?.message?.content ?? null;
+  if (!text) {
+    console.error("[perf-translate] empty content");
+    return null;
+  }
+
+  let raw = text.trim();
+  if (raw.startsWith("```")) {
+    raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/```$/, "").trim();
+  }
+  const m = /\{[\s\S]*\}/.exec(raw);
+  if (m) raw = m[0];
+
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const sections: Partial<Record<PerfSection, string>> = {};
+    for (const s of opts.sections) {
+      const v = parsed[s.section];
+      if (typeof v === "string" && v.trim()) {
+        sections[s.section] = v.trim();
+      } else {
+        // Fallback: se il modello salta una sezione, riusiamo il testo
+        // originale invece di perdere il contenuto.
+        sections[s.section] = s.content;
+      }
+    }
+    return { sections, modelId: opts.modelOpenrouterId };
+  } catch (e) {
+    console.error(
+      "[perf-translate] JSON parse failed:",
+      (e as Error).message,
+      "raw:",
+      raw.slice(0, 500),
+    );
+    return null;
+  }
+}
+
 export async function runPerfAnalysis(
   opts: RunOptions,
 ): Promise<PerfAnalysisOutput | null> {

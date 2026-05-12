@@ -10,6 +10,7 @@ import {
 import { loadDashboardData } from "@/lib/perf/dashboard-loader";
 import {
   runPerfAnalysis,
+  translatePerfAnalysis,
   applicableSections,
   PERF_SECTIONS,
   PERF_DEFAULT_OPENROUTER_ID,
@@ -42,6 +43,21 @@ const postSchema = z.object({
   /** Se true, sovrascrive anche le sezioni gia' editate
    *  manualmente dall'utente (default false). */
   force_overwrite_edited: z.boolean().optional(),
+  /** Modalita' di generazione:
+   *   - "regenerate" (default): rigenera ex-novo dal dato del
+   *      dashboard, usando il prompt analitico
+   *   - "translate": traduce le analisi gia' esistenti in altra
+   *      lingua nel locale corrente, preservando le personalizzazioni
+   *      manuali dell'utente. La sorgente e' determinata da
+   *      `translate_from` o auto-rilevata
+   *   - "auto": se non ci sono analisi nel locale corrente ma
+   *      esistono in altre lingue → translate; altrimenti regenerate.
+   *      E' il default consigliato dal client. */
+  mode: z.enum(["regenerate", "translate", "auto"]).optional(),
+  /** Quando mode=translate, locale della sorgente da tradurre.
+   *  Opzionale: se assente prende la prima/unica lingua disponibile
+   *  diversa dal locale corrente. */
+  translate_from: z.enum(["it", "en"]).optional(),
   /** Comparison mode applicato al payload (per coerenza con il
    *  dashboard che l'utente sta vedendo). */
   compare: z
@@ -123,38 +139,101 @@ export async function POST(
   const modelCost = modelRow?.credits_cost ?? 3;
   const modelDisplay = modelRow?.display_name ?? "Default model";
 
-  // 1. Load dashboard payload (riusa la stessa logica del route
-  //    /dashboard cosi i numeri sono identici).
-  const dashboard = await loadDashboardData(supabase, {
-    importId: id,
-    mode: (parsed.data.compare ?? "none") as ComparisonMode,
-    customFrom: parsed.data.compare_from,
-    customTo: parsed.data.compare_to,
-    weekCurrent: parsed.data.week_current,
-    weekCompare: parsed.data.week_compare,
-  });
-  if (!dashboard) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-  if (dashboard.imp.workspace_id !== profile.workspace_id) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  // 1. Determina mode effettivo (auto-detect translate vs regenerate)
+  const admin = createAdminClient();
+  const { data: allExistingData } = await admin
+    .from("mait_perf_analyses")
+    .select(
+      "section, content, model_tier, model_id, edited_by_user, updated_at, locale",
+    )
+    .eq("import_id", id);
+  const allExisting = (allExistingData as AnalysisRow[] | null) ?? [];
+  const existingInCurrent = allExisting.filter((r) => r.locale === locale);
+  const existingInOther = allExisting.filter((r) => r.locale !== locale);
+
+  const requestedMode = parsed.data.mode ?? "auto";
+  let effectiveMode: "regenerate" | "translate";
+  if (requestedMode === "auto") {
+    effectiveMode =
+      existingInCurrent.length === 0 && existingInOther.length > 0
+        ? "translate"
+        : "regenerate";
+  } else {
+    effectiveMode = requestedMode;
   }
 
-  // 2. Sezioni da generare
-  const all = applicableSections(dashboard.data);
-  const requested = parsed.data.sections;
-  const sectionsToGen: PerfSection[] = requested
-    ? requested.filter((s) => all.includes(s))
-    : all;
-  if (sectionsToGen.length === 0) {
-    return NextResponse.json({ error: "No applicable sections" }, { status: 400 });
+  // Per translate serve almeno una versione sorgente da cui partire.
+  if (effectiveMode === "translate" && existingInOther.length === 0) {
+    return NextResponse.json(
+      {
+        error:
+          "Nessuna analisi disponibile in altra lingua da tradurre. Usa mode=regenerate per generarla ex-novo.",
+      },
+      { status: 400 },
+    );
+  }
+
+  // 2. Sezioni da generare/tradurre
+  let dashboard: Awaited<ReturnType<typeof loadDashboardData>> = null;
+  let sectionsToGen: PerfSection[];
+  if (effectiveMode === "translate") {
+    // Translate: prendiamo le sezioni dalle versioni esistenti in
+    // altra lingua, non dal dashboard. Cosi' non c'e' rischio di
+    // "perdere" sezioni che esistono solo perche' l'utente le aveva
+    // editate manualmente.
+    const sourceLocale: "it" | "en" =
+      parsed.data.translate_from ??
+      (existingInOther[0]?.locale as "it" | "en" | undefined) ??
+      (locale === "it" ? "en" : "it");
+    const sourceRows = allExisting.filter((r) => r.locale === sourceLocale);
+    if (sourceRows.length === 0) {
+      return NextResponse.json(
+        { error: `Nessuna analisi sorgente in ${sourceLocale}` },
+        { status: 400 },
+      );
+    }
+    const sourceSections = new Set(sourceRows.map((r) => r.section));
+    sectionsToGen = (
+      parsed.data.sections ?? (PERF_SECTIONS as readonly PerfSection[])
+    ).filter((s) => sourceSections.has(s)) as PerfSection[];
+    if (sectionsToGen.length === 0) {
+      return NextResponse.json(
+        { error: "Nessuna sezione sorgente da tradurre" },
+        { status: 400 },
+      );
+    }
+  } else {
+    // Regenerate: load dashboard + use applicableSections come prima.
+    dashboard = await loadDashboardData(supabase, {
+      importId: id,
+      mode: (parsed.data.compare ?? "none") as ComparisonMode,
+      customFrom: parsed.data.compare_from,
+      customTo: parsed.data.compare_to,
+      weekCurrent: parsed.data.week_current,
+      weekCompare: parsed.data.week_compare,
+    });
+    if (!dashboard) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    if (dashboard.imp.workspace_id !== profile.workspace_id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    const all = applicableSections(dashboard.data);
+    const requested = parsed.data.sections;
+    sectionsToGen = requested ? requested.filter((s) => all.includes(s)) : all;
+    if (sectionsToGen.length === 0) {
+      return NextResponse.json(
+        { error: "No applicable sections" },
+        { status: 400 },
+      );
+    }
   }
 
   // 3. Charge credits (costo dinamico dal catalogo modelli)
   const credit = await consumeCreditsCustom(
     user.id,
     modelCost,
-    `Adv Performance AI (${modelDisplay})`,
+    `Adv Performance AI (${effectiveMode}) — ${modelDisplay}`,
   );
   if (!credit.ok) {
     return NextResponse.json(
@@ -168,24 +247,64 @@ export async function POST(
     );
   }
 
-  // 4. Run AI
-  const out = await runPerfAnalysis({
-    workspaceId: profile.workspace_id,
-    data: dashboard.data,
-    sections: sectionsToGen,
-    modelOpenrouterId,
-    locale,
-    channel: (dashboard.imp.channel as
-      | "meta"
-      | "snapchat"
-      | "google"
-      | "tiktok") ?? "meta",
-  });
+  // 4. Run AI (translate o regenerate)
+  let out: Awaited<ReturnType<typeof runPerfAnalysis>> = null;
+  let sourceMetadataBySection: Map<
+    string,
+    { edited_by_user: boolean; model_tier: string; model_id: string | null }
+  > = new Map();
+  if (effectiveMode === "translate") {
+    const sourceLocale: "it" | "en" =
+      parsed.data.translate_from ??
+      (existingInOther[0]?.locale as "it" | "en" | undefined) ??
+      (locale === "it" ? "en" : "it");
+    const sourceRows = allExisting.filter(
+      (r) => r.locale === sourceLocale && sectionsToGen.includes(r.section as PerfSection),
+    );
+    sourceMetadataBySection = new Map(
+      sourceRows.map((r) => [
+        r.section,
+        {
+          edited_by_user: r.edited_by_user,
+          model_tier: r.model_tier,
+          model_id: r.model_id,
+        },
+      ]),
+    );
+    out = await translatePerfAnalysis({
+      workspaceId: profile.workspace_id,
+      modelOpenrouterId,
+      fromLocale: sourceLocale,
+      toLocale: locale,
+      sections: sourceRows.map((r) => ({
+        section: r.section as PerfSection,
+        content: r.content,
+      })),
+    });
+  } else {
+    if (!dashboard) {
+      // Difensivo: non dovrebbe accadere perche' regenerate carica
+      // dashboard sopra, ma TS non lo sa.
+      return NextResponse.json({ error: "Dashboard load failed" }, { status: 500 });
+    }
+    out = await runPerfAnalysis({
+      workspaceId: profile.workspace_id,
+      data: dashboard.data,
+      sections: sectionsToGen,
+      modelOpenrouterId,
+      locale,
+      channel: (dashboard.imp.channel as
+        | "meta"
+        | "snapchat"
+        | "google"
+        | "tiktok") ?? "meta",
+    });
+  }
   if (!out || Object.keys(out.sections).length === 0) {
     await refundCreditsCustom(
       user.id,
       modelCost,
-      "Adv Performance AI failed",
+      `Adv Performance AI failed (${effectiveMode})`,
     );
     return NextResponse.json(
       { error: "AI generation failed. Credits refunded." },
@@ -193,20 +312,16 @@ export async function POST(
     );
   }
 
-  // 5. Persist (skippa sezioni gia' edited unless force flag)
-  //    Scoped al locale corrente: l'utente puo' avere edit IT
-  //    manuali che non vanno toccati quando rigenera in EN, e
-  //    viceversa.
-  const admin = createAdminClient();
-  const { data: existing } = await admin
-    .from("mait_perf_analyses")
-    .select("section, edited_by_user")
-    .eq("import_id", id)
-    .eq("locale", locale);
-  const editedSet = new Set(
-    ((existing as { section: string; edited_by_user: boolean }[] | null) ?? [])
-      .filter((r) => r.edited_by_user)
-      .map((r) => r.section),
+  // 5. Persist
+  //    Per `regenerate`: skip sezioni gia' edited unless force flag.
+  //    Per `translate`: SEMPRE upsertare. Se la sorgente era
+  //    edited_by_user=true, preserviamo questo flag sulla traduzione
+  //    (cosi la rigenerazione futura nella stessa locale non
+  //    sovrascrive la traduzione di un edit utente). Idem
+  //    model_tier/model_id originali — la traduzione ne "porta"
+  //    l'identita' della sorgente.
+  const editedSetInCurrent = new Set(
+    existingInCurrent.filter((r) => r.edited_by_user).map((r) => r.section),
   );
 
   const writes: AnalysisRow[] = [];
@@ -215,20 +330,31 @@ export async function POST(
   for (const [section, content] of Object.entries(out.sections)) {
     if (!content) continue;
     if (
-      editedSet.has(section) &&
+      effectiveMode === "regenerate" &&
+      editedSetInCurrent.has(section) &&
       !parsed.data.force_overwrite_edited
     ) {
       continue;
     }
+    const srcMeta = sourceMetadataBySection.get(section);
     const row = {
       workspace_id: profile.workspace_id,
       import_id: id,
       section,
       content,
-      model_tier: modelSlug,
-      model_id: out.modelId,
+      model_tier:
+        effectiveMode === "translate" && srcMeta
+          ? srcMeta.model_tier
+          : modelSlug,
+      model_id:
+        effectiveMode === "translate" && srcMeta
+          ? srcMeta.model_id
+          : out.modelId,
       locale,
-      edited_by_user: false,
+      edited_by_user:
+        effectiveMode === "translate" && srcMeta
+          ? srcMeta.edited_by_user
+          : false,
       created_by: user.id,
       updated_at: now,
     };
@@ -248,9 +374,9 @@ export async function POST(
     writes.push({
       section,
       content,
-      model_tier: modelSlug,
-      model_id: out.modelId,
-      edited_by_user: false,
+      model_tier: row.model_tier,
+      model_id: row.model_id,
+      edited_by_user: row.edited_by_user,
       updated_at: now,
       locale,
     });
@@ -280,14 +406,18 @@ export async function POST(
 
   return NextResponse.json({
     ok: true,
+    mode: effectiveMode,
     model_slug: modelSlug,
     model_display: modelDisplay,
     model_id: out.modelId,
     cost: modelCost,
     sections_generated: writes.length,
     sections_skipped_edited:
-      Array.from(editedSet).filter((s) => sectionsToGen.includes(s as PerfSection))
-        .length,
+      effectiveMode === "regenerate"
+        ? Array.from(editedSetInCurrent).filter((s) =>
+            sectionsToGen.includes(s as PerfSection),
+          ).length
+        : 0,
     analyses: writes,
   });
 }
