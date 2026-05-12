@@ -69,6 +69,12 @@ export interface BenchmarkData {
   ctaByCompetitor: { name: string; [cta: string]: string | number }[];
   /** Top CTAs per competitor — shape ready for per-brand pie/bar charts */
   ctaMixByCompetitor: { competitor: string; data: { name: string; count: number }[] }[];
+  /** Brand con ads ma 0 CTA estratte. Google Transparency espone il
+   *  bottone CTA solo per alcuni creativi (es. Video Skippable); i
+   *  brand interamente fatti di Image/Search ads finiscono qui e
+   *  spariscono dal chart Top CTA. Il client mostra una nota con
+   *  questi nomi cosi' l'utente capisce perche' alcuni brand mancano. */
+  ctaMissingCompetitors: string[];
   /** UTM-derived audience + objective inference per competitor. */
   utmInsightsByCompetitor: {
     competitor: string;
@@ -157,6 +163,11 @@ export interface BenchmarkData {
     competitor: string;
     data: { name: string; count: number }[];
   }[];
+  /** Brand Google con ads ma 0 surfaceServingStats. Google pubblica
+   *  il breakdown SEARCH/YOUTUBE/SHOPPING/MAPS solo per ads che
+   *  hanno accumulato abbastanza impressioni — i brand con ads
+   *  recenti o a basso volume mancano dal chart. */
+  surfaceMixMissingCompetitors: string[];
   /** Ad refresh rate: avg new ads per week per competitor over
    *  `refreshRateWindowDays`. The window matches the user-selected
    *  dateFrom/dateTo so refresh rate is comparable to the rest of the
@@ -736,6 +747,20 @@ export async function computeBenchmarks(
       return tb - ta;
     });
 
+  // Brand con ads ma senza CTA estratte. Confronto con compMap (tutti
+  // i brand con almeno una ad nel pool): chi e' fuori dal chart CTA
+  // sopra ma c'e' tra i brand con ads viene listato per il client.
+  const ctaPresentNames = new Set(ctaMixByCompetitor.map((e) => e.competitor));
+  const brandsWithAds = new Set<string>();
+  for (const ad of ads) {
+    const key = ad.competitor_id ?? "unknown";
+    const name = compMap.get(key);
+    if (name && name !== "N/A") brandsWithAds.add(name);
+  }
+  const ctaMissingCompetitors = [...brandsWithAds]
+    .filter((n) => !ctaPresentNames.has(n))
+    .sort();
+
   // ---- UTM insights: audience + objective inference per competitor ----
   // Per brand we union all UTM tokens across all their ads, then run two
   // rule-based inferences. We also keep the single most frequent
@@ -914,6 +939,16 @@ export async function computeBenchmarks(
         b.data.reduce((s, d) => s + d.count, 0) -
         a.data.reduce((s, d) => s + d.count, 0),
     );
+
+  // Brand con ads Google ma senza surfaceServingStats. Idem ctaMissing:
+  // Google espone il breakdown solo per ads con impressioni sopra
+  // soglia interna, quindi brand piccoli o ads recenti spariscono.
+  const surfacePresentNames = new Set(
+    surfaceMixByCompetitor.map((e) => e.competitor),
+  );
+  const surfaceMixMissingCompetitors = [...brandsWithAds]
+    .filter((n) => !surfacePresentNames.has(n))
+    .sort();
 
   const avgServedDaysByCompetitor = [...servedDaysByComp.entries()]
     .map(([id, list]) => ({
@@ -1130,6 +1165,7 @@ export async function computeBenchmarks(
     topCtas,
     ctaByCompetitor,
     ctaMixByCompetitor,
+    ctaMissingCompetitors,
     utmInsightsByCompetitor,
     coverageByCompetitor,
     countryScanCoverage,
@@ -1141,6 +1177,7 @@ export async function computeBenchmarks(
     avgServedDaysByCompetitor,
     regionFootprintByCompetitor,
     surfaceMixByCompetitor,
+    surfaceMixMissingCompetitors,
     refreshRate,
     refreshRateWindowDays: windowDays,
     refreshRateDebug,

@@ -1374,16 +1374,16 @@ const translations = {
       en: "Distribution of ads by publishing platform.",
     },
     descDuration: {
-      it: "Durata media delle campagne in giorni per ciascun brand.",
-      en: "Average campaign duration in days for each brand.",
+      it: "Durata media delle campagne in giorni per ciascun brand (calcolata da firstShown → lastShown). Per Google i valori possono essere alti (anche oltre l'anno) perché la Transparency Library tiene visibili ads molto vecchie che il brand non ha mai rimosso.",
+      en: "Average campaign duration in days for each brand (computed from firstShown → lastShown). On Google these values can be high (even over a year) because the Transparency Library keeps very old ads visible if the brand never removed them.",
     },
     descCopyLength: {
       it: "Lunghezza media del testo delle ads in caratteri per brand.",
       en: "Average ad copy length in characters per brand.",
     },
     descRefreshRate: {
-      it: "Quante nuove ads vengono pubblicate in media ogni settimana. La finestra coincide con il range date selezionato in alto. Un valore alto indica un brand che aggiorna frequentemente i propri creativi.",
-      en: "How many new ads are published on average each week. The window matches the date range selected above. A high value indicates a brand that frequently refreshes its creatives.",
+      it: "Numero medio di NUOVE ads pubblicate ogni settimana nella finestra selezionata in alto. Calcolo: ads con firstShown nel range ÷ settimane del range. L'asse mostra ads/settimana — un valore di 20 significa ~20 nuovi creativi a settimana, cioè ~90 nuovi creativi in 31 giorni.",
+      en: "Average number of NEW ads published each week within the date range selected above. Formula: ads with firstShown in range ÷ weeks in range. The axis shows ads/week — a value of 20 means ~20 new creatives per week, i.e. ~90 new creatives in 31 days.",
     },
     descAvgVariants: {
       it: "Numero medio di varianti (test A/B) per ciascuna ad per brand.",
@@ -1408,8 +1408,8 @@ const translations = {
       en: "Avg served days (Google)",
     },
     descAvgServedDaysPerBrand: {
-      it: "Per ogni brand, la durata media in giorni dei creativi così come la dichiara Google (numServedDays). È il dato ufficiale, più affidabile della stima calcolata su start/end date.",
-      en: "Per brand, the average creative running time in days as Google reports it (numServedDays). The authoritative figure, more reliable than the heuristic computed from start/end dates.",
+      it: "Per ogni brand, il numero medio di giorni in cui Google dichiara di aver effettivamente mostrato l'annuncio (campo numServedDays). Diverso da 'Durata media campagna' qui sotto: questa è la somma dei giorni di erogazione reale, mentre la durata campagna è la distanza tra firstShown e lastShown (un'ad può girare 30 giorni dentro una finestra di 200).",
+      en: "Per brand, the average number of days Google reports actually serving the ad (numServedDays field). Differs from 'Avg campaign duration' below: this is the sum of real running days, while campaign duration is the distance between firstShown and lastShown (an ad can run 30 days inside a 200-day window).",
     },
     regionFootprintPerBrand: {
       it: "Espansione geografica per brand (Google)",
@@ -1421,6 +1421,22 @@ const translations = {
     },
     charsAxisLabel: { it: "caratteri", en: "chars" },
     adsPerWeekAxisLabel: { it: "ads/sett.", en: "ads/wk" },
+    ctaMissingTitle: {
+      it: "Brand senza CTA estratte",
+      en: "Brands with no extracted CTA",
+    },
+    ctaMissingNote: {
+      it: "Google Transparency espone il bottone CTA solo per alcuni creativi (es. Video Skippable). I brand qui sotto hanno ads scansionate ma nessun CTA pubblicato da Google, quindi non compaiono nel grafico.",
+      en: "Google Transparency only exposes the CTA button for some creatives (e.g. Skippable Video). The brands below have scanned ads but no CTA published by Google, so they are missing from the chart.",
+    },
+    surfaceMixMissingTitle: {
+      it: "Brand senza posizionamenti pubblicati",
+      en: "Brands with no published placements",
+    },
+    surfaceMixMissingNote: {
+      it: "Google pubblica il breakdown SEARCH/YOUTUBE/SHOPPING/MAPS solo per ads che hanno accumulato abbastanza impressioni. Per i brand qui sotto il dettaglio non è ancora pubblico — potrebbero comparire nei prossimi scan se le ads accumulano impressioni.",
+      en: "Google publishes the SEARCH/YOUTUBE/SHOPPING/MAPS breakdown only for ads that have accumulated enough impressions. For the brands below the detail isn't public yet — they may appear in future scans once their ads accumulate impressions.",
+    },
   },
 
   // ─── Report ────────────────────────────────────────────────

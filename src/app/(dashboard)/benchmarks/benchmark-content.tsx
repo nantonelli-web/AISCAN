@@ -392,6 +392,26 @@ export async function BenchmarkContent({
               ))}
             </div>
           )}
+          {channel === "google" && data.ctaMissingCompetitors.length > 0 && (
+            <div className="mt-5 rounded-md border border-border bg-muted/30 p-3 space-y-1.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {t("benchmarks", "ctaMissingTitle")} ({data.ctaMissingCompetitors.length})
+              </p>
+              <p className="text-[12px] text-muted-foreground">
+                {t("benchmarks", "ctaMissingNote")}
+              </p>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {data.ctaMissingCompetitors.map((name) => (
+                  <span
+                    key={name}
+                    className="text-[11px] font-medium px-2 py-0.5 rounded bg-background border border-border"
+                  >
+                    {name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -429,6 +449,26 @@ export async function BenchmarkContent({
                   ))}
                 </div>
               </>
+            )}
+            {data.surfaceMixMissingCompetitors.length > 0 && (
+              <div className="mt-5 rounded-md border border-border bg-muted/30 p-3 space-y-1.5">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {t("benchmarks", "surfaceMixMissingTitle")} ({data.surfaceMixMissingCompetitors.length})
+                </p>
+                <p className="text-[12px] text-muted-foreground">
+                  {t("benchmarks", "surfaceMixMissingNote")}
+                </p>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {data.surfaceMixMissingCompetitors.map((name) => (
+                    <span
+                      key={name}
+                      className="text-[11px] font-medium px-2 py-0.5 rounded bg-background border border-border"
+                    >
+                      {name}
+                    </span>
+                  ))}
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
