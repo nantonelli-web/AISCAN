@@ -33,6 +33,13 @@ interface ApifyInfo {
   sampleAdvertiserIds: string[] | null;
   runStatus: string | null;
   error?: string;
+  webhookDispatches?: Array<{
+    status: string | null;
+    requestUrl: string | null;
+    responseStatus: number | null;
+    attempts: number | null;
+    finishedAt: string | null;
+  }>;
 }
 
 interface Match {
@@ -235,6 +242,83 @@ export function DebugScanClient() {
                       )}
                   </div>
                 )}
+
+              {/* Webhook dispatches: capisce se Apify ha provato a
+                  chiamare il nostro endpoint e con che esito. La
+                  sezione piu' importante quando "Apify ok ma DB
+                  fermo" — risponde a "il webhook non arriva". */}
+              {m.apify.webhookDispatches !== undefined && (
+                <div className="space-y-1.5">
+                  <p className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold">
+                    Webhook chiamati da Apify ({m.apify.webhookDispatches.length})
+                  </p>
+                  {m.apify.webhookDispatches.length === 0 ? (
+                    <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-[12px] text-amber-700 dark:text-amber-400">
+                      {`Apify NON ha registrato nessun tentativo di webhook per questo run. Causa probabile: lo scan e' stato lanciato senza webhook config (env vars assenti al momento del start, oppure NEXT_PUBLIC_APP_URL/APIFY_WEBHOOK_SECRET non disponibili). Usa "Recupera dati" per finalizzare.`}
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {m.apify.webhookDispatches.map((d, i) => {
+                        const ok =
+                          d.status === "SUCCEEDED" &&
+                          d.responseStatus != null &&
+                          d.responseStatus < 400;
+                        return (
+                          <div
+                            key={i}
+                            className={`rounded-md border px-3 py-2 text-[12px] ${
+                              ok
+                                ? "border-emerald-500/40 bg-emerald-500/5"
+                                : "border-red-500/40 bg-red-500/5"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <strong className="font-mono">
+                                {d.status ?? "—"}
+                              </strong>
+                              {d.responseStatus != null && (
+                                <code className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-muted">
+                                  HTTP {d.responseStatus}
+                                </code>
+                              )}
+                              {d.attempts != null && (
+                                <span className="text-muted-foreground">
+                                  tentativi: {d.attempts}
+                                </span>
+                              )}
+                            </div>
+                            {d.requestUrl && (
+                              <p className="text-[11px] text-muted-foreground mt-1 font-mono break-all">
+                                {d.requestUrl}
+                              </p>
+                            )}
+                            {!ok && d.responseStatus === 401 && (
+                              <p className="text-[11.5px] text-red-700 dark:text-red-400 mt-1">
+                                ⚠️{" "}
+                                {`401 = APIFY_WEBHOOK_SECRET su Vercel non corrisponde al valore con cui Apify sta firmando. Verifica /api/debug/webhook-env e ricontrolla il valore della env var.`}
+                              </p>
+                            )}
+                            {!ok && d.responseStatus === 404 && (
+                              <p className="text-[11.5px] text-red-700 dark:text-red-400 mt-1">
+                                ⚠️{" "}
+                                {`404 = URL del webhook errato. Verifica NEXT_PUBLIC_APP_URL.`}
+                              </p>
+                            )}
+                            {!ok &&
+                              d.responseStatus != null &&
+                              d.responseStatus >= 500 && (
+                                <p className="text-[11.5px] text-red-700 dark:text-red-400 mt-1">
+                                  ⚠️{" "}
+                                  {`${d.responseStatus} = errore lato AISCAN (probabilmente bug nel webhook handler, vedi log Vercel)`}
+                                </p>
+                              )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Errore job */}
               {m.job?.error && (

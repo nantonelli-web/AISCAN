@@ -90,6 +90,13 @@ export async function GET(req: Request) {
         sampleAdvertiserIds: string[] | null;
         runStatus: string | null;
         error?: string;
+        webhookDispatches?: Array<{
+          status: string | null;
+          requestUrl: string | null;
+          responseStatus: number | null;
+          attempts: number | null;
+          finishedAt: string | null;
+        }>;
       } = {
         rawItemCount: null,
         sampleAdvertiserIds: null,
@@ -134,6 +141,42 @@ export async function GET(req: Request) {
             }
           } else {
             apifyDataset.error = `Apify run fetch ${runRes.status}`;
+          }
+
+          // Carica i webhook dispatches del run per capire se Apify ha
+          // provato a chiamarci e con che esito (status HTTP della
+          // nostra risposta). Senza questo non si capisce se i webhook
+          // non arrivano per problema lato Apify (non chiamati) o
+          // lato AISCAN (chiamati ma rifiutati con 401/500).
+          try {
+            const dispRes = await fetch(
+              `https://api.apify.com/v2/actor-runs/${job.apify_run_id}/webhook-dispatches`,
+              { headers: { authorization: `Bearer ${creds.token}` } },
+            );
+            if (dispRes.ok) {
+              const dispBody = (await dispRes.json()) as {
+                data?: {
+                  items?: Array<{
+                    status?: string;
+                    requestUrl?: string;
+                    responseStatus?: number;
+                    attempts?: number;
+                    finishedAt?: string;
+                  }>;
+                };
+              };
+              apifyDataset.webhookDispatches = (dispBody.data?.items ?? []).map(
+                (d) => ({
+                  status: d.status ?? null,
+                  requestUrl: d.requestUrl ?? null,
+                  responseStatus: d.responseStatus ?? null,
+                  attempts: d.attempts ?? null,
+                  finishedAt: d.finishedAt ?? null,
+                }),
+              );
+            }
+          } catch {
+            /* webhook-dispatches non critico, ignoriamo */
           }
         } catch (e) {
           apifyDataset.error = e instanceof Error ? e.message : "fetch error";
