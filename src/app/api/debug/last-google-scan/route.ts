@@ -153,14 +153,74 @@ export async function GET(req: Request) {
           // non arrivano per problema lato Apify (non chiamati) o
           // lato AISCAN (chiamati ma rifiutati con 401/500).
           //
-          // L'endpoint Apify e' `/v2/webhook-dispatches` (lista
-          // user-level): nessun nested per runId. Carichiamo gli
-          // ultimi 200 dispatches e filtriamo per actorRunId. Per
-          // ad-hoc webhooks il campo che porta il runId nei dispatches
-          // varia: alcuni cluster Apify lo mettono su
-          // `actorRun.id`/`run.id`/`runId`, altri lo includono solo
-          // come parte del `payload`. Provo tutti i path.
+          // Strategia in due step:
+          // 1) Se conosciamo il webhookId persistente dal job
+          //    (salvato in scan_options.webhookRegistration), prendiamo
+          //    direttamente i SUOI dispatches via /v2/webhooks/{id}/dispatches.
+          //    Questo e' l'unico modo affidabile di leggere i
+          //    dispatches di un webhook persistente (l'endpoint user-
+          //    level li ritorna spesso truncated o non li mostra
+          //    affatto per i persistenti).
+          // 2) Fallback all'endpoint user-level filtrato per actorRunId,
+          //    utile per i vecchi ad-hoc webhooks pre-fix.
           try {
+            const webhookId =
+              (job.scan_options as { webhookRegistration?: { webhookId?: string } } | null | undefined)
+                ?.webhookRegistration?.webhookId ?? null;
+            if (webhookId) {
+              const dispRes = await fetch(
+                `https://api.apify.com/v2/webhooks/${webhookId}/dispatches?limit=50&desc=true`,
+                { headers: { authorization: `Bearer ${creds.token}` } },
+              );
+              if (dispRes.ok) {
+                const dispBody = (await dispRes.json()) as {
+                  data?: {
+                    items?: Array<{
+                      status?: string;
+                      requestUrl?: string;
+                      responseStatus?: number;
+                      attempts?: number;
+                      finishedAt?: string;
+                      actorRunId?: string;
+                      runId?: string;
+                      actorRun?: { id?: string };
+                      run?: { id?: string };
+                      payload?: unknown;
+                    }>;
+                  };
+                };
+                const items = dispBody.data?.items ?? [];
+                const matched = items.filter((d) => {
+                  if (d.actorRunId === job.apify_run_id) return true;
+                  if (d.runId === job.apify_run_id) return true;
+                  if (d.actorRun?.id === job.apify_run_id) return true;
+                  if (d.run?.id === job.apify_run_id) return true;
+                  if (d.payload) {
+                    try {
+                      const s = JSON.stringify(d.payload);
+                      if (s.includes(job.apify_run_id ?? "")) return true;
+                    } catch {}
+                  }
+                  return false;
+                });
+                apifyDataset.webhookDispatches = matched.map((d) => ({
+                  status: d.status ?? null,
+                  requestUrl: d.requestUrl ?? null,
+                  responseStatus: d.responseStatus ?? null,
+                  attempts: d.attempts ?? null,
+                  finishedAt: d.finishedAt ?? null,
+                }));
+              } else {
+                apifyDataset.webhookDispatchesError = `webhook/${webhookId}/dispatches HTTP ${dispRes.status}`;
+              }
+            }
+          } catch (e) {
+            apifyDataset.webhookDispatchesError =
+              e instanceof Error ? e.message : "fetch (persistent webhook) error";
+          }
+          // Fallback all'endpoint user-level se ancora 0 dispatches
+          // (es. webhookId non salvato perche' scan vecchio pre-fix).
+          if (apifyDataset.webhookDispatches.length === 0) try {
             const dispRes = await fetch(
               `https://api.apify.com/v2/webhook-dispatches?limit=200&desc=true`,
               { headers: { authorization: `Bearer ${creds.token}` } },

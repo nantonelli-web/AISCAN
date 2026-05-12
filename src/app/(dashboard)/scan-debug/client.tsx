@@ -300,6 +300,14 @@ export function DebugScanClient() {
                           → {wr.requestUrl}
                         </p>
                       )}
+                      {wr.resolvedActorId && (
+                        <p className="text-[11px] text-muted-foreground mt-0.5 font-mono">
+                          condition.actorId ={" "}
+                          <span className="text-foreground">
+                            {wr.resolvedActorId}
+                          </span>
+                        </p>
+                      )}
                       {wr.error && (
                         <p className="text-[11.5px] text-red-700 dark:text-red-400 mt-1">
                           ⚠️ {wr.error}
@@ -327,9 +335,24 @@ export function DebugScanClient() {
                     </div>
                   )}
                   {m.apify.webhookDispatches.length === 0 ? (
-                    <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-[12px] text-amber-700 dark:text-amber-400">
-                      {`Apify NON ha registrato nessun tentativo di webhook per questo run. Causa probabile: lo scan e' stato lanciato senza webhook config (env vars assenti al momento del start, oppure NEXT_PUBLIC_APP_URL/APIFY_WEBHOOK_SECRET non disponibili). Usa "Recupera dati" per finalizzare.`}
-                    </div>
+                    (() => {
+                      const apifyRunning =
+                        m.apify.runStatus === "RUNNING" ||
+                        m.apify.runStatus === "READY";
+                      if (apifyRunning) {
+                        return (
+                          <div className="rounded-md border border-border bg-muted/30 p-3 text-[12px] text-muted-foreground">
+                            Apify ancora in esecuzione (status={m.apify.runStatus}).
+                            I webhook arriveranno al termine del run.
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-[12px] text-amber-700 dark:text-amber-400">
+                          {`Apify NON ha registrato nessun tentativo di webhook per questo run (status=${m.apify.runStatus ?? "n/d"}). Possibili cause: (1) condition.actorId del webhook persistente non matcha l'actor effettivamente usato dal run; (2) webhook disabilitato lato Apify; (3) il run e' stato lanciato prima della registrazione. Usa "Recupera dati" per finalizzare.`}
+                        </div>
+                      );
+                    })()
                   ) : (
                     <div className="space-y-1.5">
                       {m.apify.webhookDispatches.map((d, i) => {
