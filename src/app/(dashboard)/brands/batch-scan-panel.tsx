@@ -286,6 +286,16 @@ export function BatchScanPanel({
       toast.success(
         `Batch avviato: ${j.summary?.launched ?? 0} scan partiti${skippedCount > 0 ? `, ${skippedCount} skippati` : ""}.`,
       );
+      // Warning critico: i run sono partiti senza webhook config →
+      // l'utente dovra' usare 'Recupera dati' al termine.
+      const webhooksConfigured = (j as { webhooks_configured?: boolean })
+        .webhooks_configured;
+      if (webhooksConfigured === false) {
+        toast.warning(
+          "I run sono partiti SENZA webhook config (env vars non disponibili al deploy attivo). Al termine clicca 'Recupera dati' per finalizzare manualmente.",
+          { duration: 15000 },
+        );
+      }
       setBatchId(j.batch_id);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Network error");

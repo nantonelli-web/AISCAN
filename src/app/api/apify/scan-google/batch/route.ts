@@ -341,6 +341,7 @@ export async function POST(req: Request) {
     run_id: string;
     page_name: string | null;
   }> = [];
+  let webhooksConfiguredOnSomeRun = false;
 
   // 6. Per-brand kick off. Errori isolati: un fallimento su un brand
   //    non rompe il batch, refundiamo solo quel credito.
@@ -425,6 +426,7 @@ export async function POST(req: Request) {
         })
         .eq("id", job.id);
 
+      if (result.webhooksConfigured) webhooksConfiguredOnSomeRun = true;
       started.push({
         competitor_id: c.id,
         job_id: job.id,
@@ -465,6 +467,7 @@ export async function POST(req: Request) {
     batch_id: batchId,
     started,
     skipped,
+    webhooks_configured: webhooksConfiguredOnSomeRun,
     summary: {
       requested: parsed.data.competitor_ids.length,
       eligible: eligible.length,

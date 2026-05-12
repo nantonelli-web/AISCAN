@@ -225,8 +225,10 @@ export async function POST(req: Request) {
       run_id: result.runId,
       dataset_id: result.datasetId,
       status: "running",
-      message:
-        "Scan avviato. Riceverai i risultati appena Apify completera' il run (la pagina si aggiornera' da sola).",
+      webhooks_configured: result.webhooksConfigured,
+      message: result.webhooksConfigured
+        ? "Scan avviato. Riceverai i risultati appena Apify completera' il run (la pagina si aggiornera' da sola)."
+        : "Scan avviato MA senza webhook: l'app non ricevera' callback automatico, dovrai usare 'Recupera dati' al termine.",
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Scrape start failed";

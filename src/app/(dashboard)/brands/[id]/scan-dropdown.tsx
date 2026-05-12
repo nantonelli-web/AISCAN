@@ -533,6 +533,15 @@ export function ScanDropdown({
         setLoading(null);
         return;
       }
+      // Warning se al lancio il webhook non era configurato: l'utente
+      // dovra' usare 'Recupera dati' al termine perche' il flow async
+      // non funzionera' (Apify non ci chiamera').
+      if (json.webhooks_configured === false) {
+        toast.warning(
+          "Scan partito ma SENZA webhook (env vars non disponibili al deploy). Al termine usa 'Recupera dati' per finalizzare.",
+          { duration: 15000 },
+        );
+      }
       // Da qui in poi gestisce tutto il polling useEffect. Non
       // resettiamo setLoading: il pulsante deve restare 'loading'
       // finche' il webhook ha terminato.

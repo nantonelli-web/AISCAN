@@ -938,6 +938,13 @@ export interface StartScanResult {
   /** URL-driven region list, salvato in scan_options per essere
    *  riusato nel finalize (normalizeSilva ne ha bisogno per scan_countries). */
   urlRegionList: string[];
+  /** True se al momento del lancio del run abbiamo passato ad Apify
+   *  la config webhooks (cioe' sia APIFY_WEBHOOK_SECRET che
+   *  NEXT_PUBLIC_APP_URL erano disponibili nella function env).
+   *  Se false → il run NON chiamera' callback al termine e dovra'
+   *  essere finalizzato manualmente via /api/apify/scan-google/
+   *  reconcile. */
+  webhooksConfigured: boolean;
   /** Apify credentials usate: il webhook handler le rifetcha dal
    *  workspace_id quindi non serve passarle in giro, ma le ritorniamo
    *  per debug/audit. */
@@ -1121,6 +1128,7 @@ export async function startGoogleAdsScan(
     actorId: GOOGLE_ACTOR_ID,
     input,
     urlRegionList,
+    webhooksConfigured: !!webhooks,
   };
 }
 
