@@ -452,10 +452,30 @@ export async function GET(
   if (primary.error) {
     return NextResponse.json({ error: primary.error.message }, { status: 500 });
   }
+  // Carica TUTTE le righe (in qualunque locale) per ricavare la
+  // lista di lingue disponibili — il client la usa per offrire il
+  // bottone "Sostituisci con traduzione da X" quando esistono
+  // versioni in entrambe le lingue (caso Born Outside: l'utente
+  // aveva la IT personalizzata e la EN era stata generata ex-novo
+  // dal vecchio sistema perdendo le personalizzazioni; ora puo'
+  // sovrascrivere la EN con la traduzione della IT).
+  const allLocalesRes = await supabase
+    .from("mait_perf_analyses")
+    .select("locale")
+    .eq("import_id", id);
+  const availableLocales = Array.from(
+    new Set(
+      ((allLocalesRes.data as { locale: string }[] | null) ?? [])
+        .map((r) => r.locale)
+        .filter(Boolean),
+    ),
+  );
+
   if ((primary.data ?? []).length > 0) {
     return NextResponse.json({
       analyses: primary.data as AnalysisRow[],
       locale,
+      available_locales: availableLocales,
       cross_locale: false,
     });
   }
@@ -472,6 +492,7 @@ export async function GET(
   return NextResponse.json({
     analyses: (fb.data ?? []) as AnalysisRow[],
     locale,
+    available_locales: availableLocales,
     cross_locale: (fb.data ?? []).length > 0,
   });
 }

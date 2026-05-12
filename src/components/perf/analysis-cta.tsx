@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n/context";
 
 /**
  * AnalysisCta — pannello "Genera analisi AI" in cima e in fondo al
@@ -104,6 +105,13 @@ export function AnalysisCta({
    *  quella corrente (es. UI in EN ma rows solo in IT). Mostriamo
    *  un hint che invita a rigenerare per tradurre. */
   crossLocale,
+  /** Lingue per cui esistono analisi nel DB per questo import.
+   *  Quando contiene sia la lingua corrente che un'altra, mostriamo
+   *  un secondo bottone "Sostituisci con traduzione da X" che
+   *  sovrascrive la versione corrente con la traduzione dell'altra
+   *  (utile dopo che il vecchio flusso aveva generato la versione
+   *  nell'altra lingua ex-novo, perdendo le personalizzazioni). */
+  availableLocales,
 }: {
   importId: string;
   hasAnalyses: boolean;
@@ -111,7 +119,19 @@ export function AnalysisCta({
   onGenerated: () => void;
   compareParams?: Record<string, string>;
   crossLocale?: boolean;
+  availableLocales?: string[];
 }) {
+  const { locale: currentLocale } = useT();
+  const otherLocale: "it" | "en" = currentLocale === "it" ? "en" : "it";
+  const hasOtherLocaleAnalyses = (availableLocales ?? []).includes(otherLocale);
+  const hasCurrentLocaleAnalyses = (availableLocales ?? []).includes(
+    currentLocale,
+  );
+  // Caso Born Outside: esistono righe in ENTRAMBE le lingue. Offri
+  // il bottone secondario per sovrascrivere la versione corrente con
+  // una nuova traduzione dell'altra lingua.
+  const canOverwriteWithTranslation =
+    hasCurrentLocaleAnalyses && hasOtherLocaleAnalyses;
   const [models, setModels] = useState<AiModel[]>([]);
   const [modelId, setModelId] = useState<string | null>(() =>
     loadStoredModelId(),
@@ -184,6 +204,51 @@ export function AnalysisCta({
     setModelId(id);
     saveModelId(id);
     setOpen(false);
+  }
+
+  async function overwriteWithTranslation() {
+    if (
+      !window.confirm(
+        currentLocale === "it"
+          ? `Sostituisco le analisi italiane con la traduzione di quelle inglesi. Le analisi italiane attuali verranno SOVRASCRITTE (anche le modifiche manuali). Procedere?`
+          : `Replace the English analyses with a translation of the Italian ones. Current English analyses will be OVERWRITTEN (including manual edits). Continue?`,
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/perf/imports/${importId}/analysis`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          model_id: modelId ?? undefined,
+          mode: "translate",
+          translate_from: otherLocale,
+          force_overwrite_edited: true,
+          ...(compareParams ?? {}),
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 402) {
+          toast.error(
+            `Crediti insufficienti (saldo: ${j.balance ?? "?"}). Costo: ${j.cost ?? "?"} cr.`,
+          );
+        } else {
+          toast.error(j.error ?? "Traduzione fallita", { duration: 12000 });
+        }
+        return;
+      }
+      toast.success(
+        `Analisi sostituite con traduzione da ${otherLocale.toUpperCase()} (${j.sections_generated} sezioni)`,
+      );
+      onGenerated();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function generate() {
@@ -395,6 +460,19 @@ export function AnalysisCta({
                   {cost} {cost === 1 ? "credito" : "crediti"}
                 </span>
               </span>
+            )}
+            {canOverwriteWithTranslation && (
+              <Button
+                type="button"
+                onClick={overwriteWithTranslation}
+                disabled={busy || noModels}
+                variant="outline"
+                className="gap-2 border-violet-500/40 text-violet-600 hover:bg-violet-500/10 h-10 px-3"
+                title={`Sostituisce le analisi ${currentLocale.toUpperCase()} con la traduzione delle analisi ${otherLocale.toUpperCase()}. Utile quando l'altra versione e' quella personalizzata "vera" e questa e' stata rigenerata ex-novo dal vecchio sistema.`}
+              >
+                <Languages className="size-4" />
+                Sostituisci con traduzione da {otherLocale.toUpperCase()}
+              </Button>
             )}
             <Button
               type="button"

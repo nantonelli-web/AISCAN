@@ -321,6 +321,15 @@ export function DashboardClient({ importId }: { importId: string }) {
    *  quella corrente (es. UI in EN ma rows solo in IT). L'UI mostra
    *  un hint che invita a rigenerare per tradurre. */
   const [analysesCrossLocale, setAnalysesCrossLocale] = useState(false);
+  /** Lingue per cui esistono analisi nel DB per questo import. Quando
+   *  contiene sia la lingua corrente che un'altra, il CTA offre il
+   *  bottone "Sostituisci con traduzione da X" che sovrascrive la
+   *  versione corrente con la traduzione dell'altra (utile per gli
+   *  import dove l'utente aveva personalizzato la IT ma il vecchio
+   *  flusso aveva poi generato una EN ex-novo perdendole). */
+  const [analysesAvailableLocales, setAnalysesAvailableLocales] = useState<
+    string[]
+  >([]);
 
   // Helper per mappare lo stato comparison nei params (sia per
   // dashboard fetch sia per il CTA analysis che vuole essere
@@ -348,11 +357,13 @@ export function DashboardClient({ importId }: { importId: string }) {
       const j = (await r.json()) as {
         analyses?: SectionAnalysis[];
         cross_locale?: boolean;
+        available_locales?: string[];
       };
       const map: Record<string, SectionAnalysis> = {};
       for (const a of j.analyses ?? []) map[a.section] = a;
       setAnalyses(map);
       setAnalysesCrossLocale(Boolean(j.cross_locale));
+      setAnalysesAvailableLocales(j.available_locales ?? []);
     } catch {
       /* ignored */
     }
@@ -481,6 +492,7 @@ export function DashboardClient({ importId }: { importId: string }) {
         onGenerated={loadAnalyses}
         compareParams={compareParams}
         crossLocale={analysesCrossLocale}
+        availableLocales={analysesAvailableLocales}
       />
 
       {/* Comparison switcher */}
@@ -1478,6 +1490,7 @@ export function DashboardClient({ importId }: { importId: string }) {
         onGenerated={loadAnalyses}
         compareParams={compareParams}
         crossLocale={analysesCrossLocale}
+        availableLocales={analysesAvailableLocales}
       />
     </div>
   );
