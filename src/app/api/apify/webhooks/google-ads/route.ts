@@ -167,12 +167,24 @@ export async function POST(req: Request) {
   }
   const job = jobData as JobRow;
 
-  // 4. Idempotenza: se gia' processato, ritorna 200 senza rifare
-  if (job.webhook_received_at) {
+  // 4. Idempotenza: il lock vale SOLO se il job e' arrivato a uno
+  //    stato finale (succeeded/partial/failed). Se e' ancora
+  //    'running' nonostante webhook_received_at sia settato, vuol
+  //    dire che un retry precedente ha settato il lock ma il
+  //    finalize non e' mai stato completato (es. function killed
+  //    a meta'). In questo caso lasciamo che il retry corrente
+  //    riavvii il reconcile invece di tornare alreadyProcessed.
+  const finalStates = ["succeeded", "partial", "failed"];
+  if (job.webhook_received_at && finalStates.includes(job.status)) {
     console.log(
-      `[Google Ads webhook] job ${job.id} already processed at ${job.webhook_received_at} — skip`,
+      `[Google Ads webhook] job ${job.id} already finalized (${job.status}) at ${job.webhook_received_at} — skip`,
     );
     return NextResponse.json({ ok: true, alreadyProcessed: true });
+  }
+  if (job.webhook_received_at && !finalStates.includes(job.status)) {
+    console.warn(
+      `[Google Ads webhook] job ${job.id} has webhook_received_at=${job.webhook_received_at} but status=${job.status} — retrying reconcile (previous attempt did not complete)`,
+    );
   }
 
   // 5. Marca webhook_received_at come lock anti-doppia-elaborazione.
