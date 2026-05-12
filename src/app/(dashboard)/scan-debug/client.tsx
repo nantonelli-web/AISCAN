@@ -33,13 +33,14 @@ interface ApifyInfo {
   sampleAdvertiserIds: string[] | null;
   runStatus: string | null;
   error?: string;
-  webhookDispatches?: Array<{
+  webhookDispatches: Array<{
     status: string | null;
     requestUrl: string | null;
     responseStatus: number | null;
     attempts: number | null;
     finishedAt: string | null;
   }>;
+  webhookDispatchesError?: string;
 }
 
 interface Match {
@@ -107,7 +108,10 @@ export function DebugScanClient() {
 
   function diagnosisTone(d: string): "ok" | "warn" | "error" {
     if (d.startsWith("BUG FILTRO")) return "error";
+    if (d.startsWith("WEBHOOK NON RICEVUTO")) return "error";
+    if (d.startsWith("WEBHOOK ARRIVATI MA JOB FERMO")) return "error";
     if (d.startsWith("Apify ha trovato 0")) return "warn";
+    if (d.startsWith("Scan ancora in esecuzione")) return "warn";
     if (d === "OK") return "ok";
     return "warn";
   }
@@ -183,7 +187,11 @@ export function DebugScanClient() {
                   {tone === "ok"
                     ? "OK"
                     : tone === "error"
-                      ? "Bug di filtro"
+                      ? m.diagnosis.startsWith("WEBHOOK NON RICEVUTO")
+                        ? "Webhook non arrivato"
+                        : m.diagnosis.startsWith("WEBHOOK ARRIVATI MA")
+                          ? "Webhook ricevuto ma rifiutato"
+                          : "Bug di filtro"
                       : "Da verificare"}
                 </div>
               </div>
@@ -246,12 +254,19 @@ export function DebugScanClient() {
               {/* Webhook dispatches: capisce se Apify ha provato a
                   chiamare il nostro endpoint e con che esito. La
                   sezione piu' importante quando "Apify ok ma DB
-                  fermo" — risponde a "il webhook non arriva". */}
-              {m.apify.webhookDispatches !== undefined && (
+                  fermo" — risponde a "il webhook non arriva".
+                  Mostrata sempre, anche con 0 tentativi (la mancanza
+                  di tentativi e' essa stessa un'informazione). */}
+              {m.job?.apify_run_id && (
                 <div className="space-y-1.5">
                   <p className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold">
                     Webhook chiamati da Apify ({m.apify.webhookDispatches.length})
                   </p>
+                  {m.apify.webhookDispatchesError && (
+                    <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-[11.5px] text-amber-700 dark:text-amber-400">
+                      Errore lettura webhook dispatches: {m.apify.webhookDispatchesError}
+                    </div>
+                  )}
                   {m.apify.webhookDispatches.length === 0 ? (
                     <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-[12px] text-amber-700 dark:text-amber-400">
                       {`Apify NON ha registrato nessun tentativo di webhook per questo run. Causa probabile: lo scan e' stato lanciato senza webhook config (env vars assenti al momento del start, oppure NEXT_PUBLIC_APP_URL/APIFY_WEBHOOK_SECRET non disponibili). Usa "Recupera dati" per finalizzare.`}

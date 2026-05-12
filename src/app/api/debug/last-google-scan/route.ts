@@ -90,17 +90,21 @@ export async function GET(req: Request) {
         sampleAdvertiserIds: string[] | null;
         runStatus: string | null;
         error?: string;
-        webhookDispatches?: Array<{
+        // Sempre presente (anche array vuoto) cosi' la UI mostra la
+        // sezione con "0 tentativi" invece di nasconderla del tutto.
+        webhookDispatches: Array<{
           status: string | null;
           requestUrl: string | null;
           responseStatus: number | null;
           attempts: number | null;
           finishedAt: string | null;
         }>;
+        webhookDispatchesError?: string;
       } = {
         rawItemCount: null,
         sampleAdvertiserIds: null,
         runStatus: null,
+        webhookDispatches: [],
       };
 
       if (job?.apify_run_id && creds?.token) {
@@ -143,14 +147,22 @@ export async function GET(req: Request) {
             apifyDataset.error = `Apify run fetch ${runRes.status}`;
           }
 
-          // Carica i webhook dispatches del run per capire se Apify ha
+          // Carica i webhook dispatches per capire se Apify ha
           // provato a chiamarci e con che esito (status HTTP della
           // nostra risposta). Senza questo non si capisce se i webhook
           // non arrivano per problema lato Apify (non chiamati) o
           // lato AISCAN (chiamati ma rifiutati con 401/500).
+          //
+          // L'endpoint Apify e' `/v2/webhook-dispatches` (lista
+          // user-level): nessun nested per runId. Carichiamo gli
+          // ultimi 200 dispatches e filtriamo per actorRunId. Per
+          // ad-hoc webhooks il campo che porta il runId nei dispatches
+          // varia: alcuni cluster Apify lo mettono su
+          // `actorRun.id`/`run.id`/`runId`, altri lo includono solo
+          // come parte del `payload`. Provo tutti i path.
           try {
             const dispRes = await fetch(
-              `https://api.apify.com/v2/actor-runs/${job.apify_run_id}/webhook-dispatches`,
+              `https://api.apify.com/v2/webhook-dispatches?limit=200&desc=true`,
               { headers: { authorization: `Bearer ${creds.token}` } },
             );
             if (dispRes.ok) {
@@ -162,21 +174,50 @@ export async function GET(req: Request) {
                     responseStatus?: number;
                     attempts?: number;
                     finishedAt?: string;
+                    actorRunId?: string;
+                    runId?: string;
+                    actorRun?: { id?: string };
+                    run?: { id?: string };
+                    payload?: unknown;
                   }>;
                 };
               };
-              apifyDataset.webhookDispatches = (dispBody.data?.items ?? []).map(
-                (d) => ({
+              const items = dispBody.data?.items ?? [];
+              const matchRunId = (
+                d: (typeof items)[number],
+              ): boolean => {
+                if (d.actorRunId === job.apify_run_id) return true;
+                if (d.runId === job.apify_run_id) return true;
+                if (d.actorRun?.id === job.apify_run_id) return true;
+                if (d.run?.id === job.apify_run_id) return true;
+                // Fallback: alcuni cluster Apify non espongono il
+                // runId come campo strutturato, quindi cerchiamo il
+                // runId come substring nel payload JSON-stringified.
+                if (d.payload) {
+                  try {
+                    const s = JSON.stringify(d.payload);
+                    if (s.includes(job.apify_run_id ?? "")) return true;
+                  } catch {
+                    /* payload non serializzabile, ignoriamo */
+                  }
+                }
+                return false;
+              };
+              apifyDataset.webhookDispatches = items
+                .filter(matchRunId)
+                .map((d) => ({
                   status: d.status ?? null,
                   requestUrl: d.requestUrl ?? null,
                   responseStatus: d.responseStatus ?? null,
                   attempts: d.attempts ?? null,
                   finishedAt: d.finishedAt ?? null,
-                }),
-              );
+                }));
+            } else {
+              apifyDataset.webhookDispatchesError = `HTTP ${dispRes.status}`;
             }
-          } catch {
-            /* webhook-dispatches non critico, ignoriamo */
+          } catch (e) {
+            apifyDataset.webhookDispatchesError =
+              e instanceof Error ? e.message : "fetch error";
           }
         } catch (e) {
           apifyDataset.error = e instanceof Error ? e.message : "fetch error";
@@ -186,7 +227,33 @@ export async function GET(req: Request) {
       const filterMismatch =
         apifyDataset.rawItemCount != null &&
         apifyDataset.rawItemCount > 0 &&
-        (job?.records_count ?? 0) === 0;
+        (job?.records_count ?? 0) === 0 &&
+        job?.status !== "running";
+
+      const jobRunning = job?.status === "running";
+      const apifyDone =
+        apifyDataset.runStatus != null &&
+        apifyDataset.runStatus !== "RUNNING" &&
+        apifyDataset.runStatus !== "READY";
+      const dispatchCount = apifyDataset.webhookDispatches.length;
+
+      let diagnosis: string;
+      if (!job) {
+        diagnosis = "Nessun job Google trovato per questo brand";
+      } else if (filterMismatch) {
+        diagnosis = `BUG FILTRO: Apify ha trovato ${apifyDataset.rawItemCount} items ma 0 finalizzati in DB. Probabilmente il filtro advertiser-id li ha scartati (advertiserId atteso non matcha quelli reali tornati). Confronta brand.advertiserId con apify.sampleAdvertiserIds.`;
+      } else if (jobRunning && apifyDone && dispatchCount === 0) {
+        diagnosis = `WEBHOOK NON RICEVUTO: Apify ha finito il run (status=${apifyDataset.runStatus}) ma non ha registrato NESSUN tentativo di webhook verso AISCAN. Probabile causa: lo scan e' stato lanciato senza webhook config (env vars assenti su quella function). Usa "Recupera dati" per finalizzare manualmente.`;
+      } else if (jobRunning && apifyDone && dispatchCount > 0) {
+        diagnosis = `WEBHOOK ARRIVATI MA JOB FERMO: Apify ha provato ${dispatchCount} chiamate ma il job DB e' ancora 'running'. Controlla lo status HTTP dei dispatches qui sotto: 401 = secret mismatch, 5xx = bug nel webhook handler.`;
+      } else if (jobRunning) {
+        diagnosis = `Scan ancora in esecuzione su Apify (status=${apifyDataset.runStatus ?? "n/d"}). Niente di anomalo, attendi il termine.`;
+      } else if ((apifyDataset.rawItemCount ?? 0) === 0) {
+        diagnosis =
+          "Apify ha trovato 0 items: il brand non ha ads pubblici visibili nella Transparency Center con la config attuale (verifica advertiserId/domain/country)";
+      } else {
+        diagnosis = "OK";
+      }
 
       return {
         brand: {
@@ -212,14 +279,7 @@ export async function GET(req: Request) {
             }
           : null,
         apify: apifyDataset,
-        diagnosis:
-          !job
-            ? "Nessun job Google trovato per questo brand"
-            : filterMismatch
-              ? `BUG FILTRO: Apify ha trovato ${apifyDataset.rawItemCount} items ma 0 finalizzati in DB. Probabilmente il filtro advertiser-id li ha scartati (advertiserId atteso non matcha quelli reali tornati). Confronta brand.advertiserId con apify.sampleAdvertiserIds.`
-              : (apifyDataset.rawItemCount ?? 0) === 0
-                ? "Apify ha trovato 0 items: il brand non ha ads pubblici visibili nella Transparency Center con la config attuale (verifica advertiserId/domain/country)"
-                : "OK",
+        diagnosis,
       };
     }),
   );
