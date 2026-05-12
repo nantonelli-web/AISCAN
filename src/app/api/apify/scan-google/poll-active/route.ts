@@ -86,6 +86,11 @@ export async function GET() {
     return NextResponse.json({ ok: true, checked: 0, triggered: [] });
   }
 
+  console.log(
+    `[poll-active] workspace=${workspaceId} found ${jobs.length} running google job(s):`,
+    jobs.map((j) => ({ id: j.id, runId: j.apify_run_id, started: j.started_at })),
+  );
+
   // Apify credentials del workspace.
   const creds = await getApifyCredentials(workspaceId).catch(() => null);
   if (!creds?.token) {
@@ -134,6 +139,9 @@ export async function GET() {
           return;
         }
         const isTerminal = TERMINAL_STATES.has(status);
+        console.log(
+          `[poll-active] job=${job.id} run=${job.apify_run_id} apify_status=${status} terminal=${isTerminal}`,
+        );
         if (!isTerminal) {
           triggered.push({
             job_id: job.id,
@@ -144,6 +152,9 @@ export async function GET() {
         }
         // Apify ha finito → trigger reconcile fire-and-forget.
         if (appUrl && webhookSecret) {
+          console.log(
+            `[poll-active] triggering reconcile for job=${job.id} (apify ${status})`,
+          );
           const ctrl = new AbortController();
           const abortTimer = setTimeout(() => ctrl.abort(), 3000);
           try {
