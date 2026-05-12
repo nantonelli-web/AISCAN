@@ -53,19 +53,46 @@ export function DebugScanClient() {
     setLoading(true);
     setError(null);
     setMatches(null);
+    let rawText = "";
     try {
       const res = await fetch(
         `/api/_debug/last-google-scan?brand=${encodeURIComponent(query.trim())}`,
         { cache: "no-store" },
       );
-      const j = await res.json();
-      if (!res.ok) {
-        setError(j.error ?? "Errore");
+      // Prima leggo testo poi parso JSON manualmente cosi gli errori
+      // di parse non vengono inghiottiti dal browser come messaggi
+      // generici ("The string did not match the expected pattern").
+      rawText = await res.text();
+      let j: unknown;
+      try {
+        j = JSON.parse(rawText);
+      } catch (parseErr) {
+        console.error(
+          "[scan-debug] JSON parse failed. status=",
+          res.status,
+          "body=",
+          rawText.slice(0, 500),
+          parseErr,
+        );
+        setError(
+          `Risposta server non-JSON (status ${res.status}). Primi 200 char: ${rawText.slice(0, 200)}`,
+        );
         return;
       }
-      setMatches((j.matches ?? []) as Match[]);
+      const obj = j as {
+        error?: string;
+        matches?: Match[];
+      };
+      if (!res.ok) {
+        setError(obj.error ?? `HTTP ${res.status}`);
+        return;
+      }
+      setMatches((obj.matches ?? []) as Match[]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Network error");
+      console.error("[scan-debug] fetch error", e, "rawText:", rawText);
+      setError(
+        `${e instanceof Error ? e.message : String(e)}${rawText ? ` (body: ${rawText.slice(0, 200)})` : ""}`,
+      );
     } finally {
       setLoading(false);
     }
