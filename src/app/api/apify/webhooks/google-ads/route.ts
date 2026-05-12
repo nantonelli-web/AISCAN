@@ -23,11 +23,69 @@ import { refundCredits } from "@/lib/credits/consume";
 export const maxDuration = 120;
 
 interface WebhookPayload {
+  // Default Apify payload (webhook persistente senza payloadTemplate)
   eventType?: string;
+  eventData?: {
+    actorId?: string;
+    actorRunId?: string;
+    actorTaskId?: string | null;
+  };
+  resource?: {
+    id?: string;
+    actId?: string;
+    status?: string;
+    defaultDatasetId?: string;
+  };
+  // Vecchio formato custom (template), tenuto per retro-compat:
   runId?: string;
   status?: string;
   datasetId?: string;
   actorId?: string;
+}
+
+/**
+ * Estrae i campi runId/status/datasetId/actorId da entrambi i
+ * formati Apify (default e custom-template). Quando il template
+ * non viene risolto, i campi top-level arrivano come stringa
+ * letterale ("{{resource.id}}") che non e' valida — quindi
+ * preferiamo SEMPRE i path strutturati del default quando presenti.
+ */
+function extractWebhookFields(p: WebhookPayload): {
+  runId: string | null;
+  status: string | null;
+  datasetId: string | null;
+  actorId: string | null;
+} {
+  const isTemplateLiteral = (s: string | undefined): boolean =>
+    !!s && s.startsWith("{{") && s.endsWith("}}");
+  const pickRunId = (() => {
+    if (p.eventData?.actorRunId) return p.eventData.actorRunId;
+    if (p.resource?.id) return p.resource.id;
+    if (p.runId && !isTemplateLiteral(p.runId)) return p.runId;
+    return null;
+  })();
+  const pickStatus = (() => {
+    if (p.resource?.status) return p.resource.status;
+    if (p.status && !isTemplateLiteral(p.status)) return p.status;
+    return null;
+  })();
+  const pickDatasetId = (() => {
+    if (p.resource?.defaultDatasetId) return p.resource.defaultDatasetId;
+    if (p.datasetId && !isTemplateLiteral(p.datasetId)) return p.datasetId;
+    return null;
+  })();
+  const pickActorId = (() => {
+    if (p.eventData?.actorId) return p.eventData.actorId;
+    if (p.resource?.actId) return p.resource.actId;
+    if (p.actorId && !isTemplateLiteral(p.actorId)) return p.actorId;
+    return null;
+  })();
+  return {
+    runId: pickRunId,
+    status: pickStatus,
+    datasetId: pickDatasetId,
+    actorId: pickActorId,
+  };
 }
 
 interface JobRow {
@@ -59,15 +117,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // 2. Parse payload
+  // 2. Parse payload (accetta sia default Apify che custom-template)
   const payload = (await req.json().catch(() => null)) as WebhookPayload | null;
-  if (!payload?.runId || !payload?.status) {
-    console.error("[Google Ads webhook] missing runId/status in payload:", payload);
+  if (!payload) {
+    console.error("[Google Ads webhook] empty payload");
+    return NextResponse.json({ error: "Empty payload" }, { status: 400 });
+  }
+  const fields = extractWebhookFields(payload);
+  if (!fields.runId || !fields.status) {
+    console.error(
+      "[Google Ads webhook] missing runId/status after extraction. Payload keys:",
+      Object.keys(payload),
+      "Extracted:",
+      fields,
+    );
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
   console.log(
-    `[Google Ads webhook] received: runId=${payload.runId} status=${payload.status} eventType=${payload.eventType}`,
+    `[Google Ads webhook] received: runId=${fields.runId} status=${fields.status} eventType=${payload.eventType}`,
   );
 
   // 3. Find the job by apify_run_id (admin client, RLS bypass)
@@ -77,7 +145,7 @@ export async function POST(req: Request) {
     .select(
       "id, workspace_id, competitor_id, status, webhook_received_at, scan_options, dataset_id, created_by",
     )
-    .eq("apify_run_id", payload.runId)
+    .eq("apify_run_id", fields.runId)
     .eq("source", "google")
     .maybeSingle();
 
@@ -89,7 +157,7 @@ export async function POST(req: Request) {
     // No matching job: probabile webhook spurio (es. run lanciato
     // manualmente in Apify console) o race con la creazione del job.
     console.warn(
-      `[Google Ads webhook] no job matches runId=${payload.runId} — ignoring`,
+      `[Google Ads webhook] no job matches runId=${fields.runId} — ignoring`,
     );
     return NextResponse.json({ ok: true, ignored: true });
   }
@@ -113,7 +181,7 @@ export async function POST(req: Request) {
     .update({ webhook_received_at: now })
     .eq("id", job.id);
 
-  const datasetId = payload.datasetId || job.dataset_id;
+  const datasetId = fields.datasetId || job.dataset_id;
   if (!datasetId) {
     await admin
       .from("mait_scrape_jobs")
@@ -137,9 +205,9 @@ export async function POST(req: Request) {
   try {
     const finalizeArgs: FinalizeScanArgs = {
       workspaceId: job.workspace_id,
-      runId: payload.runId,
+      runId: fields.runId,
       datasetId,
-      apifyStatus: payload.status,
+      apifyStatus: fields.status,
       opts: {
         advertiserId: (opts.advertiserId as string | undefined) ?? undefined,
         advertiserDomain:
@@ -193,9 +261,9 @@ export async function POST(req: Request) {
         cost_cu: result.costCu,
         error:
           finalStatus === "failed"
-            ? `Apify run ended with status ${payload.status} and dataset was empty`
+            ? `Apify run ended with status ${fields.status} and dataset was empty`
             : finalStatus === "partial"
-              ? `Apify run did not complete (status=${payload.status}) but ${result.records.length} items were saved before the abort.`
+              ? `Apify run did not complete (status=${fields.status}) but ${result.records.length} items were saved before the abort.`
               : null,
       })
       .eq("id", job.id);

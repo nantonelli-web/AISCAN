@@ -112,13 +112,15 @@ export async function GET(req: Request) {
          *  NON filtrati per runId — utili per capire se Apify
          *  invoca il webhook per altri run e il filtro qui sopra
          *  manca solo questo specifico per via di un campo runId
-         *  non standard. Limit 10. */
+         *  non standard. Limit 10. payloadPreview popolato per i
+         *  primi 5 via GET singolo /v2/webhook-dispatches/{id}. */
         webhookDispatchesRaw?: Array<{
           id: string | null;
           status: string | null;
           responseStatus: number | null;
           finishedAt: string | null;
           actorRunId: string | null;
+          payloadPreview?: string | null;
         }>;
         webhookDispatchesError?: string;
       } = {
@@ -219,7 +221,10 @@ export async function GET(req: Request) {
                 /* non-critical, ignoriamo */
               }
               // 2) Tutti i dispatches recenti del webhook (no filter)
-              //    per capire se Apify lo invoca per ALTRI run.
+              //    per capire se Apify lo invoca per ALTRI run. Per
+              //    ogni dispatch facciamo anche il GET singolo per
+              //    arricchirlo con payload + responseStatus (la lista
+              //    Apify non popola questi campi).
               try {
                 const allRes = await fetch(
                   `https://api.apify.com/v2/webhooks/${webhookId}/dispatches?limit=10&desc=true`,
@@ -237,15 +242,76 @@ export async function GET(req: Request) {
                       }>;
                     };
                   };
-                  apifyDataset.webhookDispatchesRaw = (allBody.data?.items ?? []).map(
-                    (d) => ({
-                      id: d.id ?? null,
-                      status: d.status ?? null,
-                      responseStatus: d.responseStatus ?? null,
-                      finishedAt: d.finishedAt ?? null,
-                      actorRunId: d.actorRunId ?? null,
+                  const baseList = allBody.data?.items ?? [];
+                  // Enrichment in parallelo dei primi 5 dispatch:
+                  // /v2/webhook-dispatches/{id} ritorna payload + response.
+                  const enriched = await Promise.all(
+                    baseList.slice(0, 5).map(async (d) => {
+                      if (!d.id) {
+                        return {
+                          id: null as string | null,
+                          status: d.status ?? null,
+                          responseStatus: d.responseStatus ?? null,
+                          finishedAt: d.finishedAt ?? null,
+                          actorRunId: d.actorRunId ?? null,
+                        };
+                      }
+                      try {
+                        const oneRes = await fetch(
+                          `https://api.apify.com/v2/webhook-dispatches/${d.id}`,
+                          {
+                            headers: {
+                              authorization: `Bearer ${creds.token}`,
+                            },
+                          },
+                        );
+                        if (oneRes.ok) {
+                          const oneBody = (await oneRes.json()) as {
+                            data?: {
+                              status?: string;
+                              actorRunId?: string;
+                              finishedAt?: string;
+                              calls?: Array<{
+                                responseStatus?: number;
+                                finishedAt?: string;
+                              }>;
+                              payload?: unknown;
+                              responseStatus?: number;
+                            };
+                          };
+                          const inner = oneBody.data ?? {};
+                          const lastCall = inner.calls?.[inner.calls.length - 1];
+                          return {
+                            id: d.id,
+                            status: inner.status ?? d.status ?? null,
+                            responseStatus:
+                              inner.responseStatus ??
+                              lastCall?.responseStatus ??
+                              d.responseStatus ??
+                              null,
+                            finishedAt:
+                              inner.finishedAt ?? d.finishedAt ?? null,
+                            actorRunId:
+                              inner.actorRunId ?? d.actorRunId ?? null,
+                            payloadPreview: inner.payload
+                              ? JSON.stringify(inner.payload).slice(0, 400)
+                              : null,
+                          };
+                        }
+                      } catch {
+                        /* skip */
+                      }
+                      return {
+                        id: d.id,
+                        status: d.status ?? null,
+                        responseStatus: d.responseStatus ?? null,
+                        finishedAt: d.finishedAt ?? null,
+                        actorRunId: d.actorRunId ?? null,
+                        payloadPreview: null,
+                      };
                     }),
                   );
+                  apifyDataset.webhookDispatchesRaw = enriched;
                 }
               } catch {
                 /* non-critical, ignoriamo */

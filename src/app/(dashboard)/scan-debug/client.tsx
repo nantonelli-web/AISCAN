@@ -49,6 +49,7 @@ interface ApifyInfo {
     responseStatus: number | null;
     finishedAt: string | null;
     actorRunId: string | null;
+    payloadPreview?: string | null;
   }>;
   webhookDispatchesError?: string;
 }
@@ -390,13 +391,21 @@ export function DebugScanClient() {
                                 : "border-border bg-background"
                             }`}
                           >
-                            {d.status} · HTTP{" "}
-                            {d.responseStatus ?? "—"} · run{" "}
-                            {d.actorRunId ?? "—"}{" "}
-                            {isThisRun && (
-                              <span className="text-emerald-700 dark:text-emerald-400">
-                                ← QUESTO RUN
-                              </span>
+                            <div>
+                              {d.status} · HTTP{" "}
+                              {d.responseStatus ?? "—"} · run{" "}
+                              {d.actorRunId ?? "—"}{" "}
+                              {isThisRun && (
+                                <span className="text-emerald-700 dark:text-emerald-400">
+                                  ← QUESTO RUN
+                                </span>
+                              )}
+                            </div>
+                            {d.payloadPreview && (
+                              <div className="mt-1 text-[10.5px] text-muted-foreground">
+                                payload: {d.payloadPreview}
+                                {d.payloadPreview.length >= 400 && "..."}
+                              </div>
                             )}
                           </div>
                         );

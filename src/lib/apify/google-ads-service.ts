@@ -164,6 +164,31 @@ async function ensureGoogleAdsWebhookRegistered(
       }>;
     };
   };
+  // Body usato sia per POST (create) che per PUT (update). NESSUN
+  // payloadTemplate: ci affidiamo al default Apify (eventType +
+  // eventData{actorRunId, actorId} + resource{id, actId, status,
+  // defaultDatasetId, ...}). Il template custom precedente con
+  // {{resource.id}} dava problemi sui webhook persistenti — Apify
+  // non risolveva le variabili e ci arrivava la stringa letterale
+  // come runId, quindi il job lookup falliva e il job DB restava
+  // in 'running' (Apify riceveva 200 "ignored" e segnava SUCCEEDED).
+  const webhookBody = {
+    isAdHoc: false,
+    eventTypes: [
+      "ACTOR.RUN.SUCCEEDED",
+      "ACTOR.RUN.FAILED",
+      "ACTOR.RUN.ABORTED",
+      "ACTOR.RUN.TIMED_OUT",
+    ],
+    condition: { actorId: resolvedActorId },
+    requestUrl,
+    headersTemplate: JSON.stringify({
+      "x-aiscan-secret": webhookSecret,
+    }),
+    // payloadTemplate omesso intenzionalmente → default Apify.
+    description: `AISCAN auto-registered: Google Ads finalize callback for ${GOOGLE_ACTOR_ID}`,
+  };
+
   const existing = (listBody.data?.items ?? []).find(
     (w) =>
       w.requestUrl === requestUrl &&
@@ -171,6 +196,22 @@ async function ensureGoogleAdsWebhookRegistered(
       !w.isAdHoc,
   );
   if (existing?.id) {
+    // Riconcilia il webhook esistente con la config nuova: se aveva
+    // payloadTemplate (registrato dal codice precedente al fix), un
+    // PUT lo riporta a default. Idempotente: se gia' a default,
+    // il PUT non cambia niente.
+    try {
+      await fetch(`${APIFY_BASE}/webhooks/${existing.id}`, {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(webhookBody),
+      });
+    } catch {
+      /* best-effort: se il PUT fallisce, riusiamo comunque l'esistente */
+    }
     webhookEnsuredFor.set(resolvedActorId, existing.id);
     return {
       ok: true,
@@ -188,28 +229,7 @@ async function ensureGoogleAdsWebhookRegistered(
       "content-type": "application/json",
       authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({
-      isAdHoc: false,
-      eventTypes: [
-        "ACTOR.RUN.SUCCEEDED",
-        "ACTOR.RUN.FAILED",
-        "ACTOR.RUN.ABORTED",
-        "ACTOR.RUN.TIMED_OUT",
-      ],
-      condition: { actorId: resolvedActorId },
-      requestUrl,
-      headersTemplate: JSON.stringify({
-        "x-aiscan-secret": webhookSecret,
-      }),
-      payloadTemplate: JSON.stringify({
-        eventType: "{{eventType}}",
-        runId: "{{resource.id}}",
-        status: "{{resource.status}}",
-        datasetId: "{{resource.defaultDatasetId}}",
-        actorId: "{{resource.actId}}",
-      }),
-      description: `AISCAN auto-registered: Google Ads finalize callback for ${GOOGLE_ACTOR_ID}`,
-    }),
+    body: JSON.stringify(webhookBody),
   });
   if (!createRes.ok) {
     const t = await createRes.text().catch(() => "");
