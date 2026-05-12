@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   finalizeGoogleAdsScan,
@@ -7,20 +7,25 @@ import {
 import { refundCredits } from "@/lib/credits/consume";
 
 // Apify chiama questo endpoint quando un run Google Ads finisce
-// (SUCCEEDED / ABORTED / FAILED / TIMED-OUT). Il payload e' quello
-// definito nel payloadTemplate di startGoogleAdsScan().
+// (SUCCEEDED / ABORTED / FAILED / TIMED-OUT). Il payload e' il
+// default Apify webhook payload (eventData + resource + ...).
 //
 // Autenticazione: header `x-aiscan-secret` deve matchare la env var
 // `APIFY_WEBHOOK_SECRET`. Non usiamo cookies — questa chiamata viene
 // da Apify, non da un utente.
 //
-// Idempotenza: il primo webhook setta mait_scrape_jobs.webhook_received_at.
-// Webhook duplicati (retry Apify) trovano la colonna gia' valorizzata
-// e ritornano 200 senza riprocessare.
-//
-// Vercel maxDuration 120s: il webhook fa fetch dataset (puo' essere
-// grosso: 50k items) + normalize + upsert. Stiamo conservativi.
-export const maxDuration = 120;
+// Idempotenza + ack veloce:
+//   Apify ha un client-side timeout di ~30s sul webhook HTTP; se la
+//   response tarda di piu' marca il dispatch come failed/408 anche
+//   se in realta' il processing e' partito. Per ridurre il rischio
+//   di "ghost running":
+//     - validiamo + parse-iamo il payload
+//     - facciamo il lookup del job
+//     - settiamo webhook_received_at (lock anti-doppia-elaborazione)
+//     - rispondiamo 200 a Apify
+//     - finalize gira via `after()` (Next 15) — la function vive fino a
+//       maxDuration anche dopo aver mandato la response.
+export const maxDuration = 300;
 
 interface WebhookPayload {
   // Default Apify payload (webhook persistente senza payloadTemplate)
@@ -171,10 +176,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, alreadyProcessed: true });
   }
 
-  // 5. Marca subito webhook_received_at per chiudere la finestra di
-  // race con eventuali retry Apify. Se il finalize crashes dopo,
-  // il job restera' in stato "running" con webhook_received_at
-  // settato — gestiamo questo edge case loggando e marcando failed.
+  // 5. Marca subito webhook_received_at come lock anti-doppia-
+  //    elaborazione. I retry Apify trovano la colonna valorizzata
+  //    e ritornano alreadyProcessed. Settiamo anche status='processing'
+  //    cosi' la UI mostra "in finalizzazione" invece di "running".
   const now = new Date().toISOString();
   await admin
     .from("mait_scrape_jobs")
@@ -201,135 +206,144 @@ export async function POST(req: Request) {
   const competitorPageName =
     (opts.competitorPageName as string | undefined) ?? "unknown brand";
 
-  // 6. Finalize: fetch dataset + normalize + filter + dedup
-  try {
-    const finalizeArgs: FinalizeScanArgs = {
+  // 6. Schedule il finalize via `after()` di Next 15. La function
+  //    rimane viva fino a maxDuration (300s) anche dopo aver mandato
+  //    la response, cosi' Apify riceve l'ACK entro 1s e non triggera
+  //    retry/timeout 408 a meta' lavoro.
+  const finalizeArgs: FinalizeScanArgs = {
+    workspaceId: job.workspace_id,
+    runId: fields.runId,
+    datasetId,
+    apifyStatus: fields.status,
+    opts: {
+      advertiserId: (opts.advertiserId as string | undefined) ?? undefined,
+      advertiserDomain:
+        (opts.advertiserDomain as string | undefined) ?? undefined,
+      advertiserName:
+        (opts.advertiserName as string | undefined) ?? undefined,
+      dateFrom: (opts.dateFrom as string | undefined) ?? undefined,
+      dateTo: (opts.dateTo as string | undefined) ?? undefined,
+      maxResults: (opts.maxResults as number | undefined) ?? 500,
+      country: (opts.country as string | undefined) ?? undefined,
       workspaceId: job.workspace_id,
-      runId: fields.runId,
-      datasetId,
-      apifyStatus: fields.status,
-      opts: {
-        advertiserId: (opts.advertiserId as string | undefined) ?? undefined,
-        advertiserDomain:
-          (opts.advertiserDomain as string | undefined) ?? undefined,
-        advertiserName:
-          (opts.advertiserName as string | undefined) ?? undefined,
-        dateFrom: (opts.dateFrom as string | undefined) ?? undefined,
-        dateTo: (opts.dateTo as string | undefined) ?? undefined,
-        maxResults: (opts.maxResults as number | undefined) ?? 500,
-        country: (opts.country as string | undefined) ?? undefined,
-        workspaceId: job.workspace_id,
-      },
-      urlRegionList:
-        (opts.urlRegionList as string[] | undefined) ?? [],
-    };
-    const result = await finalizeGoogleAdsScan(finalizeArgs);
+    },
+    urlRegionList: (opts.urlRegionList as string[] | undefined) ?? [],
+  };
 
-    // 7. Persist ads (anche se result.records.length === 0).
-    if (result.records.length > 0 && job.competitor_id) {
-      const seenAt = new Date().toISOString();
-      const rows = result.records.map((r) => ({
-        ...r,
-        source: "google" as const,
-        workspace_id: job.workspace_id,
-        competitor_id: job.competitor_id,
-        last_seen_in_scan_at: seenAt,
-      }));
+  after(async () => {
+    try {
+      const result = await finalizeGoogleAdsScan(finalizeArgs);
 
-      const { error: upErr } = await admin
-        .from("mait_ads_external")
-        .upsert(rows, { onConflict: "workspace_id,ad_archive_id,source" });
-      if (upErr) {
-        throw new Error(`Ads upsert failed: ${upErr.message}`);
+      // 7. Persist ads (anche se result.records.length === 0).
+      if (result.records.length > 0 && job.competitor_id) {
+        const seenAt = new Date().toISOString();
+        const rows = result.records.map((r) => ({
+          ...r,
+          source: "google" as const,
+          workspace_id: job.workspace_id,
+          competitor_id: job.competitor_id,
+          last_seen_in_scan_at: seenAt,
+        }));
+
+        const { error: upErr } = await admin
+          .from("mait_ads_external")
+          .upsert(rows, { onConflict: "workspace_id,ad_archive_id,source" });
+        if (upErr) {
+          throw new Error(`Ads upsert failed: ${upErr.message}`);
+        }
+      }
+
+      // 8. Final job status: succeeded vs partial vs failed
+      const finalStatus =
+        result.complete && result.records.length >= 0
+          ? "succeeded"
+          : result.records.length > 0
+            ? "partial"
+            : "failed";
+
+      await admin
+        .from("mait_scrape_jobs")
+        .update({
+          status: finalStatus,
+          completed_at: new Date().toISOString(),
+          records_count: result.records.length,
+          cost_cu: result.costCu,
+          error:
+            finalStatus === "failed"
+              ? `Apify run ended with status ${fields.status} and dataset was empty`
+              : finalStatus === "partial"
+                ? `Apify run did not complete (status=${fields.status}) but ${result.records.length} items were saved before the abort.`
+                : null,
+        })
+        .eq("id", job.id);
+
+      if (job.competitor_id) {
+        await admin
+          .from("mait_competitors")
+          .update({ last_scraped_at: new Date().toISOString() })
+          .eq("id", job.competitor_id);
+      }
+
+      // Refund se completamente failed (zero items + not succeeded)
+      if (finalStatus === "failed" && job.created_by) {
+        await refundCredits(
+          job.created_by,
+          "scan_google",
+          `Google Ads scan failed (no items): ${competitorPageName}`,
+        );
+      }
+
+      // Alert + invalidazione cache comparisons solo se abbiamo dati
+      if (result.records.length > 0 && job.competitor_id) {
+        await admin.from("mait_alerts").insert({
+          workspace_id: job.workspace_id,
+          competitor_id: job.competitor_id,
+          type: "new_ads",
+          message:
+            finalStatus === "partial"
+              ? `${result.records.length} Google Ads sincronizzate (scan parziale).`
+              : `${result.records.length} Google Ads sincronizzate.`,
+        });
+
+        await admin
+          .from("mait_comparisons")
+          .update({ stale: true, updated_at: new Date().toISOString() })
+          .contains("competitor_ids", [job.competitor_id]);
+      }
+
+      console.log(
+        `[Google Ads webhook] DONE: job=${job.id} status=${finalStatus} records=${result.records.length} cost=$${result.costCu.toFixed(3)}`,
+      );
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Finalize failed";
+      console.error(
+        `[Google Ads webhook] FAILED (background): job=${job.id}:`,
+        message,
+      );
+      await admin
+        .from("mait_scrape_jobs")
+        .update({
+          status: "failed",
+          completed_at: new Date().toISOString(),
+          error: message,
+        })
+        .eq("id", job.id);
+      if (job.created_by) {
+        await refundCredits(
+          job.created_by,
+          "scan_google",
+          `Google Ads scan failed in webhook: ${competitorPageName}`,
+        );
       }
     }
+  });
 
-    // 8. Final job status: succeeded vs partial vs failed
-    const finalStatus =
-      result.complete && result.records.length >= 0
-        ? "succeeded"
-        : result.records.length > 0
-          ? "partial"
-          : "failed";
-
-    await admin
-      .from("mait_scrape_jobs")
-      .update({
-        status: finalStatus,
-        completed_at: new Date().toISOString(),
-        records_count: result.records.length,
-        cost_cu: result.costCu,
-        error:
-          finalStatus === "failed"
-            ? `Apify run ended with status ${fields.status} and dataset was empty`
-            : finalStatus === "partial"
-              ? `Apify run did not complete (status=${fields.status}) but ${result.records.length} items were saved before the abort.`
-              : null,
-      })
-      .eq("id", job.id);
-
-    if (job.competitor_id) {
-      await admin
-        .from("mait_competitors")
-        .update({ last_scraped_at: new Date().toISOString() })
-        .eq("id", job.competitor_id);
-    }
-
-    // Refund se completamente failed (zero items + not succeeded)
-    if (finalStatus === "failed" && job.created_by) {
-      await refundCredits(
-        job.created_by,
-        "scan_google",
-        `Google Ads scan failed (no items): ${competitorPageName}`,
-      );
-    }
-
-    // Alert + invalidazione cache comparisons solo se abbiamo dati
-    if (result.records.length > 0 && job.competitor_id) {
-      await admin.from("mait_alerts").insert({
-        workspace_id: job.workspace_id,
-        competitor_id: job.competitor_id,
-        type: "new_ads",
-        message:
-          finalStatus === "partial"
-            ? `${result.records.length} Google Ads sincronizzate (scan parziale).`
-            : `${result.records.length} Google Ads sincronizzate.`,
-      });
-
-      await admin
-        .from("mait_comparisons")
-        .update({ stale: true, updated_at: new Date().toISOString() })
-        .contains("competitor_ids", [job.competitor_id]);
-    }
-
-    console.log(
-      `[Google Ads webhook] DONE: job=${job.id} status=${finalStatus} records=${result.records.length} cost=$${result.costCu.toFixed(3)}`,
-    );
-
-    return NextResponse.json({
-      ok: true,
-      job_id: job.id,
-      status: finalStatus,
-      records: result.records.length,
-    });
-  } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : "Finalize failed";
-    console.error(`[Google Ads webhook] FAILED: job=${job.id}:`, message);
-    await admin
-      .from("mait_scrape_jobs")
-      .update({
-        status: "failed",
-        completed_at: new Date().toISOString(),
-        error: message,
-      })
-      .eq("id", job.id);
-    if (job.created_by) {
-      await refundCredits(
-        job.created_by,
-        "scan_google",
-        `Google Ads scan failed in webhook: ${competitorPageName}`,
-      );
-    }
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  // 9. Ack immediato a Apify (entro 1s, ben dentro il timeout 30s
+  //    lato client). Il finalize prosegue in background via after().
+  return NextResponse.json({
+    ok: true,
+    job_id: job.id,
+    status: "processing",
+    message: "Finalize scheduled in background",
+  });
 }
