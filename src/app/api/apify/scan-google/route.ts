@@ -206,6 +206,9 @@ export async function POST(req: Request) {
 
     // Update job con runId+datasetId+scan_options. Il webhook handler
     // matcha su apify_run_id e usa scan_options per ricostruire opts.
+    // webhookRegistration: tracciamo per audit se il persistent webhook
+    // e' stato registrato correttamente — se no l'utente vedra' i job
+    // restare 'running' e potra' usare "Recupera dati" come fallback.
     await admin
       .from("mait_scrape_jobs")
       .update({
@@ -215,6 +218,7 @@ export async function POST(req: Request) {
           ...scanOptions,
           urlRegionList: result.urlRegionList,
           actorId: result.actorId,
+          webhookRegistration: result.webhookRegistration ?? null,
         },
       })
       .eq("id", job.id);

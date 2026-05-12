@@ -251,6 +251,65 @@ export function DebugScanClient() {
                   </div>
                 )}
 
+              {/* Esito registrazione webhook persistente (preso dal
+                  job.scan_options.webhookRegistration salvato al
+                  lancio). Risponde a "il webhook era registrato al
+                  momento dello start?" — separato da "Apify ha
+                  triggerato dispatches?" qui sotto. */}
+              {(() => {
+                const reg = m.job?.scan_options as
+                  | { webhookRegistration?: {
+                      ok?: boolean;
+                      webhookId?: string;
+                      created?: boolean;
+                      error?: string;
+                      resolvedActorId?: string;
+                      requestUrl?: string;
+                    } }
+                  | null
+                  | undefined;
+                const wr = reg?.webhookRegistration;
+                if (!wr) return null;
+                return (
+                  <div className="space-y-1.5">
+                    <p className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold">
+                      Webhook persistente al lancio
+                    </p>
+                    <div
+                      className={`rounded-md border px-3 py-2 text-[12px] ${
+                        wr.ok
+                          ? "border-emerald-500/40 bg-emerald-500/5"
+                          : "border-red-500/40 bg-red-500/5"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <strong>{wr.ok ? "REGISTRATO" : "FALLITO"}</strong>
+                        {wr.created != null && wr.ok && (
+                          <span className="text-muted-foreground">
+                            ({wr.created ? "creato adesso" : "gia' esistente"})
+                          </span>
+                        )}
+                        {wr.webhookId && (
+                          <code className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-muted">
+                            id {wr.webhookId}
+                          </code>
+                        )}
+                      </div>
+                      {wr.requestUrl && (
+                        <p className="text-[11px] text-muted-foreground mt-1 font-mono break-all">
+                          → {wr.requestUrl}
+                        </p>
+                      )}
+                      {wr.error && (
+                        <p className="text-[11.5px] text-red-700 dark:text-red-400 mt-1">
+                          ⚠️ {wr.error}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Webhook dispatches: capisce se Apify ha provato a
                   chiamare il nostro endpoint e con che esito. La
                   sezione piu' importante quando "Apify ok ma DB

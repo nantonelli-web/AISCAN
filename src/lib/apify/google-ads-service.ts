@@ -56,6 +56,182 @@ async function apifyFetch(path: string, init?: RequestInit, token?: string) {
   return res.json();
 }
 
+// ─── Persistent webhook registration (replaces ad-hoc) ───
+//
+// Empirically gli ad-hoc webhooks (passati come query param ?webhooks=
+// alla POST /acts/.../runs) venivano scartati silenziosamente da Apify
+// nonostante il payload fosse formalmente corretto: Apify non
+// registrava NESSUN tentativo di dispatch e i job restavano in
+// 'running' indefinitamente. La fix: registrare un webhook PERSISTENTE
+// a livello account con `condition.actorId = GOOGLE_ACTOR_ID`. Apify
+// invocera' il callback per ogni run dell'actor senza bisogno di
+// passare config ad ogni run. Una sola registrazione idempotente al
+// primo lancio della function.
+//
+// Cache module-level: se in questo container abbiamo gia' confermato
+// che il webhook esiste, skippiamo le 2 API call (list + check) per
+// non rallentare ogni scan. La cache si resetta al cold-start della
+// function — best case 1 ms, worst case +200ms ogni cold start.
+
+const webhookEnsuredFor = new Map<string, string>(); // actorId → webhookId
+
+interface WebhookEnsureResult {
+  ok: boolean;
+  webhookId?: string;
+  created?: boolean;
+  resolvedActorId?: string;
+  requestUrl?: string;
+  error?: string;
+}
+
+async function resolveActorId(
+  actorRef: string,
+  token: string,
+): Promise<string | null> {
+  // Se actorRef e' gia' un id Apify (no slash), passa diretto.
+  if (!actorRef.includes("/")) return actorRef;
+  // L'API Apify accetta `username~actor-name` come alias del path
+  // `username/actor-name` per la URL.
+  const slug = actorRef.replace("/", "~");
+  const res = await fetch(
+    `${APIFY_BASE}/acts/${encodeURIComponent(slug)}`,
+    { headers: { authorization: `Bearer ${token}` } },
+  );
+  if (!res.ok) return null;
+  const body = (await res.json()) as { data?: { id?: string } };
+  return body.data?.id ?? null;
+}
+
+/**
+ * Idempotent: registra un webhook persistente per `condition.actorId =
+ * GOOGLE_ACTOR_ID` che chiama il nostro `/api/apify/webhooks/google-ads`.
+ * Se ne esiste gia' uno con stesso (actorId, requestUrl), lo riusa.
+ * Restituisce un summary del risultato (no throw — fallisce soft cosi'
+ * il caller puo' loggare/continuare e l'utente puo' usare "Recupera
+ * dati" come fallback manuale).
+ */
+async function ensureGoogleAdsWebhookRegistered(
+  token: string,
+): Promise<WebhookEnsureResult> {
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
+  const webhookSecret = process.env.APIFY_WEBHOOK_SECRET ?? "";
+  if (!appUrl || !webhookSecret) {
+    return {
+      ok: false,
+      error: `env vars mancanti: ${[!appUrl && "NEXT_PUBLIC_APP_URL", !webhookSecret && "APIFY_WEBHOOK_SECRET"].filter(Boolean).join(", ")}`,
+    };
+  }
+  const requestUrl = `${appUrl}/api/apify/webhooks/google-ads`;
+
+  const resolvedActorId = await resolveActorId(GOOGLE_ACTOR_ID, token);
+  if (!resolvedActorId) {
+    return { ok: false, error: `actorId non risolto per ${GOOGLE_ACTOR_ID}` };
+  }
+
+  // Cache hit: webhook gia' confermato per questo actor in questo
+  // container. Salta list+check.
+  const cached = webhookEnsuredFor.get(resolvedActorId);
+  if (cached) {
+    return {
+      ok: true,
+      webhookId: cached,
+      created: false,
+      resolvedActorId,
+      requestUrl,
+    };
+  }
+
+  // List user-level webhooks e cerca quello matching.
+  const listRes = await fetch(`${APIFY_BASE}/webhooks?limit=200&desc=true`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!listRes.ok) {
+    const t = await listRes.text().catch(() => "");
+    return {
+      ok: false,
+      error: `list webhooks ${listRes.status}: ${t.slice(0, 200)}`,
+      resolvedActorId,
+      requestUrl,
+    };
+  }
+  const listBody = (await listRes.json()) as {
+    data?: {
+      items?: Array<{
+        id?: string;
+        requestUrl?: string;
+        isAdHoc?: boolean;
+        condition?: { actorId?: string };
+      }>;
+    };
+  };
+  const existing = (listBody.data?.items ?? []).find(
+    (w) =>
+      w.requestUrl === requestUrl &&
+      w.condition?.actorId === resolvedActorId &&
+      !w.isAdHoc,
+  );
+  if (existing?.id) {
+    webhookEnsuredFor.set(resolvedActorId, existing.id);
+    return {
+      ok: true,
+      webhookId: existing.id,
+      created: false,
+      resolvedActorId,
+      requestUrl,
+    };
+  }
+
+  // Crea il webhook.
+  const createRes = await fetch(`${APIFY_BASE}/webhooks`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      isAdHoc: false,
+      eventTypes: [
+        "ACTOR.RUN.SUCCEEDED",
+        "ACTOR.RUN.FAILED",
+        "ACTOR.RUN.ABORTED",
+        "ACTOR.RUN.TIMED_OUT",
+      ],
+      condition: { actorId: resolvedActorId },
+      requestUrl,
+      headersTemplate: JSON.stringify({
+        "x-aiscan-secret": webhookSecret,
+      }),
+      payloadTemplate: JSON.stringify({
+        eventType: "{{eventType}}",
+        runId: "{{resource.id}}",
+        status: "{{resource.status}}",
+        datasetId: "{{resource.defaultDatasetId}}",
+        actorId: "{{resource.actId}}",
+      }),
+      description: `AISCAN auto-registered: Google Ads finalize callback for ${GOOGLE_ACTOR_ID}`,
+    }),
+  });
+  if (!createRes.ok) {
+    const t = await createRes.text().catch(() => "");
+    return {
+      ok: false,
+      error: `create webhook ${createRes.status}: ${t.slice(0, 200)}`,
+      resolvedActorId,
+      requestUrl,
+    };
+  }
+  const createBody = (await createRes.json()) as { data?: { id?: string } };
+  const newId = createBody.data?.id ?? "";
+  if (newId) webhookEnsuredFor.set(resolvedActorId, newId);
+  return {
+    ok: true,
+    webhookId: newId,
+    created: true,
+    resolvedActorId,
+    requestUrl,
+  };
+}
+
 // ─── Raw shape from automation-lab/google-ads-scraper ───
 
 interface RawGoogleAd {
@@ -945,6 +1121,10 @@ export interface StartScanResult {
    *  essere finalizzato manualmente via /api/apify/scan-google/
    *  reconcile. */
   webhooksConfigured: boolean;
+  /** Esito della registrazione del webhook persistente Apify
+   *  (`condition.actorId = GOOGLE_ACTOR_ID`). Persistente = una sola
+   *  registrazione idempotente per tutti i run dell'actor. */
+  webhookRegistration?: WebhookEnsureResult;
   /** Apify credentials usate: il webhook handler le rifetcha dal
    *  workspace_id quindi non serve passarle in giro, ma le ritorniamo
    *  per debug/audit. */
@@ -1083,8 +1263,29 @@ export async function startGoogleAdsScan(
         ]
       : undefined;
 
+  // Registra (o conferma) il webhook persistente PRIMA di lanciare
+  // il run. La persistenza significa che Apify chiamera' il callback
+  // per ogni run dell'actor automaticamente, senza dover passare
+  // ad-hoc config ogni volta. Idempotente: dopo la prima
+  // registrazione la cache module-level salta list+check.
+  const webhookRegistration = await ensureGoogleAdsWebhookRegistered(
+    token,
+  ).catch((e: unknown) => ({
+    ok: false,
+    error: e instanceof Error ? e.message : "ensure threw",
+  })) as WebhookEnsureResult;
+  if (!webhookRegistration.ok) {
+    console.error(
+      `[Google Ads start] webhook persistente NON registrato: ${webhookRegistration.error}`,
+    );
+  } else {
+    console.log(
+      `[Google Ads start] webhook persistente: ${webhookRegistration.created ? "CREATO" : "gia' esistente"} id=${webhookRegistration.webhookId} actorId=${webhookRegistration.resolvedActorId}`,
+    );
+  }
+
   console.log(
-    `[Google Ads start] actor=${GOOGLE_ACTOR_ID} (mode=${isSilvaActor ? "silva" : isMemoActor ? "memo23" : "automation-lab"}) timeoutSecs=${apifyTimeoutSecs} webhook=${webhooks ? "yes" : "no"}`,
+    `[Google Ads start] actor=${GOOGLE_ACTOR_ID} (mode=${isSilvaActor ? "silva" : isMemoActor ? "memo23" : "automation-lab"}) timeoutSecs=${apifyTimeoutSecs} webhook(ad-hoc)=${webhooks ? "yes" : "no"} webhook(persistent)=${webhookRegistration.ok ? "yes" : "no"}`,
   );
 
   // POST /acts/{actor}/runs?timeout=...&webhooks=...
@@ -1128,7 +1329,8 @@ export async function startGoogleAdsScan(
     actorId: GOOGLE_ACTOR_ID,
     input,
     urlRegionList,
-    webhooksConfigured: !!webhooks,
+    webhooksConfigured: !!webhooks || webhookRegistration.ok,
+    webhookRegistration,
   };
 }
 
