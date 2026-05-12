@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { getBillingMode } from "@/lib/billing/mode";
+import { ScanPoller } from "@/components/scan-poller";
 
 export default async function DashboardLayout({
   children,
@@ -36,6 +37,10 @@ export default async function DashboardLayout({
           {children}
         </main>
       </div>
+      {/* Polling-driven finalize per i job Google running (sostituisce
+          i webhook Apify che sui Rental actor non vengono invocati
+          affidabilmente). Silent, ogni 10s mentre la tab e' aperta. */}
+      <ScanPoller />
     </div>
   );
 }
