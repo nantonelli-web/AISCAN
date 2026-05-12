@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -373,6 +373,62 @@ export function DashboardClient({ importId }: { importId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [importId]);
 
+  // Auto-translate al cambio lingua. Quando le analisi visualizzate
+  // sono fallback cross-locale (l'utente ha cambiato lingua ma per
+  // questa lingua non esistono ancora righe), facciamo
+  // automaticamente la traduzione cosi' all'utente non serve
+  // cliccare un bottone aggiuntivo. Una sola volta per (importId,
+  // locale): dopo, le analisi nella locale corrente esistono nel DB
+  // e cross_locale torna false.
+  const autoTranslateAttempted = useRef<Set<string>>(new Set());
+  const [autoTranslating, setAutoTranslating] = useState(false);
+  useEffect(() => {
+    if (!analysesCrossLocale) return;
+    if (Object.keys(analyses).length === 0) return;
+    const key = `${importId}`;
+    if (autoTranslateAttempted.current.has(key)) return;
+    autoTranslateAttempted.current.add(key);
+
+    let cancelled = false;
+    setAutoTranslating(true);
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/perf/imports/${importId}/analysis`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              mode: "translate",
+              force_overwrite_edited: false,
+            }),
+          },
+        );
+        if (cancelled) return;
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (res.status !== 402) {
+            console.warn(
+              "[adv-performance] auto-translate failed:",
+              j.error ?? res.status,
+            );
+          }
+          return;
+        }
+        await loadAnalyses();
+      } catch (e) {
+        console.warn("[adv-performance] auto-translate exception:", e);
+      } finally {
+        if (!cancelled) setAutoTranslating(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      setAutoTranslating(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analysesCrossLocale, importId]);
+
   const updateAnalysis = (next: SectionAnalysis | null) => {
     if (!next) return;
     setAnalyses((prev) => ({ ...prev, [next.section]: next }));
@@ -481,6 +537,12 @@ export function DashboardClient({ importId }: { importId: string }) {
         <div className="fixed top-4 right-4 z-40 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-background/95 backdrop-blur border border-border shadow-md text-xs text-muted-foreground print:hidden">
           <Loader2 className="size-3.5 animate-spin text-amber-500" />
           Aggiornamento dati…
+        </div>
+      )}
+      {autoTranslating && !loading && (
+        <div className="fixed top-4 right-4 z-40 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-background/95 backdrop-blur border border-violet-500/30 shadow-md text-xs text-violet-700 dark:text-violet-400 print:hidden">
+          <Loader2 className="size-3.5 animate-spin text-violet-500" />
+          Traduzione analisi nella lingua attiva…
         </div>
       )}
 
