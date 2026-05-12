@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * GET /api/_debug/webhook-env
+ * GET /api/debug/webhook-env
  *
  * Diagnostico per verificare presenza delle env vars necessarie al
  * flow webhook Google scan. Auth-required (cookie Supabase) cosi non

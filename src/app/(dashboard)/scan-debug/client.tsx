@@ -56,7 +56,7 @@ export function DebugScanClient() {
     let rawText = "";
     try {
       const res = await fetch(
-        `/api/_debug/last-google-scan?brand=${encodeURIComponent(query.trim())}`,
+        `/api/debug/last-google-scan?brand=${encodeURIComponent(query.trim())}`,
         { cache: "no-store" },
       );
       // Prima leggo testo poi parso JSON manualmente cosi gli errori

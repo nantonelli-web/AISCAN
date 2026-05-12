@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getApifyCredentials } from "@/lib/billing/credentials";
 
 /**
- * GET /api/_debug/last-google-scan?brand=<nome>
+ * GET /api/debug/last-google-scan?brand=<nome>
  *
  * Diagnostico per capire perche' un brand risulta con 0 ads dopo
  * uno scan Google. Cerca i brand del workspace per nome (LIKE),
