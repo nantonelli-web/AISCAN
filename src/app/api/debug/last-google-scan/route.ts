@@ -89,6 +89,15 @@ export async function GET(req: Request) {
         rawItemCount: number | null;
         sampleAdvertiserIds: string[] | null;
         runStatus: string | null;
+        /** actId del run secondo Apify (al lancio del run). Lo
+         *  confrontiamo con webhookRegistration.resolvedActorId per
+         *  diagnosticare il mismatch che blocca i dispatches. */
+        runActId: string | null;
+        /** Stats del webhook persistente (numero dispatches totali,
+         *  ultimo dispatch, ecc.) — segnala se Apify lo sta
+         *  invocando affatto, indipendentemente dal run specifico. */
+        webhookStats?: Record<string, unknown> | null;
+        webhookCondition?: Record<string, unknown> | null;
         error?: string;
         // Sempre presente (anche array vuoto) cosi' la UI mostra la
         // sezione con "0 tentativi" invece di nasconderla del tutto.
@@ -99,11 +108,24 @@ export async function GET(req: Request) {
           attempts: number | null;
           finishedAt: string | null;
         }>;
+        /** Tutti i dispatches recenti del webhook persistente,
+         *  NON filtrati per runId — utili per capire se Apify
+         *  invoca il webhook per altri run e il filtro qui sopra
+         *  manca solo questo specifico per via di un campo runId
+         *  non standard. Limit 10. */
+        webhookDispatchesRaw?: Array<{
+          id: string | null;
+          status: string | null;
+          responseStatus: number | null;
+          finishedAt: string | null;
+          actorRunId: string | null;
+        }>;
         webhookDispatchesError?: string;
       } = {
         rawItemCount: null,
         sampleAdvertiserIds: null,
         runStatus: null,
+        runActId: null,
         webhookDispatches: [],
       };
 
@@ -115,9 +137,14 @@ export async function GET(req: Request) {
           );
           if (runRes.ok) {
             const body = (await runRes.json()) as {
-              data?: { status?: string; defaultDatasetId?: string };
+              data?: {
+                status?: string;
+                defaultDatasetId?: string;
+                actId?: string;
+              };
             };
             apifyDataset.runStatus = body.data?.status ?? null;
+            apifyDataset.runActId = body.data?.actId ?? null;
             const datasetId =
               body.data?.defaultDatasetId ?? job.dataset_id ?? null;
             if (datasetId) {
@@ -168,6 +195,61 @@ export async function GET(req: Request) {
               (job.scan_options as { webhookRegistration?: { webhookId?: string } } | null | undefined)
                 ?.webhookRegistration?.webhookId ?? null;
             if (webhookId) {
+              // 1) Stats + condition del webhook: serve per capire se
+              //    Apify lo invoca affatto (lastDispatch, totalDispatches)
+              //    e con quale condition.actorId — il mismatch con
+              //    runActId e' la causa root piu' probabile dei 0
+              //    dispatches.
+              try {
+                const wRes = await fetch(
+                  `https://api.apify.com/v2/webhooks/${webhookId}`,
+                  { headers: { authorization: `Bearer ${creds.token}` } },
+                );
+                if (wRes.ok) {
+                  const wBody = (await wRes.json()) as {
+                    data?: {
+                      stats?: Record<string, unknown>;
+                      condition?: Record<string, unknown>;
+                    };
+                  };
+                  apifyDataset.webhookStats = wBody.data?.stats ?? null;
+                  apifyDataset.webhookCondition = wBody.data?.condition ?? null;
+                }
+              } catch {
+                /* non-critical, ignoriamo */
+              }
+              // 2) Tutti i dispatches recenti del webhook (no filter)
+              //    per capire se Apify lo invoca per ALTRI run.
+              try {
+                const allRes = await fetch(
+                  `https://api.apify.com/v2/webhooks/${webhookId}/dispatches?limit=10&desc=true`,
+                  { headers: { authorization: `Bearer ${creds.token}` } },
+                );
+                if (allRes.ok) {
+                  const allBody = (await allRes.json()) as {
+                    data?: {
+                      items?: Array<{
+                        id?: string;
+                        status?: string;
+                        responseStatus?: number;
+                        finishedAt?: string;
+                        actorRunId?: string;
+                      }>;
+                    };
+                  };
+                  apifyDataset.webhookDispatchesRaw = (allBody.data?.items ?? []).map(
+                    (d) => ({
+                      id: d.id ?? null,
+                      status: d.status ?? null,
+                      responseStatus: d.responseStatus ?? null,
+                      finishedAt: d.finishedAt ?? null,
+                      actorRunId: d.actorRunId ?? null,
+                    }),
+                  );
+                }
+              } catch {
+                /* non-critical, ignoriamo */
+              }
               const dispRes = await fetch(
                 `https://api.apify.com/v2/webhooks/${webhookId}/dispatches?limit=50&desc=true`,
                 { headers: { authorization: `Bearer ${creds.token}` } },

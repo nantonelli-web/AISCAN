@@ -32,6 +32,9 @@ interface ApifyInfo {
   rawItemCount: number | null;
   sampleAdvertiserIds: string[] | null;
   runStatus: string | null;
+  runActId: string | null;
+  webhookStats?: Record<string, unknown> | null;
+  webhookCondition?: Record<string, unknown> | null;
   error?: string;
   webhookDispatches: Array<{
     status: string | null;
@@ -39,6 +42,13 @@ interface ApifyInfo {
     responseStatus: number | null;
     attempts: number | null;
     finishedAt: string | null;
+  }>;
+  webhookDispatchesRaw?: Array<{
+    id: string | null;
+    status: string | null;
+    responseStatus: number | null;
+    finishedAt: string | null;
+    actorRunId: string | null;
   }>;
   webhookDispatchesError?: string;
 }
@@ -308,6 +318,23 @@ export function DebugScanClient() {
                           </span>
                         </p>
                       )}
+                      {m.apify.runActId && wr.resolvedActorId && (
+                        <p
+                          className={`text-[11px] mt-0.5 font-mono ${
+                            m.apify.runActId === wr.resolvedActorId
+                              ? "text-emerald-700 dark:text-emerald-400"
+                              : "text-red-700 dark:text-red-400"
+                          }`}
+                        >
+                          run.actId ={" "}
+                          <span className="text-foreground">
+                            {m.apify.runActId}
+                          </span>{" "}
+                          {m.apify.runActId === wr.resolvedActorId
+                            ? "✓ match"
+                            : "✗ MISMATCH (Apify non chiama il webhook)"}
+                        </p>
+                      )}
                       {wr.error && (
                         <p className="text-[11.5px] text-red-700 dark:text-red-400 mt-1">
                           ⚠️ {wr.error}
@@ -317,6 +344,66 @@ export function DebugScanClient() {
                   </div>
                 );
               })()}
+
+              {/* Stats globali del webhook persistente — segnala se
+                  Apify lo sta invocando per qualunque run, anche per
+                  altri brand. Se totalDispatches > 0 ma per questo
+                  run e' 0, il problema e' di matching; se totalDispatches
+                  e' 0 anche dopo run multipli, il webhook e' rotto. */}
+              {m.apify.webhookStats && (
+                <div className="space-y-1.5">
+                  <p className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold">
+                    Statistiche webhook persistente
+                  </p>
+                  <div className="rounded-md border border-border bg-background p-3 text-[11.5px] font-mono break-all">
+                    {JSON.stringify(m.apify.webhookStats)}
+                  </div>
+                  {m.apify.webhookCondition && (
+                    <div className="rounded-md border border-border bg-background p-3 text-[11.5px] font-mono break-all">
+                      condition: {JSON.stringify(m.apify.webhookCondition)}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Raw dispatches: ultimi 10 del webhook persistente,
+                  NON filtrati per runId — utili per capire se Apify
+                  invoca il webhook per altri run mentre manca solo
+                  questo specifico per via di un campo runId fuori
+                  posto nel payload. */}
+              {m.apify.webhookDispatchesRaw &&
+                m.apify.webhookDispatchesRaw.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold">
+                      Ultimi {m.apify.webhookDispatchesRaw.length} dispatches del webhook (no filter)
+                    </p>
+                    <div className="space-y-1">
+                      {m.apify.webhookDispatchesRaw.map((d) => {
+                        const isThisRun =
+                          d.actorRunId === m.job?.apify_run_id;
+                        return (
+                          <div
+                            key={d.id ?? Math.random()}
+                            className={`rounded-md border px-3 py-1.5 text-[11.5px] font-mono break-all ${
+                              isThisRun
+                                ? "border-emerald-500/40 bg-emerald-500/5"
+                                : "border-border bg-background"
+                            }`}
+                          >
+                            {d.status} · HTTP{" "}
+                            {d.responseStatus ?? "—"} · run{" "}
+                            {d.actorRunId ?? "—"}{" "}
+                            {isThisRun && (
+                              <span className="text-emerald-700 dark:text-emerald-400">
+                                ← QUESTO RUN
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
               {/* Webhook dispatches: capisce se Apify ha provato a
                   chiamare il nostro endpoint e con che esito. La
