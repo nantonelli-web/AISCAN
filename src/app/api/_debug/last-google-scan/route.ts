@@ -85,7 +85,7 @@ export async function GET(req: Request) {
         .limit(1);
       const job = jobs?.[0];
 
-      let apifyDataset: {
+      const apifyDataset: {
         rawItemCount: number | null;
         sampleAdvertiserIds: string[] | null;
         runStatus: string | null;
