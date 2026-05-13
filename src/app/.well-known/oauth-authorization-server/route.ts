@@ -16,12 +16,20 @@ import { NextResponse } from "next/server";
  */
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  // L'issuer DEVE essere l'origin esatto. I client validano che il
-  // discovery sia servito dallo stesso origin a cui poi richiedono
-  // /authorize e /token. Si legge da NEXT_PUBLIC_APP_URL (gia' usata
-  // dal sistema webhook Apify), trim del trailing slash.
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
+export async function GET(req: Request) {
+  // Issuer DEVE essere l'origin esatto da cui il client raggiunge il
+  // discovery — i client OAuth validano che authorization_endpoint e
+  // token_endpoint siano sullo stesso origin del discovery. Su
+  // Vercel apex (aiscan.biz) redirige al www (www.aiscan.biz) e i
+  // client HTTP scartano Authorization su redirect cross-host, quindi
+  // il Bearer non arrivava. Soluzione: leggi l'host dalla request
+  // (post-redirect) cosi pubblichiamo sempre l'URL canonico finale.
+  const url = new URL(req.url);
+  const xfwHost = req.headers.get("x-forwarded-host");
+  const xfwProto = req.headers.get("x-forwarded-proto");
+  const host = xfwHost ?? url.host;
+  const proto = xfwProto ?? url.protocol.replace(":", "");
+  const appUrl = `${proto}://${host}`;
 
   const metadata = {
     issuer: appUrl,

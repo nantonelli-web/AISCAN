@@ -23,13 +23,16 @@ import {
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
-function wwwAuthenticateHeader(): string {
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
-  // RFC 9728 OAuth Protected Resource Metadata: indichiamo lendpoint
-  // protected-resource cosi' i client MCP (spec 2025-06-18) sanno
-  // che il resource e' protetto e dove sta il discovery
-  // dellauthorization server. Manteniamo anche as_uri come fallback
-  // per client su MCP spec 2025-03-26.
+function wwwAuthenticateHeader(req: Request): string {
+  // Origin canonico finale: leggiamo dalla request (post-redirect)
+  // cosi' i client raggiungono i discovery URL senza redirect (e
+  // mantengono il Bearer header).
+  const url = new URL(req.url);
+  const xfwHost = req.headers.get("x-forwarded-host");
+  const xfwProto = req.headers.get("x-forwarded-proto");
+  const host = xfwHost ?? url.host;
+  const proto = xfwProto ?? url.protocol.replace(":", "");
+  const appUrl = `${proto}://${host}`;
   return [
     `Bearer realm="AISCAN MCP"`,
     `resource_metadata="${appUrl}/.well-known/oauth-protected-resource"`,
@@ -37,12 +40,15 @@ function wwwAuthenticateHeader(): string {
   ].join(", ");
 }
 
-function unauthorized(message = "Missing or invalid access token"): NextResponse {
+function unauthorized(
+  req: Request,
+  message = "Missing or invalid access token",
+): NextResponse {
   return NextResponse.json(
     { error: "unauthorized", error_description: message },
     {
       status: 401,
-      headers: { "WWW-Authenticate": wwwAuthenticateHeader() },
+      headers: { "WWW-Authenticate": wwwAuthenticateHeader(req) },
     },
   );
 }
@@ -69,7 +75,7 @@ export async function POST(req: Request) {
     `[mcp] POST host=${host} xfw_host=${xfwHost} proto=${proto} headers=[${headerNames.join(",")}]`,
   );
   const ctx = await verifyAccessToken(req.headers.get("authorization"));
-  if (!ctx) return unauthorized();
+  if (!ctx) return unauthorized(req);
 
   const raw = await req.text();
   let parsed: unknown;

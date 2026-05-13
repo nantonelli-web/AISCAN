@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { getSessionUser } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -74,10 +75,20 @@ export default async function McpSettingsPage() {
     created_at: t.created_at,
   }));
 
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://aiscan.biz").replace(
-    /\/$/,
-    "",
-  );
+  // URL canonico finale (host dopo eventuale redirect www<->apex)
+  // letto dalla request headers, cosi' lo snippet copia-incolla che
+  // diamo all'utente NON passa per un redirect che scarterebbe il
+  // Bearer del Claude client.
+  const h = await headers();
+  const xfwHost = h.get("x-forwarded-host");
+  const host =
+    xfwHost ??
+    (process.env.NEXT_PUBLIC_APP_URL ?? "https://aiscan.biz").replace(
+      /^https?:\/\//,
+      "",
+    );
+  const proto = h.get("x-forwarded-proto") ?? "https";
+  const appUrl = `${proto}://${host.replace(/\/$/, "")}`;
   const mcpUrl = `${appUrl}/api/mcp`;
   const discoveryUrl = `${appUrl}/.well-known/oauth-authorization-server`;
 
