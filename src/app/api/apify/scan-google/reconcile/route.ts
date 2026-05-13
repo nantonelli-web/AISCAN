@@ -9,6 +9,7 @@ import {
 } from "@/lib/apify/google-ads-service";
 import { refundCredits } from "@/lib/credits/consume";
 import { getApifyCredentials } from "@/lib/billing/credentials";
+import { applySubBrandAttribution } from "@/lib/apify/sub-brand-attribution";
 
 /**
  * POST /api/apify/scan-google/reconcile { job_id? }
@@ -315,6 +316,28 @@ export async function POST(req: Request) {
           .upsert(rows, { onConflict: "workspace_id,ad_archive_id,source" });
         if (upErr) {
           throw new Error(`Upsert failed: ${upErr.message}`);
+        }
+        // Sub-brand attribution: ri-assegna le ads che matchano i
+        // pattern di eventuali sub-brand (es. Persona dentro Marina
+        // Rinaldi). Best-effort: errori loggati ma non rompono lo
+        // scan principale.
+        try {
+          const moved = await applySubBrandAttribution(admin, {
+            workspaceId: job.workspace_id,
+            parentBrandId: job.competitor_id,
+            source: "google",
+          });
+          if (moved.some((m) => m.moved > 0)) {
+            console.log(
+              `[reconcile] sub-brand split for parent=${job.competitor_id}:`,
+              moved.filter((m) => m.moved > 0),
+            );
+          }
+        } catch (e) {
+          console.error(
+            "[reconcile] sub-brand attribution failed:",
+            e instanceof Error ? e.message : e,
+          );
         }
       }
 

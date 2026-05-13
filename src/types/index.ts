@@ -70,6 +70,14 @@ export interface MaitCompetitor {
   profile_picture_url: string | null;
   monitor_config: Record<string, unknown>;
   last_scraped_at: string | null;
+  /** Sub-brand attribution: quando questo brand non ha dominio
+   *  proprio (es. Persona vive sotto marinarinaldi.com), punta al
+   *  brand parent da cui claim-are le ads dopo lo scan. */
+  parent_brand_id: string | null;
+  /** Regex POSIX (case-insensitive) applicati a landing_url delle ads
+   *  del parent_brand_id. Le ads matched vengono ri-assegnate qui
+   *  dopo lo scan. Esempio Persona: ['/persona([/?-]|$)']. */
+  attribution_url_patterns: string[] | null;
   created_at: string;
 }
 
