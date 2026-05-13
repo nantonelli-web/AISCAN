@@ -5,6 +5,7 @@ import {
   computeAdDurationDays,
   normalizeCtaLabel as sharedNormalizeCta,
 } from "@/lib/analytics/ad-shared";
+import { classifyGoogleStrategy } from "@/lib/analytics/google-strategy";
 
 export type InferredAudience =
   | "prospecting"
@@ -168,6 +169,19 @@ export interface BenchmarkData {
    *  hanno accumulato abbastanza impressioni — i brand con ads
    *  recenti o a basso volume mancano dal chart. */
   surfaceMixMissingCompetitors: string[];
+  /** silva-only — Tipologia campagna Google inferita per brand
+   *  (Performance Max / Demand Gen / Search / YouTube / ...). Vedi
+   *  classifyGoogleStrategy. Ogni entry ha confidence high (basata
+   *  su surfaceServingStats) o low (fallback su format quando Google
+   *  non pubblica le surface). Empty on Meta. */
+  googleStrategyByCompetitor: {
+    competitor: string;
+    data: {
+      strategy: string;
+      confidence: "high" | "low";
+      count: number;
+    }[];
+  }[];
   /** Ad refresh rate: avg new ads per week per competitor over
    *  `refreshRateWindowDays`. The window matches the user-selected
    *  dateFrom/dateTo so refresh rate is comparable to the rest of the
@@ -883,10 +897,31 @@ export async function computeBenchmarks(
   const surfaceByComp = new Map<string, Map<string, number>>();
   const servedDaysByComp = new Map<string, number[]>();
   const regionsByComp = new Map<string, Set<string>>();
+  // Tipologia campagna Google inferita (PMax / Demand Gen / Search /
+  // YouTube / ...) — vedi `lib/analytics/google-strategy.ts`. Mappa
+  // competitor_id → strategyKey ("pmax-high", "search_likely-low", ...)
+  // → count. Strategia formato "strategy-confidence" cosi' il chart
+  // separa visivamente i bucket high/low.
+  const strategyByComp = new Map<string, Map<string, number>>();
   for (const ad of ads) {
     const key = ad.competitor_id ?? "unknown";
     const raw = ad.raw_data;
     if (!raw) continue;
+
+    // Classificazione campagna Google. Su Meta classifyGoogleStrategy
+    // ritorna 'unknown' perche' i format Meta non matchano TEXT/VIDEO/
+    // IMAGE puri, quindi entra solo Google data.
+    const format = (raw as Record<string, unknown>).format;
+    const cls = classifyGoogleStrategy(
+      raw,
+      typeof format === "string" ? format : null,
+    );
+    if (cls.strategy !== "unknown") {
+      const sMap = strategyByComp.get(key) ?? new Map<string, number>();
+      const k = `${cls.strategy}-${cls.confidence}`;
+      sMap.set(k, (sMap.get(k) ?? 0) + 1);
+      strategyByComp.set(key, sMap);
+    }
 
     // surfaceServingStats[].surfaceCode (SEARCH / YOUTUBE / SHOPPING /
     // MAPS). Only published by Google for ads above an internal
@@ -936,6 +971,26 @@ export async function computeBenchmarks(
         .sort((a, b) => b[1] - a[1])
         .map(([name, count]) => ({ name, count })),
     }))
+    .sort(
+      (a, b) =>
+        b.data.reduce((s, d) => s + d.count, 0) -
+        a.data.reduce((s, d) => s + d.count, 0),
+    );
+
+  // Tipologia campagna Google inferita per brand.
+  const googleStrategyByCompetitor = [...strategyByComp.entries()]
+    .map(([id, m]) => ({
+      competitor: compMap.get(id) ?? "N/A",
+      data: [...m.entries()]
+        .map(([k, count]) => {
+          const sep = k.lastIndexOf("-");
+          const strategy = k.slice(0, sep);
+          const confidence = k.slice(sep + 1) as "high" | "low";
+          return { strategy, confidence, count };
+        })
+        .sort((a, b) => b.count - a.count),
+    }))
+    .filter((e) => e.data.length > 0)
     .sort(
       (a, b) =>
         b.data.reduce((s, d) => s + d.count, 0) -
@@ -1180,6 +1235,7 @@ export async function computeBenchmarks(
     regionFootprintByCompetitor,
     surfaceMixByCompetitor,
     surfaceMixMissingCompetitors,
+    googleStrategyByCompetitor,
     refreshRate,
     refreshRateWindowDays: windowDays,
     refreshRateDebug,

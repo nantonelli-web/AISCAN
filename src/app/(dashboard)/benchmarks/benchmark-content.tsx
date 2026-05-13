@@ -27,6 +27,31 @@ import {
 } from "@/components/dashboard/benchmark-charts";
 import { CollapsibleAlert } from "./collapsible-alert";
 import { getLocale, serverT } from "@/lib/i18n/server";
+import { STRATEGY_LABELS, type GoogleCampaignStrategy } from "@/lib/analytics/google-strategy";
+
+/** Colore stabile per ogni Google campaign strategy. */
+function strategyColor(strategy: string): string {
+  const map: Record<string, string> = {
+    pmax: "#d4a843",
+    demand_gen: "#5b7ea3",
+    search: "#0e3590",
+    youtube: "#cc0000",
+    shopping: "#6b8e6b",
+    display: "#8a6bb0",
+    maps: "#d97757",
+    play: "#3aaf57",
+    multi_other: "#888",
+    search_likely: "#0e3590",
+    youtube_likely: "#cc0000",
+    display_likely: "#8a6bb0",
+    unknown: "#aaa",
+  };
+  return map[strategy] ?? "#888";
+}
+
+function strategyLabel(strategy: string): string {
+  return STRATEGY_LABELS[strategy as GoogleCampaignStrategy] ?? strategy;
+}
 
 /**
  * Inline section title for chart cards. Pairs an icon with a real h3
@@ -470,6 +495,78 @@ export async function BenchmarkContent({
                 </div>
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {channel === "google" && data.googleStrategyByCompetitor.length > 0 && (
+        <Card className="border-amber-500/30 bg-amber-500/[0.02]">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {t("benchmarks", "googleStrategyTitle")}
+              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 font-semibold">
+                BETA
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              {t("benchmarks", "descGoogleStrategy")}
+            </p>
+            <div className={`grid gap-4 ${data.googleStrategyByCompetitor.length <= 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
+              {data.googleStrategyByCompetitor.map((entry) => {
+                const total = entry.data.reduce((s, d) => s + d.count, 0);
+                return (
+                  <div key={entry.competitor} className="space-y-2">
+                    <p className="text-xs font-medium text-gold text-center">
+                      {entry.competitor}
+                    </p>
+                    <div className="space-y-1">
+                      {entry.data.map((d, i) => {
+                        const pct = total > 0 ? (d.count / total) * 100 : 0;
+                        const isLow = d.confidence === "low";
+                        return (
+                          <div
+                            key={`${d.strategy}-${i}`}
+                            className="flex items-center gap-2"
+                          >
+                            <div
+                              className="h-3 rounded-sm"
+                              style={{
+                                width: `${Math.max(pct, 2)}%`,
+                                minWidth: "6px",
+                                backgroundColor: strategyColor(d.strategy),
+                                opacity: isLow ? 0.5 : 1,
+                              }}
+                            />
+                            <span className="text-[11px] font-mono whitespace-nowrap">
+                              <span
+                                className={
+                                  isLow
+                                    ? "text-muted-foreground"
+                                    : "text-foreground"
+                                }
+                              >
+                                {strategyLabel(d.strategy)}
+                              </span>
+                              {isLow && (
+                                <span className="text-[9px] text-muted-foreground ml-1">
+                                  (probabile)
+                                </span>
+                              )}
+                              <span className="text-muted-foreground">
+                                {" "}
+                                · {d.count} ({pct.toFixed(0)}%)
+                              </span>
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
       )}

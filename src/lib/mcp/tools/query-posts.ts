@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { classifyGoogleStrategy } from "@/lib/analytics/google-strategy";
 import type { McpTool } from "../types";
 
 /**
@@ -110,7 +111,7 @@ export const queryPostsTool: McpTool = {
       let q = admin
         .from("mait_ads_external")
         .select(
-          "id, ad_archive_id, headline, ad_text, cta, platforms, status, start_date, end_date, landing_url, image_url, video_url",
+          "id, ad_archive_id, headline, ad_text, cta, platforms, status, start_date, end_date, landing_url, image_url, video_url, raw_data",
         )
         .eq("workspace_id", ctx.workspaceId)
         .eq("competitor_id", brandId)
@@ -133,12 +134,39 @@ export const queryPostsTool: McpTool = {
           content: [{ type: "text", text: `Errore DB: ${error.message}` }],
           isError: true,
         };
+      // Enrich Google ads with campaign strategy (PMax/Demand Gen/...)
+      // computed live dal raw_data. Su Meta saltiamo (classifyGoogleStrategy
+      // ritornerebbe unknown su format non TEXT/VIDEO/IMAGE).
+      let items: unknown[] = data ?? [];
+      if (channel === "google_ads") {
+        items = (data ?? []).map((ad) => {
+          const r = ad as { raw_data?: unknown };
+          const raw = r.raw_data ?? null;
+          const format = raw && typeof raw === "object"
+            ? (raw as Record<string, unknown>).format
+            : null;
+          const cls = classifyGoogleStrategy(
+            raw,
+            typeof format === "string" ? format : null,
+          );
+          // Strippo raw_data dal return (pesante, non utile a Claude)
+          // e aggiungo solo strategy + confidence + surfaces.
+          const { raw_data: _drop, ...rest } = ad as Record<string, unknown>;
+          void _drop;
+          return {
+            ...rest,
+            strategy: cls.strategy,
+            strategy_confidence: cls.confidence,
+            surfaces: cls.surfaces,
+          };
+        });
+      }
       return {
         content: [
           {
             type: "text",
             text: JSON.stringify(
-              { channel, count: (data ?? []).length, items: data ?? [] },
+              { channel, count: items.length, items },
               null,
               2,
             ),
