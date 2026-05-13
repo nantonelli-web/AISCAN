@@ -143,7 +143,7 @@ async function authenticateClient(
     return client;
   }
   // confidential: accetta anche client_secret in body (client_secret_post)
-  // come fallback se Claude.ai non manda HTTP Basic.
+  // come fallback se il client non manda HTTP Basic.
   const presentedSecret = body.client_secret;
   if (presentedSecret) {
     const ok = await verifyClientSecret(client, presentedSecret);
@@ -155,10 +155,24 @@ async function authenticateClient(
       };
     return client;
   }
+  // PKCE-only fallback per i client che si sono registrati come
+  // client_secret_basic ma poi non presentano il secret e usano
+  // solo PKCE (es. Claude.ai). In OAuth 2.1 PKCE e' proof-of-
+  // possession sufficiente: se code_verifier matchera' il challenge
+  // a /authorize, il client e' di fatto autenticato. Lo accettiamo
+  // qui senza secret, e la verifica PKCE successiva (in
+  // handleAuthorizationCode) chiudera' il cerchio. Vale solo per
+  // grant=authorization_code.
+  if (body.grant_type === "authorization_code" && body.code_verifier) {
+    console.log(
+      `[oauth/token] PKCE-only auth accepted for confidential client ${clientId} (no secret presented)`,
+    );
+    return client;
+  }
   return {
     error: "invalid_client",
     status: 401,
-    reason: `client ${clientId} requires ${client.token_endpoint_auth_method} but no Basic / no client_secret in body`,
+    reason: `client ${clientId} requires ${client.token_endpoint_auth_method} but no Basic, no client_secret in body, no PKCE`,
   };
 }
 
