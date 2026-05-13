@@ -68,7 +68,11 @@ export async function POST(
     parentBrandId: b.parent_brand_id,
     source: "google",
   });
-  const thisSub = moved.find((m) => m.subBrand !== null);
+  // Filtra per ID del brand corrente — i siblings (altri sub-brand
+  // dello stesso parent) sono in `moved[]` ma non ci interessano nel
+  // toast. Bug originale: moved.find(m => m.subBrand !== null) prendeva
+  // sempre il primo sub-brand del parent, non THIS brand.
+  const thisSub = moved.find((m) => m.subBrandId === id);
   return NextResponse.json({
     ok: true,
     moved_for_this_brand: thisSub?.moved ?? 0,

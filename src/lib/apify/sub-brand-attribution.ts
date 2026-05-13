@@ -25,7 +25,7 @@ export async function applySubBrandAttribution(
     parentBrandId: string;
     source?: "google" | "meta";
   },
-): Promise<{ subBrand: string; moved: number }[]> {
+): Promise<{ subBrandId: string; subBrand: string; moved: number }[]> {
   const source = args.source ?? "google";
 
   // Carica tutti i sub-brand del parent
@@ -52,7 +52,7 @@ export async function applySubBrandAttribution(
   );
   if (subs.length === 0) return [];
 
-  const results: { subBrand: string; moved: number }[] = [];
+  const results: { subBrandId: string; subBrand: string; moved: number }[] = [];
   for (const sub of subs) {
     const patterns = sub.attribution_url_patterns ?? [];
     if (patterns.length === 0) continue;
@@ -82,6 +82,7 @@ export async function applySubBrandAttribution(
       );
     }
     results.push({
+      subBrandId: sub.id,
       subBrand: sub.page_name ?? sub.id,
       moved,
     });
