@@ -34,6 +34,10 @@ type Strategy =
   | "maps"
   | "play"
   | "multi_other"
+  // Format-based fallback (low confidence) per ads senza surface stats
+  | "search_likely"
+  | "youtube_likely"
+  | "display_likely"
   | "unknown";
 
 function extractSurfaces(rawData: unknown): string[] {
@@ -55,7 +59,16 @@ function extractSurfaces(rawData: unknown): string[] {
 }
 
 function classify(surfaces: string[], format: string): Strategy {
-  if (surfaces.length === 0) return "unknown";
+  // No surface stats: fallback al format (low confidence). Google
+  // non pubblica surfaceServingStats per ads sotto soglia
+  // impressioni, quindi ~60-70% delle ads finiscono qui.
+  if (surfaces.length === 0) {
+    const f = format.toUpperCase();
+    if (f === "TEXT") return "search_likely";
+    if (f === "VIDEO") return "youtube_likely";
+    if (f === "IMAGE") return "display_likely";
+    return "unknown";
+  }
   if (surfaces.length === 1) {
     switch (surfaces[0]) {
       case "SEARCH":
@@ -74,19 +87,30 @@ function classify(surfaces: string[], format: string): Strategy {
         return "multi_other";
     }
   }
-  // >=2 surfaces
-  if (surfaces.includes("SHOPPING")) return "pmax";
-  if (surfaces.includes("SEARCH") && format.toUpperCase() !== "TEXT") {
+  // >=2 surfaces — gerarchia di rule:
+  //   1. Contiene SEARCH o SHOPPING -> PMAX
+  //      (Sono le DUE superfici "exclusive" che SOLO PMax o single-channel
+  //      possono usare. Demand Gen NON distribuisce ne' su Search ne' su
+  //      Shopping. Quindi se vedo una creativa cross-surface che include
+  //      una delle due, e' PMax. Include i casi MAPS+SEARCH+... che prima
+  //      finivano in multi_other.)
+  //   2. Altrimenti, contiene YOUTUBE + DISPLAY (o uno dei due) -> DEMAND_GEN
+  //      (Demand Gen distribuisce su YouTube + Discover + Gmail + Display.
+  //      Niente Search/Shopping, di solito niente Maps.)
+  //   3. Altri pattern -> multi_other (raro)
+  if (surfaces.includes("SEARCH") || surfaces.includes("SHOPPING")) {
     return "pmax";
   }
-  // Multi-surface ma non Shopping ne Search-with-asset = Demand Gen
-  // (YouTube + Display + Gmail tipico)
   if (
-    surfaces.some((s) => ["YOUTUBE", "DISPLAY"].includes(s)) &&
-    !surfaces.includes("MAPS")
+    surfaces.some((s) => ["YOUTUBE", "DISPLAY"].includes(s))
   ) {
+    // Nota: il `format` non aiuta a distinguere (Demand Gen serve sia
+    // Video che Image). La regola si appoggia solo sulle surfaces.
     return "demand_gen";
   }
+  // Marker `format` non usato: lo lasciamo come parametro per compat
+  // futura (es. se aggiungiamo rule format-based).
+  void format;
   return "multi_other";
 }
 
@@ -149,6 +173,9 @@ export async function GET(req: Request) {
     maps: 0,
     play: 0,
     multi_other: 0,
+    search_likely: 0,
+    youtube_likely: 0,
+    display_likely: 0,
     unknown: 0,
   };
   const samplesByStrategy: Record<
@@ -170,6 +197,9 @@ export async function GET(req: Request) {
     maps: [],
     play: [],
     multi_other: [],
+    search_likely: [],
+    youtube_likely: [],
+    display_likely: [],
     unknown: [],
   };
   // Pattern frequencies (per surface set) — utile per spotting unexpected combos
@@ -227,22 +257,18 @@ export async function GET(req: Request) {
     top_surface_patterns: topPatterns,
     samples: samplesByStrategy,
     heuristic_rules: {
-      "1 surface = SEARCH":
-        "→ search (Text Ads classico)",
-      "1 surface = YOUTUBE":
-        "→ youtube (Video Ads / Skippable / Bumper)",
-      "1 surface = SHOPPING":
-        "→ shopping (Shopping standalone)",
-      "1 surface = DISPLAY / MAPS / PLAY":
-        "→ display / maps / play",
-      ">=2 surfaces che includono SHOPPING":
-        "→ PMAX (Shopping cross-surface = PMax)",
-      ">=2 surfaces con SEARCH ma format != TEXT":
-        "→ PMAX (Search non distribuisce Image/Video se non via PMax)",
-      ">=2 surfaces YouTube+Display senza Shopping/Search":
+      "0 surfaces, format=TEXT": "→ search_likely (low confidence)",
+      "0 surfaces, format=VIDEO": "→ youtube_likely (low confidence)",
+      "0 surfaces, format=IMAGE": "→ display_likely (low confidence)",
+      "1 surface = SEARCH": "→ search (Text Ads)",
+      "1 surface = YOUTUBE": "→ youtube (Video Ads / Skippable / Bumper)",
+      "1 surface = SHOPPING": "→ shopping (Shopping standalone)",
+      "1 surface = DISPLAY / MAPS / PLAY": "→ display / maps / play",
+      ">=2 surfaces che includono SEARCH o SHOPPING":
+        "→ PMAX (Demand Gen NON distribuisce su Search/Shopping, quindi se ci sono e' PMax. Include i pattern MAPS+SEARCH+...)",
+      ">=2 surfaces con YouTube/Display ma NO Search/Shopping":
         "→ DEMAND_GEN",
-      "0 surfaces (no surfaceServingStats)":
-        "→ UNKNOWN (Google non pubblica surface per impression < soglia)",
+      altri: "→ multi_other (raro, pattern non previsto)",
     },
   });
 }
