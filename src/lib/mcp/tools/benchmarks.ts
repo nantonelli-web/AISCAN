@@ -13,7 +13,7 @@ export const getBenchmarksTool: McpTool = {
   definition: {
     name: "get_benchmarks",
     description:
-      "Aggregato statistico cross-brand (paid ads) per il workspace: volume, format mix, top CTA, durata campagne, refresh rate, paesi target. Stessi dati della pagina Benchmarks. Filtri opzionali per canale, brand specifici, range date, paesi, status.",
+      "Aggregato statistico cross-brand per il canale PAID (Meta Ads Library / Google Ads Transparency). Volume, format mix, top CTA, durata campagne, refresh rate, paesi target. Stessi dati della pagina Benchmarks > Paid. Filtri opzionali per canale (meta/google), brand specifici, range date, paesi, status. Per il canale ORGANIC usa get_organic_benchmarks (Instagram) o get_tiktok_benchmarks.",
     inputSchema: {
       type: "object",
       properties: {

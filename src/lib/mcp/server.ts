@@ -20,20 +20,37 @@ import {
   getPerfDashboardTool,
   getPerfAnalysisTool,
 } from "./tools/perf";
+import {
+  listOrganicPostsTool,
+  listTiktokPostsTool,
+  getYoutubeChannelTool,
+  listYoutubeVideosTool,
+  getOrganicBenchmarksTool,
+  getTiktokBenchmarksTool,
+} from "./tools/organic";
 
 /**
  * Registry dei tool MCP esposti da AISCAN. V1 = solo read.
  * Tutti i tool richiedono lo scope 'read'.
  */
 export const TOOLS: McpTool[] = [
+  // Brand + paid
   listBrandsTool,
   getBrandDetailTool,
   searchBrandTool,
   listAdsTool,
   getBenchmarksTool,
+  // Adv Performance (Meta + Snapchat import file utente)
   listPerfImportsTool,
   getPerfDashboardTool,
   getPerfAnalysisTool,
+  // Organic (Instagram/Facebook + TikTok + YouTube)
+  listOrganicPostsTool,
+  listTiktokPostsTool,
+  getYoutubeChannelTool,
+  listYoutubeVideosTool,
+  getOrganicBenchmarksTool,
+  getTiktokBenchmarksTool,
 ];
 
 const TOOLS_BY_NAME = new Map(TOOLS.map((t) => [t.definition.name, t]));
