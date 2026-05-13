@@ -8,49 +8,41 @@ import {
   MCP_PROTOCOL_VERSION,
 } from "./types";
 
-import {
-  listBrandsTool,
-  getBrandDetailTool,
-  searchBrandTool,
-} from "./tools/brands";
-import { listAdsTool } from "./tools/ads";
+import { listBrandsTool, searchBrandTool } from "./tools/brands";
+import { getBrandOverviewTool } from "./tools/brand-overview";
+import { queryPostsTool } from "./tools/query-posts";
 import { getBenchmarksTool } from "./tools/benchmarks";
 import {
   listPerfImportsTool,
   getPerfDashboardTool,
   getPerfAnalysisTool,
 } from "./tools/perf";
-import {
-  listOrganicPostsTool,
-  listTiktokPostsTool,
-  getYoutubeChannelTool,
-  listYoutubeVideosTool,
-  getOrganicBenchmarksTool,
-  getTiktokBenchmarksTool,
-} from "./tools/organic";
 
 /**
  * Registry dei tool MCP esposti da AISCAN. V1 = solo read.
  * Tutti i tool richiedono lo scope 'read'.
+ *
+ * Design: niente un-tool-per-canale (sarebbe una caccia al tesoro che
+ * Claude perderebbe ogni volta che aggiungiamo un canale). Invece:
+ *   - get_brand_overview ritorna i metadata di disponibilita' su TUTTI
+ *     i canali (solo conteggi + date, no payload pesanti)
+ *   - query_posts e get_benchmarks richiedono `channel` come parametro
+ *     obbligatorio cosi' Claude DEVE chiedere all'utente di
+ *     contestualizzare prima di chiamarli
+ *   - aggiungere un canale nuovo = estendere l'enum + lo switch case
+ *     dentro i due tool. Claude lo scopre automaticamente dal
+ *     description aggiornato.
  */
 export const TOOLS: McpTool[] = [
-  // Brand + paid
   listBrandsTool,
-  getBrandDetailTool,
   searchBrandTool,
-  listAdsTool,
+  getBrandOverviewTool,
+  queryPostsTool,
   getBenchmarksTool,
-  // Adv Performance (Meta + Snapchat import file utente)
+  // Adv Performance (import file utente — flusso separato)
   listPerfImportsTool,
   getPerfDashboardTool,
   getPerfAnalysisTool,
-  // Organic (Instagram/Facebook + TikTok + YouTube)
-  listOrganicPostsTool,
-  listTiktokPostsTool,
-  getYoutubeChannelTool,
-  listYoutubeVideosTool,
-  getOrganicBenchmarksTool,
-  getTiktokBenchmarksTool,
 ];
 
 const TOOLS_BY_NAME = new Map(TOOLS.map((t) => [t.definition.name, t]));

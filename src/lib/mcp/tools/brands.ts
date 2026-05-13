@@ -80,67 +80,6 @@ export const listBrandsTool: McpTool = {
   },
 };
 
-export const getBrandDetailTool: McpTool = {
-  definition: {
-    name: "get_brand_detail",
-    description:
-      "Dettaglio di un brand specifico per id. Include la configurazione di monitoring per canale (Meta page_id, Google advertiser_id, TikTok handle, ecc.) e il count di ads salvate in DB.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        brand_id: {
-          type: "string",
-          format: "uuid",
-          description: "UUID del brand. Ottenibile da list_brands / search_brand.",
-        },
-      },
-      required: ["brand_id"],
-      additionalProperties: false,
-    },
-  },
-  handler: async (args, ctx) => {
-    const brandId = String(args.brand_id ?? "").trim();
-    if (!brandId) {
-      return {
-        content: [{ type: "text", text: "brand_id obbligatorio" }],
-        isError: true,
-      };
-    }
-    const admin = createAdminClient();
-    const { data: brand } = await admin
-      .from("mait_competitors")
-      .select(
-        "id, page_name, page_url, category, country, page_id, last_scraped_at, monitor_config",
-      )
-      .eq("id", brandId)
-      .eq("workspace_id", ctx.workspaceId)
-      .maybeSingle();
-    if (!brand) {
-      return {
-        content: [{ type: "text", text: "Brand non trovato nel workspace." }],
-        isError: true,
-      };
-    }
-    const b = brand as BrandRow;
-    const { count: adsCount } = await admin
-      .from("mait_ads_external")
-      .select("id", { count: "exact", head: true })
-      .eq("competitor_id", brandId)
-      .eq("workspace_id", ctx.workspaceId);
-    const monitor =
-      b.monitor_config && typeof b.monitor_config === "object"
-        ? JSON.stringify(b.monitor_config, null, 2)
-        : "(nessuna)";
-    const text = [
-      summarizeBrand(b),
-      `Ads in DB: ${adsCount ?? 0}`,
-      "",
-      "Monitor config:",
-      monitor,
-    ].join("\n");
-    return { content: [{ type: "text", text }] };
-  },
-};
 
 export const searchBrandTool: McpTool = {
   definition: {

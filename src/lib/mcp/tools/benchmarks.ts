@@ -1,114 +1,176 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { computeBenchmarks } from "@/lib/analytics/benchmarks";
+import {
+  computeBenchmarks,
+  computeOrganicBenchmarks,
+  computeTiktokBenchmarks,
+} from "@/lib/analytics/benchmarks";
 import type { McpTool } from "../types";
 
 /**
- * Espone l'aggregato Benchmarks (lo stesso che alimenta la pagina
- * /benchmarks) come tool MCP. Il client AI lo usa per ottenere
- * statistiche cross-brand: format mix, top CTA, durata media,
- * refresh rate, paesi target, ecc.
+ * get_benchmarks — aggregati cross-brand. Channel obbligatorio:
+ *   - paid_meta:           computeBenchmarks(source=meta)
+ *   - paid_google:         computeBenchmarks(source=google)
+ *   - organic_instagram:   computeOrganicBenchmarks (solo IG, fb non
+ *                           ancora aggregato lato benchmark)
+ *   - organic_tiktok:      computeTiktokBenchmarks
+ *
+ * Quando aggiungiamo un canale (es. snapchat organic), basta
+ * estenderne lenum + uno switch.
  */
+
+type ChannelKey =
+  | "paid_meta"
+  | "paid_google"
+  | "organic_instagram"
+  | "organic_tiktok";
+
+const ALL_CHANNELS: ChannelKey[] = [
+  "paid_meta",
+  "paid_google",
+  "organic_instagram",
+  "organic_tiktok",
+];
 
 export const getBenchmarksTool: McpTool = {
   definition: {
     name: "get_benchmarks",
     description:
-      "Aggregato statistico cross-brand per il canale PAID (Meta Ads Library / Google Ads Transparency). Volume, format mix, top CTA, durata campagne, refresh rate, paesi target. Stessi dati della pagina Benchmarks > Paid. Filtri opzionali per canale (meta/google), brand specifici, range date, paesi, status. Per il canale ORGANIC usa get_organic_benchmarks (Instagram) o get_tiktok_benchmarks.",
+      "Aggregato statistico cross-brand per UN canale. Channel obbligatorio: se l'utente fa una domanda generica sul workspace, CHIEDIGLI prima quale canale gli interessa fra paid_meta (Meta Ads Library), paid_google (Google Ads Transparency), organic_instagram, organic_tiktok. Ritorna volume per brand, format mix, top elementi (CTA per paid / hashtag per organic), durata, refresh rate, paesi, ecc. Stessi dati della pagina /benchmarks.",
     inputSchema: {
       type: "object",
       properties: {
         channel: {
           type: "string",
-          enum: ["meta", "google"],
-          description: "Canale ads. Default tutti.",
+          enum: ALL_CHANNELS,
+          description:
+            "Obbligatorio. paid_meta/paid_google = ads. organic_instagram/organic_tiktok = post organic.",
         },
         brand_ids: {
           type: "array",
           items: { type: "string", format: "uuid" },
-          description: "UUID dei brand da includere. Default tutti del workspace.",
+          description:
+            "Subset di brand. Default: tutti i brand del workspace.",
         },
         date_from: {
           type: "string",
-          description: "ISO date YYYY-MM-DD inizio finestra.",
+          description: "ISO date YYYY-MM-DD.",
         },
-        date_to: {
-          type: "string",
-          description: "ISO date YYYY-MM-DD fine finestra.",
-        },
+        date_to: { type: "string" },
         countries: {
           type: "array",
           items: { type: "string" },
           description:
-            "Codici ISO alpha-2 (es. ['IT','FR']). Filtra ads per scan_countries.",
+            "Solo paid_meta/paid_google. ISO alpha-2 codes (es. ['IT','FR']).",
         },
         status: {
           type: "string",
           enum: ["active", "inactive"],
-          description: "Filtra solo ads attive o solo non attive.",
+          description: "Solo paid_meta/paid_google.",
         },
       },
+      required: ["channel"],
       additionalProperties: false,
     },
   },
   handler: async (args, ctx) => {
+    const channel = args.channel as ChannelKey;
+    if (!ALL_CHANNELS.includes(channel)) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `channel obbligatorio. Valori validi: ${ALL_CHANNELS.join(", ")}`,
+          },
+        ],
+        isError: true,
+      };
+    }
     const admin = createAdminClient();
-    const source =
-      args.channel === "meta" || args.channel === "google"
-        ? (args.channel as "meta" | "google")
-        : undefined;
     const brandIds = Array.isArray(args.brand_ids)
       ? (args.brand_ids as string[]).filter(Boolean)
       : undefined;
     const dateFrom = typeof args.date_from === "string" ? args.date_from : undefined;
     const dateTo = typeof args.date_to === "string" ? args.date_to : undefined;
-    const countries = Array.isArray(args.countries)
-      ? (args.countries as string[]).filter(Boolean)
-      : undefined;
-    const status =
-      args.status === "active" || args.status === "inactive"
-        ? (args.status as "active" | "inactive")
+
+    if (channel === "paid_meta" || channel === "paid_google") {
+      const source = channel === "paid_meta" ? "meta" : "google";
+      const countries = Array.isArray(args.countries)
+        ? (args.countries as string[]).filter(Boolean)
         : undefined;
+      const status =
+        args.status === "active" || args.status === "inactive"
+          ? (args.status as "active" | "inactive")
+          : undefined;
+      const data = await computeBenchmarks(
+        admin,
+        ctx.workspaceId,
+        source,
+        brandIds,
+        dateFrom,
+        dateTo,
+        countries,
+        status,
+      );
+      const summary = {
+        channel,
+        totals: data.totals,
+        volumeByBrand: data.volumeByCompetitor,
+        formatMix: data.formatMix,
+        topCtas: data.topCtas,
+        topTargetedCountries: data.topTargetedCountries,
+        avgDurationByBrand: data.avgDurationByCompetitor,
+        refreshRate: data.refreshRate,
+        platformDistribution: data.platformDistribution,
+        avgVariantsByBrand: data.avgVariantsByCompetitor,
+        // Google-only fields (vuoti su meta)
+        avgServedDaysByBrand: data.avgServedDaysByCompetitor,
+        regionFootprintByBrand: data.regionFootprintByCompetitor,
+        surfaceMixByBrand: data.surfaceMixByCompetitor,
+      };
+      return {
+        content: [{ type: "text", text: JSON.stringify(summary, null, 2) }],
+      };
+    }
 
-    const data = await computeBenchmarks(
-      admin,
-      ctx.workspaceId,
-      source,
-      brandIds,
-      dateFrom,
-      dateTo,
-      countries,
-      status,
-    );
+    if (channel === "organic_instagram") {
+      const data = await computeOrganicBenchmarks(
+        admin,
+        ctx.workspaceId,
+        brandIds,
+        dateFrom,
+        dateTo,
+      );
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ channel, ...data }, null, 2),
+          },
+        ],
+      };
+    }
 
-    // Restituiamo il payload come JSON dentro un blocco text — i client
-    // MCP gestiscono volentieri JSON dentro text/plain (Claude e Cursor
-    // lo parsano automaticamente nei contesti analitici).
-    const summary = {
-      totals: data.totals,
-      volumeByBrand: data.volumeByCompetitor,
-      formatMix: data.formatMix,
-      topCtas: data.topCtas,
-      topTargetedCountries: data.topTargetedCountries,
-      avgDurationByBrand: data.avgDurationByCompetitor,
-      avgCopyLengthByBrand: data.avgCopyLengthByCompetitor,
-      refreshRate: data.refreshRate,
-      refreshRateWindowDays: data.refreshRateWindowDays,
-      platformDistribution: data.platformDistribution,
-      avgVariantsByBrand: data.avgVariantsByCompetitor,
-      // Google-specific (vuoti su Meta)
-      avgServedDaysByBrand: data.avgServedDaysByCompetitor,
-      regionFootprintByBrand: data.regionFootprintByCompetitor,
-      surfaceMixByBrand: data.surfaceMixByCompetitor,
-      ctaMissingBrands: data.ctaMissingCompetitors,
-      surfaceMixMissingBrands: data.surfaceMixMissingCompetitors,
-    };
+    if (channel === "organic_tiktok") {
+      const data = await computeTiktokBenchmarks(
+        admin,
+        ctx.workspaceId,
+        brandIds,
+        dateFrom,
+        dateTo,
+      );
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ channel, ...data }, null, 2),
+          },
+        ],
+      };
+    }
+
     return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(summary, null, 2),
-        },
-      ],
+      content: [{ type: "text", text: `Channel '${channel}' non supportato` }],
+      isError: true,
     };
   },
 };
