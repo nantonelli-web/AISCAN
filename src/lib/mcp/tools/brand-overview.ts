@@ -76,7 +76,7 @@ export const getBrandOverviewTool: McpTool = {
     const { data: brand } = await admin
       .from("mait_competitors")
       .select(
-        "id, page_name, page_url, category, country, last_scraped_at, monitor_config",
+        "id, page_name, page_url, category, country, last_scraped_at, monitor_config, client_id, client:mait_clients(id, name, color)",
       )
       .eq("id", brandId)
       .eq("workspace_id", ctx.workspaceId)
@@ -87,6 +87,18 @@ export const getBrandOverviewTool: McpTool = {
         isError: true,
       };
     }
+    type BrandWithClient = {
+      id: string;
+      page_name: string | null;
+      page_url: string | null;
+      category: string | null;
+      country: string | null;
+      last_scraped_at: string | null;
+      monitor_config: Record<string, unknown> | null;
+      client_id: string | null;
+      client?: { id: string; name: string | null; color: string | null } | null;
+    };
+    const b = (brand as unknown) as BrandWithClient;
 
     // Paid Meta + Google: count via mait_ads_external split per source
     const metaAds = await admin
@@ -183,13 +195,16 @@ export const getBrandOverviewTool: McpTool = {
 
     const overview = {
       brand: {
-        id: brand.id,
-        name: brand.page_name,
-        url: brand.page_url,
-        category: brand.category,
-        countries: brand.country,
-        last_scraped_at: brand.last_scraped_at,
-        monitor_config: brand.monitor_config,
+        id: b.id,
+        name: b.page_name,
+        url: b.page_url,
+        category: b.category,
+        countries: b.country,
+        last_scraped_at: b.last_scraped_at,
+        monitor_config: b.monitor_config,
+        project: b.client
+          ? { id: b.client.id, name: b.client.name }
+          : null,
       },
       channels: {
         paid_ads: {

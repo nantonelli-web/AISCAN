@@ -9,6 +9,7 @@ import {
 } from "./types";
 
 import { listBrandsTool, searchBrandTool } from "./tools/brands";
+import { listProjectsTool } from "./tools/projects";
 import { getBrandOverviewTool } from "./tools/brand-overview";
 import { queryPostsTool } from "./tools/query-posts";
 import { getBenchmarksTool } from "./tools/benchmarks";
@@ -34,6 +35,7 @@ import {
  *     description aggiornato.
  */
 export const TOOLS: McpTool[] = [
+  listProjectsTool,
   listBrandsTool,
   searchBrandTool,
   getBrandOverviewTool,
