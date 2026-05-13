@@ -38,6 +38,13 @@ const patchSchema = z.object({
   youtube_channel_url: z.string().max(200).nullable().optional(),
   google_advertiser_id: z.string().max(80).nullable().optional(),
   google_domain: z.string().max(200).nullable().optional(),
+  // Sub-brand attribution: brand parent + regex su landing_url.
+  parent_brand_id: z.string().uuid().nullable().optional(),
+  attribution_url_patterns: z
+    .array(z.string().min(1).max(200))
+    .max(20)
+    .nullable()
+    .optional(),
 });
 
 export async function PATCH(
@@ -61,6 +68,7 @@ export async function PATCH(
     frequency, max_items, page_name, page_url, country, category,
     client_id, instagram_username, tiktok_username, tiktok_advertiser_id,
     snapchat_handle, youtube_channel_url, google_advertiser_id, google_domain,
+    parent_brand_id, attribution_url_patterns,
   } = parsed.data;
 
   // Separate monitor_config fields from direct fields
@@ -105,6 +113,38 @@ export async function PATCH(
     directUpdate.google_domain = google_domain
       ? cleanAdvertiserDomain(google_domain)
       : null;
+  }
+  if (parent_brand_id !== undefined) {
+    // Niente self-reference (un brand non puo' essere parent di se stesso)
+    if (parent_brand_id === id) {
+      return NextResponse.json(
+        { error: "parent_brand_id non puo' essere uguale al brand stesso" },
+        { status: 400 },
+      );
+    }
+    directUpdate.parent_brand_id = parent_brand_id;
+  }
+  if (attribution_url_patterns !== undefined) {
+    // Validazione regex: se uno e' invalido, rifiuta tutto il batch
+    // cosi' lutente vede subito l'errore.
+    if (attribution_url_patterns) {
+      for (const p of attribution_url_patterns) {
+        try {
+          new RegExp(p, "i");
+        } catch {
+          return NextResponse.json(
+            {
+              error: `Pattern URL non valido: "${p}". Deve essere una regex POSIX/JS valida.`,
+            },
+            { status: 400 },
+          );
+        }
+      }
+    }
+    directUpdate.attribution_url_patterns =
+      attribution_url_patterns && attribution_url_patterns.length > 0
+        ? attribution_url_patterns
+        : null;
   }
 
   // Handle monitor_config merge if frequency or max_items changed

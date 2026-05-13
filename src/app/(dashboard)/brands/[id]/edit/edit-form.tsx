@@ -84,6 +84,18 @@ export function EditCompetitorForm({
   const [clientId, setClientId] = useState(competitor.client_id ?? "");
   const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
   const [newClientName, setNewClientName] = useState("");
+  // Sub-brand attribution
+  const [parentBrandId, setParentBrandId] = useState(
+    (competitor as { parent_brand_id?: string | null }).parent_brand_id ?? "",
+  );
+  const [attributionPatternsRaw, setAttributionPatternsRaw] = useState(
+    ((competitor as { attribution_url_patterns?: string[] | null })
+      .attribution_url_patterns ?? []).join("\n"),
+  );
+  const [brandsForParent, setBrandsForParent] = useState<
+    { id: string; name: string }[]
+  >([]);
+  const [applyingAttribution, setApplyingAttribution] = useState(false);
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -249,7 +261,22 @@ export function EditCompetitorForm({
       .then((r) => r.json())
       .then((d) => { if (Array.isArray(d)) setClients(d); })
       .catch(() => {});
-  }, []);
+    // Carica i brand del workspace (escluso il brand corrente) per
+    // popolare il dropdown "Brand parent" della sezione Sub-brand
+    // attribution.
+    fetch("/api/competitors")
+      .then((r) => r.json())
+      .then((d) => {
+        const arr =
+          Array.isArray(d) ? d : Array.isArray(d?.competitors) ? d.competitors : [];
+        const mapped = (arr as { id: string; page_name: string | null }[])
+          .filter((b) => b.id !== competitor.id)
+          .map((b) => ({ id: b.id, name: b.page_name ?? "(senza nome)" }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        setBrandsForParent(mapped);
+      })
+      .catch(() => {});
+  }, [competitor.id]);
   const [countrySearch, setCountrySearch] = useState("");
   const { t, locale } = useT();
   const countries = useMemo(() => getCountries(locale), [locale]);
@@ -276,6 +303,11 @@ export function EditCompetitorForm({
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+    // Parsing pattern URL: una regex per riga, trim, skip righe vuote.
+    const parsedPatterns = attributionPatternsRaw
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
     const res = await fetch(`/api/competitors/${competitor.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -292,6 +324,8 @@ export function EditCompetitorForm({
         youtube_channel_url: youtubeChannelUrl.trim() || null,
         google_advertiser_id: googleAdvertiserId.trim() || null,
         google_domain: googleDomain.trim() || null,
+        parent_brand_id: parentBrandId || null,
+        attribution_url_patterns: parsedPatterns.length > 0 ? parsedPatterns : null,
       }),
     });
     setLoading(false);
@@ -531,6 +565,129 @@ export function EditCompetitorForm({
                   />
                 </div>
               </div>
+            </div>
+
+            {/* Sub-brand attribution: per brand senza dominio proprio
+                (es. Persona dentro marinarinaldi.com). Lo splitter
+                automatico ri-assegna le ads del parent al sub-brand
+                al prossimo scan. */}
+            <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
+              <div>
+                <Label className="flex items-center gap-2">
+                  Sub-brand attribution
+                  <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 font-semibold">
+                    OPZIONALE
+                  </span>
+                </Label>
+                <p className="text-[12px] text-muted-foreground mt-1 leading-relaxed">
+                  {"Usa questa sezione se il brand non ha un dominio proprio e le sue ads finiscono nel pool di un brand parent (es. Persona dentro Marina Rinaldi). Le ads che matchano i pattern URL qui sotto verranno automaticamente ri-assegnate a questo brand dopo ogni scan Google del parent."}
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="parentBrandId" className="text-xs">
+                  Brand parent
+                </Label>
+                <select
+                  id="parentBrandId"
+                  value={parentBrandId}
+                  onChange={(e) => setParentBrandId(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-border bg-muted px-3 py-1 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                >
+                  <option value="" className="bg-card">
+                    — nessuno (brand standalone)
+                  </option>
+                  {brandsForParent.map((b) => (
+                    <option key={b.id} value={b.id} className="bg-card">
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="attributionPatterns" className="text-xs">
+                  Pattern URL (una regex per riga)
+                </Label>
+                <textarea
+                  id="attributionPatterns"
+                  value={attributionPatternsRaw}
+                  onChange={(e) => setAttributionPatternsRaw(e.target.value)}
+                  rows={3}
+                  className="flex w-full rounded-md border border-border bg-muted px-3 py-2 text-sm font-mono text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                  placeholder={"/persona([/?-]|$)\n/sale/persona"}
+                />
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  {"Regex POSIX case-insensitive applicate a landing_url delle ads del brand parent. Esempio per Persona: "}
+                  <code className="text-[10px] bg-background px-1 py-0.5 rounded">
+                    /persona([/?-]|$)
+                  </code>
+                  {" matcha "}
+                  <code className="text-[10px] bg-background px-1 py-0.5 rounded">
+                    marinarinaldi.com/persona/nuovi-arrivi
+                  </code>
+                  {" + "}
+                  <code className="text-[10px] bg-background px-1 py-0.5 rounded">
+                    /sale/persona
+                  </code>
+                  .
+                </p>
+              </div>
+              {parentBrandId && attributionPatternsRaw.trim().length > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={applyingAttribution}
+                  onClick={async () => {
+                    setApplyingAttribution(true);
+                    try {
+                      // Prima salva le rule (PATCH brand)
+                      const patchRes = await fetch(
+                        `/api/competitors/${competitor.id}`,
+                        {
+                          method: "PATCH",
+                          headers: { "content-type": "application/json" },
+                          body: JSON.stringify({
+                            parent_brand_id: parentBrandId,
+                            attribution_url_patterns: attributionPatternsRaw
+                              .split("\n")
+                              .map((s) => s.trim())
+                              .filter(Boolean),
+                          }),
+                        },
+                      );
+                      if (!patchRes.ok) {
+                        const j = await patchRes.json().catch(() => ({}));
+                        toast.error(j.error ?? "Salvataggio rule fallito");
+                        return;
+                      }
+                      // Poi applica
+                      const res = await fetch(
+                        `/api/competitors/${competitor.id}/apply-attribution`,
+                        { method: "POST" },
+                      );
+                      const body = await res.json().catch(() => ({}));
+                      if (!res.ok) {
+                        toast.error(body.error ?? "Applicazione fallita");
+                        return;
+                      }
+                      const moved = body.moved_for_this_brand ?? 0;
+                      toast.success(
+                        moved > 0
+                          ? `${moved} ads ri-assegnate a questo brand`
+                          : "Nessuna ad matcha i pattern (verifica regex e dati del parent)",
+                      );
+                      router.refresh();
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : "Errore");
+                    } finally {
+                      setApplyingAttribution(false);
+                    }
+                  }}
+                  className="gap-1.5"
+                >
+                  {applyingAttribution ? "Applicazione…" : "Salva e riassegna ora"}
+                </Button>
+              )}
             </div>
 
             {/* Category field hidden 2026-05-04 — same reasoning
