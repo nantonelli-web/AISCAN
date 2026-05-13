@@ -169,6 +169,17 @@ async function authenticateClient(
     );
     return client;
   }
+  // Refresh-token grant: il refresh_token stesso e' proof-of-
+  // possession. Se il client lo presenta (e poi handleRefreshToken
+  // verifichera' che esista e non sia revocato) e' di fatto
+  // autenticato. Accettiamo senza secret per coerenza con il
+  // downgrade PKCE-only applicato all'authorization_code.
+  if (body.grant_type === "refresh_token" && body.refresh_token) {
+    console.log(
+      `[oauth/token] refresh_token auth accepted for confidential client ${clientId} (no secret presented)`,
+    );
+    return client;
+  }
   return {
     error: "invalid_client",
     status: 401,
