@@ -53,6 +53,15 @@ function parseError(): NextResponse {
 }
 
 export async function POST(req: Request) {
+  // Log dettagliato dei header per debug. Non logghiamo i VALORI dei
+  // header sensibili (authorization), solo la lista presente.
+  const headerNames = Array.from(req.headers.keys());
+  const host = req.headers.get("host");
+  const xfwHost = req.headers.get("x-forwarded-host");
+  const proto = req.headers.get("x-forwarded-proto");
+  console.log(
+    `[mcp] POST host=${host} xfw_host=${xfwHost} proto=${proto} headers=[${headerNames.join(",")}]`,
+  );
   const ctx = await verifyAccessToken(req.headers.get("authorization"));
   if (!ctx) return unauthorized();
 
