@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSessionUser } from "@/lib/auth/session";
+import { createClient } from "@/lib/supabase/server";
 import { getClientById } from "@/lib/oauth/clients";
 import { ConsentForm } from "./consent-form";
 
@@ -43,17 +43,45 @@ export default async function ConsentPage({
     );
   }
 
-  // Sessione obbligatoria. Se non loggato, salva i query nel next= e
-  // redirigi a /login.
-  try {
-    await getSessionUser();
-  } catch {
-    const next = encodeURIComponent(
-      `/oauth/consent?${new URLSearchParams(sp as Record<string, string>)}`,
-    );
-    redirect(`/login?next=${next}`);
+  // Sessione obbligatoria. Se non loggato, redirect a /login con
+  // ?redirect= che la LoginForm rispetta dopo l'autenticazione.
+  // NB: il LoginForm usa il parametro `redirect`, NON `next` (e
+  // non puo' usare getSessionUser() qui perche' questo redirige
+  // sempre a /login senza preservare i parametri OAuth).
+  const supabase = await createClient();
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+  if (!authUser) {
+    const target = `/oauth/consent?${new URLSearchParams(
+      sp as Record<string, string>,
+    )}`;
+    redirect(`/login?redirect=${encodeURIComponent(target)}`);
   }
-  const { profile, workspaceName } = await getSessionUser();
+  const { data: profileRow } = await supabase
+    .from("mait_users")
+    .select("*, workspace:mait_workspaces(name)")
+    .eq("id", authUser.id)
+    .single();
+  if (!profileRow) {
+    redirect("/login?error=no_profile");
+  }
+  const profile = profileRow as {
+    id: string;
+    email: string;
+    workspace_id: string | null;
+    workspace?: { name: string } | null;
+  };
+  const workspaceName = profile.workspace?.name ?? "—";
+  if (!profile.workspace_id) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <p className="text-sm text-red-600">
+          Il tuo account non ha un workspace. Contatta l&apos;amministratore.
+        </p>
+      </div>
+    );
+  }
 
   const client = await getClientById(sp.client_id);
   if (!client) {
