@@ -43,6 +43,9 @@ export async function GET(req: Request) {
   const codeChallenge = url.searchParams.get("code_challenge");
   const codeChallengeMethod =
     url.searchParams.get("code_challenge_method") ?? "S256";
+  console.log(
+    `[oauth/authorize] GET client_id=${clientId} redirect_uri=${redirectUri} scope=${scope} response_type=${responseType} pkce=${!!codeChallenge}`,
+  );
 
   // 1) Validazioni base
   if (!clientId || !redirectUri || !responseType) {

@@ -90,6 +90,9 @@ export async function POST(req: Request) {
       { status: 500 },
     );
   }
+  console.log(
+    `[oauth/register] new client=${clientId} name="${parsed.data.client_name ?? ""}" redirect=${parsed.data.redirect_uris.join("|")} auth_method=${authMethod} grants=${grantTypes.join(",")}`,
+  );
 
   // Response RFC 7591: client_secret presente solo per confidential.
   // L'utente non lo rivedra' MAI: dev'essere salvato subito dal client.

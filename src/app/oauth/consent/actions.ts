@@ -74,6 +74,9 @@ export async function approveConsent(args: {
     console.error("[oauth/consent] insert authorization failed:", error.message);
     throw new Error("Errore interno");
   }
+  console.log(
+    `[oauth/consent] approved: client=${args.clientId} user=${profile.id} redirect=${args.redirectUri} scopes=${grantedScopes.join(",")}`,
+  );
 
   const params = new URLSearchParams({
     code,

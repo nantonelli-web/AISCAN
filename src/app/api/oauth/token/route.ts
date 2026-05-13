@@ -40,10 +40,21 @@ function tokenError(
   error: string,
   description: string,
   status = 400,
+  debug?: Record<string, unknown>,
 ): NextResponse {
+  console.error(
+    `[oauth/token] ${error}: ${description}`,
+    debug ? JSON.stringify(debug) : "",
+  );
   return NextResponse.json(
     { error, error_description: description },
-    { status },
+    {
+      status,
+      headers: {
+        "cache-control": "no-store",
+        pragma: "no-cache",
+      },
+    },
   );
 }
 
@@ -121,7 +132,7 @@ async function issueTokensForGrant(
   const accessToken = generateToken();
   const refreshToken = generateToken();
   const admin = createAdminClient();
-  await admin.from("mait_oauth_tokens").insert({
+  const { error } = await admin.from("mait_oauth_tokens").insert({
     access_token_hash: hashToken(accessToken),
     refresh_token_hash: hashToken(refreshToken),
     client_id: client.client_id,
@@ -131,6 +142,13 @@ async function issueTokensForGrant(
     access_token_expires_at: expiresAt(TOKEN_TTL.accessTokenSecs),
     refresh_token_expires_at: expiresAt(TOKEN_TTL.refreshTokenSecs),
   });
+  if (error) {
+    console.error("[oauth/token] insert token failed:", error.message);
+    throw new Error(`Failed to persist token: ${error.message}`);
+  }
+  console.log(
+    `[oauth/token] issued tokens for client=${client.client_id} user=${userId} scopes=${scopes.join(",")}`,
+  );
   return {
     access_token: accessToken,
     token_type: "Bearer",
@@ -138,6 +156,16 @@ async function issueTokensForGrant(
     refresh_token: refreshToken,
     scope: scopes.join(" "),
   };
+}
+
+/** Wrap NextResponse.json + cache-control no-store come RFC 6749 §5.1. */
+function tokenSuccess(tokens: TokenResponse): NextResponse {
+  return NextResponse.json(tokens, {
+    headers: {
+      "cache-control": "no-store",
+      pragma: "no-cache",
+    },
+  });
 }
 
 // ─── Grant: authorization_code ─────────────────────────────────────
@@ -232,7 +260,7 @@ async function handleAuthorizationCode(
     auth.workspace_id,
     auth.scopes,
   );
-  return NextResponse.json(tokens);
+  return tokenSuccess(tokens);
 }
 
 // ─── Grant: refresh_token ─────────────────────────────────────────
@@ -291,27 +319,46 @@ async function handleRefreshToken(
     row.workspace_id,
     row.scopes,
   );
-  return NextResponse.json(tokens);
+  return tokenSuccess(tokens);
 }
 
 export async function POST(req: Request) {
   const body = await parseBody(req);
   const grant = body.grant_type;
+  // Log non-sensitive keys per debug. NON loggare valori dei
+  // token / verifier / secret.
+  console.log(
+    `[oauth/token] POST grant=${grant} keys=${Object.keys(body).join(",")} basic=${!!req.headers.get("authorization")}`,
+  );
   if (!grant) {
-    return tokenError("invalid_request", "Missing grant_type");
+    return tokenError("invalid_request", "Missing grant_type", 400, {
+      bodyKeys: Object.keys(body),
+    });
   }
 
   const auth = await authenticateClient(req, body);
   if ("error" in auth) {
+    console.error(
+      `[oauth/token] client auth failed: ${auth.error} (client_id=${body.client_id ?? "(from basic)"})`,
+    );
     return NextResponse.json(
       {
         error: auth.error,
         error_description: "Client authentication failed",
       },
-      { status: auth.status },
+      {
+        status: auth.status,
+        headers: {
+          "cache-control": "no-store",
+          pragma: "no-cache",
+        },
+      },
     );
   }
   const client = auth;
+  console.log(
+    `[oauth/token] client OK: ${client.client_id} (${client.client_name})`,
+  );
 
   if (grant === "authorization_code") {
     if (!client.grant_types.includes("authorization_code")) {
