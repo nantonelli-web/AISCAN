@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getSessionUser } from "@/lib/auth/session";
 import { applySubBrandAttribution } from "@/lib/apify/sub-brand-attribution";
 
 /**
@@ -29,11 +30,20 @@ export async function POST(
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const { profile } = await getSessionUser();
+  if (!profile.workspace_id) {
+    return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  }
   const admin = createAdminClient();
+  // Workspace scoping: senza eq(workspace_id, profile.workspace_id)
+  // un utente loggato poteva triggerare lo splitter su brand di altri
+  // workspace conoscendone lUUID. Adesso il brand DEVE essere del
+  // workspace del chiamante.
   const { data: brand } = await admin
     .from("mait_competitors")
     .select("id, workspace_id, parent_brand_id, attribution_url_patterns")
     .eq("id", id)
+    .eq("workspace_id", profile.workspace_id)
     .maybeSingle();
   type Brand = {
     id: string;

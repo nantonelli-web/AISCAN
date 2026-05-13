@@ -49,12 +49,13 @@ export async function approveConsent(args: {
     throw new Error("Nessuno scope autorizzato");
   }
 
-  // PKCE: salviamo il challenge per verificarlo a /token.
-  if (
-    client.token_endpoint_auth_method === "none" &&
-    (!args.codeChallenge || args.codeChallenge.length < 43)
-  ) {
-    throw new Error("PKCE obbligatorio per public client");
+  // PKCE: OBBLIGATORIO per tutti i client (OAuth 2.1). Se per
+  // qualche ragione arriviamo qui senza challenge, abort.
+  if (!args.codeChallenge || args.codeChallenge.length < 43) {
+    throw new Error("PKCE code_challenge required (OAuth 2.1)");
+  }
+  if (args.codeChallengeMethod !== "S256") {
+    throw new Error("code_challenge_method=S256 required");
   }
 
   const code = generateToken();

@@ -89,14 +89,25 @@ export async function GET(req: Request) {
     );
   }
 
-  // 3) PKCE: obbligatorio per i public client (auth_method='none').
-  if (
-    client.token_endpoint_auth_method === "none" &&
-    (!codeChallenge || codeChallenge.length < 43)
-  ) {
+  // 3) PKCE: OBBLIGATORIO per TUTTI i client (OAuth 2.1 spec §4.1.1
+  //    mandates PKCE on every authorization_code grant, anche
+  //    confidential. Senza enforcement qui, /token poteva accettare
+  //    un confidential client senza secret e senza PKCE, permettendo
+  //    code-interception attack.) Solo S256 accettato — plain e'
+  //    deprecato nello standard 2.1.
+  if (!codeChallenge || codeChallenge.length < 43) {
     const errorParams = new URLSearchParams({
       error: "invalid_request",
-      error_description: "PKCE code_challenge is required for public clients",
+      error_description: "PKCE code_challenge required (OAuth 2.1)",
+      ...(state ? { state } : {}),
+    });
+    return NextResponse.redirect(`${redirectUri}?${errorParams}`);
+  }
+  if (codeChallengeMethod !== "S256") {
+    const errorParams = new URLSearchParams({
+      error: "invalid_request",
+      error_description:
+        "code_challenge_method=S256 required (plain not accepted)",
       ...(state ? { state } : {}),
     });
     return NextResponse.redirect(`${redirectUri}?${errorParams}`);

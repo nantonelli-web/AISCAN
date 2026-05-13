@@ -115,27 +115,92 @@ export async function PATCH(
       : null;
   }
   if (parent_brand_id !== undefined) {
-    // Niente self-reference (un brand non puo' essere parent di se stesso)
-    if (parent_brand_id === id) {
-      return NextResponse.json(
-        { error: "parent_brand_id non puo' essere uguale al brand stesso" },
-        { status: 400 },
-      );
+    if (parent_brand_id !== null) {
+      // 1) Niente self-reference
+      if (parent_brand_id === id) {
+        return NextResponse.json(
+          { error: "parent_brand_id non puo' essere uguale al brand stesso" },
+          { status: 400 },
+        );
+      }
+      // 2) Parent DEVE essere nello stesso workspace + 3) niente
+      //    cycle (se il parent ha gia' parent_brand_id == id, sto
+      //    creando A->B B->A loop).
+      const adminCheck = createAdminClient();
+      const { data: currentRow } = await adminCheck
+        .from("mait_competitors")
+        .select("workspace_id")
+        .eq("id", id)
+        .maybeSingle();
+      const myWs = (currentRow as { workspace_id: string } | null)?.workspace_id;
+      if (!myWs) {
+        return NextResponse.json({ error: "Brand non trovato" }, { status: 404 });
+      }
+      const { data: parentRow } = await adminCheck
+        .from("mait_competitors")
+        .select("id, workspace_id, parent_brand_id")
+        .eq("id", parent_brand_id)
+        .maybeSingle();
+      type ParentRow = {
+        id: string;
+        workspace_id: string;
+        parent_brand_id: string | null;
+      };
+      const p = parentRow as ParentRow | null;
+      if (!p) {
+        return NextResponse.json(
+          { error: "parent_brand_id non trovato" },
+          { status: 400 },
+        );
+      }
+      if (p.workspace_id !== myWs) {
+        return NextResponse.json(
+          {
+            error:
+              "parent_brand_id deve appartenere allo stesso workspace di questo brand",
+          },
+          { status: 400 },
+        );
+      }
+      if (p.parent_brand_id === id) {
+        return NextResponse.json(
+          {
+            error:
+              "Cycle detected: il parent selezionato ha gia' questo brand come parent",
+          },
+          { status: 400 },
+        );
+      }
     }
     directUpdate.parent_brand_id = parent_brand_id;
   }
   if (attribution_url_patterns !== undefined) {
-    // Validazione regex: se uno e' invalido, rifiuta tutto il batch
-    // cosi' lutente vede subito l'errore.
     if (attribution_url_patterns) {
       for (const p of attribution_url_patterns) {
+        // 1) Lunghezza massima per evitare regex enormi
+        if (p.length > 200) {
+          return NextResponse.json(
+            { error: `Pattern troppo lungo (max 200 char): "${p.slice(0, 50)}…"` },
+            { status: 400 },
+          );
+        }
+        // 2) Bloccare costrutti ReDoS-prone tipici: nested
+        //    quantifiers ((a+)+ / (a*)* / (a|b)+) che possono far
+        //    impallare PostgreSQL ~* con input attacker-controllable
+        if (/(\([^)]*[+*][^)]*\)[+*])/.test(p)) {
+          return NextResponse.json(
+            {
+              error: `Pattern con quantifier annidati (ReDoS-prone) rifiutato: "${p}". Semplifica il pattern (es. evita ()*+ o ()++).`,
+            },
+            { status: 400 },
+          );
+        }
+        // 3) JS regex valida (sintatticamente)
         try {
           new RegExp(p, "i");
         } catch {
           return NextResponse.json(
-            {
-              error: `Pattern URL non valido: "${p}". Deve essere una regex POSIX/JS valida.`,
-            },
+            { error: `Pattern URL non valido: "${p}".` },
             { status: 400 },
           );
         }

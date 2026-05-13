@@ -41,9 +41,8 @@ export async function GET(req: Request) {
     // client_credentials, niente password grant (deprecato in 2.1).
     grant_types_supported: ["authorization_code", "refresh_token"],
     response_types_supported: ["code"],
-    // PKCE obbligatorio (no plain in produzione, ma supportato a
-    // livello tecnico per debug).
-    code_challenge_methods_supported: ["S256", "plain"],
+    // PKCE: solo S256. OAuth 2.1 deprecates `plain`.
+    code_challenge_methods_supported: ["S256"],
     // Public clients via PKCE + confidential via Basic.
     token_endpoint_auth_methods_supported: ["none", "client_secret_basic"],
     scopes_supported: ["read"],
