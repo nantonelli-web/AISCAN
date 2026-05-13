@@ -19,10 +19,28 @@ export interface VerifiedToken {
 export async function verifyAccessToken(
   authorization: string | null,
 ): Promise<VerifiedToken | null> {
-  if (!authorization?.toLowerCase().startsWith("bearer ")) return null;
+  if (!authorization) {
+    console.log("[mcp/auth] no authorization header");
+    return null;
+  }
+  if (!authorization.toLowerCase().startsWith("bearer ")) {
+    console.log(
+      `[mcp/auth] not Bearer scheme: starts with "${authorization.slice(0, 10)}…"`,
+    );
+    return null;
+  }
   const token = authorization.slice(7).trim();
-  if (!token) return null;
+  if (!token) {
+    console.log("[mcp/auth] empty token after Bearer prefix");
+    return null;
+  }
   const hash = hashToken(token);
+  // Non logghiamo il token in chiaro, ma il primo/ultimo 4 char +
+  // lunghezza aiuta a distinguere se Claude manda quello che gli
+  // abbiamo dato (43 char base64url) o qualcos'altro.
+  console.log(
+    `[mcp/auth] looking up token len=${token.length} prefix=${token.slice(0, 4)} suffix=${token.slice(-4)} hash_prefix=${hash.slice(0, 8)}`,
+  );
   const admin = createAdminClient();
   const { data } = await admin
     .from("mait_oauth_tokens")
@@ -41,9 +59,25 @@ export async function verifyAccessToken(
     revoked_at: string | null;
   };
   const row = data as Row | null;
-  if (!row) return null;
-  if (row.revoked_at) return null;
-  if (new Date(row.access_token_expires_at).getTime() < Date.now()) return null;
+  if (!row) {
+    console.log("[mcp/auth] no row matches access_token_hash");
+    return null;
+  }
+  if (row.revoked_at) {
+    console.log(
+      `[mcp/auth] token revoked at ${row.revoked_at} (client=${row.client_id})`,
+    );
+    return null;
+  }
+  if (new Date(row.access_token_expires_at).getTime() < Date.now()) {
+    console.log(
+      `[mcp/auth] token expired at ${row.access_token_expires_at}`,
+    );
+    return null;
+  }
+  console.log(
+    `[mcp/auth] token OK client=${row.client_id} user=${row.user_id} scopes=${row.scopes.join(",")}`,
+  );
 
   // Best-effort touch
   admin
