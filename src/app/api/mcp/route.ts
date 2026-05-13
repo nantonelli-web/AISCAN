@@ -25,10 +25,16 @@ export const dynamic = "force-dynamic";
 
 function wwwAuthenticateHeader(): string {
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
-  // RFC 6750 + draft-ietf-oauth-resource-metadata: indichiamo l'URL
-  // del discovery cosi' il client MCP sa dove andare a registrarsi
-  // / autorizzarsi senza dover essere preconfigurato.
-  return `Bearer realm="AISCAN MCP", as_uri="${appUrl}/.well-known/oauth-authorization-server"`;
+  // RFC 9728 OAuth Protected Resource Metadata: indichiamo lendpoint
+  // protected-resource cosi' i client MCP (spec 2025-06-18) sanno
+  // che il resource e' protetto e dove sta il discovery
+  // dellauthorization server. Manteniamo anche as_uri come fallback
+  // per client su MCP spec 2025-03-26.
+  return [
+    `Bearer realm="AISCAN MCP"`,
+    `resource_metadata="${appUrl}/.well-known/oauth-protected-resource"`,
+    `as_uri="${appUrl}/.well-known/oauth-authorization-server"`,
+  ].join(", ");
 }
 
 function unauthorized(message = "Missing or invalid access token"): NextResponse {
