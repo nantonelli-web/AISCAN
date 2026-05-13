@@ -34,6 +34,18 @@ export default async function EditCompetitorPage({
   if (!competitor) notFound();
   const c = competitor as MaitCompetitor;
 
+  // Brands del workspace (escluso il brand corrente) per popolare il
+  // dropdown "Brand parent" nella sezione Sub-brand attribution.
+  const { data: siblings } = await supabase
+    .from("mait_competitors")
+    .select("id, page_name")
+    .eq("workspace_id", c.workspace_id)
+    .neq("id", id)
+    .order("page_name", { ascending: true });
+  const otherBrands = (
+    (siblings as { id: string; page_name: string | null }[] | null) ?? []
+  ).map((b) => ({ id: b.id, name: b.page_name ?? "(senza nome)" }));
+
   // Lightweight counts for the delete confirmation dialog. Head + exact
   // count returns only the row count, not any data, so this is cheap.
   const [adsRes, postsRes, jobsRes, compRes] = await Promise.all([
@@ -96,7 +108,11 @@ export default async function EditCompetitorPage({
           <CardDescription>{t("editCompetitor", "detailsDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <EditCompetitorForm competitor={c} deleteCounts={deleteCounts} />
+          <EditCompetitorForm
+            competitor={c}
+            deleteCounts={deleteCounts}
+            otherBrands={otherBrands}
+          />
         </CardContent>
       </Card>
     </div>

@@ -49,6 +49,7 @@ function parseCountries(val: string | null): string[] {
 export function EditCompetitorForm({
   competitor,
   deleteCounts,
+  otherBrands,
 }: {
   competitor: MaitCompetitor;
   /** Pre-fetched on the server so the destructive-action dialog can
@@ -60,6 +61,9 @@ export function EditCompetitorForm({
     jobs: number;
     comparisons: number;
   };
+  /** Brand del workspace eccetto questo, server-rendered, per il
+   *  dropdown "Brand parent" della sezione Sub-brand attribution. */
+  otherBrands?: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const [pageName, setPageName] = useState(competitor.page_name);
@@ -92,9 +96,9 @@ export function EditCompetitorForm({
     ((competitor as { attribution_url_patterns?: string[] | null })
       .attribution_url_patterns ?? []).join("\n"),
   );
-  const [brandsForParent, setBrandsForParent] = useState<
-    { id: string; name: string }[]
-  >([]);
+  const [brandsForParent] = useState<{ id: string; name: string }[]>(
+    otherBrands ?? [],
+  );
   const [applyingAttribution, setApplyingAttribution] = useState(false);
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -261,22 +265,7 @@ export function EditCompetitorForm({
       .then((r) => r.json())
       .then((d) => { if (Array.isArray(d)) setClients(d); })
       .catch(() => {});
-    // Carica i brand del workspace (escluso il brand corrente) per
-    // popolare il dropdown "Brand parent" della sezione Sub-brand
-    // attribution.
-    fetch("/api/competitors")
-      .then((r) => r.json())
-      .then((d) => {
-        const arr =
-          Array.isArray(d) ? d : Array.isArray(d?.competitors) ? d.competitors : [];
-        const mapped = (arr as { id: string; page_name: string | null }[])
-          .filter((b) => b.id !== competitor.id)
-          .map((b) => ({ id: b.id, name: b.page_name ?? "(senza nome)" }))
-          .sort((a, b) => a.name.localeCompare(b.name));
-        setBrandsForParent(mapped);
-      })
-      .catch(() => {});
-  }, [competitor.id]);
+  }, []);
   const [countrySearch, setCountrySearch] = useState("");
   const { t, locale } = useT();
   const countries = useMemo(() => getCountries(locale), [locale]);
