@@ -495,13 +495,13 @@ export default async function BenchmarksPage({
             competitorIdsFilter={activeBrandIds}
             dateFrom={dateFrom}
             dateTo={dateTo}
-            // Per-ad country filter only makes sense for Meta — Google
-            // and Instagram do not carry a per-ad country signal, so
-            // applying the filter would exclude all their ads. Also skip
-            // the filter when every available country is selected (the
-            // "no narrowing" case).
+            // Per-ad country filter ora supportato sia su Meta che su
+            // Google (l'attore silva95gustavo popola scan_countries da
+            // regionStats[].regionCode). Skip Instagram organic — non
+            // ha scope per-country. Skip se l'utente ha tutto
+            // selezionato ("no narrowing").
             countries={
-              channel !== "meta" || ALL_COUNTRIES_SELECTED
+              channel === "instagram" || ALL_COUNTRIES_SELECTED
                 ? undefined
                 : activeCountryCodes
             }

@@ -376,14 +376,15 @@ export async function computeBenchmarks(
       // operator `ov`. Rows whose scan_countries is NULL are excluded
       // automatically (NULL never overlaps).
       //
-      // ⚠ Google ads have scan_countries = NULL by design (the Google
-      // Ads Transparency API is not country-scoped, see
-      // google-ads-service.ts normalize). Applying the overlap would
-      // drop 100% of them and the Benchmarks Volume / KPIs would
-      // collapse to 0 for any brand whose mix is mostly Google. Skip
-      // the predicate when source==="google" so the country chip
-      // becomes a no-op for that channel — Meta still honours it.
-      if (normalisedCountries && source !== "google") {
+      // Vale per ENTRAMBI i canali:
+      //   - Meta: silva95gustavo + facebook-ads-library-scraper popolano
+      //     scan_countries con i paesi che abbiamo passato come scope.
+      //   - Google: silva95gustavo google-ad-transparency-scraper popola
+      //     scan_countries da regionStats[].regionCode (cross-region
+      //     activity reportata da Google Transparency Center). Legacy
+      //     rows scrapate con il vecchio automation-lab actor hanno
+      //     scan_countries NULL e vengono escluse — vanno re-scansionate.
+      if (normalisedCountries) {
         q = q.overlaps("scan_countries", normalisedCountries);
       }
       // Status filter — applied at the database so the filter is honoured
@@ -452,9 +453,10 @@ export async function computeBenchmarks(
       if (competitorIds && competitorIds.length > 0) q = q.in("competitor_id", competitorIds);
       // Same ad-level country filter as the heavy query. Ads without a
       // known scan_countries (NULL) never overlap, so legacy data is
-      // excluded until the brand is re-scanned. Google ads always have
-      // NULL scan_countries — see the comment on fetchAllHeavyRows.
-      if (normalisedCountries && source !== "google") {
+      // excluded until the brand is re-scanned. Vale per Meta + Google
+      // (silva95gustavo google-ad-transparency-scraper popola
+      // scan_countries da regionStats).
+      if (normalisedCountries) {
         q = q.overlaps("scan_countries", normalisedCountries);
       }
       if (statusFilter === "active") q = q.eq("status", "ACTIVE");
