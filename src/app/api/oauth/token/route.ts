@@ -371,10 +371,19 @@ async function handleRefreshToken(
     return tokenError("invalid_grant", "Refresh token expired");
   }
 
-  // Rotate: revoca il vecchio token e emette uno nuovo.
+  // Rotation parziale: invalidiamo il vecchio refresh_token (per
+  // anti-replay) ma NON revochiamo l'intera riga, altrimenti il
+  // vecchio access_token associato alla stessa riga diventa
+  // inutilizzabile mentre il client lo sta ancora usando (race
+  // tra refresh chiamato in background e chiamate API in corso).
+  // Schema attuale ha una sola colonna revoked_at per riga, quindi
+  // facciamo refresh_token_hash = NULL come marcatura: il client
+  // non potra' piu' refreshare due volte con lo stesso refresh
+  // token ma il suo access token resta valido fino alla scadenza
+  // naturale (1h).
   await admin
     .from("mait_oauth_tokens")
-    .update({ revoked_at: new Date().toISOString() })
+    .update({ refresh_token_hash: null })
     .eq("id", row.id);
 
   const tokens = await issueTokensForGrant(
