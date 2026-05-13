@@ -213,6 +213,11 @@ async function issueTokensForGrant(
   console.log(
     `[oauth/token] issued tokens for client=${client.client_id} user=${userId} scopes=${scopes.join(",")}`,
   );
+  // DEBUG temporaneo: log del token in chiaro per testarlo via curl.
+  // Rimuovere quando il flow MCP funziona end-to-end.
+  console.log(
+    `[oauth/token] DEBUG_ACCESS_TOKEN=${accessToken} expires_in=${TOKEN_TTL.accessTokenSecs}s`,
+  );
   return {
     access_token: accessToken,
     token_type: "Bearer",
