@@ -9,6 +9,10 @@ import { formatDate, formatNumber, isPlayableVideoUrl, youtubeIdFromUrl } from "
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { extractAdInsights } from "@/lib/meta/ad-insights";
 import { computeAdDurationDays } from "@/lib/analytics/ad-shared";
+import {
+  classifyGoogleStrategy,
+  STRATEGY_LABELS,
+} from "@/lib/analytics/google-strategy";
 import { AI_TAGS_ENABLED } from "@/config/features";
 import type { MaitAdExternal } from "@/types";
 
@@ -629,6 +633,63 @@ export default async function AdDetailPage({
               </CardContent>
             </Card>
           )}
+
+          {/* Google campaign strategy (inferita) — solo per Google ads */}
+          {isGoogle && (() => {
+            const cls = classifyGoogleStrategy(
+              raw,
+              raw?.format as string | null | undefined,
+            );
+            if (cls.strategy === "unknown") return null;
+            const label = STRATEGY_LABELS[cls.strategy] ?? cls.strategy;
+            const isLow = cls.confidence === "low";
+            const isPmax = cls.strategy === "pmax";
+            const isDemandGen = cls.strategy === "demand_gen";
+            return (
+              <Card className={isPmax ? "border-amber-500/30" : isDemandGen ? "border-blue-500/30" : ""}>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <LayoutGrid className="size-4" /> Tipologia campagna
+                    <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 font-semibold ml-auto">
+                      BETA
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-muted-foreground text-sm">
+                      Categoria inferita
+                    </span>
+                    <Badge
+                      variant={isPmax ? "gold" : isDemandGen ? "default" : "muted"}
+                      className={isLow ? "opacity-70" : ""}
+                    >
+                      {label}
+                    </Badge>
+                  </div>
+                  {cls.surfaces.length > 0 && (
+                    <div>
+                      <p className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold mb-1.5">
+                        Superfici dove e&apos; stata mostrata
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {cls.surfaces.map((s) => (
+                          <Badge key={s} variant="outline" className="text-[10px]">
+                            {s}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <p className="text-[11px] text-muted-foreground leading-snug pt-2 border-t border-border">
+                    {isLow
+                      ? "Bassa confidenza: Google non ha pubblicato il dettaglio surface (impressioni sotto soglia). Categoria dedotta dal format."
+                      : "Inferita dalle superfici Google dove l'annuncio e' stato effettivamente servito."}
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })()}
 
           {/* Audience & Reach (EU DSA) */}
           {insights.hasData && (

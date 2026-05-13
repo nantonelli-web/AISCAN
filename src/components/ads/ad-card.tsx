@@ -11,6 +11,7 @@ import { formatDate, isPlayableVideoUrl, youtubeIdFromUrl } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { AI_TAGS_ENABLED } from "@/config/features";
 import type { MaitAdExternal } from "@/types";
+import { classifyGoogleStrategy } from "@/lib/analytics/google-strategy";
 
 /** Strip JSON artifacts from ad text (e.g. {"text": "..."}) */
 function cleanAdText(text: string | null): string | null {
@@ -41,6 +42,21 @@ export function AdCard({
   const source = (ad as unknown as Record<string, unknown>).source as string | undefined;
   const isGoogle = source === "google";
   const snapshot = raw?.snapshot as Record<string, unknown> | null;
+
+  // Google campaign strategy inferita (PMax / Demand Gen / ...). Mostrata
+  // come badge SOLO quando high-confidence E e' una multi-surface
+  // strategy (PMax / Demand Gen) — utile per la lettura rapida. Single-
+  // surface (search/youtube/shopping/...) e' gia' chiara dal platform
+  // badge. *_likely non vale la pena mostrarla sulla card per ridurre
+  // rumore visivo.
+  const googleStrategy = isGoogle
+    ? classifyGoogleStrategy(raw, raw?.format as string | null | undefined)
+    : null;
+  const showStrategyBadge =
+    googleStrategy &&
+    googleStrategy.confidence === "high" &&
+    (googleStrategy.strategy === "pmax" ||
+      googleStrategy.strategy === "demand_gen");
 
   // Ad library URL — Meta vs Google. On Google, silva exposes a
   // creative-specific link in `raw.adLibraryUrl` that lands directly
@@ -380,6 +396,24 @@ export function AdCard({
           {isAiGenerated && (
             <span className="inline-flex items-center gap-1 rounded bg-purple-600/80 backdrop-blur-sm px-1.5 py-0.5 text-[10px] font-medium text-white">
               <Bot className="size-3" /> AI
+            </span>
+          )}
+          {showStrategyBadge && googleStrategy && (
+            <span
+              className="inline-flex items-center gap-1 rounded backdrop-blur-sm px-1.5 py-0.5 text-[10px] font-semibold text-white"
+              style={{
+                backgroundColor:
+                  googleStrategy.strategy === "pmax"
+                    ? "rgba(212, 168, 67, 0.92)"
+                    : "rgba(91, 126, 163, 0.92)",
+              }}
+              title={
+                googleStrategy.strategy === "pmax"
+                  ? `Performance Max — distribuita su ${googleStrategy.surfaces.join(", ")}`
+                  : `Demand Gen — distribuita su ${googleStrategy.surfaces.join(", ")}`
+              }
+            >
+              {googleStrategy.strategy === "pmax" ? "PMax" : "Demand Gen"}
             </span>
           )}
         </div>
