@@ -96,31 +96,70 @@ function extractBasicAuth(
 async function authenticateClient(
   req: Request,
   body: Record<string, string>,
-): Promise<OAuthClient | { error: string; status: number }> {
+): Promise<OAuthClient | { error: string; status: number; reason: string }> {
   // Confidential: HTTP Basic
   const basic = extractBasicAuth(req);
   if (basic) {
     const client = await getClientById(basic.clientId);
     if (!client) {
-      return { error: "invalid_client", status: 401 };
+      return {
+        error: "invalid_client",
+        status: 401,
+        reason: `client_id ${basic.clientId} from Basic auth not in DB`,
+      };
     }
     const ok = await verifyClientSecret(client, basic.clientSecret);
-    if (!ok) return { error: "invalid_client", status: 401 };
+    if (!ok)
+      return {
+        error: "invalid_client",
+        status: 401,
+        reason: `client_secret mismatch for ${basic.clientId}`,
+      };
     return client;
   }
   // Public: client_id in body, no secret. Verifichiamo che il client
-  // sia effettivamente public.
+  // sia effettivamente public. Se il client e' confidential e Claude
+  // non manda Basic, accettiamo lo stesso il client_id-in-body
+  // (= 'client_secret_post' style) FINCHE' il client_secret e'
+  // presente nel body. Altrimenti per i public 'none' basta il
+  // client_id.
   const clientId = body.client_id;
   if (!clientId) {
-    return { error: "invalid_client", status: 401 };
+    return {
+      error: "invalid_client",
+      status: 401,
+      reason: "no Basic auth and no client_id in body",
+    };
   }
   const client = await getClientById(clientId);
-  if (!client) return { error: "invalid_client", status: 401 };
-  if (client.token_endpoint_auth_method !== "none") {
-    // Confidential client deve usare HTTP Basic.
-    return { error: "invalid_client", status: 401 };
+  if (!client) {
+    return {
+      error: "invalid_client",
+      status: 401,
+      reason: `client_id ${clientId} not in DB`,
+    };
   }
-  return client;
+  if (client.token_endpoint_auth_method === "none") {
+    return client;
+  }
+  // confidential: accetta anche client_secret in body (client_secret_post)
+  // come fallback se Claude.ai non manda HTTP Basic.
+  const presentedSecret = body.client_secret;
+  if (presentedSecret) {
+    const ok = await verifyClientSecret(client, presentedSecret);
+    if (!ok)
+      return {
+        error: "invalid_client",
+        status: 401,
+        reason: `client_secret in body mismatch for ${clientId}`,
+      };
+    return client;
+  }
+  return {
+    error: "invalid_client",
+    status: 401,
+    reason: `client ${clientId} requires ${client.token_endpoint_auth_method} but no Basic / no client_secret in body`,
+  };
 }
 
 async function issueTokensForGrant(
@@ -339,7 +378,7 @@ export async function POST(req: Request) {
   const auth = await authenticateClient(req, body);
   if ("error" in auth) {
     console.error(
-      `[oauth/token] client auth failed: ${auth.error} (client_id=${body.client_id ?? "(from basic)"})`,
+      `[oauth/token] client auth failed: ${auth.error} — ${auth.reason}`,
     );
     return NextResponse.json(
       {
