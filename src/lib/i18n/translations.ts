@@ -1445,6 +1445,10 @@ const translations = {
       it: "% Performance Max",
       en: "Performance Max share",
     },
+    ctaGoogleNoteTitle: {
+      it: "CTA su Google Ads — perché può apparire vuoto",
+      en: "CTAs on Google Ads — why this may appear empty",
+    },
     googleCountDiffTitle: {
       it: "Perché questo numero può differire dalla UI Google Transparency",
       en: "Why this number may differ from Google Transparency UI",

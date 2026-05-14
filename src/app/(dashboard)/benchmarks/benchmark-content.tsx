@@ -227,8 +227,13 @@ export async function BenchmarkContent({
       {/* Country-scan coverage warning: brands whose configured
           countries returned 0 ads for this analysis window. Helps the
           user notice they configured markets the brand does not
-          actually advertise in. */}
-      {data.countryScanCoverage.length > 0 && (
+          actually advertise in.
+          NASCOSTO quando l'utente sta filtrando per un sottoinsieme di
+          paesi: in quel caso il messaggio "no ads in IT, GB, FR, ES"
+          e' tecnicamente conseguenza del filtro applicato (non un
+          segnale che il brand non advertise in quei mercati). Il
+          segnale ha senso solo quando si guarda a TUTTI i paesi. */}
+      {data.countryScanCoverage.length > 0 && countries === undefined && (
         <CountryCoverageWarning
           coverage={data.countryScanCoverage}
           t={t}
@@ -524,18 +529,45 @@ export async function BenchmarkContent({
           card entirely. Same UX as Compare. */}
       <Card>
         <CardHeader>
-          <ChartTitle icon={<TargetIcon className="size-4" />}>
-            {t("benchmarks", "topCtaPerBrand")}
-          </ChartTitle>
+          <div className="flex items-center gap-2">
+            <ChartTitle icon={<TargetIcon className="size-4" />}>
+              {t("benchmarks", "topCtaPerBrand")}
+            </ChartTitle>
+            {channel === "google" && (
+              <InfoPopover
+                ariaLabel="Google CTA data note"
+                content={
+                  <div className="space-y-2">
+                    <p className="font-semibold text-foreground">
+                      {t("benchmarks", "ctaGoogleNoteTitle")}
+                    </p>
+                    <p>{t("compare", "googleCtaEmpty")}</p>
+                  </div>
+                }
+              />
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <p className="text-xs text-muted-foreground mb-3">{t("benchmarks", "descTopCtaPerBrand")}</p>
           {data.ctaMixByCompetitor.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-4">
-              {channel === "google"
-                ? t("compare", "googleCtaEmpty")
-                : t("benchmarks", "noData")}
-            </p>
+            channel === "google" ? (
+              // Empty state Google: card amber con icona info per non
+              // farlo passare come "no data" generico. Il tooltip sopra
+              // ha il dettaglio, qui mettiamo il sunto in-card.
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/[0.04] p-3 flex items-start gap-2.5">
+                <span className="text-amber-600 dark:text-amber-400 text-sm leading-none mt-0.5">
+                  ⓘ
+                </span>
+                <p className="text-xs text-foreground leading-relaxed">
+                  {t("compare", "googleCtaEmpty")}
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground py-4">
+                {t("benchmarks", "noData")}
+              </p>
+            )
           ) : (
             <div className={`grid gap-6 ${data.ctaMixByCompetitor.length <= 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
               {data.ctaMixByCompetitor.map((entry) => (
