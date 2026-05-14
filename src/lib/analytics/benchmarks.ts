@@ -319,6 +319,67 @@ function inferObjectiveFromTokens(tokens: Set<string>): { objective: InferredObj
   return { objective: "unknown", confidence: 0 };
 }
 
+/**
+ * Per-region activity intersection for Google ads.
+ *
+ * Su Google, `scan_countries` riflette `regionStats[].regionCode` —
+ * cioe' OGNI regione in cui il creativo abbia mai girato durante la
+ * sua vita. Le date a livello root (`firstShown` / `lastShown`)
+ * collassano lo span cross-region in un singolo intervallo. Risultato:
+ * un creativo che ha girato in DE nel 2024 e adesso gira solo in IT
+ * ha `scan_countries = ["DE", "IT"]` + `lastShown` recente per via di
+ * IT — e finisce conteggiato in "DE ultimi 30 giorni" anche se in DE
+ * non andava in onda da due anni.
+ *
+ * Fix: quando l'utente filtra per paese, intersechiamo le date a
+ * livello region prendendo `regionStats[i].firstShown/lastShown` per
+ * la region selezionata. Se nessuna entry per quelle region cade nel
+ * range richiesto, il creativo viene escluso. Per ads senza
+ * regionStats (legacy memo23, Meta) cadiamo sul comportamento
+ * precedente — i loro `scan_countries` riflettono gia' il paese
+ * scrapato e non il lifetime cross-region.
+ */
+function googleAdActiveInCountriesDuringRange(
+  rawData: Record<string, unknown> | null,
+  countries: Set<string>,
+  fromMs: number | null,
+  toMs: number | null,
+): boolean {
+  if (!rawData || typeof rawData !== "object") return true;
+  const regionStats = rawData.regionStats;
+  if (!Array.isArray(regionStats) || regionStats.length === 0) return true;
+  let sawMatchingRegion = false;
+  for (const r of regionStats) {
+    if (!r || typeof r !== "object") continue;
+    const stats = r as Record<string, unknown>;
+    const code =
+      typeof stats.regionCode === "string"
+        ? stats.regionCode.toUpperCase()
+        : null;
+    if (!code || !countries.has(code)) continue;
+    sawMatchingRegion = true;
+    const first =
+      typeof stats.firstShown === "string"
+        ? new Date(stats.firstShown).getTime()
+        : Number.NaN;
+    const last =
+      typeof stats.lastShown === "string"
+        ? new Date(stats.lastShown).getTime()
+        : Number.NaN;
+    // Started after window end → didn't run in this region during the window.
+    if (toMs !== null && Number.isFinite(first) && first > toMs) continue;
+    // Ended before window start → DE activity is dead for this window.
+    // A missing lastShown is treated as "still running" (no upper bound).
+    if (fromMs !== null && Number.isFinite(last) && last < fromMs) continue;
+    return true;
+  }
+  // If no regionStats entry matched the country filter, fall through to
+  // root-level dates (the `scan_countries` array said the country was
+  // there, but regionStats lacks the entry — defensive: don't drop the
+  // row, let the query-level filters handle it).
+  return !sawMatchingRegion;
+}
+
 export async function computeBenchmarks(
   supabase: SupabaseClient,
   workspaceId: string,
@@ -436,6 +497,7 @@ export async function computeBenchmarks(
     start_date: string | null;
     end_date: string | null;
     source: string | null;
+    raw_data: Record<string, unknown> | null;
   }[]> {
     const PAGE = 1000;
     const SAFETY_CAP = 500_000;
@@ -446,7 +508,17 @@ export async function computeBenchmarks(
       start_date: string | null;
       end_date: string | null;
       source: string | null;
+      raw_data: Record<string, unknown> | null;
     };
+    // Fetch raw_data only when we need to intersect with per-region
+    // dates (Google + country filter). Otherwise it's wasted bandwidth
+    // — raw_data can be ~10kB per row on silva and the volume pass
+    // walks every ad in the workspace.
+    const needsRegionStats =
+      source === "google" && normalisedCountries !== null;
+    const selectCols = needsRegionStats
+      ? "id, competitor_id, status, start_date, end_date, source, raw_data"
+      : "id, competitor_id, status, start_date, end_date, source";
     const rows: Row[] = [];
     for (let from = 0; from < SAFETY_CAP; from += PAGE) {
       // `id` is included in the SELECT only so we can dedupe at the
@@ -457,9 +529,7 @@ export async function computeBenchmarks(
       // metric downstream from any future regression.
       let q = supabase
         .from("mait_ads_external")
-        .select(
-          "id, competitor_id, status, start_date, end_date, source"
-        )
+        .select(selectCols)
         .eq("workspace_id", workspaceId)
         .order("id")
         .range(from, from + PAGE - 1);
@@ -477,7 +547,7 @@ export async function computeBenchmarks(
       else if (statusFilter === "inactive") q = q.neq("status", "ACTIVE");
       const { data, error } = await q;
       if (error || !data || data.length === 0) break;
-      rows.push(...(data as Row[]));
+      rows.push(...(data as unknown as Row[]));
       if (data.length < PAGE) break;
     }
     const seen = new Set<string>();
@@ -503,20 +573,49 @@ export async function computeBenchmarks(
   // Ads within the requested date range — drives volume counts.
   const fromMs = dateFrom ? new Date(dateFrom).getTime() : null;
   const toMs = dateTo ? new Date(dateTo + "T23:59:59Z").getTime() : null;
-  const volumeRows = allAdsMeta.filter((r) => {
-    if (!r.start_date) return false;
-    const s = new Date(r.start_date).getTime();
-    if (toMs !== null && s > toMs) return false;
-    if (fromMs !== null) {
-      const stillRunning = r.status === "ACTIVE" || !r.end_date;
-      const e = r.end_date ? new Date(r.end_date).getTime() : null;
-      if (!stillRunning && e !== null && e < fromMs) return false;
-    }
-    return true;
-  });
+  // Per-region date intersection — applied ONLY on Google + country
+  // filter. Catches the "lifetime regions vs root-level dates"
+  // mismatch (see googleAdActiveInCountriesDuringRange doc).
+  const countryFilterSet =
+    source === "google" && normalisedCountries
+      ? new Set(normalisedCountries)
+      : null;
+  const volumeRows = allAdsMeta
+    .filter((r) => {
+      if (!r.start_date) return false;
+      const s = new Date(r.start_date).getTime();
+      if (toMs !== null && s > toMs) return false;
+      if (fromMs !== null) {
+        const stillRunning = r.status === "ACTIVE" || !r.end_date;
+        const e = r.end_date ? new Date(r.end_date).getTime() : null;
+        if (!stillRunning && e !== null && e < fromMs) return false;
+      }
+      return true;
+    })
+    .filter((r) => {
+      if (!countryFilterSet) return true;
+      return googleAdActiveInCountriesDuringRange(
+        r.raw_data ?? null,
+        countryFilterSet,
+        fromMs,
+        toMs,
+      );
+    });
 
   const comps = (competitors ?? []) as CompetitorRef[];
-  const ads = rawAdsPages;
+  // Heavy rows: apply the same per-region intersection so totalAds
+  // KPI + format / CTA / strategy aggregations match the filtered
+  // volume chart.
+  const ads = countryFilterSet
+    ? rawAdsPages.filter((a) =>
+        googleAdActiveInCountriesDuringRange(
+          a.raw_data,
+          countryFilterSet,
+          fromMs,
+          toMs,
+        ),
+      )
+    : rawAdsPages;
   // When a project filter is applied we want every brand in the filter scope
   // to appear in "volume per brand" even if it has zero ads so the chart
   // reflects the whole project — not just brands with scanned ads.
