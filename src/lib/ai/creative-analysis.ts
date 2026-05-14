@@ -276,6 +276,15 @@ function coerceStringArray(v: unknown, brandName: string): string[] {
  */
 function normalizeCopywriterReport(
   raw: unknown,
+  /** Lista completa dei brand passati al prompt. Serve come safety
+   *  net: se l'LLM (es. DeepSeek) salta un brand nell'output JSON
+   *  perche' la copy era poca/ripetitiva, qui aggiungiamo un
+   *  placeholder cosi' la card del brand appare comunque nella UI
+   *  invece di sparire silenziosamente (caso 2026-05-14 Karen
+   *  Millen dropped dall'output mentre Creative analysis la
+   *  includeva normalmente). */
+  inputBrandNames?: string[],
+  locale: "it" | "en" = "en",
 ): CreativeAnalysisResult["copywriterReport"] {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
@@ -294,6 +303,33 @@ function normalizeCopywriterReport(
       weaknesses: coerceString(entry.weaknesses, name),
     };
   });
+
+  // Safety net: completa l'output con i brand input che l'LLM ha
+  // omesso. Senza questo la UI ha 2 brand mentre l'utente ne ha
+  // selezionati 3, e la cosa appare come "bug" anche se tecnicamente
+  // l'analisi e' andata a buon fine sugli altri.
+  if (inputBrandNames && inputBrandNames.length > 0) {
+    const presentNames = new Set(
+      brandAnalyses.map((b) => b.brandName.trim().toLowerCase()),
+    );
+    const placeholder =
+      locale === "it"
+        ? "Dato insufficiente: la copy estratta per questo brand era troppo sparsa o ripetitiva per produrre un'analisi affidabile su questa dimensione. Rilancia uno scan recente per riprovare."
+        : "Insufficient data: the copy extracted for this brand was too sparse or repetitive to produce a reliable analysis on this dimension. Re-scan recently to retry.";
+    for (const name of inputBrandNames) {
+      if (presentNames.has(name.trim().toLowerCase())) continue;
+      brandAnalyses.push({
+        brandName: name,
+        toneOfVoice: placeholder,
+        copyStyle: placeholder,
+        emotionalTriggers: [],
+        ctaPatterns: placeholder,
+        strengths: placeholder,
+        weaknesses: placeholder,
+      });
+    }
+  }
+
   return {
     brandAnalyses,
     comparison: coerceString(r.comparison, ""),
@@ -303,6 +339,8 @@ function normalizeCopywriterReport(
 
 function normalizeCreativeDirectorReport(
   raw: unknown,
+  inputBrandNames?: string[],
+  locale: "it" | "en" = "en",
 ): CreativeAnalysisResult["creativeDirectorReport"] {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
@@ -322,6 +360,31 @@ function normalizeCreativeDirectorReport(
       weaknesses: coerceString(entry.weaknesses, name),
     };
   });
+
+  // Stessa safety net del Copy: forza presenza di ogni brand input.
+  if (inputBrandNames && inputBrandNames.length > 0) {
+    const presentNames = new Set(
+      brandAnalyses.map((b) => b.brandName.trim().toLowerCase()),
+    );
+    const placeholder =
+      locale === "it"
+        ? "Dato insufficiente: nessun creativo visivo (image/video) analizzabile per questo brand nella finestra selezionata."
+        : "Insufficient data: no analysable visual creative (image/video) for this brand in the selected window.";
+    for (const name of inputBrandNames) {
+      if (presentNames.has(name.trim().toLowerCase())) continue;
+      brandAnalyses.push({
+        brandName: name,
+        visualStyle: placeholder,
+        colorPalette: placeholder,
+        photographyStyle: placeholder,
+        brandConsistency: placeholder,
+        formatPreferences: placeholder,
+        strengths: placeholder,
+        weaknesses: placeholder,
+      });
+    }
+  }
+
   return {
     brandAnalyses,
     comparison: coerceString(r.comparison, ""),
@@ -478,7 +541,7 @@ Return a JSON object with this exact structure (no markdown, no explanation, jus
 }
 
 Important:
-- Provide one entry in brandAnalyses for each brand, in the same order as presented
+- MANDATORY: brandAnalyses MUST have EXACTLY ${brands.length} entries — one per brand listed above, in the same order. Do NOT merge, skip, or de-duplicate brands even if their copy looks similar, sparse, or repetitive. If a brand has thin data, still produce an entry that describes what IS observable (e.g. "headlines repeat the brand name and a generic CTA") rather than dropping the brand silently.
 - Be specific, reference actual ad examples when possible
 - Include Italian marketing terminology where it adds value
 - emotionalTriggers should be 3-5 specific triggers per brand (single words / short phrases, NEVER full sentences)
@@ -540,9 +603,10 @@ Important:
     }
 
     const clean = stripMarkdownFences(text);
+    const allBrandNames = brands.map((b) => b.brandName);
     try {
       const parsed = JSON.parse(clean);
-      return normalizeCopywriterReport(parsed);
+      return normalizeCopywriterReport(parsed, allBrandNames, locale);
     } catch (parseErr) {
       // Try to salvage a truncated payload (model hit max_tokens
       // mid-string). If the prefix has a complete brandAnalyses
@@ -552,7 +616,7 @@ Important:
         console.warn(
           `[analyzeCopy] JSON parse failed but salvage succeeded (model=${modelsFor(tier).copywriter})`,
         );
-        return normalizeCopywriterReport(salvaged);
+        return normalizeCopywriterReport(salvaged, allBrandNames, locale);
       }
       console.error(
         `[analyzeCopy] JSON parse failed (model=${modelsFor(tier).copywriter}, err=${parseErr instanceof Error ? parseErr.message : "unknown"}): ${clean.slice(0, 500)}`,
@@ -835,16 +899,17 @@ Important:
     }
 
     const clean = stripMarkdownFences(text);
+    const allBrandNames = brands.map((b) => b.brandName);
     try {
       const parsed = JSON.parse(clean);
-      return normalizeCreativeDirectorReport(parsed);
+      return normalizeCreativeDirectorReport(parsed, allBrandNames, locale);
     } catch (parseErr) {
       const salvaged = salvageTruncatedJson(clean);
       if (salvaged) {
         console.warn(
           `[analyzeVisuals] JSON parse failed but salvage succeeded (model=${modelsFor(tier).creativeDirector})`,
         );
-        return normalizeCreativeDirectorReport(salvaged);
+        return normalizeCreativeDirectorReport(salvaged, allBrandNames, locale);
       }
       console.error(
         `[analyzeVisuals] JSON parse failed (model=${modelsFor(tier).creativeDirector}, err=${parseErr instanceof Error ? parseErr.message : "unknown"}): ${clean.slice(0, 500)}`,
