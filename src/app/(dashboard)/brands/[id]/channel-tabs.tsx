@@ -30,6 +30,7 @@ import { Download, Layers, Loader2, Search as SearchIcon } from "lucide-react";
 import { cn, formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { CountryFilterDropdown } from "./country-filter-dropdown";
+import { CreativesDateFilter } from "./creatives-date-filter";
 import type { BrandSerpQueryRank, BrandIdentity } from "./brand-channels-section";
 import type {
   MaitAdExternal,
@@ -127,6 +128,10 @@ interface Props {
   tab: "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube" | "serp";
   statusFilter: "active" | "inactive" | null;
   countriesFilter: string[];
+  /** ISO yyyy-MM-dd. null = no narrowing. Applies solo alle ads
+   *  (organic/snapshot non hanno la stessa semantica di start/end). */
+  dateFrom: string | null;
+  dateTo: string | null;
   /** Brand-wide country list (from page shell, not the loaded
    *  sample) so the dropdown always shows every market — even
    *  the ones whose ads dropped out under the active filters. */
@@ -185,6 +190,8 @@ export function ChannelTabs({
   tab,
   statusFilter,
   countriesFilter,
+  dateFrom,
+  dateTo,
   organicStats,
   tiktokStats,
   youtubeStats,
@@ -470,14 +477,22 @@ export function ChannelTabs({
   const latestYoutubeChannel = showYoutube ? youtubeChannels[0] ?? null : null;
   const visibleSerpQueries = showSerp ? serpQueries : [];
 
-  // Identical chip class to Benchmarks: flat pill, gold/15 selected,
-  // neutral border otherwise. No count badge — counts are already
-  // visible in the "(X of Y) ads" line above each grid, and Benchmarks
-  // itself omits them for visual cleanliness.
+  // Status / Country chip class — pillole piccole per i modificatori
+  // secondari. Channel ha una sua classe piu' grossa sotto (l'utente
+  // ha chiesto esplicitamente "channel piu' grande" come PRIMARY pivot).
   const chipClass = (selected: boolean) =>
     selected
       ? "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-gold/15 text-gold border border-gold/30 transition-colors cursor-pointer"
       : "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer";
+
+  // Channel chip class — PIVOT primario, deve dominare. Padding
+  // generoso (px-5 py-3), font-size sm semibold, icona size-5, badge
+  // count piu' leggibile. Background gold solido per il selected
+  // (non gold/15) cosi' lo stato attivo si distingue dai pill piccoli.
+  const channelChipClass = (selected: boolean) =>
+    selected
+      ? "inline-flex items-center gap-2.5 px-5 py-3 text-sm font-semibold rounded-lg bg-gold text-gold-foreground border border-gold shadow-sm transition-colors cursor-pointer"
+      : "inline-flex items-center gap-2.5 px-5 py-3 text-sm font-medium rounded-lg border border-border text-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer";
 
   return (
     <div className="space-y-5">
@@ -501,17 +516,17 @@ export function ChannelTabs({
       </header>
 
       {/* ─── Channel tabs ──────────────────────────────────────
-          Channel selector now lives inside its own card on a tinted
-          surface so it reads as the PRIMARY pivot (the user picks
-          a channel first, then narrows). Status + Country are
-          secondary — they sit on a flatter row underneath, marked
-          as "modificatori" by the smaller eyebrow label. */}
-      <div className="rounded-lg border border-border bg-muted/20 px-4 py-3 print:hidden">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="eyebrow shrink-0">
+          Channel selector e' il PIVOT primario: pillole grandi
+          (px-5 py-3, text-sm semibold, icona size-5) cosi' la
+          gerarchia "scegli prima il canale, poi raffini" e' visiva
+          subito. Status + Country + Date sono modificatori e
+          stanno sotto in pillole piccole. */}
+      <div className="rounded-lg border border-border bg-muted/20 px-4 py-4 print:hidden">
+        <div className="flex items-start gap-3 flex-wrap">
+          <span className="eyebrow shrink-0 mt-2.5">
             {t("competitors", "filterByChannel")}
           </span>
-          <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             {visibleTabs.map((p) => (
               <Link
                 key={p.key}
@@ -525,18 +540,23 @@ export function ChannelTabs({
                     ? { countries: null }
                     : {}),
                 })}
-                className={chipClass(channel === p.key)}
+                className={channelChipClass(channel === p.key)}
               >
-                {p.icon}
+                {/* Icone canale ingrandite per la pivot row. Il
+                    p.icon e' fornito dai tabs con className size-3.5;
+                    sovrascriviamo via wrapper per non toccare tutti
+                    i siti che lo consumano. */}
+                <span className="[&_svg]:size-5 inline-flex">{p.icon}</span>
                 <span>{p.label}</span>
-                {/* Show count next to the channel — quick way to
-                    see at-a-glance which channels have data. Hidden
-                    on "all" because that's the sum and it'd just
-                    duplicate the breakdown to its right. */}
+                {/* Count badge — piu' visibile della versione vecchia
+                    (era text-[10px] muted). Adesso tabular-nums sm
+                    con tono coerente al chip. */}
                 {p.key !== "all" && p.count > 0 && (
                   <span className={cn(
-                    "text-[10px] tabular-nums ml-0.5",
-                    channel === p.key ? "text-gold/80" : "text-muted-foreground/70",
+                    "text-xs tabular-nums px-1.5 py-0.5 rounded",
+                    channel === p.key
+                      ? "bg-gold-foreground/15 text-gold-foreground"
+                      : "bg-muted text-muted-foreground",
                   )}>
                     {p.count}
                   </span>
@@ -546,6 +566,16 @@ export function ChannelTabs({
           </div>
         </div>
       </div>
+
+      {/* Date range filter — visibile solo sulle tab dove ha senso
+          (Meta / Google / All — ads-driven). Tiktok/Snapchat/YouTube/
+          Instagram/SERP usano altre tabelle con start/end semantics
+          differenti, quindi escludiamo. */}
+      {(channel === "all" ||
+        channel === "meta" ||
+        channel === "google") && (
+        <CreativesDateFilter dateFrom={dateFrom} dateTo={dateTo} />
+      )}
 
       {/* Secondary filters — Country + Status. Only render the row
           if at least one of them applies on the current channel,

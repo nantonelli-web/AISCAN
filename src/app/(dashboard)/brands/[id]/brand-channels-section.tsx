@@ -91,10 +91,17 @@ export async function BrandChannelsSection({
   tab,
   statusFilter,
   countriesFilter,
+  dateFrom,
+  dateTo,
   brand,
 }: {
   competitorId: string;
   brand: BrandIdentity;
+  /** Optional date-range filter (ISO yyyy-MM-dd). Applies only to the
+   *  ads pipeline: `start_date <= dateTo` AND (`end_date >= dateFrom`
+   *  OR `end_date IS NULL` OR `status = ACTIVE`). null = no narrowing. */
+  dateFrom: string | null;
+  dateTo: string | null;
   /** Brand's normalized google_domain (eTLD+1) — drives the SERP rank
    *  match. null when the brand has no Google domain configured; the
    *  SERP tab is hidden in that case. */
@@ -176,6 +183,18 @@ export async function BrandChannelsSection({
     adsQuery = adsQuery.overlaps("scan_countries", countriesFilter);
   }
 
+  // Date-range filter — applied al livello query cosi' il cap di
+  // 30 righe vede gia' il subset filtrato e non viene "consumato"
+  // da ads fuori finestra. Stessa logica del benchmarks aggregator:
+  // un'ad e' nella finestra se ha iniziato entro dateTo E
+  // (e' ancora attiva OPPURE end_date >= dateFrom).
+  if (dateTo) adsQuery = adsQuery.lte("start_date", dateTo);
+  if (dateFrom) {
+    adsQuery = adsQuery.or(
+      `end_date.gte.${dateFrom},end_date.is.null,status.eq.ACTIVE`,
+    );
+  }
+
   // Per-source filtered counts: feed the "(X of Y)" caption above
   // each grid section so Y reflects the active filters. Without
   // these, the caption would still show the brand-wide channel
@@ -191,6 +210,12 @@ export async function BrandChannelsSection({
   if (countriesFilter.length > 0) {
     metaCountQuery = metaCountQuery.overlaps("scan_countries", countriesFilter);
   }
+  if (dateTo) metaCountQuery = metaCountQuery.lte("start_date", dateTo);
+  if (dateFrom) {
+    metaCountQuery = metaCountQuery.or(
+      `end_date.gte.${dateFrom},end_date.is.null,status.eq.ACTIVE`,
+    );
+  }
   let googleCountQuery = supabase
     .from("mait_ads_external")
     .select("id", { count: "exact", head: true })
@@ -198,6 +223,12 @@ export async function BrandChannelsSection({
     .eq("source", "google");
   if (statusFilter === "active") googleCountQuery = googleCountQuery.eq("status", "ACTIVE");
   else if (statusFilter === "inactive") googleCountQuery = googleCountQuery.neq("status", "ACTIVE");
+  if (dateTo) googleCountQuery = googleCountQuery.lte("start_date", dateTo);
+  if (dateFrom) {
+    googleCountQuery = googleCountQuery.or(
+      `end_date.gte.${dateFrom},end_date.is.null,status.eq.ACTIVE`,
+    );
+  }
   // ⚠ Do NOT apply a country overlap on Google — Google ads carry
   // scan_countries = NULL (the Apify Google actor is not
   // country-scoped) and the predicate would silently drop 100% of
@@ -537,6 +568,8 @@ export async function BrandChannelsSection({
       tab={tab}
       statusFilter={statusFilter}
       countriesFilter={countriesFilter}
+      dateFrom={dateFrom}
+      dateTo={dateTo}
       organicStats={{
         count: organicList.length,
         avgLikes,

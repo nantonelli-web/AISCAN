@@ -1,11 +1,11 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, Pencil, Radar } from "lucide-react";
+import { ArrowLeft, ExternalLink, Pencil } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth/session";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScanDropdown } from "./scan-dropdown";
+import { CollapsibleScanCard } from "./collapsible-scan-card";
 import { FrequencySelector } from "./frequency-selector";
 import { CollapsibleJobHistory } from "./collapsible-job-history";
 import { BrandChannelsSection } from "./brand-channels-section";
@@ -61,6 +61,19 @@ export default async function CompetitorDetailPage({
           .map((c) => c.trim().toUpperCase())
           .filter(Boolean)
       : [];
+  // Date-range filter per la sezione "Creativita & insight" — stessa
+  // forma usata in /benchmarks. Default vuoto (= "tutto"), cosi'
+  // l'apertura del brand non taglia a 30 giorni indietro la coverage
+  // di brand poco scrapati. L'utente sceglie esplicitamente la
+  // finestra.
+  const dateFromParam =
+    typeof sp.from === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.from)
+      ? sp.from
+      : null;
+  const dateToParam =
+    typeof sp.to === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.to)
+      ? sp.to
+      : null;
   await getSessionUser();
   const supabase = await createClient();
   const locale = await getLocale();
@@ -487,30 +500,16 @@ export default async function CompetitorDetailPage({
         })()}
       </div>
 
-      {/* ─── Scan action — full width.
-          The single most important affordance on this page. Header
-          carries a Radar icon + a real h2 title (the previous 10px
-          all-caps was unreadable as a section title — user feedback).
-          Soft-gold background tint and gold-bordered card make it
-          stand out as the primary action even before the user reads
-          the buttons. */}
-      <Card className="border-gold/30 bg-gold-soft/40 print:hidden">
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-3">
-            <div className="size-9 rounded-lg bg-gold text-gold-foreground grid place-items-center shrink-0 shadow-sm">
-              <Radar className="size-5" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="text-lg font-semibold tracking-tight leading-tight">
-                {t("scan", "scanNow")}
-              </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {t("scan", "scanNowSubtitle")}
-              </p>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
+      {/* ─── Scan action — collassata di default.
+          Una volta che il brand e' configurato, la cosa che l'utente
+          fa di solito non e' "lancia scan" ma "guarda le creativita'
+          gia' scrapate". Tenere la card chiusa libera spazio
+          above-the-fold per KPI + filtri della grid. La freccia in
+          alto a destra apre/chiude. */}
+      <CollapsibleScanCard
+        title={t("scan", "scanNow")}
+        subtitle={t("scan", "scanNowSubtitle")}
+      >
           <ScanDropdown
             competitorId={c.id}
             // Meta scrape needs either a Facebook page URL OR a
@@ -582,8 +581,7 @@ export default async function CompetitorDetailPage({
               };
             })()}
           />
-        </CardContent>
-      </Card>
+      </CollapsibleScanCard>
 
       {/* ─── Scan history (collapsible) ──────────────────────── */}
       {jobsList.length > 0 && <CollapsibleJobHistory jobs={jobsList} />}
@@ -591,7 +589,7 @@ export default async function CompetitorDetailPage({
       {/* ─── Channel tabs: streamed via Suspense so the heavy
           ads + posts fetch does not block the page chrome above. */}
       <Suspense
-        key={`${tab}|${statusFilter ?? "all"}|${countriesFilter.join(",")}`}
+        key={`${tab}|${statusFilter ?? "all"}|${countriesFilter.join(",")}|${dateFromParam ?? ""}|${dateToParam ?? ""}`}
         fallback={<BrandChannelsSkeleton />}
       >
         <BrandChannelsSection
@@ -603,6 +601,8 @@ export default async function CompetitorDetailPage({
           tab={tab}
           statusFilter={statusFilter}
           countriesFilter={countriesFilter}
+          dateFrom={dateFromParam}
+          dateTo={dateToParam}
           // Brand identity overlay used in the per-channel cover
           // bands: name + best-available avatar + channel-specific
           // handle. Pre-computed here so the deep child does not
