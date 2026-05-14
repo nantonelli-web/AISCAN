@@ -582,6 +582,17 @@ async function fetchBrandAdData(
           `end_date.gte.${dateFilter.from},end_date.is.null,status.eq.ACTIVE`,
         );
       }
+      // Solo ads con almeno un campo copy popolato. Silva95gustavo
+      // ritorna molti TEXT/VIDEO bodiless (PMax dynamic asset dove la
+      // copy e' renderizzata da Google sul momento) — se i 12 piu'
+      // recenti sono tutti bodiless, lasymmetry guard sotto flagga il
+      // brand come "no structured copy" anche se il 18-30% degli ads
+      // ha copy. Caso confermato 2026-05-14 su Karen Millen (20/110
+      // ads con copy, ma i top-12 by created_at desc erano tutti
+      // null) ed Elena Miro (35/132). Filtriamo a livello query.
+      adsQuery = adsQuery.or(
+        "headline.not.is.null,ad_text.not.is.null,description.not.is.null,cta.not.is.null",
+      );
 
       const [{ data: comp }, { data: ads }] = await Promise.all([
         admin
