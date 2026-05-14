@@ -178,6 +178,70 @@ export async function GET(req: Request) {
     }
   }
 
+  // Aggregati per capire la granularita' Apify vs UI Google.
+  // Se Google UI mostra 8 ad card e noi 33 creativeIds, raggruppando
+  // per landing_url / advertiserId / startUrl dovremmo riconciliare.
+  const groupByKey = (rows: AdRow[], pick: (r: AdRow) => string | null) => {
+    const map = new Map<string, number>();
+    let missing = 0;
+    for (const r of rows) {
+      const k = pick(r);
+      if (k == null || k === "") {
+        missing++;
+        continue;
+      }
+      map.set(k, (map.get(k) ?? 0) + 1);
+    }
+    return {
+      distinct: map.size,
+      missing,
+      top: [...map.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 20)
+        .map(([k, n]) => ({ key: k, count: n })),
+    };
+  };
+  const rawFieldOf = (r: AdRow, field: string): string | null => {
+    const raw = r.raw_data as Record<string, unknown> | null;
+    if (!raw) return null;
+    const v = raw[field];
+    return typeof v === "string" && v ? v : null;
+  };
+
+  const grouping = {
+    by_advertiserId: groupByKey(v2RegionDatesPass, (r) => rawFieldOf(r, "advertiserId")),
+    by_landing_url_clickUrl: groupByKey(v2RegionDatesPass, (r) => {
+      const raw = r.raw_data as Record<string, unknown> | null;
+      const vars = raw?.variations;
+      if (Array.isArray(vars) && vars[0]) {
+        const v = vars[0] as Record<string, unknown>;
+        if (typeof v.clickUrl === "string" && v.clickUrl) return v.clickUrl;
+      }
+      return null;
+    }),
+    by_landing_url_origin: groupByKey(v2RegionDatesPass, (r) => {
+      const raw = r.raw_data as Record<string, unknown> | null;
+      const vars = raw?.variations;
+      if (Array.isArray(vars) && vars[0]) {
+        const v = vars[0] as Record<string, unknown>;
+        if (typeof v.clickUrl === "string" && v.clickUrl) {
+          try {
+            return new URL(v.clickUrl).origin;
+          } catch {
+            return null;
+          }
+        }
+      }
+      return null;
+    }),
+    by_format: groupByKey(v2RegionDatesPass, (r) => rawFieldOf(r, "format")),
+    by_advertiserId_plus_format: groupByKey(v2RegionDatesPass, (r) => {
+      const a = rawFieldOf(r, "advertiserId") ?? "?";
+      const f = rawFieldOf(r, "format") ?? "?";
+      return `${a}|${f}`;
+    }),
+  };
+
   // Sample 12 ads with full context to visually inspect.
   const sample = v1QueryPassed.slice(0, 12).map((ad) => {
     const region = extractRegionEntry(ad.raw_data, country);
@@ -195,6 +259,13 @@ export async function GET(req: Request) {
           }
         }
       }
+    }
+    // landing_url / clickUrl from first variation
+    const vars = r.variations;
+    let clickUrl: string | null = null;
+    if (Array.isArray(vars) && vars[0]) {
+      const v = vars[0] as Record<string, unknown>;
+      if (typeof v.clickUrl === "string" && v.clickUrl) clickUrl = v.clickUrl;
     }
     return {
       ad_archive_id: ad.ad_archive_id,
@@ -218,6 +289,10 @@ export async function GET(req: Request) {
       numServedDays: typeof r.numServedDays === "number" ? r.numServedDays : null,
       format: typeof r.format === "string" ? r.format : null,
       surfaces_all_regions: [...surfaces],
+      advertiserId: typeof r.advertiserId === "string" ? r.advertiserId : null,
+      adLibraryUrl: typeof r.adLibraryUrl === "string" ? r.adLibraryUrl : null,
+      landing_url_v0: clickUrl,
+      raw_data_keys: Object.keys(r).sort(),
     };
   });
 
@@ -238,6 +313,10 @@ export async function GET(req: Request) {
       v1_minus_v2_dropped_by_fix: v1QueryPassed.length - v2RegionDatesPass.length,
       v2_minus_v3_dropped_by_strict: v2RegionDatesPass.length - v3LikelyActive.length,
     },
+    // Se UI Google mostra 8 e noi 33, "distinct" qui ci dice quanti
+    // gruppi naturali avremmo per ciascun raggruppamento. Quello che
+    // si avvicina di piu' a 8 e' il candidato giusto per dedupe.
+    grouping_hypotheses: grouping,
     sample,
   });
 }
