@@ -1438,8 +1438,12 @@ const translations = {
       en: "Google publishes the SEARCH/YOUTUBE/SHOPPING/MAPS breakdown only for ads that have accumulated enough impressions. For the brands below the detail isn't public yet — they may appear in future scans once their ads accumulate impressions.",
     },
     googleStrategyTitle: {
-      it: "Tipologia campagna (inferita)",
-      en: "Campaign type (inferred)",
+      it: "Performance Max, Demand Gen, Search — Tipologia campagna",
+      en: "Performance Max, Demand Gen, Search — Campaign type",
+    },
+    pmaxShare: {
+      it: "% Performance Max",
+      en: "Performance Max share",
     },
     descGoogleStrategy: {
       it: "Distribuzione delle ads per tipologia di campagna (Performance Max, Demand Gen, Search, YouTube, ecc.) inferita dalle superfici dove Google ha effettivamente mostrato l'annuncio. Le voci marcate '(probabile)' hanno bassa confidenza — Google non pubblica il breakdown surface per le ads con poche impressioni, quindi la categoria è dedotta solo dal format. Heuristica in BETA, da considerare un'indicazione qualitativa.",

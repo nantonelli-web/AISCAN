@@ -242,7 +242,7 @@ export async function BenchmarkContent({
       <div
         className={
           channel === "google"
-            ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+            ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
             : "grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
         }
       >
@@ -253,7 +253,37 @@ export async function BenchmarkContent({
           tone="success"
         />
         <Stat label={t("benchmarks", "avgCampaignDuration")} value={`${data.totals.avgDuration}gg`} />
-        {channel !== "google" && (
+        {channel === "google" ? (
+          (() => {
+            // PMax share — quante ads (high+low confidence) sono
+            // classificate come Performance Max sul totale di ads
+            // classificate (esclude "unknown"). Quando il dato manca
+            // (es. canale non Google o nessun classificato) mostriamo
+            // "—" cosi' la riga KPI resta a 4 tile.
+            let pmaxCount = 0;
+            let classifiedCount = 0;
+            for (const entry of data.googleStrategyByCompetitor) {
+              for (const d of entry.data) {
+                classifiedCount += d.count;
+                if (d.strategy === "pmax") pmaxCount += d.count;
+              }
+            }
+            const pmaxPct =
+              classifiedCount > 0
+                ? Math.round((pmaxCount / classifiedCount) * 100)
+                : null;
+            return (
+              <Stat
+                label={t("benchmarks", "pmaxShare")}
+                value={
+                  pmaxPct === null
+                    ? "—"
+                    : `${pmaxPct}%`
+                }
+              />
+            );
+          })()
+        ) : (
           <Stat
             label={t("benchmarks", "avgCopyLength")}
             value={`${data.totals.avgCopyLength} chr`}
@@ -279,6 +309,83 @@ export async function BenchmarkContent({
           />
         </CardContent>
       </Card>
+
+      {/* Google campaign strategy — PMax / Demand Gen / Search /
+          YouTube ecc. Stays high in the page (right after Volume)
+          because "che tipo di campagne fa il competitor su Google"
+          is the question the user is most likely to ask first when
+          they land on /benchmarks?channel=google. */}
+      {channel === "google" && data.googleStrategyByCompetitor.length > 0 && (
+        <Card className="border-amber-500/30 bg-amber-500/[0.02]">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {t("benchmarks", "googleStrategyTitle")}
+              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 font-semibold">
+                BETA
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              {t("benchmarks", "descGoogleStrategy")}
+            </p>
+            <div className={`grid gap-4 ${data.googleStrategyByCompetitor.length <= 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
+              {data.googleStrategyByCompetitor.map((entry) => {
+                const total = entry.data.reduce((s, d) => s + d.count, 0);
+                return (
+                  <div key={entry.competitor} className="space-y-2">
+                    <p className="text-xs font-medium text-gold text-center">
+                      {entry.competitor}
+                    </p>
+                    <div className="space-y-1">
+                      {entry.data.map((d, i) => {
+                        const pct = total > 0 ? (d.count / total) * 100 : 0;
+                        const isLow = d.confidence === "low";
+                        return (
+                          <div
+                            key={`${d.strategy}-${i}`}
+                            className="flex items-center gap-2"
+                          >
+                            <div
+                              className="h-3 rounded-sm"
+                              style={{
+                                width: `${Math.max(pct, 2)}%`,
+                                minWidth: "6px",
+                                backgroundColor: strategyColor(d.strategy),
+                                opacity: isLow ? 0.5 : 1,
+                              }}
+                            />
+                            <span className="text-[11px] font-mono whitespace-nowrap">
+                              <span
+                                className={
+                                  isLow
+                                    ? "text-muted-foreground"
+                                    : "text-foreground"
+                                }
+                              >
+                                {strategyLabel(d.strategy)}
+                              </span>
+                              {isLow && (
+                                <span className="text-[9px] text-muted-foreground ml-1">
+                                  (probabile)
+                                </span>
+                              )}
+                              <span className="text-muted-foreground">
+                                {" "}
+                                · {d.count} ({pct.toFixed(0)}%)
+                              </span>
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Format mix per brand */}
       <Card>
@@ -499,77 +606,6 @@ export async function BenchmarkContent({
         </Card>
       )}
 
-      {channel === "google" && data.googleStrategyByCompetitor.length > 0 && (
-        <Card className="border-amber-500/30 bg-amber-500/[0.02]">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              {t("benchmarks", "googleStrategyTitle")}
-              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 font-semibold">
-                BETA
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-xs text-muted-foreground">
-              {t("benchmarks", "descGoogleStrategy")}
-            </p>
-            <div className={`grid gap-4 ${data.googleStrategyByCompetitor.length <= 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
-              {data.googleStrategyByCompetitor.map((entry) => {
-                const total = entry.data.reduce((s, d) => s + d.count, 0);
-                return (
-                  <div key={entry.competitor} className="space-y-2">
-                    <p className="text-xs font-medium text-gold text-center">
-                      {entry.competitor}
-                    </p>
-                    <div className="space-y-1">
-                      {entry.data.map((d, i) => {
-                        const pct = total > 0 ? (d.count / total) * 100 : 0;
-                        const isLow = d.confidence === "low";
-                        return (
-                          <div
-                            key={`${d.strategy}-${i}`}
-                            className="flex items-center gap-2"
-                          >
-                            <div
-                              className="h-3 rounded-sm"
-                              style={{
-                                width: `${Math.max(pct, 2)}%`,
-                                minWidth: "6px",
-                                backgroundColor: strategyColor(d.strategy),
-                                opacity: isLow ? 0.5 : 1,
-                              }}
-                            />
-                            <span className="text-[11px] font-mono whitespace-nowrap">
-                              <span
-                                className={
-                                  isLow
-                                    ? "text-muted-foreground"
-                                    : "text-foreground"
-                                }
-                              >
-                                {strategyLabel(d.strategy)}
-                              </span>
-                              {isLow && (
-                                <span className="text-[9px] text-muted-foreground ml-1">
-                                  (probabile)
-                                </span>
-                              )}
-                              <span className="text-muted-foreground">
-                                {" "}
-                                · {d.count} ({pct.toFixed(0)}%)
-                              </span>
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {channel === "google" && data.avgServedDaysByCompetitor.length > 0 && (
         <Card>
