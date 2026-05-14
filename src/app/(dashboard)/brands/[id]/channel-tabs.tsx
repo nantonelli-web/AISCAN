@@ -31,6 +31,7 @@ import { cn, formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { CountryFilterDropdown } from "./country-filter-dropdown";
 import { CreativesDateFilter } from "./creatives-date-filter";
+import { InfoPopover } from "@/components/ui/info-popover";
 import type { BrandSerpQueryRank, BrandIdentity } from "./brand-channels-section";
 import type {
   MaitAdExternal,
@@ -706,6 +707,25 @@ export function ChannelTabs({
                     : ""}
                   )
                 </span>
+                <InfoPopover
+                  ariaLabel="Google Ads count"
+                  content={
+                    <div className="space-y-2">
+                      <p className="font-semibold text-foreground">
+                        {t("benchmarks", "googleCountDiffTitle")}
+                      </p>
+                      <p>{t("benchmarks", "googleCountDiffBody1")}</p>
+                      <p>{t("benchmarks", "googleCountDiffBody2")}</p>
+                      <ul className="list-disc pl-4 space-y-1">
+                        <li>{t("benchmarks", "googleCountDiffBullet1")}</li>
+                        <li>{t("benchmarks", "googleCountDiffBullet2")}</li>
+                      </ul>
+                      <p className="text-muted-foreground">
+                        {t("benchmarks", "googleCountDiffBody3")}
+                      </p>
+                    </div>
+                  }
+                />
               </div>
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {googleAds.map((ad) => (
@@ -758,16 +778,39 @@ export function ChannelTabs({
                 />
               </div>
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm text-muted-foreground">
-                  {visibleAds.length}
-                  {(() => {
-                    const total =
-                      channel === "meta" ? filteredTotals.meta : filteredTotals.google;
-                    return total > visibleAds.length
-                      ? ` ${t("competitors", "ofTotal")} ${total}`
-                      : "";
-                  })()}
-                  {" "}ads
+                <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                  <span>
+                    {visibleAds.length}
+                    {(() => {
+                      const total =
+                        channel === "meta" ? filteredTotals.meta : filteredTotals.google;
+                      return total > visibleAds.length
+                        ? ` ${t("competitors", "ofTotal")} ${total}`
+                        : "";
+                    })()}
+                    {" "}ads
+                  </span>
+                  {channel === "google" && (
+                    <InfoPopover
+                      ariaLabel="Google Ads count"
+                      content={
+                        <div className="space-y-2">
+                          <p className="font-semibold text-foreground">
+                            {t("benchmarks", "googleCountDiffTitle")}
+                          </p>
+                          <p>{t("benchmarks", "googleCountDiffBody1")}</p>
+                          <p>{t("benchmarks", "googleCountDiffBody2")}</p>
+                          <ul className="list-disc pl-4 space-y-1">
+                            <li>{t("benchmarks", "googleCountDiffBullet1")}</li>
+                            <li>{t("benchmarks", "googleCountDiffBullet2")}</li>
+                          </ul>
+                          <p className="text-muted-foreground">
+                            {t("benchmarks", "googleCountDiffBody3")}
+                          </p>
+                        </div>
+                      }
+                    />
+                  )}
                 </p>
                 <div className="flex items-center gap-3">
                   {AI_TAGS_ENABLED && <TagButton competitorId={competitorId} />}

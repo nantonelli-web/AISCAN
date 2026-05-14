@@ -1445,6 +1445,30 @@ const translations = {
       it: "% Performance Max",
       en: "Performance Max share",
     },
+    googleCountDiffTitle: {
+      it: "Perché questo numero può differire dalla UI Google Transparency",
+      en: "Why this number may differ from Google Transparency UI",
+    },
+    googleCountDiffBody1: {
+      it: "Qui contiamo ogni creativo distinto (asset-level) che ha girato nel periodo e nei paesi selezionati.",
+      en: "We count every distinct creative (asset-level) that ran in the selected period and countries.",
+    },
+    googleCountDiffBody2: {
+      it: "Il Transparency Centre di Google mostra un numero più basso perché:",
+      en: "Google's Transparency Centre displays a lower number because:",
+    },
+    googleCountDiffBullet1: {
+      it: "Raggruppa più asset di una stessa campagna in una sola card. Una Performance Max con 30 creativi (testo, immagine, video) appare come 1 entry.",
+      en: "It groups multiple assets of the same campaign into a single card. A Performance Max with 30 creatives (text, image, video) appears as 1 entry.",
+    },
+    googleCountDiffBullet2: {
+      it: "Nasconde i creativi sotto la sua soglia interna di impressioni nel periodo.",
+      en: "It hides creatives below its internal impression threshold for the period.",
+    },
+    googleCountDiffBody3: {
+      it: "I creativi qui conteggiati sono comunque tutti reali: ogni scheda ha un link diretto al record originale su Google Transparency.",
+      en: "The creatives counted here are all real: each card has a direct link to the original record on Google Transparency.",
+    },
     descGoogleStrategy: {
       it: "Distribuzione delle ads per tipologia di campagna (Performance Max, Demand Gen, Search, YouTube, ecc.) inferita dalle superfici dove Google ha effettivamente mostrato l'annuncio. Le voci marcate '(probabile)' hanno bassa confidenza — Google non pubblica il breakdown surface per le ads con poche impressioni, quindi la categoria è dedotta solo dal format. Heuristica in BETA, da considerare un'indicazione qualitativa.",
       en: "Distribution of ads by inferred campaign type (Performance Max, Demand Gen, Search, YouTube, etc.) based on the surfaces where Google actually served the ad. Items marked '(probable)' have low confidence — Google doesn't publish the surface breakdown for ads with few impressions, so the category is inferred from format only. Heuristic in BETA, treat as qualitative indication.",

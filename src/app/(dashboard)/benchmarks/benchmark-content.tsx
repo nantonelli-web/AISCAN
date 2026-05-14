@@ -26,6 +26,7 @@ import {
   AudioStrategyChart,
 } from "@/components/dashboard/benchmark-charts";
 import { CollapsibleAlert } from "./collapsible-alert";
+import { InfoPopover } from "@/components/ui/info-popover";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { STRATEGY_LABELS, type GoogleCampaignStrategy } from "@/lib/analytics/google-strategy";
 
@@ -246,7 +247,28 @@ export async function BenchmarkContent({
             : "grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
         }
       >
-        <Stat label={t("benchmarks", "totalAds")} value={formatNumber(data.totals.totalAds)} />
+        <Stat
+          label={t("benchmarks", "totalAds")}
+          value={formatNumber(data.totals.totalAds)}
+          info={
+            channel === "google" ? (
+              <div className="space-y-2">
+                <p className="font-semibold text-foreground">
+                  {t("benchmarks", "googleCountDiffTitle")}
+                </p>
+                <p>{t("benchmarks", "googleCountDiffBody1")}</p>
+                <p>{t("benchmarks", "googleCountDiffBody2")}</p>
+                <ul className="list-disc pl-4 space-y-1">
+                  <li>{t("benchmarks", "googleCountDiffBullet1")}</li>
+                  <li>{t("benchmarks", "googleCountDiffBullet2")}</li>
+                </ul>
+                <p className="text-muted-foreground">
+                  {t("benchmarks", "googleCountDiffBody3")}
+                </p>
+              </div>
+            ) : undefined
+          }
+        />
         <Stat
           label={t("benchmarks", "activeAds")}
           value={formatNumber(data.totals.activeAds)}
@@ -1439,10 +1461,16 @@ function Stat({
   label,
   value,
   tone = "neutral",
+  info,
 }: {
   label: string;
   value: string;
   tone?: "neutral" | "success" | "info";
+  /** Optional info popover content — typically a paragraph that
+   *  explains how the metric is computed or how it relates to
+   *  third-party numbers (es. UI Google Transparency). Reso come
+   *  small (i) accanto al label. */
+  info?: React.ReactNode;
 }) {
   const valueClass =
     tone === "success" ? "tone-success"
@@ -1451,7 +1479,10 @@ function Stat({
   return (
     <Card>
       <CardContent className="p-5">
-        <div className="kpi-label">{label}</div>
+        <div className="kpi-label flex items-center gap-1.5">
+          <span>{label}</span>
+          {info && <InfoPopover content={info} ariaLabel={label} />}
+        </div>
         <div className={`kpi-value mt-1.5 ${valueClass}`}>{value}</div>
       </CardContent>
     </Card>
