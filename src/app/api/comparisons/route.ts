@@ -554,21 +554,34 @@ async function fetchBrandAdData(
   ids: string[],
   admin: ReturnType<typeof createAdminClient>,
   source?: "meta" | "google",
+  /** Stessa finestra che usa computeTechnicalStats. Quando fornita,
+   *  filtriamo per "ad attivo durante la finestra" (start_date <= to
+   *  AND (still active OR end_date >= from)) — coerente con i tile
+   *  tecnici sopra. Quando NON fornita, niente narrow temporale: il
+   *  vecchio hard-coded `created_at >= 10gg` escludeva interi brand
+   *  scansionati piu' di 10 giorni fa, e l'asymmetry guard sotto
+   *  scattava dicendo "no structured copy" per brand che invece
+   *  hanno headline/body benissimo (es. Karen Millen). */
+  dateFilter?: { from: string; to: string },
 ): Promise<BrandAdData[]> {
-  const tenDaysAgo = new Date(Date.now() - 10 * 86_400_000).toISOString();
   return Promise.all(
     ids.map(async (id) => {
-      const adsQuery = admin
+      let adsQuery = admin
         .from("mait_ads_external")
         // raw_data so we can derive `format` per ad — needed downstream
         // to skip TEXT-format rows in the visual analysis (their
         // image_url is a screenshot of formatted text, not a creative).
         .select("headline, ad_text, description, cta, image_url, platforms, raw_data")
         .eq("competitor_id", id)
-        .gte("created_at", tenDaysAgo)
         .order("created_at", { ascending: false })
         .limit(12);
-      if (source) adsQuery.eq("source", source);
+      if (source) adsQuery = adsQuery.eq("source", source);
+      if (dateFilter) {
+        adsQuery = adsQuery.lte("start_date", dateFilter.to);
+        adsQuery = adsQuery.or(
+          `end_date.gte.${dateFilter.from},end_date.is.null,status.eq.ACTIVE`,
+        );
+      }
 
       const [{ data: comp }, { data: ads }] = await Promise.all([
         admin
@@ -1317,7 +1330,7 @@ export async function POST(req: Request) {
           : undefined;
     const brands = isOrganic
       ? await fetchBrandOrganicData(ids, admin)
-      : await fetchBrandAdData(ids, admin, aiSource);
+      : await fetchBrandAdData(ids, admin, aiSource, dateFilter);
     const aiLocale = locale as "it" | "en";
 
     const aiTasks: Promise<void>[] = [];
