@@ -11,7 +11,7 @@ import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { TikTokIcon } from "@/components/ui/tiktok-icon";
 import { SnapchatIcon } from "@/components/ui/snapchat-icon";
 import { YouTubeIcon } from "@/components/ui/youtube-icon";
-import { Search as SearchIcon } from "lucide-react";
+import { Search as SearchIcon, MapPin } from "lucide-react";
 import Link from "next/link";
 import { DynamicBackLink } from "@/components/ui/dynamic-back-link";
 import { BenchmarkContent } from "./benchmark-content";
@@ -87,7 +87,8 @@ type Channel =
   | "tiktok"
   | "snapchat"
   | "youtube"
-  | "serp";
+  | "serp"
+  | "maps";
 type StatusFilter = "active" | "inactive" | null;
 
 function parseChannel(raw: string | string[] | undefined): Channel {
@@ -97,6 +98,7 @@ function parseChannel(raw: string | string[] | undefined): Channel {
   if (raw === "snapchat") return "snapchat";
   if (raw === "youtube") return "youtube";
   if (raw === "serp") return "serp";
+  if (raw === "maps") return "maps";
   return "meta";
 }
 
@@ -247,6 +249,7 @@ export default async function BenchmarksPage({
   ];
   const monitoringChannels = [
     { key: "serp" as const, label: "Google SERP", icon: <SearchIcon className="size-3.5" /> },
+    { key: "maps" as const, label: "Google Maps", icon: <MapPin className="size-3.5" /> },
   ];
 
   function hrefForProject(ch: string, cl: string | null): string {

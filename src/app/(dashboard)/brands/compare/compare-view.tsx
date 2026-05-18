@@ -34,7 +34,7 @@ import { MetaIcon } from "@/components/ui/meta-icon";
 import { TikTokIcon } from "@/components/ui/tiktok-icon";
 import { SnapchatIcon } from "@/components/ui/snapchat-icon";
 import { YouTubeIcon } from "@/components/ui/youtube-icon";
-import { Search as SearchIcon } from "lucide-react";
+import { Search as SearchIcon, MapPin } from "lucide-react";
 import { FallbackImage } from "@/components/ui/fallback-image";
 import { CollapsibleClientSection } from "../collapsible-client-section";
 import {
@@ -86,7 +86,8 @@ type Channel =
   | "tiktok"
   | "snapchat"
   | "youtube"
-  | "serp";
+  | "serp"
+  | "maps";
 
 /** Channels for which `/api/comparisons` already returns aggregated
  *  technical_data and AI sections. The compare flow short-circuits to
@@ -333,7 +334,8 @@ function isChannel(v: string | null | undefined): v is Channel {
     v === "tiktok" ||
     v === "snapchat" ||
     v === "youtube" ||
-    v === "serp"
+    v === "serp" ||
+    v === "maps"
   );
 }
 
@@ -346,6 +348,7 @@ function channelLabel(ch: string | null | undefined, t: (s: string, k: string) =
     case "snapchat": return "Snapchat";
     case "youtube": return "YouTube";
     case "serp": return "Google SERP";
+    case "maps": return "Google Maps";
     case "all": return t("compare", "allChannels");
     default: return "Meta Ads";
   }
@@ -1010,6 +1013,11 @@ export function CompareView({
     snapchat: snapchatDisabled,
     youtube: youtubeDisabled,
     serp: false,
+    // Maps non gating sui brand: il confronto location-based si
+    // appoggia ai dati workspace-level (POI scrape via Nominatim
+    // geocoding) come SERP. Sempre selectable, il placeholder
+    // spiega lo stato.
+    maps: false,
     all: googleDisabled || instagramDisabled,
   };
 
@@ -1487,10 +1495,12 @@ export function CompareView({
 
               <div className="h-6 w-px bg-border hidden sm:block" />
 
-              {/* Monitoring channel — SERP. Brands linked via the
-                  workspace M:N junction; the comparison shape is
-                  ranking-based, not creative-based, so it lives in
-                  the placeholder branch until we ship that view. */}
+              {/* Monitoring channels — SERP + Maps. Entrambi
+                  workspace-level (linked via M:N junction su SERP,
+                  POI scrape via Nominatim su Maps); il confronto e'
+                  ranking/location-based, non creative-based, e
+                  rimane nel ramo placeholder finche' non spediamo la
+                  view. */}
               <div className="flex items-center gap-2">
                 <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{t("compare", "channelMonitoring")}</span>
                 {(() => {
@@ -1505,6 +1515,21 @@ export function CompareView({
                     >
                       <SearchIcon className="size-4" />
                       Google SERP
+                    </Button>
+                  );
+                })()}
+                {(() => {
+                  const disabled = channelDisabled.maps;
+                  return (
+                    <Button
+                      variant={channel === "maps" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => !disabled && switchChannel("maps")}
+                      disabled={disabled}
+                      className={cn("gap-1.5", disabled && "opacity-40 cursor-not-allowed")}
+                    >
+                      <MapPin className="size-4" />
+                      Google Maps
                     </Button>
                   );
                 })()}
