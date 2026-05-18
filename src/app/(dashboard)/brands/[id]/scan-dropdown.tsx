@@ -898,24 +898,11 @@ export function ScanDropdown({
         )}
       </div>
 
-      {/* Helper note — TikTok / YouTube actor limitation.
-          Both clockworks/tiktok-scraper and streamers/youtube-
-          channel-scraper expose only "fetch latest N items" — no
-          server-side date filter. We apply the user's range
-          post-fetch (drop items whose posted_at falls outside),
-          which works for typical 30-90d windows but cannot
-          retrieve content older than the latest-N cap. The note
-          stays inline so the user sees it BEFORE clicking the
-          TikTok or YouTube button. Snapchat is excluded because
-          its actor returns a single profile snapshot, not a
-          posts list — date range simply doesn't apply. */}
-      <div className="flex items-start gap-2.5 rounded-md border border-info/20 bg-info-soft/40 px-3 py-2.5 text-xs text-foreground/80 leading-relaxed">
-        <Info className="size-3.5 tone-info shrink-0 mt-0.5" />
-        <p>
-          <span className="font-medium text-foreground">{t("scan", "tiktokYoutubeNoteTitle")}</span>{" "}
-          {t("scan", "tiktokYoutubeNoteBody")}
-        </p>
-      </div>
+      {/* Helper note "Limiti per canale" spostata in coda allo
+          ScanDropdown 2026-05-18 (richiesta utente): non e' info di
+          gating al click, e' un dettaglio tecnico di lettura che
+          appartiene meglio al fondo del blocco Scan dopo "Canali
+          da configurare" — meno noise above-the-fold. */}
 
       {/* ─── 1b. Scan markets — chip strip + helper + pencil edit.
               I paesi vengono presi dall'ANAGRAFICA brand (campo
@@ -1336,6 +1323,20 @@ export function ScanDropdown({
           </button>
         </div>
       )}
+
+      {/* ─── Limiti per canale — note tecnica di lettura, vive in
+              fondo dopo "Canali da configurare" (richiesta utente
+              2026-05-18). TikTok / YouTube non hanno filtro data
+              lato actor; Snapchat Ads usa la DSA Snap (recupera
+              EU/12 mesi). Sta giu' perche non gate i click, e' solo
+              info di interpretazione. */}
+      <div className="flex items-start gap-2.5 rounded-md border border-border bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground leading-relaxed">
+        <Info className="size-3.5 shrink-0 mt-0.5" />
+        <p>
+          <span className="font-medium text-foreground">{t("scan", "tiktokYoutubeNoteTitle")}</span>{" "}
+          {t("scan", "tiktokYoutubeNoteBody")}
+        </p>
+      </div>
     </div>
   );
 }

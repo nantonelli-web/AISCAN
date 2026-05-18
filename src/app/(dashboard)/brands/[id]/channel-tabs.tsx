@@ -26,7 +26,7 @@ import { MetaIcon } from "@/components/ui/meta-icon";
 import { TikTokIcon } from "@/components/ui/tiktok-icon";
 import { SnapchatIcon } from "@/components/ui/snapchat-icon";
 import { YouTubeIcon } from "@/components/ui/youtube-icon";
-import { Download, Loader2, Search as SearchIcon, MapPin, Layers, LayoutGrid } from "lucide-react";
+import { Download, Loader2, Search as SearchIcon, MapPin, SlidersHorizontal, LayoutGrid } from "lucide-react";
 import { GoogleIcon } from "@/components/ui/google-icon";
 import { CollapsibleSectionCard } from "./collapsible-section-card";
 import { cn, formatNumber } from "@/lib/utils";
@@ -596,85 +596,44 @@ export function ChannelTabs({
   // "Creativita & Insight" sotto. Niente sub-card frame per riga
   // (l'utente ha gia' segnalato 2x "troppi riquadri") — solo
   // horizontal divider tra rows, stesso pattern di tutte le altre
-  // sezioni di filtri nel prodotto.
+  // sezioni di filtri nel prodotto. Ordine: Channel (primario) →
+  // Periodo + Confronto (raggruppati in 1 group "time controls") →
+  // Country + Stato (secondari).
+  const showTimeControls =
+    channel === "all" || channel === "meta" || channel === "google";
   const filtersNode = (
     <div className="space-y-4">
-      {/* Confronto periodi */}
-      {(channel === "all" ||
-        channel === "meta" ||
-        channel === "google") && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      {/* ─── 1. Channel pivot ───────────────────────────────────
+          "Tutti i canali" e' un catch-all chiarito in label (era
+          "Tutti" ambiguo: paid? organic? tutti?). Sta su una sua
+          riga in TESTA al filtro, poi Paid / Organic / Monitoring
+          sotto in row separati per gruppo con divisori verticali. */}
+      {allTab && (
+        <div className="flex items-center gap-2">
           <span className={sectionLabel}>
-            {t("competitors", "compareLabel")}
+            {t("competitors", "filterByChannel")}
           </span>
           <Link
-            href={buildHref({ compare: null })}
-            className={cn(
-              "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors cursor-pointer",
-              compareMode === null
-                ? "bg-gold/15 text-gold border-gold/30 font-medium"
-                : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
+            href={buildHref({ tab: null })}
+            className={chipClass(channel === "all")}
           >
-            {t("competitors", "compareNone")}
-          </Link>
-          <Link
-            href={buildHref({ compare: "previous" })}
-            className={cn(
-              "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors cursor-pointer",
-              compareMode === "previous"
-                ? "bg-gold/15 text-gold border-gold/30 font-medium"
-                : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
-            title={!dateFrom || !dateTo ? t("competitors", "compareRequiresDateRange") : undefined}
-          >
-            {t("competitors", "comparePrevious")}
-          </Link>
-          {compareMode === "previous" && compareTotals && (
-            <span className="text-[11px] text-muted-foreground ml-1">
-              {t("competitors", "comparePeriod")}:{" "}
-              <span className="font-mono">
-                {shortDate(compareTotals.from)} → {shortDate(compareTotals.to)}
+            <span>{t("competitors", "channelAllExplicit")}</span>
+            {allTab.count > 0 && (
+              <span className="text-[10px] tabular-nums opacity-70 ml-1">
+                {allTab.count}
               </span>
-            </span>
-          )}
-          {compareMode === "previous" && (!dateFrom || !dateTo) && (
-            <span className="text-[11px] text-amber-500 ml-1">
-              {t("competitors", "compareRequiresDateRange")}
-            </span>
-          )}
+            )}
+          </Link>
         </div>
       )}
-
-      {(channel === "all" || channel === "meta" || channel === "google") && (
-        <div className="h-px bg-border" />
-      )}
-
-      {/* Channel pivot — Paid / Organic / Monitoring */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-        {allTab && (
-          <div className="flex items-center gap-2">
-            <span className={sectionLabel}>
-              {t("competitors", "filterByChannel")}
-            </span>
-            <Link
-              href={buildHref({ tab: null })}
-              className={chipClass(channel === "all")}
-            >
-              <span>{allTab.label}</span>
-            </Link>
-          </div>
-        )}
         {paidTabs.length > 0 && (
-          <>
-            <div className="hidden lg:block h-6 w-px bg-border" />
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className={sectionLabel}>
-                {t("benchmarks", "paidChannels")}
-              </span>
-              {paidTabs.map((p) => renderChannelChip(p))}
-            </div>
-          </>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={sectionLabel}>
+              {t("benchmarks", "paidChannels")}
+            </span>
+            {paidTabs.map((p) => renderChannelChip(p))}
+          </div>
         )}
         {organicTabs.length > 0 && (
           <>
@@ -700,11 +659,62 @@ export function ChannelTabs({
         )}
       </div>
 
-      {(channel === "all" || channel === "meta" || channel === "google") && (
+      {/* ─── 2. Periodo + Confronto — raggruppati come "time
+          controls". Prima erano 2 righe distanti che facevano
+          sembrare 2 cose scollegate. Adesso un singolo group con
+          header "Periodo di analisi" e sotto due sub-row: Range +
+          Confronto. Cosi l'utente legge: "scelgo il range, e
+          posso anche confrontarlo con un altro periodo". */}
+      {showTimeControls && (
         <>
           <div className="h-px bg-border" />
-          {/* Date range filter — solo sulle tab ads-driven */}
-          <CreativesDateFilter dateFrom={dateFrom} dateTo={dateTo} />
+          <div className="space-y-2.5">
+            <p className="text-[11px] uppercase tracking-wider text-foreground font-bold">
+              {t("competitors", "timeControlsHeader")}
+            </p>
+            <CreativesDateFilter dateFrom={dateFrom} dateTo={dateTo} />
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pl-1">
+              <span className={sectionLabel}>
+                {t("competitors", "compareLabel")}
+              </span>
+              <Link
+                href={buildHref({ compare: null })}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors cursor-pointer",
+                  compareMode === null
+                    ? "bg-gold/15 text-gold border-gold/30 font-medium"
+                    : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                {t("competitors", "compareNone")}
+              </Link>
+              <Link
+                href={buildHref({ compare: "previous" })}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors cursor-pointer",
+                  compareMode === "previous"
+                    ? "bg-gold/15 text-gold border-gold/30 font-medium"
+                    : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+                title={!dateFrom || !dateTo ? t("competitors", "compareRequiresDateRange") : undefined}
+              >
+                {t("competitors", "comparePrevious")}
+              </Link>
+              {compareMode === "previous" && compareTotals && (
+                <span className="text-[11px] text-muted-foreground ml-1">
+                  {t("competitors", "comparePeriod")}:{" "}
+                  <span className="font-mono">
+                    {shortDate(compareTotals.from)} → {shortDate(compareTotals.to)}
+                  </span>
+                </span>
+              )}
+              {compareMode === "previous" && (!dateFrom || !dateTo) && (
+                <span className="text-[11px] text-amber-500 ml-1">
+                  {t("competitors", "compareRequiresDateRange")}
+                </span>
+              )}
+            </div>
+          </div>
         </>
       )}
 
@@ -772,7 +782,7 @@ export function ChannelTabs({
           (impostazioni vs output) sono distinguibili a colpo
           d'occhio. Tone info, default chiuso. */}
       <CollapsibleSectionCard
-        icon={<Layers className="size-5" />}
+        icon={<SlidersHorizontal className="size-5" />}
         title={t("brandHero", "creativesHeader")}
         subtitle={t("brandHero", "creativesSubtitle")}
         tone="info"
@@ -792,7 +802,7 @@ export function ChannelTabs({
         title={t("competitors", "resultsHeader")}
         subtitle={t("competitors", "resultsSubtitle")}
         tone="neutral"
-        defaultOpen={false}
+        defaultOpen={true}
       >
         <div className="space-y-5">
 

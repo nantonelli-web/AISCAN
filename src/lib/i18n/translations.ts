@@ -344,6 +344,11 @@ const translations = {
       en: "Set a date range to enable comparison.",
     },
     resultsHeader: { it: "Risultati", en: "Results" },
+    channelAllExplicit: { it: "Tutti i canali", en: "All channels" },
+    timeControlsHeader: {
+      it: "Periodo di analisi",
+      en: "Analysis period",
+    },
     resultsSubtitle: {
       it: "Ads e post filtrati in base ai criteri selezionati sopra.",
       en: "Ads and posts filtered by the criteria selected above.",

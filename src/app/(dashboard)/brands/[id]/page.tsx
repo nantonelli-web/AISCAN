@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, Pencil, Radar } from "lucide-react";
+import { ArrowLeft, ExternalLink, Pencil, Zap } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { ScanDropdown } from "./scan-dropdown";
@@ -433,11 +433,10 @@ export default async function CompetitorDetailPage({
           )}
           <div className="min-w-0 space-y-2">
             <div className="space-y-0.5">
-              <p className="eyebrow">{t("competitors", "title")}</p>
-              {/* Pencil inline a destra del nome (richiesta utente
-                  2026-05-07): chi vuole correggere le proprietà del
-                  brand le associa visivamente al titolo, non agli
-                  action button della colonna destra. */}
+              {/* Eyebrow "BRANDS" rimossa 2026-05-18 (richiesta
+                  utente): il fatto che si sia sul brand-detail e gia
+                  implicito dal breadcrumb sopra. Pencil inline a
+                  destra del nome per editare le proprieta del brand. */}
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-3xl font-serif tracking-tight">
                   {c.page_name}
@@ -550,7 +549,7 @@ export default async function CompetitorDetailPage({
           ramo Scan. Tenerla qui (sotto, separata dal background)
           riduce gli h2 top-level della pagina da 3 a 2. */}
       <CollapsibleSectionCard
-        icon={<Radar className="size-5" />}
+        icon={<Zap className="size-5" />}
         title={t("scan", "scanNow")}
         subtitle={t("scan", "scanNowSubtitle")}
         tone="gold"
