@@ -26,8 +26,9 @@ import { MetaIcon } from "@/components/ui/meta-icon";
 import { TikTokIcon } from "@/components/ui/tiktok-icon";
 import { SnapchatIcon } from "@/components/ui/snapchat-icon";
 import { YouTubeIcon } from "@/components/ui/youtube-icon";
-import { Download, Loader2, Search as SearchIcon, MapPin } from "lucide-react";
+import { Download, Loader2, Search as SearchIcon, MapPin, Layers, LayoutGrid } from "lucide-react";
 import { GoogleIcon } from "@/components/ui/google-icon";
+import { CollapsibleSectionCard } from "./collapsible-section-card";
 import { cn, formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { CountryFilterDropdown } from "./country-filter-dropdown";
@@ -591,19 +592,18 @@ export function ChannelTabs({
     return m ? `${m[3]}/${m[2]}` : iso;
   }
 
-  return (
-    <div className="space-y-5">
-      {/* ─── Compare period toolbar ───────────────────────────
-          Pattern identico a /adv-performance: pillole Nessuno /
-          Periodo precedente. Quando compareMode='previous' la UI
-          mostra accanto al date range le date del periodo prec.
-          calcolate lato server in page.tsx (stessa lunghezza,
-          shiftata). I delta % appaiono nei caption "(X of Y) ads"
-          sotto. */}
+  // Filtri: TUTTE le righe vivono dentro la CollapsibleSectionCard
+  // "Creativita & Insight" sotto. Niente sub-card frame per riga
+  // (l'utente ha gia' segnalato 2x "troppi riquadri") — solo
+  // horizontal divider tra rows, stesso pattern di tutte le altre
+  // sezioni di filtri nel prodotto.
+  const filtersNode = (
+    <div className="space-y-4">
+      {/* Confronto periodi */}
       {(channel === "all" ||
         channel === "meta" ||
         channel === "google") && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-muted/30 px-4 py-2.5 print:hidden">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <span className={sectionLabel}>
             {t("competitors", "compareLabel")}
           </span>
@@ -646,147 +646,155 @@ export function ChannelTabs({
         </div>
       )}
 
-      {/* ─── Channel pivot ─────────────────────────────────────
-          Stesso pattern di /benchmarks: pillole grandi raggruppate
-          per Paid / Organic / Monitoring con divisori verticali fra
-          gruppi. Cosi' l'utente legge subito "scegli il canale,
-          poi raffina con Country/Status/Date sotto". */}
-      <div className="rounded-lg border border-border bg-muted/20 px-4 py-4 print:hidden">
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-          {allTab && (
-            <div className="flex items-center gap-2">
+      {(channel === "all" || channel === "meta" || channel === "google") && (
+        <div className="h-px bg-border" />
+      )}
+
+      {/* Channel pivot — Paid / Organic / Monitoring */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+        {allTab && (
+          <div className="flex items-center gap-2">
+            <span className={sectionLabel}>
+              {t("competitors", "filterByChannel")}
+            </span>
+            <Link
+              href={buildHref({ tab: null })}
+              className={chipClass(channel === "all")}
+            >
+              <span>{allTab.label}</span>
+            </Link>
+          </div>
+        )}
+        {paidTabs.length > 0 && (
+          <>
+            <div className="hidden lg:block h-6 w-px bg-border" />
+            <div className="flex items-center gap-2 flex-wrap">
               <span className={sectionLabel}>
-                {t("competitors", "filterByChannel")}
+                {t("benchmarks", "paidChannels")}
               </span>
-              {/* "Tutti" e' un catch-all secondario, non un canale
-                  con logo brand — rendiamolo piu' piccolo del paid/
-                  organic per non competere visivamente. Stile pill
-                  small (px-3 py-1.5 text-xs) come Status/Country
-                  filter, niente icona. */}
-              <Link
-                href={buildHref({ tab: null })}
-                className={chipClass(channel === "all")}
-              >
-                <span>{allTab.label}</span>
-              </Link>
+              {paidTabs.map((p) => renderChannelChip(p))}
             </div>
-          )}
-          {paidTabs.length > 0 && (
-            <>
-              <div className="hidden lg:block h-6 w-px bg-border" />
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={sectionLabel}>
-                  {t("benchmarks", "paidChannels")}
-                </span>
-                {paidTabs.map((p) => renderChannelChip(p))}
-              </div>
-            </>
-          )}
-          {organicTabs.length > 0 && (
-            <>
-              <div className="hidden lg:block h-6 w-px bg-border" />
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={sectionLabel}>
-                  {t("benchmarks", "organicChannels")}
-                </span>
-                {organicTabs.map((p) => renderChannelChip(p))}
-              </div>
-            </>
-          )}
-          {monitoringTabs.length > 0 && (
-            <>
-              <div className="hidden lg:block h-6 w-px bg-border" />
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={sectionLabel}>
-                  {t("benchmarks", "monitoringChannels")}
-                </span>
-                {monitoringTabs.map((p) => renderChannelChip(p))}
-              </div>
-            </>
-          )}
-        </div>
+          </>
+        )}
+        {organicTabs.length > 0 && (
+          <>
+            <div className="hidden lg:block h-6 w-px bg-border" />
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={sectionLabel}>
+                {t("benchmarks", "organicChannels")}
+              </span>
+              {organicTabs.map((p) => renderChannelChip(p))}
+            </div>
+          </>
+        )}
+        {monitoringTabs.length > 0 && (
+          <>
+            <div className="hidden lg:block h-6 w-px bg-border" />
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={sectionLabel}>
+                {t("benchmarks", "monitoringChannels")}
+              </span>
+              {monitoringTabs.map((p) => renderChannelChip(p))}
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Date range filter — visibile solo sulle tab dove ha senso
-          (Meta / Google / All — ads-driven). Tiktok/Snapchat/YouTube/
-          Instagram/SERP usano altre tabelle con start/end semantics
-          differenti, quindi escludiamo. */}
-      {(channel === "all" ||
-        channel === "meta" ||
-        channel === "google") && (
-        <CreativesDateFilter dateFrom={dateFrom} dateTo={dateTo} />
+      {(channel === "all" || channel === "meta" || channel === "google") && (
+        <>
+          <div className="h-px bg-border" />
+          {/* Date range filter — solo sulle tab ads-driven */}
+          <CreativesDateFilter dateFrom={dateFrom} dateTo={dateTo} />
+        </>
       )}
 
-      {/* Secondary filters — Country + Status. Only render the row
-          if at least one of them applies on the current channel,
-          otherwise we'd leave an empty bar that adds noise. */}
       {(showCountryFilter || showStatusFilter) && (
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 print:hidden">
-          {showCountryFilter && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="eyebrow">
-                {t("competitors", "filterByCountry")}
-              </span>
-              <CountryFilterDropdown
-                availableCountries={availableCountries}
-                selected={selectedCountries}
-                onChange={(next) => {
-                  const codes = [...next];
-                  router.push(
-                    buildHref({
-                      countries: codes.length > 0 ? codes.join(",") : null,
-                    }),
-                  );
-                }}
-              />
-            </div>
-          )}
-
-          {showStatusFilter && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="eyebrow">
-                {t("competitors", "filterByStatus")}
-              </span>
-              {statusPills.map((p) => (
-                <Link
-                  key={p.key}
-                  href={buildHref({
-                    status: p.key === "all" ? null : p.key,
-                  })}
-                  className={cn(
-                    chipClass(status === p.key),
-                    // Color-code active vs inactive so the eye
-                    // can distinguish them without reading.
-                    status !== p.key && p.key === "active" && "hover:tone-success",
-                    status !== p.key && p.key === "inactive" && "hover:tone-neutral",
-                  )}
-                >
-                  {p.key === "active" && (
-                    <span className="size-1.5 rounded-full bg-current shrink-0 tone-success" />
-                  )}
-                  {p.key === "inactive" && (
-                    <span className="size-1.5 rounded-full bg-current shrink-0 tone-neutral" />
-                  )}
-                  {p.label}
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
+        <>
+          <div className="h-px bg-border" />
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 print:hidden">
+            {showCountryFilter && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="eyebrow">
+                  {t("competitors", "filterByCountry")}
+                </span>
+                <CountryFilterDropdown
+                  availableCountries={availableCountries}
+                  selected={selectedCountries}
+                  onChange={(next) => {
+                    const codes = [...next];
+                    router.push(
+                      buildHref({
+                        countries: codes.length > 0 ? codes.join(",") : null,
+                      }),
+                    );
+                  }}
+                />
+              </div>
+            )}
+            {showStatusFilter && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="eyebrow">
+                  {t("competitors", "filterByStatus")}
+                </span>
+                {statusPills.map((p) => (
+                  <Link
+                    key={p.key}
+                    href={buildHref({
+                      status: p.key === "all" ? null : p.key,
+                    })}
+                    className={cn(
+                      chipClass(status === p.key),
+                      status !== p.key && p.key === "active" && "hover:tone-success",
+                      status !== p.key && p.key === "inactive" && "hover:tone-neutral",
+                    )}
+                  >
+                    {p.key === "active" && (
+                      <span className="size-1.5 rounded-full bg-current shrink-0 tone-success" />
+                    )}
+                    {p.key === "inactive" && (
+                      <span className="size-1.5 rounded-full bg-current shrink-0 tone-neutral" />
+                    )}
+                    {p.label}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
       )}
+    </div>
+  );
 
-      {/* ─── Sezione "Risultati" — divider + sub-header esplicito
-              tra filtri (sopra) e contenuto grid (sotto). Prima i
-              filtri finivano e partiva subito "Google Ads (X of Y)"
-              senza segnalare il cambio di registro. Una semplice
-              etichetta in tonalita' muted con divider sopra rende
-              palese che da qui in giu' parte il contenuto filtrato.
-          */}
-      <div className="pt-4 mt-2 border-t border-border/60">
-        <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
-          {t("competitors", "resultsHeader")}
-        </p>
-      </div>
+  return (
+    <div className="space-y-6">
+      {/* ─── Creativita & Insight — solo filtri.
+          Sezione collapsible separata da Risultati cosi i 2 concetti
+          (impostazioni vs output) sono distinguibili a colpo
+          d'occhio. Tone info, default chiuso. */}
+      <CollapsibleSectionCard
+        icon={<Layers className="size-5" />}
+        title={t("brandHero", "creativesHeader")}
+        subtitle={t("brandHero", "creativesSubtitle")}
+        tone="info"
+        defaultOpen={false}
+      >
+        {filtersNode}
+      </CollapsibleSectionCard>
+
+      {/* ─── Risultati — output filtrato.
+          Stesso pattern visivo di Creativita ma tone neutral. Le
+          grids (Meta/Google/IG/TT/SN/YT/SERP/Maps) vivono qui dentro
+          come da feedback utente: "il riquadro Creativita finisce
+          prima dei Risultati, e Risultati devono stare fuori dal
+          riquadro filtri". */}
+      <CollapsibleSectionCard
+        icon={<LayoutGrid className="size-5" />}
+        title={t("competitors", "resultsHeader")}
+        subtitle={t("competitors", "resultsSubtitle")}
+        tone="neutral"
+        defaultOpen={false}
+      >
+        <div className="space-y-5">
 
       {/* ─── Ads section ─── */}
       {channel === "all" ? (
@@ -1644,6 +1652,8 @@ export function ChannelTabs({
             </CardContent>
           </Card>
         )}
+        </div>
+      </CollapsibleSectionCard>
     </div>
   );
 }

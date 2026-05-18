@@ -344,6 +344,10 @@ const translations = {
       en: "Set a date range to enable comparison.",
     },
     resultsHeader: { it: "Risultati", en: "Results" },
+    resultsSubtitle: {
+      it: "Ads e post filtrati in base ai criteri selezionati sopra.",
+      en: "Ads and posts filtered by the criteria selected above.",
+    },
     mapsComingSoon: {
       it: "L'aggregazione brand-level per Google Maps arriverà a breve. Per ora puoi gestire i POI dalla sezione Google Maps.",
       en: "Brand-level aggregation for Google Maps is coming soon. For now you can manage POIs from the Google Maps section.",
@@ -521,6 +525,11 @@ const translations = {
     scanMarketsEdit: {
       it: "Modifica i mercati nell'anagrafica del brand",
       en: "Edit markets in brand profile",
+    },
+    frequencyLabel: { it: "Tipologia scan", en: "Scan schedule" },
+    frequencyHelp: {
+      it: "Manuale = lanci tu cliccando Scan. Daily/Weekly = uno scan automatico ogni giorno o settimana.",
+      en: "Manual = you launch it via Scan. Daily/Weekly = automatic scan every day or week.",
     },
     scanNowSubtitle: {
       it: "Lancia una scansione su uno o più canali per aggiornare i dati del brand.",

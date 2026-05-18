@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, Layers, Pencil, Radar } from "lucide-react";
+import { ArrowLeft, ExternalLink, Pencil, Radar } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { ScanDropdown } from "./scan-dropdown";
@@ -410,7 +410,6 @@ export default async function CompetitorDetailPage({
         >
           <ArrowLeft className="size-4" /> {t("competitors", "allCompetitors")}
         </Link>
-        <PrintButton label={t("common", "print")} variant="outline" />
       </div>
 
       {/* ─── Hero: brand identity ─────────────────────────────
@@ -480,9 +479,10 @@ export default async function CompetitorDetailPage({
         </div>
 
         <div className="flex items-center gap-2 print:hidden">
-          <div className="inline-flex items-center rounded-md border border-border bg-muted/30 px-3 py-1.5 text-xs">
-            <FrequencySelector competitorId={c.id} initial={frequency} />
-          </div>
+          {/* Print + Delete affiancati. FrequencySelector spostata
+              dentro la Scan card body — tipologia di scan e' una
+              proprieta' dell'azione "Scan", non del brand-hero. */}
+          <PrintButton label={t("common", "print")} variant="outline" />
           <DeleteBrandButton
             competitorId={c.id}
             competitorName={c.page_name}
@@ -556,6 +556,21 @@ export default async function CompetitorDetailPage({
         tone="gold"
         defaultOpen={false}
       >
+          {/* Tipologia di scan (Manuale / Daily / Weekly) — proprieta'
+              dell'azione Scan, vive in cima al body. La modifica e'
+              persistita immediatamente via FrequencySelector (server
+              action). */}
+          <div className="flex flex-wrap items-center gap-3 pb-4 mb-4 border-b border-gold/20">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+              {t("scan", "frequencyLabel")}
+            </span>
+            <div className="inline-flex items-center rounded-md border border-border bg-background px-3 py-1.5 text-xs">
+              <FrequencySelector competitorId={c.id} initial={frequency} />
+            </div>
+            <span className="text-[11px] text-muted-foreground">
+              {t("scan", "frequencyHelp")}
+            </span>
+          </div>
           <ScanDropdown
             competitorId={c.id}
             // Meta scrape needs either a Facebook page URL OR a
@@ -625,23 +640,16 @@ export default async function CompetitorDetailPage({
           )}
       </CollapsibleSectionCard>
 
-      {/* ─── Creativita & Insight — collassata di default.
-          Stesso pattern collapsible-section-card di Scan ma tone
-          info (cambia colore cosi l'utente distingue subito le 2
-          sezioni). Default chiuso per liberare lo spazio
-          above-the-fold ai 3 KPI tile in alto; cliccando si apre
-          tutto il blocco grid + filtri. */}
-      <CollapsibleSectionCard
-        icon={<Layers className="size-5" />}
-        title={t("brandHero", "creativesHeader")}
-        subtitle={t("brandHero", "creativesSubtitle")}
-        tone="info"
-        defaultOpen={false}
+      {/* ─── Creativita & Insight + Risultati — 2 collapsible
+          section cards separate, entrambe gestite da ChannelTabs.
+          Splittate perche' l'utente ha esplicitamente chiesto
+          "chiudi il riquadro filtri prima dei risultati". Le 2
+          card girano insieme dentro ChannelTabs (stesso URL state
+          via useSearchParams), niente prop drilling extra. */}
+      <Suspense
+        key={`${tab}|${statusFilter ?? "all"}|${countriesFilter.join(",")}|${dateFromParam ?? ""}|${dateToParam ?? ""}|${computedCompareFrom ?? ""}|${computedCompareTo ?? ""}`}
+        fallback={<BrandChannelsSkeleton />}
       >
-        <Suspense
-          key={`${tab}|${statusFilter ?? "all"}|${countriesFilter.join(",")}|${dateFromParam ?? ""}|${dateToParam ?? ""}|${computedCompareFrom ?? ""}|${computedCompareTo ?? ""}`}
-          fallback={<BrandChannelsSkeleton />}
-        >
           <BrandChannelsSection
             competitorId={c.id}
             googleDomain={c.google_domain}
@@ -675,12 +683,7 @@ export default async function CompetitorDetailPage({
               googleDomain: c.google_domain,
             }}
           />
-        </Suspense>
-      </CollapsibleSectionCard>
-
-      <div className="flex justify-end pt-2 print:hidden">
-        <PrintButton label={t("common", "print")} variant="outline" />
-      </div>
+      </Suspense>
     </div>
   );
 }
