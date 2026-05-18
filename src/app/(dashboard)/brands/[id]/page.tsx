@@ -107,7 +107,7 @@ export default async function CompetitorDetailPage({
     supabase
       .from("mait_competitors")
       .select(
-        "id, workspace_id, page_name, page_id, page_url, country, category, monitor_config, profile_picture_url, instagram_username, tiktok_username, tiktok_advertiser_id, snapchat_handle, snapchat_profile, youtube_channel_url, youtube_profile, google_advertiser_id, google_domain, last_scraped_at"
+        "id, workspace_id, page_name, page_id, page_url, country, category, monitor_config, profile_picture_url, instagram_username, instagram_profile, tiktok_username, tiktok_advertiser_id, snapchat_handle, snapchat_profile, youtube_channel_url, youtube_profile, google_advertiser_id, google_domain, last_scraped_at"
       )
       .eq("id", id)
       .single(),
@@ -611,6 +611,18 @@ export default async function CompetitorDetailPage({
             name: c.page_name,
             avatar: pageProfilePicture,
             instagramUsername: c.instagram_username,
+            // Snapshot dell'ultimo IG scan — followers, posts,
+            // verified. Tipo lasco perche' il JSONB scritto da
+            // scrapeInstagramProfile e' un Record<string, unknown>.
+            instagramProfile: c.instagram_profile
+              ? (c.instagram_profile as {
+                  followersCount?: number | null;
+                  followsCount?: number | null;
+                  postsCount?: number | null;
+                  verified?: boolean | null;
+                  businessCategoryName?: string | null;
+                })
+              : null,
             tiktokUsername: c.tiktok_username,
             snapchatHandle: c.snapchat_handle,
             youtubeUrl: c.youtube_channel_url,

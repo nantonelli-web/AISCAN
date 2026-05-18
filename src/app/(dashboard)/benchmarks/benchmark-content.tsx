@@ -1103,6 +1103,43 @@ async function OrganicContent({
     dateTo
   );
 
+  // Follower counts per brand. Lo loadiamo qui in OrganicContent (e
+  // NON dentro computeOrganicBenchmarks) perche' il follower count e'
+  // un dato di profilo PIATTO sul brand row — non ha bucket temporale
+  // o aggregation sui post, quindi non c'entra con la pipeline di
+  // computeOrganicBenchmarks che lavora su mait_organic_posts. La
+  // query e' una semplice select su mait_competitors filtrata sui
+  // brand in scope (stesso filtro di computeOrganicBenchmarks).
+  let followersQuery = supabase
+    .from("mait_competitors")
+    .select("id, page_name, instagram_profile")
+    .eq("workspace_id", workspaceId);
+  if (competitorIdsFilter && competitorIdsFilter.length > 0) {
+    followersQuery = followersQuery.in("id", competitorIdsFilter);
+  }
+  const { data: followersRows } = await followersQuery;
+  type IGProfile = { followersCount?: number | null };
+  const followersByCompetitor = (followersRows ?? [])
+    .map((r) => {
+      const profile = (r as { instagram_profile: unknown }).instagram_profile as
+        | IGProfile
+        | null;
+      const followers =
+        profile && typeof profile.followersCount === "number"
+          ? profile.followersCount
+          : null;
+      return {
+        name: (r as { page_name: string }).page_name,
+        followers,
+      };
+    })
+    .filter((e) => e.followers !== null && e.followers > 0)
+    .sort((a, b) => (b.followers ?? 0) - (a.followers ?? 0));
+  const totalFollowers = followersByCompetitor.reduce(
+    (s, e) => s + (e.followers ?? 0),
+    0,
+  );
+
   const TOLERANCE_DAYS = 3;
   const fromTs = new Date(dateFrom).getTime();
   const noScanBrands = data.coverageByCompetitor
@@ -1165,8 +1202,17 @@ async function OrganicContent({
         </div>
       )}
 
-      {/* KPIs */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      {/* KPIs — Total followers in testa quando disponibile, e' il
+          segnale di posizionamento piu' rilevante sul canale organic
+          (audience-size vs altri brand del peer set). */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
+        {totalFollowers > 0 && (
+          <Stat
+            label={t("organic", "totalFollowers")}
+            value={formatNumber(totalFollowers)}
+            tone="info"
+          />
+        )}
         <Stat label={t("organic", "postsLabel")} value={formatNumber(data.totals.totalPosts)} />
         <Stat label={t("organic", "avgLikes")} value={formatNumber(data.totals.avgLikes)} />
         <Stat label={t("organic", "avgComments")} value={formatNumber(data.totals.avgComments)} />
@@ -1177,6 +1223,29 @@ async function OrganicContent({
           value={`${formatNumber(data.totals.collabPosts)} (${data.totals.collabRate}%)`}
         />
       </div>
+
+      {/* Followers per brand — chart parallelo a "Posts per brand"
+          sotto. Reso solo se almeno un brand del set ha un profile
+          scrapato con followers > 0, altrimenti la card resterebbe
+          vuota (caso brand mai scansionati su IG). */}
+      {followersByCompetitor.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("organic", "followersPerBrand")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HorizontalBarChart
+              data={followersByCompetitor.map((e) => ({
+                name: e.name,
+                followers: e.followers ?? 0,
+              }))}
+              dataKey="followers"
+              label={t("organic", "followers")}
+              color="#833ab4"
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

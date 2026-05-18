@@ -53,6 +53,13 @@ export interface MaitCompetitor {
   category: string | null;
   country: string | null;
   instagram_username: string | null;
+  /** Instagram profile snapshot: followersCount, followsCount,
+   *  postsCount, bio, verified, businessCategoryName, profilePic.
+   *  Popolato da /api/instagram/scan in parallelo ai post (vedi
+   *  scrapeInstagramProfile in lib/instagram/service.ts). Usato per
+   *  surface follower count e profile chrome nella brand-detail e
+   *  nei benchmarks organici. */
+  instagram_profile: Record<string, unknown> | null;
   tiktok_username: string | null;
   /** Optional TikTok Business advertiser ID (numeric string). Used as
    *  the silva DSA scrape's `adv_biz_ids` URL param to lock the

@@ -874,21 +874,55 @@ export function ChannelTabs({
         <div className="space-y-4">
           {/* Channel cover band — only on the focused IG view, not on
               "all" (where the inline channel divider already does the
-              section break). */}
+              section break). Caption ora include follower count (se
+              disponibile dallo scan profilo IG) + numero post totali.
+              Followers e' il segnale piu' rilevante per posizionare il
+              brand sul canale organico — appare per primo. */}
           {channel === "instagram" && (
             <div className="rounded-xl overflow-hidden border border-border">
               <ChannelCoverBand
                 channel="instagram"
                 brandName={brand.name}
                 brandAvatar={brand.avatar}
-                brandHandle={brand.instagramUsername ? `@${brand.instagramUsername}` : undefined}
-                caption={`${channelTotals.instagram.toLocaleString()} ${t("organic", "totalPosts")}`}
+                brandHandle={
+                  brand.instagramUsername
+                    ? brand.instagramProfile?.verified
+                      ? `@${brand.instagramUsername} ✓`
+                      : `@${brand.instagramUsername}`
+                    : undefined
+                }
+                caption={(() => {
+                  const parts: string[] = [];
+                  const f = brand.instagramProfile?.followersCount;
+                  if (typeof f === "number") {
+                    parts.push(
+                      `${formatNumber(f)} ${t("organic", "followers")}`,
+                    );
+                  }
+                  parts.push(
+                    `${channelTotals.instagram.toLocaleString()} ${t("organic", "totalPosts")}`,
+                  );
+                  return parts.join(" · ");
+                })()}
               />
             </div>
           )}
-          {/* Engagement stats */}
+          {/* Engagement stats — follower count come PRIMA tile cosi
+              domina visivamente (e il post-volume scende a secondo). */}
           {organicStats.count > 0 && channel === "instagram" && (
-            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+              {typeof brand.instagramProfile?.followersCount === "number" && (
+                <Card>
+                  <CardContent className="py-4 text-center">
+                    <p className="text-2xl font-semibold">
+                      {formatNumber(brand.instagramProfile.followersCount)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {t("organic", "followers")}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
               <Card>
                 <CardContent className="py-4 text-center">
                   <p className="text-2xl font-semibold">

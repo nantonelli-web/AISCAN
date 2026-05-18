@@ -76,6 +76,18 @@ export interface BrandIdentity {
   name: string;
   avatar: string | null;
   instagramUsername: string | null;
+  /** Snapshot dell'ultimo scan IG: followersCount, followsCount,
+   *  postsCount, verified, businessCategoryName. Forniti dal
+   *  parent server component cosi' il canale Instagram puo'
+   *  surface il follower count nel cover band + KPI tile. null
+   *  quando il brand non e' mai stato scansionato su IG. */
+  instagramProfile: {
+    followersCount?: number | null;
+    followsCount?: number | null;
+    postsCount?: number | null;
+    verified?: boolean | null;
+    businessCategoryName?: string | null;
+  } | null;
   tiktokUsername: string | null;
   snapchatHandle: string | null;
   youtubeUrl: string | null;
