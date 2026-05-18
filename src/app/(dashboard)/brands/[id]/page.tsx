@@ -1,11 +1,11 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, Pencil } from "lucide-react";
+import { ArrowLeft, ExternalLink, Layers, Pencil, Radar } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { ScanDropdown } from "./scan-dropdown";
-import { CollapsibleScanCard } from "./collapsible-scan-card";
+import { CollapsibleSectionCard } from "./collapsible-section-card";
 import { FrequencySelector } from "./frequency-selector";
 import { CollapsibleJobHistory } from "./collapsible-job-history";
 import { BrandChannelsSection } from "./brand-channels-section";
@@ -500,15 +500,20 @@ export default async function CompetitorDetailPage({
         })()}
       </div>
 
-      {/* ─── Scan action — collassata di default.
-          Una volta che il brand e' configurato, la cosa che l'utente
-          fa di solito non e' "lancia scan" ma "guarda le creativita'
-          gia' scrapate". Tenere la card chiusa libera spazio
-          above-the-fold per KPI + filtri della grid. La freccia in
-          alto a destra apre/chiude. */}
-      <CollapsibleScanCard
+      {/* ─── Scan action + Cronologia — collassata di default.
+          Pattern collapsible-section-card identico a Creativita
+          & Insight sotto. Cronologia scan vive DENTRO il body di
+          Scan in coda con sub-frame info-tinted: e una funzionalita
+          satellite (storia degli scan precedenti) non strettamente
+          parte dell'azione "lancia scan", ma logicamente vicina al
+          ramo Scan. Tenerla qui (sotto, separata dal background)
+          riduce gli h2 top-level della pagina da 3 a 2. */}
+      <CollapsibleSectionCard
+        icon={<Radar className="size-5" />}
         title={t("scan", "scanNow")}
         subtitle={t("scan", "scanNowSubtitle")}
+        tone="gold"
+        defaultOpen={false}
       >
           <ScanDropdown
             competitorId={c.id}
@@ -527,11 +532,6 @@ export default async function CompetitorDetailPage({
             scanCountries={c.country}
             hasRunningJob={hasRunningJob}
             hasOrphanRunningJob={hasOrphanRunningJob}
-            // Cache hint per il canale Google: ultimo job successful o
-            // parziale per questo brand. Il dropdown usa questo per
-            // mostrare un prompt di conferma se l'utente prova a
-            // rilanciare uno scan recente (entro 24h) — evita di
-            // bruciare crediti su uno scan inutile.
             googleLastScanAt={
               jobsList.find(
                 (j) =>
@@ -540,9 +540,6 @@ export default async function CompetitorDetailPage({
                   !!j.started_at,
               )?.started_at ?? null
             }
-            // Resume affordance: l'ultimo job Google che e' partial e
-            // non e' ancora stato resumetato; il dropdown mostra un
-            // CTA "Continua scan" che riapre il run Apify in resurrect.
             googlePartialJob={(() => {
               const j = jobsList.find(
                 (j) =>
@@ -558,12 +555,6 @@ export default async function CompetitorDetailPage({
                 completedAt: j.completed_at,
               };
             })()}
-            // Re-finalize affordance: ultimo job Google succeeded/
-            // partial entro 6 giorni con apify_run_id (dataset Apify
-            // ancora disponibile, retention ~7 giorni). Permette di
-            // riprocessare il dataset Apify già pagato senza fare un
-            // nuovo scan — utile dopo modifiche alla logica di
-            // normalizzazione/filtro che hanno scartato ads in passato.
             googleRefinalizableJob={(() => {
               const sixDaysAgo = Date.now() - 6 * 86_400_000;
               const j = jobsList.find(
@@ -581,55 +572,68 @@ export default async function CompetitorDetailPage({
               };
             })()}
           />
-      </CollapsibleScanCard>
+          {jobsList.length > 0 && (
+            <div className="mt-6 pt-5 border-t border-gold/20">
+              {/* Sub-frame info-tinted per Cronologia — visualmente
+                  distinto dal contenuto Scan sopra (gold) cosi
+                  l'utente capisce che e' una funzionalita parallela
+                  satellite, non parte del flusso "lancia scan". */}
+              <div className="rounded-lg border border-info/20 bg-info-soft/40 p-3">
+                <CollapsibleJobHistory jobs={jobsList} />
+              </div>
+            </div>
+          )}
+      </CollapsibleSectionCard>
 
-      {/* ─── Scan history (collapsible) ──────────────────────── */}
-      {jobsList.length > 0 && <CollapsibleJobHistory jobs={jobsList} />}
-
-      {/* ─── Channel tabs: streamed via Suspense so the heavy
-          ads + posts fetch does not block the page chrome above. */}
-      <Suspense
-        key={`${tab}|${statusFilter ?? "all"}|${countriesFilter.join(",")}|${dateFromParam ?? ""}|${dateToParam ?? ""}`}
-        fallback={<BrandChannelsSkeleton />}
+      {/* ─── Creativita & Insight — collassata di default.
+          Stesso pattern collapsible-section-card di Scan ma tone
+          info (cambia colore cosi l'utente distingue subito le 2
+          sezioni). Default chiuso per liberare lo spazio
+          above-the-fold ai 3 KPI tile in alto; cliccando si apre
+          tutto il blocco grid + filtri. */}
+      <CollapsibleSectionCard
+        icon={<Layers className="size-5" />}
+        title={t("brandHero", "creativesHeader")}
+        subtitle={t("brandHero", "creativesSubtitle")}
+        tone="info"
+        defaultOpen={false}
       >
-        <BrandChannelsSection
-          competitorId={c.id}
-          googleDomain={c.google_domain}
-          channelTotals={channelTotals}
-          activeTotals={activeTotals}
-          availableCountries={availableCountries}
-          tab={tab}
-          statusFilter={statusFilter}
-          countriesFilter={countriesFilter}
-          dateFrom={dateFromParam}
-          dateTo={dateToParam}
-          // Brand identity overlay used in the per-channel cover
-          // bands: name + best-available avatar + channel-specific
-          // handle. Pre-computed here so the deep child does not
-          // need a separate query.
-          brand={{
-            name: c.page_name,
-            avatar: pageProfilePicture,
-            instagramUsername: c.instagram_username,
-            // Snapshot dell'ultimo IG scan — followers, posts,
-            // verified. Tipo lasco perche' il JSONB scritto da
-            // scrapeInstagramProfile e' un Record<string, unknown>.
-            instagramProfile: c.instagram_profile
-              ? (c.instagram_profile as {
-                  followersCount?: number | null;
-                  followsCount?: number | null;
-                  postsCount?: number | null;
-                  verified?: boolean | null;
-                  businessCategoryName?: string | null;
-                })
-              : null,
-            tiktokUsername: c.tiktok_username,
-            snapchatHandle: c.snapchat_handle,
-            youtubeUrl: c.youtube_channel_url,
-            googleDomain: c.google_domain,
-          }}
-        />
-      </Suspense>
+        <Suspense
+          key={`${tab}|${statusFilter ?? "all"}|${countriesFilter.join(",")}|${dateFromParam ?? ""}|${dateToParam ?? ""}`}
+          fallback={<BrandChannelsSkeleton />}
+        >
+          <BrandChannelsSection
+            competitorId={c.id}
+            googleDomain={c.google_domain}
+            channelTotals={channelTotals}
+            activeTotals={activeTotals}
+            availableCountries={availableCountries}
+            tab={tab}
+            statusFilter={statusFilter}
+            countriesFilter={countriesFilter}
+            dateFrom={dateFromParam}
+            dateTo={dateToParam}
+            brand={{
+              name: c.page_name,
+              avatar: pageProfilePicture,
+              instagramUsername: c.instagram_username,
+              instagramProfile: c.instagram_profile
+                ? (c.instagram_profile as {
+                    followersCount?: number | null;
+                    followsCount?: number | null;
+                    postsCount?: number | null;
+                    verified?: boolean | null;
+                    businessCategoryName?: string | null;
+                  })
+                : null,
+              tiktokUsername: c.tiktok_username,
+              snapchatHandle: c.snapchat_handle,
+              youtubeUrl: c.youtube_channel_url,
+              googleDomain: c.google_domain,
+            }}
+          />
+        </Suspense>
+      </CollapsibleSectionCard>
 
       <div className="flex justify-end pt-2 print:hidden">
         <PrintButton label={t("common", "print")} variant="outline" />

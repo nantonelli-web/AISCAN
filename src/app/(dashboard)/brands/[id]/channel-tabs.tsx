@@ -26,7 +26,7 @@ import { MetaIcon } from "@/components/ui/meta-icon";
 import { TikTokIcon } from "@/components/ui/tiktok-icon";
 import { SnapchatIcon } from "@/components/ui/snapchat-icon";
 import { YouTubeIcon } from "@/components/ui/youtube-icon";
-import { Download, Layers, Loader2, Search as SearchIcon } from "lucide-react";
+import { Download, Loader2, Search as SearchIcon } from "lucide-react";
 import { cn, formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { CountryFilterDropdown } from "./country-filter-dropdown";
@@ -495,76 +495,104 @@ export function ChannelTabs({
       ? "inline-flex items-center gap-2.5 px-5 py-3 text-sm font-semibold rounded-lg bg-gold text-gold-foreground border border-gold shadow-sm transition-colors cursor-pointer"
       : "inline-flex items-center gap-2.5 px-5 py-3 text-sm font-medium rounded-lg border border-border text-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer";
 
+  // Render helper per una pillola canale (paid / organic / monitoring).
+  const renderChannelChip = (p: { key: Channel; label: string; count: number; icon?: React.ReactNode }) => (
+    <Link
+      key={p.key}
+      href={buildHref({
+        tab: p.key === "all" ? null : p.key,
+        // Switching to Instagram or Google disables the country
+        // filter (no scan_countries on those rows). Drop the
+        // selection rather than carrying an invisible filter forward.
+        ...(p.key === "instagram" || p.key === "google"
+          ? { countries: null }
+          : {}),
+      })}
+      className={channelChipClass(channel === p.key)}
+    >
+      <span className="[&_svg]:size-5 inline-flex">{p.icon}</span>
+      <span>{p.label}</span>
+      {p.key !== "all" && p.count > 0 && (
+        <span className={cn(
+          "text-xs tabular-nums px-1.5 py-0.5 rounded",
+          channel === p.key
+            ? "bg-gold-foreground/15 text-gold-foreground"
+            : "bg-muted text-muted-foreground",
+        )}>
+          {p.count}
+        </span>
+      )}
+    </Link>
+  );
+
+  // Split visibleTabs in 3 gruppi semantici — Paid / Organic /
+  // Monitoring — coerente con la pivot di /benchmarks. "All" sta
+  // da solo a sinistra come catch-all.
+  const allTab = visibleTabs.find((t) => t.key === "all");
+  const paidTabs = visibleTabs.filter(
+    (t) => t.key === "meta" || t.key === "google",
+  );
+  const organicTabs = visibleTabs.filter(
+    (t) =>
+      t.key === "instagram" ||
+      t.key === "tiktok" ||
+      t.key === "snapchat" ||
+      t.key === "youtube",
+  );
+  const monitoringTabs = visibleTabs.filter((t) => t.key === "serp");
+  const sectionLabel =
+    "inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold shrink-0";
+
   return (
     <div className="space-y-5">
-      {/* ─── Section header — "Creatività" with icon ─────────
-          The page transitions here from "configure & scan" (above) to
-          "explore the data" (below). User feedback: text-only section
-          breaks were invisible. The Layers icon + h2 + subtitle set
-          the change of context unambiguously. */}
-      <header className="flex items-center gap-3 print:hidden">
-        <div className="size-9 rounded-lg bg-info-soft tone-info grid place-items-center shrink-0">
-          <Layers className="size-5" />
-        </div>
-        <div className="min-w-0">
-          <h2 className="text-lg font-semibold tracking-tight leading-tight">
-            {t("brandHero", "creativesHeader")}
-          </h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {t("brandHero", "creativesSubtitle")}
-          </p>
-        </div>
-      </header>
-
-      {/* ─── Channel tabs ──────────────────────────────────────
-          Channel selector e' il PIVOT primario: pillole grandi
-          (px-5 py-3, text-sm semibold, icona size-5) cosi' la
-          gerarchia "scegli prima il canale, poi raffini" e' visiva
-          subito. Status + Country + Date sono modificatori e
-          stanno sotto in pillole piccole. */}
+      {/* ─── Channel pivot ─────────────────────────────────────
+          Stesso pattern di /benchmarks: pillole grandi raggruppate
+          per Paid / Organic / Monitoring con divisori verticali fra
+          gruppi. Cosi' l'utente legge subito "scegli il canale,
+          poi raffina con Country/Status/Date sotto". */}
       <div className="rounded-lg border border-border bg-muted/20 px-4 py-4 print:hidden">
-        <div className="flex items-start gap-3 flex-wrap">
-          <span className="eyebrow shrink-0 mt-2.5">
-            {t("competitors", "filterByChannel")}
-          </span>
-          <div className="flex items-center gap-2 flex-wrap">
-            {visibleTabs.map((p) => (
-              <Link
-                key={p.key}
-                href={buildHref({
-                  tab: p.key === "all" ? null : p.key,
-                  // Switching to Instagram or Google disables the
-                  // country filter (no scan_countries on those rows).
-                  // Drop the selection rather than carrying an
-                  // invisible filter forward.
-                  ...(p.key === "instagram" || p.key === "google"
-                    ? { countries: null }
-                    : {}),
-                })}
-                className={channelChipClass(channel === p.key)}
-              >
-                {/* Icone canale ingrandite per la pivot row. Il
-                    p.icon e' fornito dai tabs con className size-3.5;
-                    sovrascriviamo via wrapper per non toccare tutti
-                    i siti che lo consumano. */}
-                <span className="[&_svg]:size-5 inline-flex">{p.icon}</span>
-                <span>{p.label}</span>
-                {/* Count badge — piu' visibile della versione vecchia
-                    (era text-[10px] muted). Adesso tabular-nums sm
-                    con tono coerente al chip. */}
-                {p.key !== "all" && p.count > 0 && (
-                  <span className={cn(
-                    "text-xs tabular-nums px-1.5 py-0.5 rounded",
-                    channel === p.key
-                      ? "bg-gold-foreground/15 text-gold-foreground"
-                      : "bg-muted text-muted-foreground",
-                  )}>
-                    {p.count}
-                  </span>
-                )}
-              </Link>
-            ))}
-          </div>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+          {allTab && (
+            <div className="flex items-center gap-2">
+              <span className={sectionLabel}>
+                {t("competitors", "filterByChannel")}
+              </span>
+              {renderChannelChip(allTab)}
+            </div>
+          )}
+          {paidTabs.length > 0 && (
+            <>
+              <div className="hidden lg:block h-6 w-px bg-border" />
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={sectionLabel}>
+                  {t("benchmarks", "paidChannels")}
+                </span>
+                {paidTabs.map((p) => renderChannelChip(p))}
+              </div>
+            </>
+          )}
+          {organicTabs.length > 0 && (
+            <>
+              <div className="hidden lg:block h-6 w-px bg-border" />
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={sectionLabel}>
+                  {t("benchmarks", "organicChannels")}
+                </span>
+                {organicTabs.map((p) => renderChannelChip(p))}
+              </div>
+            </>
+          )}
+          {monitoringTabs.length > 0 && (
+            <>
+              <div className="hidden lg:block h-6 w-px bg-border" />
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={sectionLabel}>
+                  {t("benchmarks", "monitoringChannels")}
+                </span>
+                {monitoringTabs.map((p) => renderChannelChip(p))}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
