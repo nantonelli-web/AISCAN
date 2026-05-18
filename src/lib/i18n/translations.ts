@@ -334,6 +334,15 @@ const translations = {
     ofTotal: { it: "di", en: "of" },
     noMetaAds: { it: "Nessuna Meta Ad raccolta.", en: "No Meta Ads collected." },
     noGoogleAds: { it: "Nessuna Google Ad raccolta.", en: "No Google Ads collected." },
+    compareLabel: { it: "Confronto", en: "Compare" },
+    compareNone: { it: "Nessuno", en: "None" },
+    comparePrevious: { it: "Periodo precedente", en: "Previous period" },
+    comparePeriod: { it: "Periodo precedente", en: "Previous period" },
+    comparePrev: { it: "periodo precedente", en: "previous" },
+    compareRequiresDateRange: {
+      it: "Imposta un range di date per attivare il confronto.",
+      en: "Set a date range to enable comparison.",
+    },
   },
 
   // ─── New Brand ─────────────────────────────────────────────

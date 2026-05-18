@@ -123,6 +123,17 @@ interface Props {
    *  above each grid so Y reflects the user's active narrowing,
    *  not the brand-wide channel total. */
   filteredTotals: { meta: number; google: number };
+  /** Period-vs-period comparison data — null quando confronto e
+   *  spento. from/to sono le date del periodo precedente cosi la
+   *  UI puo' renderizzare "vs Y (period dd/MM - dd/MM)" sotto al
+   *  counter principale. */
+  compareTotals: {
+    meta: number;
+    google: number;
+    from: string;
+    to: string;
+  } | null;
+  compareMode: "previous" | "custom" | null;
   /** URL-driven filter state. Pills navigate the URL; the server
    *  re-runs the ads query with these applied so the 30-row cap
    *  operates AFTER filtering. */
@@ -193,6 +204,8 @@ export function ChannelTabs({
   countriesFilter,
   dateFrom,
   dateTo,
+  compareTotals,
+  compareMode,
   organicStats,
   tiktokStats,
   youtubeStats,
@@ -543,8 +556,93 @@ export function ChannelTabs({
   const sectionLabel =
     "inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold shrink-0";
 
+  // Helper: % delta tra current e prev. Inverso non serve qui
+  // (counts only). Restituisce null se prev=0 o entrambi null.
+  function pctDelta(curr: number, prev: number): number | null {
+    if (prev === 0) return null;
+    return ((curr - prev) / prev) * 100;
+  }
+  // Pill inline per renderizzare il delta "+18% vs prec" colorato
+  // verde/rosso/neutral. Replica mini-version di Adv Performance.
+  function DeltaPill({ delta }: { delta: number | null }) {
+    if (delta == null) return null;
+    const sign = delta > 0 ? "+" : "";
+    const tone =
+      delta > 0
+        ? "tone-success bg-success-soft/40"
+        : delta < 0
+          ? "tone-warning bg-warning-soft/40"
+          : "text-muted-foreground bg-muted";
+    return (
+      <span
+        className={`inline-flex items-center text-[10.5px] font-semibold px-1.5 py-0.5 rounded ${tone}`}
+      >
+        {sign}
+        {Math.round(delta * 10) / 10}%
+      </span>
+    );
+  }
+  // Helper: date "2026-04-14" → "14/04"
+  function shortDate(iso: string): string {
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m ? `${m[3]}/${m[2]}` : iso;
+  }
+
   return (
     <div className="space-y-5">
+      {/* ─── Compare period toolbar ───────────────────────────
+          Pattern identico a /adv-performance: pillole Nessuno /
+          Periodo precedente. Quando compareMode='previous' la UI
+          mostra accanto al date range le date del periodo prec.
+          calcolate lato server in page.tsx (stessa lunghezza,
+          shiftata). I delta % appaiono nei caption "(X of Y) ads"
+          sotto. */}
+      {(channel === "all" ||
+        channel === "meta" ||
+        channel === "google") && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-muted/30 px-4 py-2.5 print:hidden">
+          <span className={sectionLabel}>
+            {t("competitors", "compareLabel")}
+          </span>
+          <Link
+            href={buildHref({ compare: null })}
+            className={cn(
+              "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors cursor-pointer",
+              compareMode === null
+                ? "bg-gold/15 text-gold border-gold/30 font-medium"
+                : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
+            {t("competitors", "compareNone")}
+          </Link>
+          <Link
+            href={buildHref({ compare: "previous" })}
+            className={cn(
+              "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors cursor-pointer",
+              compareMode === "previous"
+                ? "bg-gold/15 text-gold border-gold/30 font-medium"
+                : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+            title={!dateFrom || !dateTo ? t("competitors", "compareRequiresDateRange") : undefined}
+          >
+            {t("competitors", "comparePrevious")}
+          </Link>
+          {compareMode === "previous" && compareTotals && (
+            <span className="text-[11px] text-muted-foreground ml-1">
+              {t("competitors", "comparePeriod")}:{" "}
+              <span className="font-mono">
+                {shortDate(compareTotals.from)} → {shortDate(compareTotals.to)}
+              </span>
+            </span>
+          )}
+          {compareMode === "previous" && (!dateFrom || !dateTo) && (
+            <span className="text-[11px] text-amber-500 ml-1">
+              {t("competitors", "compareRequiresDateRange")}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* ─── Channel pivot ─────────────────────────────────────
           Stesso pattern di /benchmarks: pillole grandi raggruppate
           per Paid / Organic / Monitoring con divisori verticali fra
@@ -673,7 +771,7 @@ export function ChannelTabs({
           {metaAds.length > 0 && (
             <div className="space-y-4">
               <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <MetaIcon className="size-4 text-gold" />
                   <p className="text-sm font-medium">Meta Ads</p>
                   <span className="text-xs text-muted-foreground">
@@ -683,6 +781,16 @@ export function ChannelTabs({
                       : ""}
                     )
                   </span>
+                  {compareTotals && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <DeltaPill
+                        delta={pctDelta(filteredTotals.meta, compareTotals.meta)}
+                      />
+                      <span className="text-[11px] text-muted-foreground">
+                        vs {compareTotals.meta} {t("competitors", "comparePrev")}
+                      </span>
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-3">
                   {AI_TAGS_ENABLED && <TagButton competitorId={competitorId} />}
@@ -725,7 +833,7 @@ export function ChannelTabs({
 
           {googleAds.length > 0 && (
             <div className="space-y-4">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <GoogleIcon className="size-4 text-gold" />
                 <p className="text-sm font-medium">Google Ads</p>
                 <span className="text-xs text-muted-foreground">
@@ -735,6 +843,16 @@ export function ChannelTabs({
                     : ""}
                   )
                 </span>
+                {compareTotals && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <DeltaPill
+                      delta={pctDelta(filteredTotals.google, compareTotals.google)}
+                    />
+                    <span className="text-[11px] text-muted-foreground">
+                      vs {compareTotals.google} {t("competitors", "comparePrev")}
+                    </span>
+                  </span>
+                )}
                 <InfoPopover
                   ariaLabel="Google Ads count"
                   content={
@@ -806,7 +924,7 @@ export function ChannelTabs({
                 />
               </div>
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                <p className="text-sm text-muted-foreground flex items-center gap-1.5 flex-wrap">
                   <span>
                     {visibleAds.length}
                     {(() => {
@@ -818,6 +936,21 @@ export function ChannelTabs({
                     })()}
                     {" "}ads
                   </span>
+                  {compareTotals && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <DeltaPill
+                        delta={pctDelta(
+                          channel === "meta" ? filteredTotals.meta : filteredTotals.google,
+                          channel === "meta" ? compareTotals.meta : compareTotals.google,
+                        )}
+                      />
+                      <span className="text-[11px] text-muted-foreground">
+                        vs{" "}
+                        {channel === "meta" ? compareTotals.meta : compareTotals.google}{" "}
+                        {t("competitors", "comparePrev")}
+                      </span>
+                    </span>
+                  )}
                   {channel === "google" && (
                     <InfoPopover
                       ariaLabel="Google Ads count"

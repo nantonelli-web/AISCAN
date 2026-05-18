@@ -105,6 +105,9 @@ export async function BrandChannelsSection({
   countriesFilter,
   dateFrom,
   dateTo,
+  compareMode,
+  compareFrom,
+  compareTo,
   brand,
 }: {
   competitorId: string;
@@ -114,6 +117,12 @@ export async function BrandChannelsSection({
    *  OR `end_date IS NULL` OR `status = ACTIVE`). null = no narrowing. */
   dateFrom: string | null;
   dateTo: string | null;
+  /** Period-vs-period comparison: previous = window precedente
+   *  uguale come lunghezza; custom = date esplicite; null = niente
+   *  confronto. Calcolato dal parent page.tsx. */
+  compareMode: "previous" | "custom" | null;
+  compareFrom: string | null;
+  compareTo: string | null;
   /** Brand's normalized google_domain (eTLD+1) — drives the SERP rank
    *  match. null when the brand has no Google domain configured; the
    *  SERP tab is hidden in that case. */
@@ -246,6 +255,50 @@ export async function BrandChannelsSection({
   // country-scoped) and the predicate would silently drop 100% of
   // them. Country filter is intentionally a no-op on this channel.
 
+  // Period-vs-period comparison: stesse query di Meta/Google count
+  // ma con compareFrom/compareTo invece di dateFrom/dateTo. Skip
+  // quando compareMode e' null o le date di confronto non sono
+  // disponibili (compareFrom o compareTo mancanti). Country filter
+  // applicato a Meta come la query corrente, status filter idem,
+  // cosi il confronto e' apples-to-apples.
+  const hasCompareWindow = !!(compareFrom && compareTo);
+  let metaCompareQuery = supabase
+    .from("mait_ads_external")
+    .select("id", { count: "exact", head: true })
+    .eq("competitor_id", competitorId)
+    .eq("source", "meta");
+  if (statusFilter === "active")
+    metaCompareQuery = metaCompareQuery.eq("status", "ACTIVE");
+  else if (statusFilter === "inactive")
+    metaCompareQuery = metaCompareQuery.neq("status", "ACTIVE");
+  if (countriesFilter.length > 0) {
+    metaCompareQuery = metaCompareQuery.overlaps(
+      "scan_countries",
+      countriesFilter,
+    );
+  }
+  if (hasCompareWindow) {
+    metaCompareQuery = metaCompareQuery.lte("start_date", compareTo!);
+    metaCompareQuery = metaCompareQuery.or(
+      `end_date.gte.${compareFrom!},end_date.is.null,status.eq.ACTIVE`,
+    );
+  }
+  let googleCompareQuery = supabase
+    .from("mait_ads_external")
+    .select("id", { count: "exact", head: true })
+    .eq("competitor_id", competitorId)
+    .eq("source", "google");
+  if (statusFilter === "active")
+    googleCompareQuery = googleCompareQuery.eq("status", "ACTIVE");
+  else if (statusFilter === "inactive")
+    googleCompareQuery = googleCompareQuery.neq("status", "ACTIVE");
+  if (hasCompareWindow) {
+    googleCompareQuery = googleCompareQuery.lte("start_date", compareTo!);
+    googleCompareQuery = googleCompareQuery.or(
+      `end_date.gte.${compareFrom!},end_date.is.null,status.eq.ACTIVE`,
+    );
+  }
+
   const [
     { data: ads },
     { data: organicPosts },
@@ -257,6 +310,8 @@ export async function BrandChannelsSection({
     { data: youtubeVideos },
     { count: metaFiltered },
     { count: googleFiltered },
+    { count: metaCompareCount },
+    { count: googleCompareCount },
     // Collab L1 aggregate (2026-05-07): fetch SEPARATO leggero
     // (solo i campi necessari al detection) sull'INTERA history
     // dei post organic. La grid card resta capped a 30 per
@@ -338,6 +393,8 @@ export async function BrandChannelsSection({
       .limit(30),
     metaCountQuery,
     googleCountQuery,
+    metaCompareQuery,
+    googleCompareQuery,
     supabase
       .from("mait_organic_posts")
       .select("caption, mentions, tagged_users")
@@ -576,6 +633,17 @@ export async function BrandChannelsSection({
         meta: metaFiltered ?? 0,
         google: googleFiltered ?? 0,
       }}
+      compareTotals={
+        hasCompareWindow
+          ? {
+              meta: metaCompareCount ?? 0,
+              google: googleCompareCount ?? 0,
+              from: compareFrom!,
+              to: compareTo!,
+            }
+          : null
+      }
+      compareMode={compareMode}
       availableCountries={availableCountries}
       tab={tab}
       statusFilter={statusFilter}
