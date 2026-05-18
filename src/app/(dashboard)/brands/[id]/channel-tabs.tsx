@@ -26,7 +26,8 @@ import { MetaIcon } from "@/components/ui/meta-icon";
 import { TikTokIcon } from "@/components/ui/tiktok-icon";
 import { SnapchatIcon } from "@/components/ui/snapchat-icon";
 import { YouTubeIcon } from "@/components/ui/youtube-icon";
-import { Download, Loader2, Search as SearchIcon } from "lucide-react";
+import { Download, Loader2, Search as SearchIcon, MapPin } from "lucide-react";
+import { GoogleIcon } from "@/components/ui/google-icon";
 import { cn, formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
 import { CountryFilterDropdown } from "./country-filter-dropdown";
@@ -45,21 +46,8 @@ import type { MaitTiktokAd } from "@/types/tiktok-ads";
 import type { MaitSnapchatAd } from "@/types/snapchat-ads";
 import { SnapchatAdCard } from "@/components/ads/snapchat-ad-card";
 
-type Channel = "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube" | "serp";
+type Channel = "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube" | "serp" | "maps";
 type Status = "all" | "active" | "inactive";
-
-/* ─── Platform icons (small, inline) ─── */
-
-function GoogleIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1Z" />
-      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23Z" />
-      <path d="M5.84 14.09A6.68 6.68 0 0 1 5.5 12c0-.72.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 0 0 1 12c0 1.77.43 3.45 1.18 4.93l2.85-2.22.81-.62Z" />
-      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53Z" />
-    </svg>
-  );
-}
 
 /* ─── Component ─── */
 
@@ -137,7 +125,7 @@ interface Props {
   /** URL-driven filter state. Pills navigate the URL; the server
    *  re-runs the ads query with these applied so the 30-row cap
    *  operates AFTER filtering. */
-  tab: "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube" | "serp";
+  tab: "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube" | "serp" | "maps";
   statusFilter: "active" | "inactive" | null;
   countriesFilter: string[];
   /** ISO yyyy-MM-dd. null = no narrowing. Applies solo alle ads
@@ -368,22 +356,31 @@ export function ChannelTabs({
         snapchatCount +
         youtubeCount,
     },
-    { key: "meta", label: "Meta Ads", count: metaCount, icon: <MetaIcon className="size-3.5" /> },
-    { key: "google", label: "Google Ads", count: googleCount, icon: <GoogleIcon className="size-3.5" /> },
-    { key: "instagram", label: "Instagram", count: instagramCount, icon: <InstagramIcon className="size-3.5" /> },
-    { key: "tiktok", label: "TikTok", count: tiktokCount, icon: <TikTokIcon className="size-3.5" /> },
-    { key: "snapchat", label: "Snapchat", count: snapchatCount, icon: <SnapchatIcon className="size-3.5" /> },
-    { key: "youtube", label: "YouTube", count: youtubeCount, icon: <YouTubeIcon className="size-3.5" /> },
+    { key: "meta", label: "Meta Ads", count: metaCount, icon: <MetaIcon className="size-4" colored /> },
+    { key: "google", label: "Google Ads", count: googleCount, icon: <GoogleIcon className="size-4" colored /> },
+    { key: "instagram", label: "Instagram", count: instagramCount, icon: <InstagramIcon className="size-4" colored /> },
+    { key: "tiktok", label: "TikTok", count: tiktokCount, icon: <TikTokIcon className="size-4" colored /> },
+    { key: "snapchat", label: "Snapchat", count: snapchatCount, icon: <SnapchatIcon className="size-4" colored /> },
+    { key: "youtube", label: "YouTube", count: youtubeCount, icon: <YouTubeIcon className="size-4" colored /> },
     ...(serpTabVisible
       ? [
           {
             key: "serp" as Channel,
             label: t("brandSerp", "tabLabel"),
             count: serpCount,
-            icon: <SearchIcon className="size-3.5" />,
+            icon: <SearchIcon className="size-4" />,
           },
         ]
       : []),
+    // Maps tab: workspace-level (POI ranking via Nominatim); sempre
+    // visibile come SERP, il contenuto e' un placeholder fino a che
+    // l'aggregazione brand-level non e' implementata.
+    {
+      key: "maps" as Channel,
+      label: "Google Maps",
+      count: 0,
+      icon: <MapPin className="size-4" />,
+    },
   ];
 
   // Status pills — paid channels only. Instagram, TikTok, Snapchat,
@@ -410,7 +407,11 @@ export function ChannelTabs({
     (entry) =>
       entry.key === "all" ||
       entry.count > 0 ||
-      (entry.key === "serp" && serpTabVisible),
+      (entry.key === "serp" && serpTabVisible) ||
+      // Maps sempre visibile come tab nel pivot (placeholder fino a
+      // che l'aggregazione brand-level non e' pronta). Coerente con
+      // /benchmarks dove e' sempre nel pivot Monitoring.
+      entry.key === "maps",
   );
 
   const showMeta = channel === "all" || channel === "meta";
@@ -552,7 +553,9 @@ export function ChannelTabs({
       t.key === "snapchat" ||
       t.key === "youtube",
   );
-  const monitoringTabs = visibleTabs.filter((t) => t.key === "serp");
+  const monitoringTabs = visibleTabs.filter(
+    (t) => t.key === "serp" || t.key === "maps",
+  );
   const sectionLabel =
     "inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold shrink-0";
 
@@ -655,7 +658,17 @@ export function ChannelTabs({
               <span className={sectionLabel}>
                 {t("competitors", "filterByChannel")}
               </span>
-              {renderChannelChip(allTab)}
+              {/* "Tutti" e' un catch-all secondario, non un canale
+                  con logo brand — rendiamolo piu' piccolo del paid/
+                  organic per non competere visivamente. Stile pill
+                  small (px-3 py-1.5 text-xs) come Status/Country
+                  filter, niente icona. */}
+              <Link
+                href={buildHref({ tab: null })}
+                className={chipClass(channel === "all")}
+              >
+                <span>{allTab.label}</span>
+              </Link>
             </div>
           )}
           {paidTabs.length > 0 && (
@@ -762,6 +775,19 @@ export function ChannelTabs({
         </div>
       )}
 
+      {/* ─── Sezione "Risultati" — divider + sub-header esplicito
+              tra filtri (sopra) e contenuto grid (sotto). Prima i
+              filtri finivano e partiva subito "Google Ads (X of Y)"
+              senza segnalare il cambio di registro. Una semplice
+              etichetta in tonalita' muted con divider sopra rende
+              palese che da qui in giu' parte il contenuto filtrato.
+          */}
+      <div className="pt-4 mt-2 border-t border-border/60">
+        <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
+          {t("competitors", "resultsHeader")}
+        </p>
+      </div>
+
       {/* ─── Ads section ─── */}
       {channel === "all" ? (
         <>
@@ -772,7 +798,7 @@ export function ChannelTabs({
             <div className="space-y-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <MetaIcon className="size-4 text-gold" />
+                  <MetaIcon className="size-4" colored />
                   <p className="text-sm font-medium">Meta Ads</p>
                   <span className="text-xs text-muted-foreground">
                     ({metaAds.length}
@@ -834,7 +860,7 @@ export function ChannelTabs({
           {googleAds.length > 0 && (
             <div className="space-y-4">
               <div className="flex items-center gap-2 flex-wrap">
-                <GoogleIcon className="size-4 text-gold" />
+                <GoogleIcon className="size-4" colored />
                 <p className="text-sm font-medium">Google Ads</p>
                 <span className="text-xs text-muted-foreground">
                   ({googleAds.length}
@@ -1139,7 +1165,7 @@ export function ChannelTabs({
                   Meta/Google headers above so the rhythm matches. */}
               {channel === "all" && (
                 <div className="flex items-center gap-2 pt-4 border-t border-border">
-                  <InstagramIcon className="size-4 text-gold" />
+                  <InstagramIcon className="size-4" colored />
                   <p className="text-sm font-medium">Instagram</p>
                   <span className="text-xs text-muted-foreground">
                     ({visibleOrganic.length}
@@ -1242,7 +1268,7 @@ export function ChannelTabs({
           {channel === "tiktok" && tiktokAds.length > 0 && (
             <div className="space-y-3 pb-4 border-b border-border">
               <div className="flex items-center gap-2">
-                <TikTokIcon className="size-4 text-gold" />
+                <TikTokIcon className="size-4" colored />
                 <h3 className="text-sm font-semibold">
                   {t("tiktokAds", "title")}
                 </h3>
@@ -1270,7 +1296,7 @@ export function ChannelTabs({
             <>
               {channel === "all" && (
                 <div className="flex items-center gap-2 pt-4 border-t border-border">
-                  <TikTokIcon className="size-4 text-gold" />
+                  <TikTokIcon className="size-4" colored />
                   <p className="text-sm font-medium">TikTok</p>
                   <span className="text-xs text-muted-foreground">
                     ({visibleTiktok.length}
@@ -1346,7 +1372,7 @@ export function ChannelTabs({
             <>
               {channel === "all" && (
                 <div className="flex items-center gap-2 pt-4 border-t border-border">
-                  <SnapchatIcon className="size-4 text-gold" />
+                  <SnapchatIcon className="size-4" colored />
                   <p className="text-sm font-medium">Snapchat</p>
                   <span className="text-xs text-muted-foreground">
                     ({t("snapchat", "latestSnapshot")})
@@ -1440,7 +1466,7 @@ export function ChannelTabs({
             <>
               {channel === "all" && (
                 <div className="flex items-center gap-2 pt-4 border-t border-border">
-                  <YouTubeIcon className="size-4 text-gold" />
+                  <YouTubeIcon className="size-4" colored />
                   <p className="text-sm font-medium">YouTube</p>
                   <span className="text-xs text-muted-foreground">
                     ({t("youtube", "latestSnapshot")})
@@ -1517,6 +1543,39 @@ export function ChannelTabs({
       )}
 
       {/* ─── SERP brand-rank section ──────────────────────── */}
+      {/* Maps placeholder: brand-detail aggregation non implementata.
+          Cover band + card descrittiva con CTA verso la sezione
+          workspace-level /maps dove l'utente puo' gestire i POI. */}
+      {channel === "maps" && (
+        <div className="space-y-4">
+          <div className="rounded-xl overflow-hidden border border-border">
+            <ChannelCoverBand
+              channel="maps"
+              brandName={brand.name}
+              brandHandle={brand.googleDomain ?? undefined}
+              caption=""
+            />
+          </div>
+          <Card>
+            <CardContent className="py-10 text-center space-y-3">
+              <div className="size-12 rounded-full bg-info-soft tone-info grid place-items-center mx-auto">
+                <MapPin className="size-5" />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {t("competitors", "mapsComingSoon")}
+              </p>
+              <Link
+                href="/maps"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 h-8 text-xs hover:border-gold/40 hover:text-gold transition-colors cursor-pointer"
+              >
+                <MapPin className="size-3.5" />
+                Google Maps
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {showSerp && (
         <div className="space-y-4">
           <div className="rounded-xl overflow-hidden border border-border">

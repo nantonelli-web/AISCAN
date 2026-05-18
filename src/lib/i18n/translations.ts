@@ -343,6 +343,11 @@ const translations = {
       it: "Imposta un range di date per attivare il confronto.",
       en: "Set a date range to enable comparison.",
     },
+    resultsHeader: { it: "Risultati", en: "Results" },
+    mapsComingSoon: {
+      it: "L'aggregazione brand-level per Google Maps arriverà a breve. Per ora puoi gestire i POI dalla sezione Google Maps.",
+      en: "Brand-level aggregation for Google Maps is coming soon. For now you can manage POIs from the Google Maps section.",
+    },
   },
 
   // ─── New Brand ─────────────────────────────────────────────
@@ -509,6 +514,14 @@ const translations = {
   scan: {
     scanNow: { it: "Scan now", en: "Scan now" },
     scanMarkets: { it: "Mercati", en: "Markets" },
+    scanMarketsHelp: {
+      it: "Questi paesi sono stati selezionati nell'anagrafica del brand. Clicca sulla matita per modificarli — la modifica si propaga ovunque (scan, filtri, anagrafica).",
+      en: "These countries were chosen in the brand profile. Click the pencil to edit them — changes propagate everywhere (scan, filters, profile).",
+    },
+    scanMarketsEdit: {
+      it: "Modifica i mercati nell'anagrafica del brand",
+      en: "Edit markets in brand profile",
+    },
     scanNowSubtitle: {
       it: "Lancia una scansione su uno o più canali per aggiornare i dati del brand.",
       en: "Launch a scan on one or more channels to refresh this brand's data.",

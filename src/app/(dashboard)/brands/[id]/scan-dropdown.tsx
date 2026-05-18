@@ -4,12 +4,13 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
-import { RefreshCw, CalendarRange, Square, Search, MapPin, Info } from "lucide-react";
+import { RefreshCw, CalendarRange, Square, Search, MapPin, Info, Pencil } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
 import { TikTokIcon } from "@/components/ui/tiktok-icon";
 import { SnapchatIcon } from "@/components/ui/snapchat-icon";
 import { YouTubeIcon } from "@/components/ui/youtube-icon";
+import { GoogleIcon } from "@/components/ui/google-icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateRangeShortcuts, defaultPresets } from "@/components/ui/date-range-shortcuts";
@@ -18,17 +19,9 @@ import { cn } from "@/lib/utils";
 import { hasSnapAdsCoverage } from "@/lib/snapchat/eu-countries";
 
 /* ─── Platform SVG logos ─────────────────────────────────── */
-
-function GoogleLogo({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1Z" />
-      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23Z" />
-      <path d="M5.84 14.09A6.68 6.68 0 0 1 5.5 12c0-.72.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 0 0 1 12c0 1.77.43 3.45 1.18 4.93l2.85-2.22.81-.62Z" />
-      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53Z" />
-    </svg>
-  );
-}
+// GoogleIcon vive in @/components/ui/google-icon — usato qui con
+// colored=true cosi il pulsante Google Ads ha il logo brand
+// multicolor invece di un'icona neutra.
 
 /* ─── Helpers ────────────────────────────────────────────── */
 
@@ -924,37 +917,48 @@ export function ScanDropdown({
         </p>
       </div>
 
-      {/* ─── 1b. Scan markets — read-only chip strip.
-              Country codes belong to the SCAN concept (which
-              markets the user wants to monitor), not to the brand
-              identity, so they live here next to the period inputs.
-              Displayed only when the brand has scan_countries
-              configured; clicking 'Edit brand' is the way to
-              change them, not inline. */}
+      {/* ─── 1b. Scan markets — chip strip + helper + pencil edit.
+              I paesi vengono presi dall'ANAGRAFICA brand (campo
+              mait_competitors.country). Modifica via pencil che
+              porta al /edit del brand cosi la propagazione e' a
+              unica fonte di verita' (no inline edit). */}
       {scanCountries && scanCountries.trim() && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pb-4 border-b border-border/60">
-          <div className="inline-flex items-center gap-2 shrink-0">
-            <div className="size-7 rounded-md bg-info-soft tone-info grid place-items-center">
-              <MapPin className="size-4" />
+        <div className="pb-4 border-b border-border/60 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <div className="inline-flex items-center gap-2 shrink-0">
+              <div className="size-7 rounded-md bg-info-soft tone-info grid place-items-center">
+                <MapPin className="size-4" />
+              </div>
+              <span className="text-sm font-medium text-foreground">
+                {t("scan", "scanMarkets")}
+              </span>
             </div>
-            <span className="text-sm font-medium text-foreground">
-              {t("scan", "scanMarkets")}
-            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {scanCountries
+                .split(",")
+                .map((c) => c.trim().toUpperCase())
+                .filter(Boolean)
+                .map((code) => (
+                  <span
+                    key={code}
+                    className="inline-flex items-center rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground tabular-nums"
+                  >
+                    {code}
+                  </span>
+                ))}
+            </div>
+            <Link
+              href={`/brands/${competitorId}/edit?from=scan&focus=countries`}
+              className="ml-auto inline-flex items-center justify-center size-7 rounded-md border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              title={t("scan", "scanMarketsEdit")}
+              aria-label={t("scan", "scanMarketsEdit")}
+            >
+              <Pencil className="size-3.5" />
+            </Link>
           </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {scanCountries
-              .split(",")
-              .map((c) => c.trim().toUpperCase())
-              .filter(Boolean)
-              .map((code) => (
-                <span
-                  key={code}
-                  className="inline-flex items-center rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground tabular-nums"
-                >
-                  {code}
-                </span>
-              ))}
-          </div>
+          <p className="text-[11px] text-muted-foreground pl-9">
+            {t("scan", "scanMarketsHelp")}
+          </p>
         </div>
       )}
 
@@ -1032,7 +1036,7 @@ export function ScanDropdown({
       {!showStop && googlePartialJob && (
         <div className="flex items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3">
           <div className="size-8 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-400 grid place-items-center shrink-0">
-            <GoogleLogo className="size-4" />
+            <GoogleIcon className="size-4" colored />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-foreground">
@@ -1091,7 +1095,7 @@ export function ScanDropdown({
                 {loading === "meta" ? (
                   <RefreshCw className="size-4 animate-spin" />
                 ) : (
-                  <MetaIcon className="size-4" />
+                  <MetaIcon className="size-4" colored />
                 )}
                 {loading === "meta" ? t("scan", "scanning") : "Meta Ads"}
               </Button>
@@ -1105,7 +1109,7 @@ export function ScanDropdown({
                 {loading === "google" ? (
                   <RefreshCw className="size-4 animate-spin" />
                 ) : (
-                  <GoogleLogo className="size-4" />
+                  <GoogleIcon className="size-4" colored />
                 )}
                 {loading === "google" ? t("scan", "scanningGoogle") : "Google Ads"}
               </Button>
@@ -1122,7 +1126,7 @@ export function ScanDropdown({
                 {loading === "tiktok_ads" ? (
                   <RefreshCw className="size-4 animate-spin" />
                 ) : (
-                  <TikTokIcon className="size-4" />
+                  <TikTokIcon className="size-4" colored />
                 )}
                 {loading === "tiktok_ads" ? t("scan", "scanning") : "TikTok Ads"}
               </Button>
@@ -1149,7 +1153,7 @@ export function ScanDropdown({
                 {loading === "snapchat_ads" ? (
                   <RefreshCw className="size-4 animate-spin" />
                 ) : (
-                  <SnapchatIcon className="size-4" />
+                  <SnapchatIcon className="size-4" colored />
                 )}
                 {loading === "snapchat_ads" ? t("scan", "scanning") : "Snapchat Ads"}
               </Button>
@@ -1196,7 +1200,7 @@ export function ScanDropdown({
                 {loading === "instagram" ? (
                   <RefreshCw className="size-4 animate-spin" />
                 ) : (
-                  <InstagramIcon className="size-4" />
+                  <InstagramIcon className="size-4" colored />
                 )}
                 Instagram
               </Button>
@@ -1210,7 +1214,7 @@ export function ScanDropdown({
                 {loading === "tiktok" ? (
                   <RefreshCw className="size-4 animate-spin" />
                 ) : (
-                  <TikTokIcon className="size-4" />
+                  <TikTokIcon className="size-4" colored />
                 )}
                 TikTok
               </Button>
@@ -1224,7 +1228,7 @@ export function ScanDropdown({
                 {loading === "snapchat" ? (
                   <RefreshCw className="size-4 animate-spin" />
                 ) : (
-                  <SnapchatIcon className="size-4" />
+                  <SnapchatIcon className="size-4" colored />
                 )}
                 Snapchat
               </Button>
@@ -1238,7 +1242,7 @@ export function ScanDropdown({
                 {loading === "youtube" ? (
                   <RefreshCw className="size-4 animate-spin" />
                 ) : (
-                  <YouTubeIcon className="size-4" />
+                  <YouTubeIcon className="size-4" colored />
                 )}
                 YouTube
               </Button>

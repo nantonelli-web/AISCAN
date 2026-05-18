@@ -156,7 +156,7 @@ export async function BrandChannelsSection({
    *  cap operates AFTER filtering, not before. Without this the
    *  Country pill on a big brand showed "1 of 415" because the 30
    *  most-recent ads happened to have only one matching country. */
-  tab: "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube" | "serp";
+  tab: "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube" | "serp" | "maps";
   statusFilter: "active" | "inactive" | null;
   countriesFilter: string[];
 }) {

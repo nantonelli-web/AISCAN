@@ -18,7 +18,7 @@ import type { MaitCompetitor, MaitScrapeJob } from "@/types";
 
 export const dynamic = "force-dynamic";
 
-type TabFilter = "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube" | "serp";
+type TabFilter = "all" | "meta" | "google" | "instagram" | "tiktok" | "snapchat" | "youtube" | "serp" | "maps";
 type StatusFilter = "active" | "inactive" | null;
 
 function parseTab(raw: string | string[] | undefined): TabFilter {
@@ -29,7 +29,8 @@ function parseTab(raw: string | string[] | undefined): TabFilter {
     raw === "tiktok" ||
     raw === "snapchat" ||
     raw === "youtube" ||
-    raw === "serp"
+    raw === "serp" ||
+    raw === "maps"
   )
     return raw;
   return "all";
@@ -613,14 +614,13 @@ export default async function CompetitorDetailPage({
             })()}
           />
           {jobsList.length > 0 && (
-            <div className="mt-6 pt-5 border-t border-gold/20">
-              {/* Sub-frame info-tinted per Cronologia — visualmente
-                  distinto dal contenuto Scan sopra (gold) cosi
-                  l'utente capisce che e' una funzionalita parallela
-                  satellite, non parte del flusso "lancia scan". */}
-              <div className="rounded-lg border border-info/20 bg-info-soft/40 p-3">
-                <CollapsibleJobHistory jobs={jobsList} />
-              </div>
+            <div className="mt-6 pt-4 border-t border-gold/20">
+              {/* Cronologia inline: solo divider sopra come separatore.
+                  Niente sub-frame e niente border button — l'utente
+                  ha gia' segnalato "troppe cornici". Il colore info
+                  dell'icona segna la differenza funzionale rispetto
+                  al ramo Scan sopra. */}
+              <CollapsibleJobHistory jobs={jobsList} inline />
             </div>
           )}
       </CollapsibleSectionCard>
