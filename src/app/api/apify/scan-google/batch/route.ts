@@ -7,7 +7,15 @@ import {
   startGoogleAdsScan,
   cleanAdvertiserDomain,
 } from "@/lib/apify/google-ads-service";
-import { consumeCredits, refundCredits } from "@/lib/credits/consume";
+import {
+  BATCH_MAX,
+  checkDailyCostCap,
+  chargeBatchCredits,
+  filterEligibleBrands,
+  refundOneBatchCredit,
+  CONCURRENCY_CAP_PER_WORKSPACE,
+  type SkipReason,
+} from "@/lib/apify/batch-safety";
 
 /**
  * POST /api/apify/scan-google/batch { competitor_ids: [...], max_items? }
@@ -37,28 +45,11 @@ import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 export const maxDuration = 60;
 
 const schema = z.object({
-  competitor_ids: z.array(z.string().uuid()).min(1).max(10),
+  competitor_ids: z.array(z.string().uuid()).min(1).max(BATCH_MAX),
   max_items: z.number().int().min(1).max(1000).optional(),
   date_from: z.string().optional(),
   date_to: z.string().optional(),
 });
-
-const BATCH_MAX = 10;
-const COOLDOWN_HOURS = 6;
-const CONCURRENCY_CAP_PER_WORKSPACE = 8;
-const DEFAULT_DAILY_CAP_USD = 50;
-
-interface SkipReason {
-  competitor_id: string;
-  page_name: string | null;
-  reason:
-    | "no_google_config"
-    | "recent_scan"
-    | "already_running"
-    | "start_failed"
-    | "concurrency_cap";
-  detail?: string;
-}
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -153,123 +144,44 @@ export async function POST(req: Request) {
     );
   }
 
-  // 2. SAFETY: daily cost cap del workspace
-  const dailyCapUsd = Number.parseFloat(
-    process.env.APIFY_DAILY_COST_CAP_USD ?? String(DEFAULT_DAILY_CAP_USD),
-  );
-  if (Number.isFinite(dailyCapUsd) && dailyCapUsd > 0) {
-    const since = new Date(Date.now() - 24 * 3_600_000).toISOString();
-    const { data: dailyJobs } = await admin
-      .from("mait_scrape_jobs")
-      .select("cost_cu")
-      .eq("workspace_id", workspaceId)
-      .gt("started_at", since);
-    const dailySum = (dailyJobs ?? []).reduce(
-      (s, j) => s + Number(j.cost_cu ?? 0),
-      0,
-    );
-    if (dailySum >= dailyCapUsd) {
-      return NextResponse.json(
-        {
-          error: `Hai raggiunto il limite di spesa giornaliero ($${dailyCapUsd.toFixed(2)}). Spesa nelle ultime 24h: $${dailySum.toFixed(2)}. Riprova domani o alza APIFY_DAILY_COST_CAP_USD.`,
-          daily_cap_usd: dailyCapUsd,
-          daily_spent_usd: dailySum,
-        },
-        { status: 429 },
-      );
-    }
-    console.log(
-      `[Batch Google] daily cost check OK: spent=$${dailySum.toFixed(3)}/${dailyCapUsd}`,
-    );
-  }
-
-  // 3. SAFETY: concurrency cap (running scans Google per workspace)
-  const { data: runningJobs } = await admin
-    .from("mait_scrape_jobs")
-    .select("id, competitor_id")
-    .eq("workspace_id", workspaceId)
-    .eq("source", "google")
-    .eq("status", "running");
-  const runningCount = (runningJobs ?? []).length;
-  const headroom = Math.max(0, CONCURRENCY_CAP_PER_WORKSPACE - runningCount);
-  if (headroom === 0) {
+  // 2. SAFETY: daily cost cap del workspace (helper centralizzato).
+  const costCheck = await checkDailyCostCap(workspaceId, admin);
+  if (!costCheck.ok) {
     return NextResponse.json(
       {
-        error: `Hai gia' ${runningCount} scan Google in corso (max ${CONCURRENCY_CAP_PER_WORKSPACE} per workspace). Aspetta che ne finisca qualcuno.`,
+        error: `Hai raggiunto il limite di spesa giornaliero ($${costCheck.cap.toFixed(2)}). Spesa nelle ultime 24h: $${costCheck.spent.toFixed(2)}. Riprova domani o alza APIFY_DAILY_COST_CAP_USD.`,
+        daily_cap_usd: costCheck.cap,
+        daily_spent_usd: costCheck.spent,
       },
       { status: 429 },
     );
   }
+  console.log(
+    `[Batch Google] daily cost check OK: spent=$${costCheck.spent.toFixed(3)}/${costCheck.cap}`,
+  );
 
-  // 4. SAFETY: pre-filter cooldown (no Apify call yet, no credit charge)
-  const cooldownSince = new Date(
-    Date.now() - COOLDOWN_HOURS * 3_600_000,
-  ).toISOString();
-  const { data: recentJobs } = await admin
-    .from("mait_scrape_jobs")
-    .select("competitor_id, started_at, status")
-    .eq("workspace_id", workspaceId)
-    .eq("source", "google")
-    .in("status", ["succeeded", "partial", "running"])
-    .gt("started_at", cooldownSince);
-  const recentByComp = new Map<string, { startedAt: string; status: string }>();
-  for (const j of recentJobs ?? []) {
-    if (j.competitor_id) {
-      recentByComp.set(j.competitor_id, {
-        startedAt: j.started_at as string,
-        status: j.status as string,
-      });
-    }
+  // 3+4. SAFETY: concurrency cap + cooldown via helper unificato.
+  // Filtra eligible vs skipped. hasChannelConfig: brand ha
+  // google_advertiser_id O google_domain.
+  const filterResult = await filterEligibleBrands({
+    brands: compList,
+    workspaceId,
+    source: "google",
+    admin,
+    hasChannelConfig: (c) =>
+      !!c.google_advertiser_id || !!c.google_domain,
+  });
+  const headroom = filterResult.headroom;
+  if (headroom === 0) {
+    return NextResponse.json(
+      {
+        error: `Hai gia' ${CONCURRENCY_CAP_PER_WORKSPACE} scan Google in corso (max per workspace). Aspetta che ne finisca qualcuno.`,
+      },
+      { status: 429 },
+    );
   }
-
-  const skipped: SkipReason[] = [];
-  const eligible: Comp[] = [];
-
-  for (const c of compList) {
-    if (!c.google_advertiser_id && !c.google_domain) {
-      skipped.push({
-        competitor_id: c.id,
-        page_name: c.page_name,
-        reason: "no_google_config",
-      });
-      continue;
-    }
-    const recent = recentByComp.get(c.id);
-    if (recent) {
-      if (recent.status === "running") {
-        skipped.push({
-          competitor_id: c.id,
-          page_name: c.page_name,
-          reason: "already_running",
-        });
-      } else {
-        const hoursAgo = Math.round(
-          (Date.now() - new Date(recent.startedAt).getTime()) / 3_600_000,
-        );
-        skipped.push({
-          competitor_id: c.id,
-          page_name: c.page_name,
-          reason: "recent_scan",
-          detail: `Scansionato ${hoursAgo}h fa (cooldown ${COOLDOWN_HOURS}h)`,
-        });
-      }
-      continue;
-    }
-    eligible.push(c);
-  }
-
-  // Apply concurrency headroom: se eligible > headroom, mettiamo i
-  // primi headroom e skippiamo il resto con reason "concurrency_cap".
-  const toLaunch = eligible.slice(0, headroom);
-  const excess = eligible.slice(headroom);
-  for (const c of excess) {
-    skipped.push({
-      competitor_id: c.id,
-      page_name: c.page_name,
-      reason: "concurrency_cap",
-      detail: `Cap workspace ${CONCURRENCY_CAP_PER_WORKSPACE} scan Google contemporanei`,
-    });
-  }
+  const skipped: SkipReason[] = filterResult.skipped;
+  const toLaunch = filterResult.eligible;
 
   if (toLaunch.length === 0) {
     return NextResponse.json(
@@ -284,54 +196,25 @@ export async function POST(req: Request) {
     );
   }
 
-  // 5. Charge credits for the launchable brands. Refund happens per
-  //    failed brand individually.
-  const totalCost = toLaunch.length * 2;
-  const credits = await consumeCredits(
+  // 5. Charge atomico di N crediti (helper centralizzato). Rollback
+  //    automatico se mid-batch i crediti non bastano. Refund per brand
+  //    individuale piu' avanti in caso di start_failed.
+  const chargeResult = await chargeBatchCredits(
     user.id,
-    "scan_google",
+    "google",
+    toLaunch.length,
     `Batch Google Ads: ${toLaunch.length} brand`,
   );
-  // consumeCredits charges only 1 unit (the action's cost is 2). We
-  // need to charge N*action manually. The simplest approach:
-  // call consumeCredits N-1 more times.
-  if (!credits.ok) {
+  if (!chargeResult.ok) {
     return NextResponse.json(
       {
         error: "Insufficient credits",
-        balance: credits.balance,
-        cost_total: totalCost,
+        balance: chargeResult.balance,
+        charged_before_rollback: chargeResult.chargedBeforeRollback,
         batch_size: toLaunch.length,
       },
       { status: 402 },
     );
-  }
-  let extraCharged = 1;
-  for (let i = 1; i < toLaunch.length; i++) {
-    const r = await consumeCredits(
-      user.id,
-      "scan_google",
-      `Batch Google Ads (${i + 1}/${toLaunch.length})`,
-    );
-    if (!r.ok) {
-      // Insufficient mid-batch: refund what was charged and abort
-      for (let k = 0; k < extraCharged; k++) {
-        await refundCredits(
-          user.id,
-          "scan_google",
-          `Batch Google: mid-batch insufficient credits rollback`,
-        );
-      }
-      return NextResponse.json(
-        {
-          error: "Insufficient credits mid-batch",
-          balance: r.balance,
-          charged_before_rollback: extraCharged,
-        },
-        { status: 402 },
-      );
-    }
-    extraCharged++;
   }
 
   const batchId = randomUUID();
@@ -393,9 +276,9 @@ export async function POST(req: Request) {
         reason: "start_failed",
         detail: jobErr?.message ?? "Job insert failed",
       });
-      await refundCredits(
+      await refundOneBatchCredit(
         user.id,
-        "scan_google",
+        "google",
         `Batch Google: insert failed for ${c.page_name}`,
       );
       continue;
@@ -444,9 +327,9 @@ export async function POST(req: Request) {
           error: message,
         })
         .eq("id", job.id);
-      await refundCredits(
+      await refundOneBatchCredit(
         user.id,
-        "scan_google",
+        "google",
         `Batch Google: start failed for ${c.page_name}`,
       );
       skipped.push({
@@ -470,7 +353,7 @@ export async function POST(req: Request) {
     webhooks_configured: webhooksConfiguredOnSomeRun,
     summary: {
       requested: parsed.data.competitor_ids.length,
-      eligible: eligible.length,
+      eligible: toLaunch.length,
       launched: started.length,
       skipped: skipped.length,
       credits_charged: started.length * 2,

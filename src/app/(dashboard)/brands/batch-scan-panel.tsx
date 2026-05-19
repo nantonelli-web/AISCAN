@@ -47,7 +47,8 @@ function daysAgo(n: number): string {
  */
 
 const MAX_BATCH = 10;
-const CREDITS_PER_GOOGLE_SCAN = 2;
+// Costo crediti vive ora nei singoli ChannelOption.costPerScan
+// — il batch usa quello dinamicamente per il totalCost preview.
 
 interface ClientRow {
   id: string;
@@ -61,6 +62,7 @@ interface BrandRow {
   client_id: string | null;
   google_advertiser_id: string | null;
   google_domain: string | null;
+  snapchat_handle: string | null;
   last_scraped_at: string | null;
 }
 
@@ -100,40 +102,68 @@ interface BatchStatusResponse {
   terminal: boolean;
 }
 
-type Channel = "google" | "meta" | "tiktok_ads" | "snapchat_ads" | "instagram" | "tiktok" | "youtube";
+type Channel =
+  | "google"
+  | "snapchat"
+  | "meta"
+  | "instagram"
+  | "tiktok"
+  | "youtube";
 
 interface ChannelOption {
   key: Channel;
   label: string;
   available: boolean;
+  costPerScan: number;
   /** Helper text quando non disponibile */
   comingNote?: string;
 }
 
 const CHANNELS: ChannelOption[] = [
-  { key: "google", label: "Google Ads", available: true },
+  { key: "google", label: "Google Ads", available: true, costPerScan: 2 },
+  {
+    key: "snapchat",
+    label: "Snapchat",
+    available: true,
+    costPerScan: 1,
+  },
   {
     key: "meta",
     label: "Meta Ads",
     available: false,
-    comingNote: "Meta e' sync con timeout 5min — batch in arrivo dopo refactor async",
+    costPerScan: 5,
+    comingNote:
+      "Meta scan e' sync con timeout 5min — batch richiede refactor async (pipeline Apify start+webhook)",
   },
   {
-    key: "tiktok_ads",
-    label: "TikTok Ads",
+    key: "instagram",
+    label: "Instagram",
     available: false,
-    comingNote: "Batch in arrivo dopo refactor async",
+    costPerScan: 2,
+    comingNote:
+      "Batch IG in arrivo dopo refactor async (pipeline Apify start+webhook)",
   },
   {
-    key: "snapchat_ads",
-    label: "Snapchat Ads",
+    key: "tiktok",
+    label: "TikTok",
     available: false,
-    comingNote: "Batch in arrivo dopo refactor async",
+    costPerScan: 2,
+    comingNote:
+      "Batch TT in arrivo dopo refactor async (pipeline Apify start+webhook)",
+  },
+  {
+    key: "youtube",
+    label: "YouTube",
+    available: false,
+    costPerScan: 1,
+    comingNote:
+      "Batch YT in arrivo dopo refactor async (pipeline Apify start+webhook)",
   },
 ];
 
 function reasonLabel(r: string): string {
   switch (r) {
+    case "no_config":
     case "no_google_config":
       return "Senza config canale";
     case "recent_scan":
@@ -150,10 +180,28 @@ function reasonLabel(r: string): string {
 }
 
 function hasChannelConfig(brand: BrandRow, channel: Channel): boolean {
-  if (channel === "google") {
-    return !!(brand.google_advertiser_id || brand.google_domain);
+  switch (channel) {
+    case "google":
+      return !!(brand.google_advertiser_id || brand.google_domain);
+    case "snapchat":
+      return !!brand.snapchat_handle;
+    case "meta":
+    case "instagram":
+    case "tiktok":
+    case "youtube":
+      return false; // batch non ancora supportato per questi canali
   }
-  return false; // gli altri canali oggi non sono lanciabili in batch
+}
+
+function batchEndpointFor(channel: Channel): string | null {
+  switch (channel) {
+    case "google":
+      return "/api/apify/scan-google/batch";
+    case "snapchat":
+      return "/api/snapchat/scan/batch";
+    default:
+      return null;
+  }
 }
 
 export function BatchScanPanel({
@@ -179,6 +227,12 @@ export function BatchScanPanel({
   const [stopping, setStopping] = useState(false);
   const [reconciling, setReconciling] = useState(false);
   const [batchId, setBatchId] = useState<string | null>(null);
+  // Canale del batch in corso. Necessario per il polling URL: ogni
+  // canale ha il proprio endpoint /api/.../batch?batch_id=. Lo
+  // salviamo separatamente da `channel` perche' l'utente potrebbe
+  // cambiare canale dopo aver lanciato un batch ed il poll
+  // continuerebbe a interrogare l'endpoint sbagliato.
+  const [batchChannel, setBatchChannel] = useState<Channel | null>(null);
   const [pollResult, setPollResult] = useState<BatchStatusResponse | null>(
     null,
   );
@@ -213,7 +267,9 @@ export function BatchScanPanel({
     [eligibleBrands, selected],
   );
 
-  const totalCost = selectedList.length * CREDITS_PER_GOOGLE_SCAN;
+  const currentChannelMeta = CHANNELS.find((c) => c.key === channel);
+  const costPerScan = currentChannelMeta?.costPerScan ?? 2;
+  const totalCost = selectedList.length * costPerScan;
   const overLimit = selectedList.length > MAX_BATCH;
   const polling = batchId !== null && !pollResult?.terminal;
   const canSubmit =
@@ -252,17 +308,28 @@ export function BatchScanPanel({
 
   async function submit() {
     if (!canSubmit) return;
+    const endpoint = batchEndpointFor(channel);
+    if (!endpoint) {
+      toast.error("Canale non supportato nel batch");
+      return;
+    }
     setSubmitting(true);
     try {
-      const res = await fetch("/api/apify/scan-google/batch", {
+      // Body differente per canale. Google: include max_items + range
+      // (sono parametri di scrape). Snapchat: solo competitor_ids
+      // (scan profilo, niente parametri di range).
+      const body: Record<string, unknown> = {
+        competitor_ids: Array.from(selected),
+      };
+      if (channel === "google") {
+        body.max_items = 500;
+        body.date_from = effectiveFrom;
+        body.date_to = effectiveTo;
+      }
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          competitor_ids: Array.from(selected),
-          max_items: 500,
-          date_from: effectiveFrom,
-          date_to: effectiveTo,
-        }),
+        body: JSON.stringify(body),
       });
       const j = (await res.json()) as BatchResponse;
       if (!res.ok) {
@@ -297,6 +364,7 @@ export function BatchScanPanel({
         );
       }
       setBatchId(j.batch_id);
+      setBatchChannel(channel);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Network error");
     } finally {
@@ -401,8 +469,10 @@ export function BatchScanPanel({
     async function poll() {
       if (cancelled) return;
       try {
+        const pollEndpoint = batchEndpointFor(batchChannel ?? "google");
+        if (!pollEndpoint) return;
         const r = await fetch(
-          `/api/apify/scan-google/batch?batch_id=${batchId}`,
+          `${pollEndpoint}?batch_id=${batchId}`,
           { cache: "no-store" },
         );
         if (!r.ok) throw new Error(`status ${r.status}`);
@@ -427,7 +497,7 @@ export function BatchScanPanel({
       cancelled = true;
       clearTimeout(h);
     };
-  }, [batchId, pollResult?.terminal, router]);
+  }, [batchId, batchChannel, pollResult?.terminal, router]);
 
   // Scroll into view quando si apre
   useEffect(() => {
