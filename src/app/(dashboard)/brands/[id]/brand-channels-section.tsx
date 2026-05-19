@@ -120,7 +120,7 @@ export async function BrandChannelsSection({
   /** Period-vs-period comparison: previous = window precedente
    *  uguale come lunghezza; custom = date esplicite; null = niente
    *  confronto. Calcolato dal parent page.tsx. */
-  compareMode: "previous" | "custom" | null;
+  compareMode: "custom" | null;
   compareFrom: string | null;
   compareTo: string | null;
   /** Brand's normalized google_domain (eTLD+1) — drives the SERP rank

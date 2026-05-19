@@ -122,7 +122,7 @@ interface Props {
     from: string;
     to: string;
   } | null;
-  compareMode: "previous" | "custom" | null;
+  compareMode: "custom" | null;
   /** URL-driven filter state. Pills navigate the URL; the server
    *  re-runs the ads query with these applied so the 30-row cap
    *  operates AFTER filtering. */
@@ -592,27 +592,26 @@ export function ChannelTabs({
     return m ? `${m[3]}/${m[2]}` : iso;
   }
 
-  // Filtri: TUTTE le righe vivono dentro la CollapsibleSectionCard
-  // "Creativita & Insight" sotto. Niente sub-card frame per riga
-  // (l'utente ha gia' segnalato 2x "troppi riquadri") — solo
-  // horizontal divider tra rows, stesso pattern di tutte le altre
-  // sezioni di filtri nel prodotto. Ordine: Channel (primario) →
-  // Periodo + Confronto (raggruppati in 1 group "time controls") →
-  // Country + Stato (secondari).
+  // Filtri: ogni gruppo ha un titolo standalone (CANALI / PERIODO DI
+  // ANALISI / PAESI / STATO) — coerenza richiesta utente. Righe
+  // separate da horizontal divider, niente sub-card frame.
   const showTimeControls =
     channel === "all" || channel === "meta" || channel === "google";
+  // Compare URL state: legacy "previous" rimosso (utente lo ha
+  // chiesto), il confronto adesso e' sempre "custom" — date inputs
+  // espliciti nel DateFilter sotto.
+  const sp = useSearchParams();
+  const urlCompareFrom = sp.get("compareFrom");
+  const urlCompareTo = sp.get("compareTo");
+  const compareEnabled = compareMode === "custom" && !!urlCompareFrom && !!urlCompareTo;
   const filtersNode = (
-    <div className="space-y-4">
-      {/* ─── 1. Channel pivot ───────────────────────────────────
-          "Tutti i canali" e' un catch-all chiarito in label (era
-          "Tutti" ambiguo: paid? organic? tutti?). Sta su una sua
-          riga in TESTA al filtro, poi Paid / Organic / Monitoring
-          sotto in row separati per gruppo con divisori verticali. */}
-      {allTab && (
-        <div className="flex items-center gap-2">
-          <span className={sectionLabel}>
-            {t("competitors", "filterByChannel")}
-          </span>
+    <div className="space-y-5">
+      {/* ─── CANALI ──────────────────────────────────────────── */}
+      <section className="space-y-3">
+        <h3 className="text-[11px] uppercase tracking-wider text-foreground font-bold">
+          {t("competitors", "channelsHeader")}
+        </h3>
+        {allTab && (
           <Link
             href={buildHref({ tab: null })}
             className={chipClass(channel === "all")}
@@ -624,152 +623,126 @@ export function ChannelTabs({
               </span>
             )}
           </Link>
+        )}
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+          {paidTabs.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={sectionLabel}>
+                {t("benchmarks", "paidChannels")}
+              </span>
+              {paidTabs.map((p) => renderChannelChip(p))}
+            </div>
+          )}
+          {organicTabs.length > 0 && (
+            <>
+              <div className="hidden lg:block h-6 w-px bg-border" />
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={sectionLabel}>
+                  {t("benchmarks", "organicChannels")}
+                </span>
+                {organicTabs.map((p) => renderChannelChip(p))}
+              </div>
+            </>
+          )}
+          {monitoringTabs.length > 0 && (
+            <>
+              <div className="hidden lg:block h-6 w-px bg-border" />
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={sectionLabel}>
+                  {t("benchmarks", "monitoringChannels")}
+                </span>
+                {monitoringTabs.map((p) => renderChannelChip(p))}
+              </div>
+            </>
+          )}
         </div>
-      )}
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-        {paidTabs.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={sectionLabel}>
-              {t("benchmarks", "paidChannels")}
-            </span>
-            {paidTabs.map((p) => renderChannelChip(p))}
-          </div>
-        )}
-        {organicTabs.length > 0 && (
-          <>
-            <div className="hidden lg:block h-6 w-px bg-border" />
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className={sectionLabel}>
-                {t("benchmarks", "organicChannels")}
-              </span>
-              {organicTabs.map((p) => renderChannelChip(p))}
-            </div>
-          </>
-        )}
-        {monitoringTabs.length > 0 && (
-          <>
-            <div className="hidden lg:block h-6 w-px bg-border" />
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className={sectionLabel}>
-                {t("benchmarks", "monitoringChannels")}
-              </span>
-              {monitoringTabs.map((p) => renderChannelChip(p))}
-            </div>
-          </>
-        )}
-      </div>
+      </section>
 
-      {/* ─── 2. Periodo + Confronto — raggruppati come "time
-          controls". Prima erano 2 righe distanti che facevano
-          sembrare 2 cose scollegate. Adesso un singolo group con
-          header "Periodo di analisi" e sotto due sub-row: Range +
-          Confronto. Cosi l'utente legge: "scelgo il range, e
-          posso anche confrontarlo con un altro periodo". */}
+      {/* ─── PERIODO DI ANALISI (con confronto integrato) ───── */}
       {showTimeControls && (
         <>
           <div className="h-px bg-border" />
-          <div className="space-y-2.5">
-            <p className="text-[11px] uppercase tracking-wider text-foreground font-bold">
+          <section className="space-y-3">
+            <h3 className="text-[11px] uppercase tracking-wider text-foreground font-bold">
               {t("competitors", "timeControlsHeader")}
-            </p>
-            <CreativesDateFilter dateFrom={dateFrom} dateTo={dateTo} />
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pl-1">
-              <span className={sectionLabel}>
-                {t("competitors", "compareLabel")}
-              </span>
-              <Link
-                href={buildHref({ compare: null })}
-                className={cn(
-                  "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors cursor-pointer",
-                  compareMode === null
-                    ? "bg-gold/15 text-gold border-gold/30 font-medium"
-                    : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
-                )}
-              >
-                {t("competitors", "compareNone")}
-              </Link>
-              <Link
-                href={buildHref({ compare: "previous" })}
-                className={cn(
-                  "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors cursor-pointer",
-                  compareMode === "previous"
-                    ? "bg-gold/15 text-gold border-gold/30 font-medium"
-                    : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
-                )}
-                title={!dateFrom || !dateTo ? t("competitors", "compareRequiresDateRange") : undefined}
-              >
-                {t("competitors", "comparePrevious")}
-              </Link>
-              {compareMode === "previous" && compareTotals && (
-                <span className="text-[11px] text-muted-foreground ml-1">
-                  {t("competitors", "comparePeriod")}:{" "}
-                  <span className="font-mono">
-                    {shortDate(compareTotals.from)} → {shortDate(compareTotals.to)}
-                  </span>
+            </h3>
+            <CreativesDateFilter
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              compareFrom={urlCompareFrom}
+              compareTo={urlCompareTo}
+              compareEnabled={compareEnabled}
+            />
+            {/* Status del confronto se attivo: mostra le date di
+                confronto in modo esplicito sotto. */}
+            {compareEnabled && compareTotals && (
+              <p className="text-[11px] text-muted-foreground pl-1">
+                {t("competitors", "compareActive")}:{" "}
+                <span className="font-mono">
+                  {shortDate(compareTotals.from)} → {shortDate(compareTotals.to)}
                 </span>
-              )}
-              {compareMode === "previous" && (!dateFrom || !dateTo) && (
-                <span className="text-[11px] text-amber-500 ml-1">
-                  {t("competitors", "compareRequiresDateRange")}
-                </span>
-              )}
-            </div>
-          </div>
+              </p>
+            )}
+          </section>
         </>
       )}
 
-      {(showCountryFilter || showStatusFilter) && (
+      {/* ─── PAESI ──────────────────────────────────────────── */}
+      {showCountryFilter && (
         <>
           <div className="h-px bg-border" />
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 print:hidden">
-            {showCountryFilter && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="eyebrow">
-                  {t("competitors", "filterByCountry")}
-                </span>
-                <CountryFilterDropdown
-                  availableCountries={availableCountries}
-                  selected={selectedCountries}
-                  onChange={(next) => {
-                    const codes = [...next];
-                    router.push(
-                      buildHref({
-                        countries: codes.length > 0 ? codes.join(",") : null,
-                      }),
-                    );
-                  }}
-                />
-              </div>
-            )}
-            {showStatusFilter && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="eyebrow">
-                  {t("competitors", "filterByStatus")}
-                </span>
-                {statusPills.map((p) => (
-                  <Link
-                    key={p.key}
-                    href={buildHref({
-                      status: p.key === "all" ? null : p.key,
-                    })}
-                    className={cn(
-                      chipClass(status === p.key),
-                      status !== p.key && p.key === "active" && "hover:tone-success",
-                      status !== p.key && p.key === "inactive" && "hover:tone-neutral",
-                    )}
-                  >
-                    {p.key === "active" && (
-                      <span className="size-1.5 rounded-full bg-current shrink-0 tone-success" />
-                    )}
-                    {p.key === "inactive" && (
-                      <span className="size-1.5 rounded-full bg-current shrink-0 tone-neutral" />
-                    )}
-                    {p.label}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
+          <section className="space-y-3 print:hidden">
+            <h3 className="text-[11px] uppercase tracking-wider text-foreground font-bold">
+              {t("competitors", "countriesHeader")}
+            </h3>
+            <CountryFilterDropdown
+              availableCountries={availableCountries}
+              selected={selectedCountries}
+              onChange={(next) => {
+                const codes = [...next];
+                router.push(
+                  buildHref({
+                    countries: codes.length > 0 ? codes.join(",") : null,
+                  }),
+                );
+              }}
+            />
+          </section>
+        </>
+      )}
+
+      {/* ─── STATO ──────────────────────────────────────────── */}
+      {showStatusFilter && (
+        <>
+          <div className="h-px bg-border" />
+          <section className="space-y-3 print:hidden">
+            <h3 className="text-[11px] uppercase tracking-wider text-foreground font-bold">
+              {t("competitors", "statusHeader")}
+            </h3>
+            <div className="flex items-center gap-2 flex-wrap">
+              {statusPills.map((p) => (
+                <Link
+                  key={p.key}
+                  href={buildHref({
+                    status: p.key === "all" ? null : p.key,
+                  })}
+                  className={cn(
+                    chipClass(status === p.key),
+                    status !== p.key && p.key === "active" && "hover:tone-success",
+                    status !== p.key && p.key === "inactive" && "hover:tone-neutral",
+                  )}
+                >
+                  {p.key === "active" && (
+                    <span className="size-1.5 rounded-full bg-current shrink-0 tone-success" />
+                  )}
+                  {p.key === "inactive" && (
+                    <span className="size-1.5 rounded-full bg-current shrink-0 tone-neutral" />
+                  )}
+                  {p.label}
+                </Link>
+              ))}
+            </div>
+          </section>
         </>
       )}
     </div>

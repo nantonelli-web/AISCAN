@@ -75,16 +75,13 @@ export default async function CompetitorDetailPage({
     typeof sp.to === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.to)
       ? sp.to
       : null;
-  // Compare mode — pattern identico ad Adv Performance (period-vs-
-  // period stesso brand+canale). Valori: null = no comparison,
-  // "previous" = stessa lunghezza finestra shiftata all'indietro,
-  // "custom" = date esplicite via compareFrom/compareTo.
-  const compareMode: "previous" | "custom" | null =
-    sp.compare === "previous"
-      ? "previous"
-      : sp.compare === "custom"
-        ? "custom"
-        : null;
+  // Compare mode — solo "custom" supportato: l'utente sceglie
+  // esplicitamente il range del confronto via CreativesDateFilter
+  // (2 date inputs aggiuntivi). Legacy "previous" preset rimosso
+  // 2026-05-19 (richiesta utente: "togli periodo precedente e
+  // cerca una soluzione per integrarlo con la parte delle date").
+  const compareMode: "custom" | null =
+    sp.compare === "custom" ? "custom" : null;
   const compareFromParam =
     typeof sp.compareFrom === "string" &&
     /^\d{4}-\d{2}-\d{2}$/.test(sp.compareFrom)
@@ -95,26 +92,10 @@ export default async function CompetitorDetailPage({
     /^\d{4}-\d{2}-\d{2}$/.test(sp.compareTo)
       ? sp.compareTo
       : null;
-  // Calcola la finestra precedente quando compareMode=previous:
-  // stessa lunghezza, shiftata all'indietro. Es: 14/04-14/05 →
-  // 13/03-13/04. Richiede che current dateFrom + dateTo siano
-  // entrambi presenti, altrimenti il confronto non ha senso.
-  let computedCompareFrom: string | null = null;
-  let computedCompareTo: string | null = null;
-  if (compareMode === "previous" && dateFromParam && dateToParam) {
-    const fromMs = new Date(dateFromParam).getTime();
-    const toMs = new Date(dateToParam).getTime();
-    const spanMs = toMs - fromMs;
-    if (Number.isFinite(spanMs) && spanMs > 0) {
-      const prevToMs = fromMs - 86_400_000; // 1 giorno prima
-      const prevFromMs = prevToMs - spanMs;
-      computedCompareFrom = new Date(prevFromMs).toISOString().slice(0, 10);
-      computedCompareTo = new Date(prevToMs).toISOString().slice(0, 10);
-    }
-  } else if (compareMode === "custom") {
-    computedCompareFrom = compareFromParam;
-    computedCompareTo = compareToParam;
-  }
+  const computedCompareFrom =
+    compareMode === "custom" ? compareFromParam : null;
+  const computedCompareTo =
+    compareMode === "custom" ? compareToParam : null;
   await getSessionUser();
   const supabase = await createClient();
   const locale = await getLocale();

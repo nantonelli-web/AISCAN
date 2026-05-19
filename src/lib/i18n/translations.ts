@@ -345,9 +345,24 @@ const translations = {
     },
     resultsHeader: { it: "Risultati", en: "Results" },
     channelAllExplicit: { it: "Tutti i canali", en: "All channels" },
+    channelsHeader: { it: "Canali", en: "Channels" },
+    countriesHeader: { it: "Paesi", en: "Countries" },
+    statusHeader: { it: "Stato", en: "Status" },
     timeControlsHeader: {
       it: "Periodo di analisi",
       en: "Analysis period",
+    },
+    compareEnableLabel: {
+      it: "Confronta con un altro periodo",
+      en: "Compare with another period",
+    },
+    compareRangeLabel: {
+      it: "Periodo confronto",
+      en: "Comparison period",
+    },
+    compareActive: {
+      it: "Confronto attivo",
+      en: "Comparison active",
     },
     resultsSubtitle: {
       it: "Ads e post filtrati in base ai criteri selezionati sopra.",
