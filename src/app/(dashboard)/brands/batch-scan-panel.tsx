@@ -604,7 +604,10 @@ export function BatchScanPanel({
   if (clientCountsAnyChannel.total < 2) return null;
 
   return (
-    <Card ref={panelRef}>
+    <Card
+      ref={panelRef}
+      className="border-amber-500/25 bg-gradient-to-br from-amber-500/[0.04] to-transparent"
+    >
       <CardContent className="p-5 space-y-4">
         {/* Header con toggle. Quando c'e' un batch in corso, mostra
             inline il counter + dot pulsante anche se il pannello e'
@@ -617,7 +620,7 @@ export function BatchScanPanel({
           aria-expanded={open}
         >
           <div className="flex items-center gap-3 min-w-0">
-            <div className="size-9 rounded-lg bg-muted text-foreground grid place-items-center shrink-0">
+            <div className="size-9 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 grid place-items-center shrink-0">
               <Layers className="size-4" />
             </div>
             <div className="min-w-0">
@@ -633,10 +636,10 @@ export function BatchScanPanel({
           </div>
           <div className="flex items-center gap-3 shrink-0">
             {batchId && pollResult && polling && (
-              <span className="inline-flex items-center gap-2 rounded-full bg-muted text-foreground px-2.5 py-1 text-[11.5px] font-medium">
+              <span className="inline-flex items-center gap-2 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 px-2.5 py-1 text-[11.5px] font-medium">
                 <span className="relative flex size-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-foreground opacity-60" />
-                  <span className="relative inline-flex size-2 rounded-full bg-foreground" />
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500 opacity-60" />
+                  <span className="relative inline-flex size-2 rounded-full bg-amber-500" />
                 </span>
                 Batch in corso · {pollResult.counts.total - pollResult.counts.running}/{pollResult.counts.total}
               </span>
@@ -772,7 +775,7 @@ export function BatchScanPanel({
                     aria-label="Avanzamento batch"
                   >
                     <div
-                      className="h-full bg-foreground transition-all duration-300"
+                      className="h-full bg-amber-500 transition-all duration-300"
                       style={{ width: `${percent}%` }}
                     />
                   </div>
@@ -803,7 +806,7 @@ export function BatchScanPanel({
                     </span>
                     {polling && pollResult.counts.running > 0 && (
                       <span className="inline-flex items-center gap-1.5">
-                        <span className="size-1.5 rounded-full bg-foreground animate-pulse" />
+                        <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
                         <strong className="text-foreground">
                           {pollResult.counts.running}
                         </strong>{" "}
@@ -842,7 +845,7 @@ export function BatchScanPanel({
                       disabled={!!batchId}
                       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors cursor-pointer ${
                         clientFilter === null
-                          ? "border-foreground bg-foreground text-background"
+                          ? "border-amber-500 bg-amber-500 text-white"
                           : "border-border hover:bg-muted/60 text-foreground"
                       } ${batchId ? "opacity-60 cursor-not-allowed" : ""}`}
                     >
@@ -850,7 +853,7 @@ export function BatchScanPanel({
                       <span
                         className={
                           clientFilter === null
-                            ? "text-[10px] text-background/70"
+                            ? "text-[10px] text-white/80"
                             : "text-[10px] text-muted-foreground"
                         }
                       >
@@ -869,7 +872,7 @@ export function BatchScanPanel({
                           disabled={!!batchId}
                           className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors cursor-pointer ${
                             active
-                              ? "border-foreground bg-foreground text-background"
+                              ? "border-amber-500 bg-amber-500 text-white"
                               : "border-border hover:bg-muted/60 text-foreground"
                           } ${batchId ? "opacity-60 cursor-not-allowed" : ""}`}
                         >
@@ -884,7 +887,7 @@ export function BatchScanPanel({
                           <span
                             className={
                               active
-                                ? "text-[10px] text-background/70"
+                                ? "text-[10px] text-white/80"
                                 : "text-[10px] text-muted-foreground"
                             }
                           >
@@ -900,7 +903,7 @@ export function BatchScanPanel({
                         disabled={!!batchId}
                         className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors cursor-pointer ${
                           clientFilter === "_unassigned"
-                            ? "border-foreground bg-foreground text-background"
+                            ? "border-amber-500 bg-amber-500 text-white"
                             : "border-border hover:bg-muted/60 text-foreground"
                         } ${batchId ? "opacity-60 cursor-not-allowed" : ""}`}
                       >
@@ -908,7 +911,7 @@ export function BatchScanPanel({
                         <span
                           className={
                             clientFilter === "_unassigned"
-                              ? "text-[10px] text-background/70"
+                              ? "text-[10px] text-white/80"
                               : "text-[10px] text-muted-foreground"
                           }
                         >
@@ -948,7 +951,7 @@ export function BatchScanPanel({
                         disabled={!!batchId || !usable}
                         className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors cursor-pointer ${
                           active
-                            ? "border-foreground bg-foreground text-background"
+                            ? "border-amber-500 bg-amber-500 text-white"
                             : usable
                               ? "border-border hover:bg-muted/60 text-foreground"
                               : "border-border/40 text-muted-foreground/60 cursor-not-allowed"
@@ -960,7 +963,7 @@ export function BatchScanPanel({
                           <span
                             className={
                               active
-                                ? "text-[10px] text-background/70"
+                                ? "text-[10px] text-white/80"
                                 : "text-[10px] text-muted-foreground"
                             }
                           >
@@ -1058,7 +1061,7 @@ export function BatchScanPanel({
                     <button
                       type="button"
                       onClick={selectFirstN}
-                      className="text-foreground hover:underline disabled:opacity-50 cursor-pointer"
+                      className="text-amber-600 dark:text-amber-400 hover:underline disabled:opacity-50 cursor-pointer"
                       disabled={!!batchId}
                     >
                       Seleziona primi {MAX_BATCH}
@@ -1092,11 +1095,13 @@ export function BatchScanPanel({
                           onClick={() => !batchId && toggleSelect(b.id)}
                           disabled={!!batchId}
                           className={`w-full flex items-center gap-3 px-3 py-2 text-left text-[13px] transition-colors cursor-pointer ${
-                            isSelected ? "bg-muted" : "hover:bg-muted/60"
+                            isSelected
+                              ? "bg-amber-500/10"
+                              : "hover:bg-muted/60"
                           } ${batchId ? "opacity-60 cursor-not-allowed" : ""}`}
                         >
                           {isSelected ? (
-                            <CheckSquare className="size-4 text-foreground shrink-0" />
+                            <CheckSquare className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
                           ) : (
                             <SquareIcon className="size-4 text-muted-foreground shrink-0" />
                           )}
@@ -1117,7 +1122,7 @@ export function BatchScanPanel({
             )}
 
             {/* Footer: cost + submit */}
-            <div className="flex items-center justify-between gap-3 flex-wrap pt-3 border-t border-border">
+            <div className="flex items-center justify-between gap-3 flex-wrap pt-3 border-t border-amber-500/15">
               <div className="text-[12px]">
                 {batchId ? (
                   <span className="text-muted-foreground inline-flex items-center gap-1.5">
@@ -1147,7 +1152,7 @@ export function BatchScanPanel({
               <Button
                 onClick={submit}
                 disabled={!canSubmit}
-                className="gap-2"
+                className="bg-amber-500 hover:bg-amber-600 text-white gap-2"
               >
                 {submitting ? (
                   <>
