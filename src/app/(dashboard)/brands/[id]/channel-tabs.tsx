@@ -822,7 +822,11 @@ export function ChannelTabs({
         title={t("brandHero", "creativesHeader")}
         subtitle={t("brandHero", "creativesSubtitle")}
         tone="info"
-        defaultOpen={true}
+        // Creativita resta CHIUSA di default (richiesta utente
+        // 2026-05-19): l'unica sezione aperta a entry brand-detail
+        // e' Risultati. Lutente apre Creativita quando vuole
+        // raffinare i filtri.
+        defaultOpen={false}
         persistKey={`brand-${competitorId}:creatives`}
       >
         {filtersNode}

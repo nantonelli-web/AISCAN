@@ -482,6 +482,12 @@ const translations = {
 
   // ─── Edit Brand ────────────────────────────────────────────
   editCompetitor: {
+    removeLogo: { it: "Rimuovi il logo del brand", en: "Remove brand logo" },
+    removeLogoConfirm: {
+      it: "Rimuovere il logo? Si ricreerà al prossimo scan.",
+      en: "Remove the logo? It will be recreated at the next scan.",
+    },
+    logoCleared: { it: "Logo rimosso.", en: "Logo cleared." },
     discoveryTitle: {
       it: "Auto-completa proprietà del brand",
       en: "Auto-fill brand properties",
@@ -544,6 +550,21 @@ const translations = {
     creativesSubtitle: {
       it: "Esplora ads, post organici e ranking SERP raccolti per questo brand.",
       en: "Explore ads, organic posts, and SERP rankings collected for this brand.",
+    },
+    flowStepScanLabel: { it: "Scan", en: "Scan" },
+    flowStepScanDesc: {
+      it: "Lancia uno scan per raccogliere ads e post del brand sui canali configurati.",
+      en: "Launch a scan to collect ads and posts of the brand across configured channels.",
+    },
+    flowStepFiltersLabel: { it: "Interrogazione", en: "Query" },
+    flowStepFiltersDesc: {
+      it: "Filtra per canale, paese, periodo e confronto per esplorare i dati raccolti.",
+      en: "Filter by channel, country, period, and comparison to explore the collected data.",
+    },
+    flowStepResultsLabel: { it: "Risultati", en: "Results" },
+    flowStepResultsDesc: {
+      it: "Visualizza creatività, post organici e KPI con delta % vs periodo di confronto.",
+      en: "View creatives, organic posts, and KPIs with delta % vs comparison period.",
     },
   },
 
@@ -2951,6 +2972,8 @@ const translations = {
     ads: { it: "ads", en: "ads" },
     print: { it: "Stampa", en: "Print" },
     backToDashboard: { it: "Torna alla Dashboard", en: "Back to Dashboard" },
+    yes: { it: "Sì", en: "Yes" },
+    no: { it: "No", en: "No" },
   },
 
   // ─── Language Switcher ─────────────────────────────────────

@@ -5,7 +5,9 @@ import { ArrowLeft, ExternalLink, Pencil, Zap } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { ScanDropdown } from "./scan-dropdown";
+import { ClearLogoButton } from "./clear-logo-button";
 import { CollapsibleSectionCard } from "./collapsible-section-card";
+import { BrandFlowGuide } from "./brand-flow-guide";
 import { FrequencySelector } from "./frequency-selector";
 import { CollapsibleJobHistory } from "./collapsible-job-history";
 import { BrandChannelsSection } from "./brand-channels-section";
@@ -402,11 +404,19 @@ export default async function CompetitorDetailPage({
       <section className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
         <div className="flex items-start gap-5 min-w-0">
           {pageProfilePicture ? (
-            <FallbackImage
-              src={pageProfilePicture}
-              className="size-16 rounded-full object-cover border border-border shrink-0"
-              fallbackInitial={c.page_name}
-            />
+            <div className="relative shrink-0 print:hidden">
+              <FallbackImage
+                src={pageProfilePicture}
+                className="size-16 rounded-full object-cover border border-border"
+                fallbackInitial={c.page_name}
+              />
+              {/* Bottone X in alto a destra dell'avatar per pulire
+                  un logo sbagliato (es. Born Outside scrapava un'
+                  immagine "a min for kindness" non sua). Al
+                  prossimo scan IG/TT/SC/YT il logo viene
+                  ri-popolato dall'API ufficiale del canale. */}
+              <ClearLogoButton competitorId={c.id} />
+            </div>
           ) : (
             <div className="size-16 rounded-full bg-gold-soft border border-gold/20 shrink-0 grid place-items-center text-gold font-semibold text-xl">
               {c.page_name.charAt(0).toUpperCase()}
@@ -520,6 +530,21 @@ export default async function CompetitorDetailPage({
           );
         })()}
       </div>
+
+      {/* ─── Guida flusso brand-detail in 3 step affiancati.
+          Aiuta l'utente nuovo a capire dove fare cosa (Scan ->
+          Interrogazione -> Risultati). Mirror visivo delle 3
+          CollapsibleSectionCard sottostanti — stesse icone, stesso
+          ordine. Print:hidden: e' onboarding, non parte del
+          contenuto stampato. */}
+      <BrandFlowGuide
+        scanLabel={t("brandHero", "flowStepScanLabel")}
+        scanDescription={t("brandHero", "flowStepScanDesc")}
+        filtersLabel={t("brandHero", "flowStepFiltersLabel")}
+        filtersDescription={t("brandHero", "flowStepFiltersDesc")}
+        resultsLabel={t("brandHero", "flowStepResultsLabel")}
+        resultsDescription={t("brandHero", "flowStepResultsDesc")}
+      />
 
       {/* ─── Scan action + Cronologia — collassata di default.
           Pattern collapsible-section-card identico a Creativita

@@ -38,6 +38,12 @@ const patchSchema = z.object({
   youtube_channel_url: z.string().max(200).nullable().optional(),
   google_advertiser_id: z.string().max(80).nullable().optional(),
   google_domain: z.string().max(200).nullable().optional(),
+  // Logo / avatar del brand. Setting a null lo cancella; al prossimo
+  // scan IG/TT/SC/YT verra' ri-popolato dall'API ufficiale del canale
+  // (vedi scan routes). Utile quando il profile_picture_url
+  // contiene un'immagine sbagliata (scan vecchio o handle errato).
+  profile_picture_url: z.string().url().max(2000).nullable().optional()
+    .or(z.literal("").transform(() => null)),
   // Sub-brand attribution: brand parent + regex su landing_url.
   parent_brand_id: z.string().uuid().nullable().optional(),
   attribution_url_patterns: z
@@ -68,7 +74,7 @@ export async function PATCH(
     frequency, max_items, page_name, page_url, country, category,
     client_id, instagram_username, tiktok_username, tiktok_advertiser_id,
     snapchat_handle, youtube_channel_url, google_advertiser_id, google_domain,
-    parent_brand_id, attribution_url_patterns,
+    parent_brand_id, attribution_url_patterns, profile_picture_url,
   } = parsed.data;
 
   // Separate monitor_config fields from direct fields
@@ -113,6 +119,9 @@ export async function PATCH(
     directUpdate.google_domain = google_domain
       ? cleanAdvertiserDomain(google_domain)
       : null;
+  }
+  if (profile_picture_url !== undefined) {
+    directUpdate.profile_picture_url = profile_picture_url;
   }
   if (parent_brand_id !== undefined) {
     if (parent_brand_id !== null) {
