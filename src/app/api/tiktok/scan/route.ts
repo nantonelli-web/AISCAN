@@ -217,6 +217,19 @@ export async function POST(req: Request) {
         .from("mait_competitors")
         .update({ tiktok_profile: result.profile })
         .eq("id", competitor.id);
+      // Snapshot storico TikTok (migration 0056) — vedi
+      // /api/instagram/scan per il razionale. Mappa: followers,
+      // following, videoCount, totalLikes.
+      await admin.from("mait_brand_metric_snapshots").insert({
+        workspace_id: competitor.workspace_id,
+        competitor_id: competitor.id,
+        channel: "tiktok",
+        followers_count: result.profile.followers ?? null,
+        follows_count: result.profile.following ?? null,
+        videos_count: result.profile.videoCount ?? null,
+        likes_count: result.profile.totalLikes ?? null,
+        raw_metrics: result.profile as unknown as Record<string, unknown>,
+      });
     }
 
     // Any cached comparison containing this brand is now out of date —

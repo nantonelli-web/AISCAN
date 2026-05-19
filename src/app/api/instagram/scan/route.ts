@@ -237,6 +237,20 @@ export async function POST(req: Request) {
         .from("mait_competitors")
         .update({ instagram_profile: profile })
         .eq("id", competitor.id);
+      // Snapshot storico (migration 0056): a ogni scan salviamo
+      // followers/follows/posts come point-in-time per il delta
+      // confronto-vs-periodo-precedente. instagram_profile in
+      // mait_competitors viene SOVRASCRITTO ad ogni scan, quindi
+      // senza questa table non avremmo storia per i confronti.
+      await admin.from("mait_brand_metric_snapshots").insert({
+        workspace_id: competitor.workspace_id,
+        competitor_id: competitor.id,
+        channel: "instagram",
+        followers_count: profile.followersCount ?? null,
+        follows_count: profile.followsCount ?? null,
+        posts_count: profile.postsCount ?? null,
+        raw_metrics: profile as unknown as Record<string, unknown>,
+      });
     } else {
       console.warn(
         `[Instagram scan] profile scrape returned null for ${competitor.page_name}`

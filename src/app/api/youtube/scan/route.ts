@@ -231,6 +231,20 @@ export async function POST(req: Request) {
         console.error(`[YouTube route] Channel snapshot error:`, snapErr);
         throw snapErr;
       }
+
+      // Snapshot unificato in mait_brand_metric_snapshots (migration
+      // 0056). YouTube ha gia' la sua history in mait_youtube_channels
+      // ma il channel-tabs UI consulta la tabella unificata per
+      // calcolare i delta sui canali in modo coerente.
+      await admin.from("mait_brand_metric_snapshots").insert({
+        workspace_id: competitor.workspace_id,
+        competitor_id: competitor.id,
+        channel: "youtube",
+        followers_count: result.channel.subscriber_count ?? null,
+        videos_count: result.channel.total_videos ?? null,
+        views_count: result.channel.total_views ?? null,
+        raw_metrics: result.channel as unknown as Record<string, unknown>,
+      });
     }
 
     // Any cached comparison containing this brand is now out of date.

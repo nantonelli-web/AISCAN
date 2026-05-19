@@ -146,6 +146,18 @@ interface Props {
     avgComments: number | null;
     totalViews: number;
   };
+  /** Stats per il periodo di confronto IG (quando compare attivo).
+   *  null = confronto spento. followersAtCompareDate viene dallo
+   *  snapshot piu' recente <= compareTo (migration 0056); usato per
+   *  il delta follower vs corrente. */
+  organicCompare: {
+    count: number;
+    avgLikes: number | null;
+    avgComments: number | null;
+    totalViews: number;
+    followersAtCurrentDate: number | null;
+    followersAtCompareDate: number | null;
+  } | null;
   tiktokStats: {
     count: number;
     avgLikes: number | null;
@@ -196,6 +208,7 @@ export function ChannelTabs({
   compareTotals,
   compareMode,
   organicStats,
+  organicCompare,
   tiktokStats,
   youtubeStats,
   organicCollabPool,
@@ -679,6 +692,11 @@ export function ChannelTabs({
               compareFrom={urlCompareFrom}
               compareTo={urlCompareTo}
               compareEnabled={compareEnabled}
+              // Confronto disabilitato su "Tutti i canali": i KPI
+              // sono eterogenei tra canali (followers per IG,
+              // active ads per Meta, queries per SERP) - un singolo
+              // delta aggregato non avrebbe senso.
+              compareDisabled={channel === "all"}
             />
             {/* Status del confronto se attivo: mostra le date di
                 confronto in modo esplicito sotto. */}
@@ -1094,58 +1112,47 @@ export function ChannelTabs({
               />
             </div>
           )}
-          {/* Engagement stats — follower count come PRIMA tile cosi
-              domina visivamente (e il post-volume scende a secondo). */}
+          {/* Engagement stats — KPI cards con delta vs periodo di
+              confronto quando organicCompare e' non null. Ogni card
+              mostra valore corrente + (opzionale) +N% verde / -N%
+              rosso rispetto al periodo precedente. Followers usa
+              snapshot historico (migration 0056) cosi anche il
+              trend del seguito e' visibile retroattivamente da
+              quando abbiamo iniziato a salvare snapshot. */}
           {organicStats.count > 0 && channel === "instagram" && (
             <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
               {typeof brand.instagramProfile?.followersCount === "number" && (
-                <Card>
-                  <CardContent className="py-4 text-center">
-                    <p className="text-2xl font-semibold">
-                      {formatNumber(brand.instagramProfile.followersCount)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {t("organic", "followers")}
-                    </p>
-                  </CardContent>
-                </Card>
+                <KpiCardWithDelta
+                  value={brand.instagramProfile.followersCount}
+                  previous={organicCompare?.followersAtCompareDate ?? null}
+                  label={t("organic", "followers")}
+                />
               )}
-              <Card>
-                <CardContent className="py-4 text-center">
-                  <p className="text-2xl font-semibold">
-                    {channelTotals.instagram}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{t("organic", "totalPosts")}</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="py-4 text-center">
-                  <p className="text-2xl font-semibold">
-                    {organicStats.avgLikes != null ? formatNumber(organicStats.avgLikes) : "—"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{t("organic", "avgLikes")}</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="py-4 text-center">
-                  <p className="text-2xl font-semibold">
-                    {organicStats.avgComments != null ? formatNumber(organicStats.avgComments) : "—"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{t("organic", "avgComments")}</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="py-4 text-center">
-                  <p className="text-2xl font-semibold">{formatNumber(organicStats.totalViews)}</p>
-                  <p className="text-xs text-muted-foreground">{t("organic", "totalViews")}</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="py-4 text-center">
-                  <p className="text-2xl font-semibold">{igCollabPosts}</p>
-                  <p className="text-xs text-muted-foreground">{t("organic", "collabPosts")}</p>
-                </CardContent>
-              </Card>
+              <KpiCardWithDelta
+                value={organicStats.count}
+                previous={organicCompare?.count ?? null}
+                label={t("organic", "totalPosts")}
+              />
+              <KpiCardWithDelta
+                value={organicStats.avgLikes}
+                previous={organicCompare?.avgLikes ?? null}
+                label={t("organic", "avgLikes")}
+              />
+              <KpiCardWithDelta
+                value={organicStats.avgComments}
+                previous={organicCompare?.avgComments ?? null}
+                label={t("organic", "avgComments")}
+              />
+              <KpiCardWithDelta
+                value={organicStats.totalViews}
+                previous={organicCompare?.totalViews ?? null}
+                label={t("organic", "totalViews")}
+              />
+              <KpiCardWithDelta
+                value={igCollabPosts}
+                previous={null}
+                label={t("organic", "collabPosts")}
+              />
             </div>
           )}
 
@@ -1647,5 +1654,63 @@ export function ChannelTabs({
         </div>
       </CollapsibleSectionCard>
     </div>
+  );
+}
+
+/**
+ * KPI card con delta colorato vs periodo confronto.
+ * - value: valore corrente (null → em-dash)
+ * - previous: valore periodo confronto (null → no delta indicato)
+ * - delta % colored: verde positivo, rosso negativo, neutral su 0
+ */
+function KpiCardWithDelta({
+  value,
+  previous,
+  label,
+}: {
+  value: number | null;
+  previous: number | null;
+  label: string;
+}) {
+  const hasCompare = previous != null;
+  const delta =
+    hasCompare && previous !== 0 && value != null
+      ? ((value - previous) / previous) * 100
+      : null;
+  return (
+    <Card>
+      <CardContent className="py-4 text-center space-y-1">
+        <p className="text-2xl font-semibold">
+          {value == null ? "—" : formatNumber(value)}
+        </p>
+        <p className="text-xs text-muted-foreground">{label}</p>
+        {hasCompare && delta != null && (
+          <p
+            className={cn(
+              "text-[11px] font-semibold tabular-nums inline-flex items-center gap-1",
+              delta > 0
+                ? "tone-success"
+                : delta < 0
+                  ? "text-rose-600 dark:text-rose-400"
+                  : "text-muted-foreground",
+            )}
+          >
+            <span>
+              {delta > 0 ? "▲" : delta < 0 ? "▼" : "•"}{" "}
+              {delta > 0 ? "+" : ""}
+              {Math.round(delta * 10) / 10}%
+            </span>
+            <span className="text-muted-foreground font-normal">
+              ({formatNumber(previous!)})
+            </span>
+          </p>
+        )}
+        {hasCompare && delta == null && previous != null && (
+          <p className="text-[11px] text-muted-foreground tabular-nums">
+            (—)
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }

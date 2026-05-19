@@ -408,6 +408,143 @@ export async function BrandChannelsSection({
       .limit(1000),
   ]);
 
+  // ── KPI compare-vs-current per IG (migration 0056) ─────────────
+  // Quando il confronto e' attivo (compareFrom + compareTo), un
+  // secondo batch di query fetcha:
+  //   1. organic posts IG nel periodo CORRENTE (dateFrom/dateTo)
+  //   2. organic posts IG nel periodo CONFRONTO (compareFrom/To)
+  //   3. snapshot follower piu' recente <= dateTo (corrente)
+  //   4. snapshot follower piu' recente <= compareTo (confronto)
+  // Lo split tra "lightweight stats query" e "30-row grid query"
+  // sopra evita di ri-fetchare raw_data sui post.
+  const igCompareEnabled =
+    compareMode === "custom" && !!compareFrom && !!compareTo;
+  let currentOrganicLight: Array<{
+    likes_count: number | null;
+    comments_count: number | null;
+    video_views: number | null;
+    posted_at: string | null;
+  }> = [];
+  let compareOrganicLight: typeof currentOrganicLight = [];
+  let currentIgSnapshot: { followers_count: number | null } | null = null;
+  let compareIgSnapshot: { followers_count: number | null } | null = null;
+  // Query corrente: filtra per posted_at se dateFrom/dateTo sono
+  // settate, altrimenti tutto il dataset (default brand-detail =
+  // nessun filtro → 1000 cap).
+  let curOrganicQ = supabase
+    .from("mait_organic_posts")
+    .select("likes_count, comments_count, video_views, posted_at")
+    .eq("competitor_id", competitorId)
+    .eq("platform", "instagram")
+    .limit(2000);
+  if (dateFrom) curOrganicQ = curOrganicQ.gte("posted_at", dateFrom);
+  if (dateTo) curOrganicQ = curOrganicQ.lte("posted_at", dateTo + "T23:59:59Z");
+  // Supabase query builders sono thenable ma TS non li tipizza come
+  // Promise — wrappiamoli con Promise.resolve per il batch.
+  const promises: Array<Promise<unknown>> = [
+    Promise.resolve(curOrganicQ),
+  ];
+  if (igCompareEnabled) {
+    promises.push(
+      Promise.resolve(
+        supabase
+          .from("mait_organic_posts")
+          .select("likes_count, comments_count, video_views, posted_at")
+          .eq("competitor_id", competitorId)
+          .eq("platform", "instagram")
+          .gte("posted_at", compareFrom!)
+          .lte("posted_at", compareTo! + "T23:59:59Z")
+          .limit(2000),
+      ),
+    );
+  }
+  // Snapshot lookup: "ultimo snapshot follower IG <= X" via order
+  // desc + limit 1.
+  promises.push(
+    Promise.resolve(
+      supabase
+        .from("mait_brand_metric_snapshots")
+        .select("followers_count")
+        .eq("competitor_id", competitorId)
+        .eq("channel", "instagram")
+        .lte(
+          "scraped_at",
+          dateTo ? dateTo + "T23:59:59Z" : new Date().toISOString(),
+        )
+        .order("scraped_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ),
+  );
+  if (igCompareEnabled) {
+    promises.push(
+      Promise.resolve(
+        supabase
+          .from("mait_brand_metric_snapshots")
+          .select("followers_count")
+          .eq("competitor_id", competitorId)
+          .eq("channel", "instagram")
+          .lte("scraped_at", compareTo! + "T23:59:59Z")
+          .order("scraped_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ),
+    );
+  }
+  const compareResults = await Promise.all(promises);
+  // Unpack tipizzato. Ordine dipende dal flag igCompareEnabled —
+  // gestiamo entrambi i casi.
+  let idx = 0;
+  type LightRow = {
+    likes_count: number | null;
+    comments_count: number | null;
+    video_views: number | null;
+    posted_at: string | null;
+  };
+  type SnapshotRow = { followers_count: number | null };
+  const curOrganicResult = compareResults[idx++] as { data: LightRow[] | null };
+  currentOrganicLight = (curOrganicResult?.data ?? []) as LightRow[];
+  if (igCompareEnabled) {
+    const cmpOrganicResult = compareResults[idx++] as { data: LightRow[] | null };
+    compareOrganicLight = (cmpOrganicResult?.data ?? []) as LightRow[];
+  }
+  const curSnapshotResult = compareResults[idx++] as { data: SnapshotRow | null };
+  currentIgSnapshot = curSnapshotResult?.data ?? null;
+  if (igCompareEnabled) {
+    const cmpSnapshotResult = compareResults[idx++] as { data: SnapshotRow | null };
+    compareIgSnapshot = cmpSnapshotResult?.data ?? null;
+  }
+
+  function computeIgStats(rows: LightRow[]) {
+    const validLikes = rows
+      .map((r) => r.likes_count ?? -1)
+      .filter((n) => n >= 0);
+    const validComments = rows
+      .map((r) => r.comments_count ?? -1)
+      .filter((n) => n >= 0);
+    const validViews = rows
+      .map((r) => r.video_views ?? -1)
+      .filter((n) => n >= 0);
+    return {
+      count: rows.length,
+      avgLikes:
+        validLikes.length > 0
+          ? Math.round(validLikes.reduce((a, b) => a + b, 0) / validLikes.length)
+          : null,
+      avgComments:
+        validComments.length > 0
+          ? Math.round(
+              validComments.reduce((a, b) => a + b, 0) / validComments.length,
+            )
+          : null,
+      totalViews: validViews.reduce((a, b) => a + b, 0),
+    };
+  }
+  const igStatsCurrent = computeIgStats(currentOrganicLight);
+  const igStatsCompare = igCompareEnabled
+    ? computeIgStats(compareOrganicLight)
+    : null;
+
   const adsList = (ads ?? []) as MaitAdExternal[];
   const organicList = (organicPosts ?? []) as MaitOrganicPost[];
   const tiktokList = (tiktokPosts ?? []) as MaitTikTokPost[];
@@ -651,11 +788,29 @@ export async function BrandChannelsSection({
       dateFrom={dateFrom}
       dateTo={dateTo}
       organicStats={{
-        count: organicList.length,
-        avgLikes,
-        avgComments,
-        totalViews,
+        // Stats computate sull'INTERA finestra dateFrom/dateTo (non
+        // sui 30-row grid sample). Cosi i KPI cards riflettono
+        // realmente il periodo di analisi. Quando dateFrom/dateTo
+        // sono null, e' "all time".
+        count: igStatsCurrent.count,
+        avgLikes: igStatsCurrent.avgLikes,
+        avgComments: igStatsCurrent.avgComments,
+        totalViews: igStatsCurrent.totalViews,
       }}
+      organicCompare={
+        igStatsCompare
+          ? {
+              count: igStatsCompare.count,
+              avgLikes: igStatsCompare.avgLikes,
+              avgComments: igStatsCompare.avgComments,
+              totalViews: igStatsCompare.totalViews,
+              followersAtCompareDate:
+                compareIgSnapshot?.followers_count ?? null,
+              followersAtCurrentDate:
+                currentIgSnapshot?.followers_count ?? null,
+            }
+          : null
+      }
       tiktokStats={{
         count: tiktokList.length,
         avgLikes: ttAvgLikes,

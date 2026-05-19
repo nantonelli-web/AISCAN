@@ -254,6 +254,18 @@ export async function POST(req: Request) {
       console.error(`[Snapchat route] Insert error:`, insertErr);
       throw insertErr;
     }
+
+    // Snapshot uniformato in mait_brand_metric_snapshots (migration
+    // 0056). Snapchat ha gia' la sua history in mait_snapchat_profiles
+    // ma il channel-tabs UI consulta la tabella unificata per
+    // calcolare i delta su tutti i canali in modo coerente.
+    await admin.from("mait_brand_metric_snapshots").insert({
+      workspace_id: competitor.workspace_id,
+      competitor_id: competitor.id,
+      channel: "snapchat",
+      followers_count: result.profile.subscriber_count ?? null,
+      raw_metrics: result.profile as unknown as Record<string, unknown>,
+    });
     console.log(`[Snapchat route] Snapshot stored`);
 
     // Any cached comparison containing this brand is now out of date.

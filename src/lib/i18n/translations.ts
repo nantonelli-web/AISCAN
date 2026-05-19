@@ -368,6 +368,15 @@ const translations = {
       it: "Confronto attivo",
       en: "Comparison active",
     },
+    compareNotAvailableForAll: {
+      it: "Il confronto non è disponibile quando è selezionato 'Tutti i canali': i KPI sono eterogenei tra canali (follower, ads, query) e non confrontabili come singolo aggregato.",
+      en: "Comparison is not available when 'All channels' is selected: KPIs are heterogeneous across channels (followers, ads, queries) and cannot be compared as a single aggregate.",
+    },
+    compareNotAvailableForAllShort: {
+      it: "non disponibile su Tutti i canali",
+      en: "not available on All channels",
+    },
+    deltaLabel: { it: "rispetto al periodo di confronto", en: "vs comparison period" },
     resultsSubtitle: {
       it: "Ads e post filtrati in base ai criteri selezionati sopra.",
       en: "Ads and posts filtered by the criteria selected above.",

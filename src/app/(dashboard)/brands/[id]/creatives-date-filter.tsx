@@ -32,12 +32,18 @@ export function CreativesDateFilter({
   compareFrom,
   compareTo,
   compareEnabled,
+  compareDisabled = false,
 }: {
   dateFrom: string | null;
   dateTo: string | null;
   compareFrom: string | null;
   compareTo: string | null;
   compareEnabled: boolean;
+  /** True quando il confronto non ha senso semantico — es. canale
+   *  "all" (KPIs eterogenei tra Meta/Google/IG non confrontabili
+   *  come singolo aggregato). Nasconde il checkbox del confronto
+   *  con tooltip esplicativo. */
+  compareDisabled?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -184,40 +190,52 @@ export function CreativesDateFilter({
 
       {/* Toggle "Confronta con un altro periodo" — checkbox piu'
           grande e con label visibile. Spacing generoso (space-y-5
-          sopra) per non sembrare incollata al range principale. */}
+          sopra) per non sembrare incollata al range principale.
+          Disabled quando compareDisabled (es. canale "Tutti" - i KPI
+          sono eterogenei tra canali, non confrontabili come singolo
+          numero) o quando manca il range principale. */}
       <label
         className={cn(
-          "inline-flex items-center gap-2.5 cursor-pointer select-none transition-colors",
-          !from || !to
+          "inline-flex items-center gap-2.5 select-none transition-colors",
+          compareDisabled || !from || !to
             ? "opacity-50 cursor-not-allowed"
-            : "hover:opacity-90",
+            : "cursor-pointer hover:opacity-90",
         )}
         title={
-          !from || !to
-            ? t("competitors", "compareRequiresDateRange")
-            : undefined
+          compareDisabled
+            ? t("competitors", "compareNotAvailableForAll")
+            : !from || !to
+              ? t("competitors", "compareRequiresDateRange")
+              : undefined
         }
       >
         <input
           type="checkbox"
-          checked={compareOn}
+          checked={compareOn && !compareDisabled}
           onChange={toggleCompare}
-          disabled={!from || !to}
+          disabled={compareDisabled || !from || !to}
           className="sr-only peer"
         />
         <span
           className={cn(
             "inline-flex items-center justify-center size-5 rounded-md border-2 transition-colors",
-            compareOn
+            compareOn && !compareDisabled
               ? "bg-gold border-gold text-gold-foreground"
               : "bg-background border-foreground/40",
           )}
         >
-          {compareOn && <Check className="size-3.5" strokeWidth={3} />}
+          {compareOn && !compareDisabled && (
+            <Check className="size-3.5" strokeWidth={3} />
+          )}
         </span>
         <span className="text-sm font-medium text-foreground">
           {t("competitors", "compareEnableLabel")}
         </span>
+        {compareDisabled && (
+          <span className="text-[11px] text-muted-foreground italic">
+            {t("competitors", "compareNotAvailableForAllShort")}
+          </span>
+        )}
       </label>
 
       {/* "Periodo di confronto" come sezione titolata separata —
