@@ -545,6 +545,266 @@ export async function BrandChannelsSection({
     ? computeIgStats(compareOrganicLight)
     : null;
 
+  // ─── TikTok / YouTube / Snapchat — stesso pattern di IG ─────
+  // Per ogni canale organic: query light periodo corrente + query
+  // compare (se attivo) + snapshot follower current + compare.
+  // Tutto in un solo Promise.all per parallelizzare al massimo.
+  type TTLightRow = {
+    play_count: number | null;
+    digg_count: number | null;
+    comment_count: number | null;
+    posted_at: string | null;
+  };
+  type YTLightRow = {
+    view_count: number | null;
+    like_count: number | null;
+    comment_count: number | null;
+    posted_at: string | null;
+  };
+  type SCSnapRow = { scraped_at: string | null };
+  type SnapshotRowGeneric = { followers_count: number | null };
+
+  // TT current
+  let ttCurQ = supabase
+    .from("mait_tiktok_posts")
+    .select("play_count, digg_count, comment_count, posted_at")
+    .eq("competitor_id", competitorId)
+    .limit(2000);
+  if (dateFrom) ttCurQ = ttCurQ.gte("posted_at", dateFrom);
+  if (dateTo) ttCurQ = ttCurQ.lte("posted_at", dateTo + "T23:59:59Z");
+  // YT current
+  let ytCurQ = supabase
+    .from("mait_youtube_videos")
+    .select("view_count, like_count, comment_count, posted_at")
+    .eq("competitor_id", competitorId)
+    .limit(2000);
+  if (dateFrom) ytCurQ = ytCurQ.gte("posted_at", dateFrom);
+  if (dateTo) ytCurQ = ytCurQ.lte("posted_at", dateTo + "T23:59:59Z");
+  // SC current — Snapchat e' a base SNAPSHOT (no per-post engagement),
+  // contiamo gli snapshot nel range per dare un signal "quanti scan
+  // ci sono stati" + il follower piu' recente.
+  let scCurQ = supabase
+    .from("mait_snapchat_profiles")
+    .select("scraped_at")
+    .eq("competitor_id", competitorId)
+    .limit(2000);
+  if (dateFrom) scCurQ = scCurQ.gte("scraped_at", dateFrom);
+  if (dateTo) scCurQ = scCurQ.lte("scraped_at", dateTo + "T23:59:59Z");
+
+  const channelExtras: Array<Promise<unknown>> = [
+    Promise.resolve(ttCurQ),
+    Promise.resolve(ytCurQ),
+    Promise.resolve(scCurQ),
+    // Snapshot follower current per TT / YT / SC
+    Promise.resolve(
+      supabase
+        .from("mait_brand_metric_snapshots")
+        .select("followers_count")
+        .eq("competitor_id", competitorId)
+        .eq("channel", "tiktok")
+        .lte(
+          "scraped_at",
+          dateTo ? dateTo + "T23:59:59Z" : new Date().toISOString(),
+        )
+        .order("scraped_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ),
+    Promise.resolve(
+      supabase
+        .from("mait_brand_metric_snapshots")
+        .select("followers_count")
+        .eq("competitor_id", competitorId)
+        .eq("channel", "youtube")
+        .lte(
+          "scraped_at",
+          dateTo ? dateTo + "T23:59:59Z" : new Date().toISOString(),
+        )
+        .order("scraped_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ),
+    Promise.resolve(
+      supabase
+        .from("mait_brand_metric_snapshots")
+        .select("followers_count")
+        .eq("competitor_id", competitorId)
+        .eq("channel", "snapchat")
+        .lte(
+          "scraped_at",
+          dateTo ? dateTo + "T23:59:59Z" : new Date().toISOString(),
+        )
+        .order("scraped_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ),
+  ];
+  // Compare batch — solo se confronto attivo
+  if (igCompareEnabled) {
+    channelExtras.push(
+      Promise.resolve(
+        supabase
+          .from("mait_tiktok_posts")
+          .select("play_count, digg_count, comment_count, posted_at")
+          .eq("competitor_id", competitorId)
+          .gte("posted_at", compareFrom!)
+          .lte("posted_at", compareTo! + "T23:59:59Z")
+          .limit(2000),
+      ),
+      Promise.resolve(
+        supabase
+          .from("mait_youtube_videos")
+          .select("view_count, like_count, comment_count, posted_at")
+          .eq("competitor_id", competitorId)
+          .gte("posted_at", compareFrom!)
+          .lte("posted_at", compareTo! + "T23:59:59Z")
+          .limit(2000),
+      ),
+      Promise.resolve(
+        supabase
+          .from("mait_snapchat_profiles")
+          .select("scraped_at")
+          .eq("competitor_id", competitorId)
+          .gte("scraped_at", compareFrom!)
+          .lte("scraped_at", compareTo! + "T23:59:59Z")
+          .limit(2000),
+      ),
+      Promise.resolve(
+        supabase
+          .from("mait_brand_metric_snapshots")
+          .select("followers_count")
+          .eq("competitor_id", competitorId)
+          .eq("channel", "tiktok")
+          .lte("scraped_at", compareTo! + "T23:59:59Z")
+          .order("scraped_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ),
+      Promise.resolve(
+        supabase
+          .from("mait_brand_metric_snapshots")
+          .select("followers_count")
+          .eq("competitor_id", competitorId)
+          .eq("channel", "youtube")
+          .lte("scraped_at", compareTo! + "T23:59:59Z")
+          .order("scraped_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ),
+      Promise.resolve(
+        supabase
+          .from("mait_brand_metric_snapshots")
+          .select("followers_count")
+          .eq("competitor_id", competitorId)
+          .eq("channel", "snapchat")
+          .lte("scraped_at", compareTo! + "T23:59:59Z")
+          .order("scraped_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ),
+    );
+  }
+  const extraResults = await Promise.all(channelExtras);
+  let ei = 0;
+  const ttCurR = extraResults[ei++] as { data: TTLightRow[] | null };
+  const ytCurR = extraResults[ei++] as { data: YTLightRow[] | null };
+  const scCurR = extraResults[ei++] as { data: SCSnapRow[] | null };
+  const ttSnapR = extraResults[ei++] as { data: SnapshotRowGeneric | null };
+  const ytSnapR = extraResults[ei++] as { data: SnapshotRowGeneric | null };
+  const scSnapR = extraResults[ei++] as { data: SnapshotRowGeneric | null };
+  const ttCmpR = igCompareEnabled
+    ? (extraResults[ei++] as { data: TTLightRow[] | null })
+    : null;
+  const ytCmpR = igCompareEnabled
+    ? (extraResults[ei++] as { data: YTLightRow[] | null })
+    : null;
+  const scCmpR = igCompareEnabled
+    ? (extraResults[ei++] as { data: SCSnapRow[] | null })
+    : null;
+  const ttSnapCmpR = igCompareEnabled
+    ? (extraResults[ei++] as { data: SnapshotRowGeneric | null })
+    : null;
+  const ytSnapCmpR = igCompareEnabled
+    ? (extraResults[ei++] as { data: SnapshotRowGeneric | null })
+    : null;
+  const scSnapCmpR = igCompareEnabled
+    ? (extraResults[ei++] as { data: SnapshotRowGeneric | null })
+    : null;
+
+  function computeTtStats(rows: TTLightRow[]) {
+    const validPlays = rows
+      .map((r) => r.play_count ?? -1)
+      .filter((n) => n >= 0);
+    const validLikes = rows
+      .map((r) => r.digg_count ?? -1)
+      .filter((n) => n >= 0);
+    const validComments = rows
+      .map((r) => r.comment_count ?? -1)
+      .filter((n) => n >= 0);
+    return {
+      count: rows.length,
+      avgLikes:
+        validLikes.length > 0
+          ? Math.round(validLikes.reduce((a, b) => a + b, 0) / validLikes.length)
+          : null,
+      avgComments:
+        validComments.length > 0
+          ? Math.round(
+              validComments.reduce((a, b) => a + b, 0) / validComments.length,
+            )
+          : null,
+      totalViews: validPlays.reduce((a, b) => a + b, 0),
+    };
+  }
+  function computeYtStats(rows: YTLightRow[]) {
+    const validLikes = rows
+      .map((r) =>
+        typeof r.like_count === "number" && r.like_count >= 0 ? r.like_count : -1,
+      )
+      .filter((n) => n >= 0);
+    const validComments = rows
+      .map((r) =>
+        typeof r.comment_count === "number" && r.comment_count >= 0
+          ? r.comment_count
+          : -1,
+      )
+      .filter((n) => n >= 0);
+    return {
+      count: rows.length,
+      avgLikes:
+        validLikes.length > 0
+          ? Math.round(validLikes.reduce((a, b) => a + b, 0) / validLikes.length)
+          : null,
+      avgComments:
+        validComments.length > 0
+          ? Math.round(
+              validComments.reduce((a, b) => a + b, 0) / validComments.length,
+            )
+          : null,
+      totalViews: rows.reduce(
+        (s, r) =>
+          s + (typeof r.view_count === "number" ? r.view_count : 0),
+        0,
+      ),
+    };
+  }
+  const ttStatsCurrent = computeTtStats((ttCurR?.data ?? []) as TTLightRow[]);
+  const ttStatsCompare = igCompareEnabled
+    ? computeTtStats((ttCmpR?.data ?? []) as TTLightRow[])
+    : null;
+  const ytStatsCurrent = computeYtStats((ytCurR?.data ?? []) as YTLightRow[]);
+  const ytStatsCompare = igCompareEnabled
+    ? computeYtStats((ytCmpR?.data ?? []) as YTLightRow[])
+    : null;
+  const scCountCurrent = (scCurR?.data ?? []).length;
+  const scCountCompare = igCompareEnabled ? (scCmpR?.data ?? []).length : null;
+  const ttFollowersCurrent = ttSnapR?.data?.followers_count ?? null;
+  const ttFollowersCompare = ttSnapCmpR?.data?.followers_count ?? null;
+  const ytFollowersCurrent = ytSnapR?.data?.followers_count ?? null;
+  const ytFollowersCompare = ytSnapCmpR?.data?.followers_count ?? null;
+  const scFollowersCurrent = scSnapR?.data?.followers_count ?? null;
+  const scFollowersCompare = scSnapCmpR?.data?.followers_count ?? null;
+
   const adsList = (ads ?? []) as MaitAdExternal[];
   const organicList = (organicPosts ?? []) as MaitOrganicPost[];
   const tiktokList = (tiktokPosts ?? []) as MaitTikTokPost[];
@@ -812,17 +1072,58 @@ export async function BrandChannelsSection({
           : null
       }
       tiktokStats={{
-        count: tiktokList.length,
-        avgLikes: ttAvgLikes,
-        avgComments: ttAvgComments,
-        totalViews: ttTotalViews,
+        // Stats computate sull'INTERA finestra dateFrom/dateTo (non
+        // sui 30-row grid sample). Allineato a IG per coerenza
+        // delta period-vs-period.
+        count: ttStatsCurrent.count,
+        avgLikes: ttStatsCurrent.avgLikes,
+        avgComments: ttStatsCurrent.avgComments,
+        totalViews: ttStatsCurrent.totalViews,
       }}
+      tiktokCompare={
+        ttStatsCompare
+          ? {
+              count: ttStatsCompare.count,
+              avgLikes: ttStatsCompare.avgLikes,
+              avgComments: ttStatsCompare.avgComments,
+              totalViews: ttStatsCompare.totalViews,
+              followersAtCompareDate: ttFollowersCompare,
+              followersAtCurrentDate: ttFollowersCurrent,
+            }
+          : null
+      }
+      tiktokFollowers={ttFollowersCurrent}
       youtubeStats={{
-        count: youtubeVideoList.length,
-        avgLikes: ytAvgLikes,
-        avgComments: ytAvgComments,
-        totalViews: ytTotalViews,
+        count: ytStatsCurrent.count,
+        avgLikes: ytStatsCurrent.avgLikes,
+        avgComments: ytStatsCurrent.avgComments,
+        totalViews: ytStatsCurrent.totalViews,
       }}
+      youtubeCompare={
+        ytStatsCompare
+          ? {
+              count: ytStatsCompare.count,
+              avgLikes: ytStatsCompare.avgLikes,
+              avgComments: ytStatsCompare.avgComments,
+              totalViews: ytStatsCompare.totalViews,
+              followersAtCompareDate: ytFollowersCompare,
+              followersAtCurrentDate: ytFollowersCurrent,
+            }
+          : null
+      }
+      youtubeFollowers={ytFollowersCurrent}
+      snapchatStats={{
+        snapshotCount: scCountCurrent,
+        followersAtCurrentDate: scFollowersCurrent,
+      }}
+      snapchatCompare={
+        igCompareEnabled
+          ? {
+              snapshotCount: scCountCompare ?? 0,
+              followersAtCompareDate: scFollowersCompare,
+            }
+          : null
+      }
       organicCollabPool={organicCollabPool}
       tiktokCollabPool={tiktokCollabPool}
     />

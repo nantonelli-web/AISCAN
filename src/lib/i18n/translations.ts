@@ -2302,6 +2302,10 @@ const translations = {
     title: { it: "Snapchat", en: "Snapchat" },
     latestSnapshot: { it: "Snapshot più recente", en: "Latest snapshot" },
     snapshotHistory: { it: "Storico snapshot", en: "Snapshot history" },
+    snapshotsInPeriod: {
+      it: "Snapshot nel periodo",
+      en: "Snapshots in period",
+    },
     noSnapshotYet: {
       it: "Nessuno snapshot Snapchat ancora. Lancia uno scan per iniziare a tracciare il brand.",
       en: "No Snapchat snapshot yet. Run a scan to start tracking this brand.",

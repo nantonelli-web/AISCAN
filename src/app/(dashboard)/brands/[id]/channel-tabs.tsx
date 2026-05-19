@@ -164,12 +164,44 @@ interface Props {
     avgComments: number | null;
     totalViews: number;
   };
+  /** Stats per il periodo di confronto TikTok (vedi organicCompare
+   *  per IG). null = confronto spento. */
+  tiktokCompare: {
+    count: number;
+    avgLikes: number | null;
+    avgComments: number | null;
+    totalViews: number;
+    followersAtCurrentDate: number | null;
+    followersAtCompareDate: number | null;
+  } | null;
+  /** Snapshot follower TT corrente (vedi mait_brand_metric_snapshots).
+   *  null se nessun snapshot disponibile. */
+  tiktokFollowers: number | null;
   youtubeStats: {
     count: number;
     avgLikes: number | null;
     avgComments: number | null;
     totalViews: number;
   };
+  youtubeCompare: {
+    count: number;
+    avgLikes: number | null;
+    avgComments: number | null;
+    totalViews: number;
+    followersAtCurrentDate: number | null;
+    followersAtCompareDate: number | null;
+  } | null;
+  /** Subscriber YT corrente (snapshot follower del canale=youtube). */
+  youtubeFollowers: number | null;
+  /** Stats Snapchat — solo snapshot count nel range + subscriber. */
+  snapchatStats: {
+    snapshotCount: number;
+    followersAtCurrentDate: number | null;
+  };
+  snapchatCompare: {
+    snapshotCount: number;
+    followersAtCompareDate: number | null;
+  } | null;
   /** Light projection di TUTTI i post IG del brand (non solo i 30
    *  visibili nel grid) per il collab aggregate. */
   organicCollabPool: Array<{
@@ -209,6 +241,12 @@ export function ChannelTabs({
   compareMode,
   organicStats,
   organicCompare,
+  tiktokFollowers,
+  tiktokCompare,
+  youtubeFollowers,
+  youtubeCompare,
+  snapchatStats,
+  snapchatCompare,
   tiktokStats,
   youtubeStats,
   organicCollabPool,
@@ -1228,43 +1266,39 @@ export function ChannelTabs({
             </div>
           )}
           {tiktokStats.count > 0 && channel === "tiktok" && (
-            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-              <Card>
-                <CardContent className="py-4 text-center">
-                  <p className="text-2xl font-semibold">
-                    {channelTotals.tiktok}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{t("organic", "totalPosts")}</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="py-4 text-center">
-                  <p className="text-2xl font-semibold">
-                    {tiktokStats.avgLikes != null ? formatNumber(tiktokStats.avgLikes) : "—"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{t("organic", "avgLikes")}</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="py-4 text-center">
-                  <p className="text-2xl font-semibold">
-                    {tiktokStats.avgComments != null ? formatNumber(tiktokStats.avgComments) : "—"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{t("organic", "avgComments")}</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="py-4 text-center">
-                  <p className="text-2xl font-semibold">{formatNumber(tiktokStats.totalViews)}</p>
-                  <p className="text-xs text-muted-foreground">{t("organic", "totalViews")}</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="py-4 text-center">
-                  <p className="text-2xl font-semibold">{ttCollabPosts}</p>
-                  <p className="text-xs text-muted-foreground">{t("organic", "collabPosts")}</p>
-                </CardContent>
-              </Card>
+            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+              {typeof tiktokFollowers === "number" && (
+                <KpiCardWithDelta
+                  value={tiktokFollowers}
+                  previous={tiktokCompare?.followersAtCompareDate ?? null}
+                  label={t("organic", "followers")}
+                />
+              )}
+              <KpiCardWithDelta
+                value={tiktokStats.count}
+                previous={tiktokCompare?.count ?? null}
+                label={t("organic", "totalPosts")}
+              />
+              <KpiCardWithDelta
+                value={tiktokStats.avgLikes}
+                previous={tiktokCompare?.avgLikes ?? null}
+                label={t("organic", "avgLikes")}
+              />
+              <KpiCardWithDelta
+                value={tiktokStats.avgComments}
+                previous={tiktokCompare?.avgComments ?? null}
+                label={t("organic", "avgComments")}
+              />
+              <KpiCardWithDelta
+                value={tiktokStats.totalViews}
+                previous={tiktokCompare?.totalViews ?? null}
+                label={t("organic", "totalViews")}
+              />
+              <KpiCardWithDelta
+                value={ttCollabPosts}
+                previous={null}
+                label={t("organic", "collabPosts")}
+              />
             </div>
           )}
 
@@ -1391,6 +1425,29 @@ export function ChannelTabs({
                   {t("snapchat", "latestSnapshot")}
                 </p>
               )}
+
+              {/* KPI strip Snapchat: subscriber + scan count in range.
+                  Subscriber e' uno snapshot (mait_brand_metric_
+                  snapshots channel=snapchat). Snapshot count e' il
+                  numero di scan nel periodo. Entrambi con delta vs
+                  periodo confronto quando attivo. */}
+              {channel === "snapchat" && (
+                <div className="grid gap-3 grid-cols-2">
+                  {typeof snapchatStats.followersAtCurrentDate === "number" && (
+                    <KpiCardWithDelta
+                      value={snapchatStats.followersAtCurrentDate}
+                      previous={snapchatCompare?.followersAtCompareDate ?? null}
+                      label={t("organic", "followers")}
+                    />
+                  )}
+                  <KpiCardWithDelta
+                    value={snapchatStats.snapshotCount}
+                    previous={snapchatCompare?.snapshotCount ?? null}
+                    label={t("snapchat", "snapshotsInPeriod")}
+                  />
+                </div>
+              )}
+
               <SnapchatProfileCard profile={latestSnapchat} />
 
               {/* Trend list — snapshots #2..N. Compact rows, just the
@@ -1484,37 +1541,34 @@ export function ChannelTabs({
               <YoutubeChannelCard channel={latestYoutubeChannel} />
 
               {channel === "youtube" && youtubeStats.count > 0 && (
-                <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-                  <Card>
-                    <CardContent className="py-4 text-center">
-                      <p className="text-2xl font-semibold">
-                        {channelTotals.youtube}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{t("organic", "totalPosts")}</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="py-4 text-center">
-                      <p className="text-2xl font-semibold">
-                        {youtubeStats.avgLikes != null ? formatNumber(youtubeStats.avgLikes) : "—"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{t("organic", "avgLikes")}</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="py-4 text-center">
-                      <p className="text-2xl font-semibold">
-                        {youtubeStats.avgComments != null ? formatNumber(youtubeStats.avgComments) : "—"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{t("organic", "avgComments")}</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="py-4 text-center">
-                      <p className="text-2xl font-semibold">{formatNumber(youtubeStats.totalViews)}</p>
-                      <p className="text-xs text-muted-foreground">{t("organic", "totalViews")}</p>
-                    </CardContent>
-                  </Card>
+                <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+                  {typeof youtubeFollowers === "number" && (
+                    <KpiCardWithDelta
+                      value={youtubeFollowers}
+                      previous={youtubeCompare?.followersAtCompareDate ?? null}
+                      label={t("organic", "followers")}
+                    />
+                  )}
+                  <KpiCardWithDelta
+                    value={youtubeStats.count}
+                    previous={youtubeCompare?.count ?? null}
+                    label={t("organic", "totalPosts")}
+                  />
+                  <KpiCardWithDelta
+                    value={youtubeStats.avgLikes}
+                    previous={youtubeCompare?.avgLikes ?? null}
+                    label={t("organic", "avgLikes")}
+                  />
+                  <KpiCardWithDelta
+                    value={youtubeStats.avgComments}
+                    previous={youtubeCompare?.avgComments ?? null}
+                    label={t("organic", "avgComments")}
+                  />
+                  <KpiCardWithDelta
+                    value={youtubeStats.totalViews}
+                    previous={youtubeCompare?.totalViews ?? null}
+                    label={t("organic", "totalViews")}
+                  />
                 </div>
               )}
 
