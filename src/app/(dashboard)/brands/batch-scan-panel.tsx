@@ -608,7 +608,7 @@ export function BatchScanPanel({
       ref={panelRef}
       className="border-amber-500/25 bg-gradient-to-br from-amber-500/[0.04] to-transparent"
     >
-      <CardContent className="p-5 space-y-4">
+      <CardContent className="p-6 space-y-6">
         {/* Header con toggle. Quando c'e' un batch in corso, mostra
             inline il counter + dot pulsante anche se il pannello e'
             collassato — cosi' l'utente sa sempre se sta succedendo
@@ -616,7 +616,7 @@ export function BatchScanPanel({
         <button
           type="button"
           onClick={() => setOpen((s) => !s)}
-          className="w-full flex items-center justify-between gap-3 text-left"
+          className="w-full flex items-center justify-between gap-3 text-left cursor-pointer"
           aria-expanded={open}
         >
           <div className="flex items-center gap-3 min-w-0">
@@ -627,10 +627,10 @@ export function BatchScanPanel({
               <h2 className="text-sm font-semibold tracking-tight">
                 Batch scan multi-brand
               </h2>
-              <p className="text-[11.5px] text-muted-foreground leading-relaxed mt-0.5">
+              <p className="text-[12px] text-muted-foreground leading-relaxed mt-1">
                 {open
-                  ? `Seleziona fino a ${MAX_BATCH} brand da scansionare in parallelo. Lo scan parte in background, puoi navigare altrove.`
-                  : "Lancia uno scan su piu' brand contemporaneamente."}
+                  ? `Scansiona fino a ${MAX_BATCH} brand contemporaneamente. Scegli il progetto, il canale (Google Ads o Snapchat) e il periodo di scansione: i singoli scan partono in parallelo e girano in background — puoi chiudere il pannello e navigare altrove, ti notifichiamo quando ognuno completa. I crediti vengono addebitati solo per gli scan effettivamente avviati (cooldown 6h, max 8 paralleli per workspace).`
+                  : `Lancia in parallelo fino a ${MAX_BATCH} scan da un solo click — utile dopo l'import di un nuovo progetto o al primo refresh settimanale. Apri per scegliere progetto, canale e periodo.`}
               </p>
             </div>
           </div>
@@ -828,13 +828,13 @@ export function BatchScanPanel({
                 proprieta' del brand → senza brand non puoi sapere quali
                 canali sono validi). Il count di ciascun canale dipende
                 dal progetto selezionato. */}
-            <div className="space-y-3">
+            <div className="space-y-5">
               {/* 1) Progetto */}
               {(clients.length > 0 || clientCountsAnyChannel.unassigned > 0) && (
                 <div>
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <Folder className="size-3.5 text-muted-foreground" />
-                    <span className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold">
+                  <div className="flex items-center gap-1.5 mb-2.5">
+                    <Folder className="size-4 text-foreground" />
+                    <span className="text-[12px] uppercase tracking-[0.08em] text-foreground font-bold">
                       Progetto
                     </span>
                   </div>
@@ -845,7 +845,7 @@ export function BatchScanPanel({
                       disabled={!!batchId}
                       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors cursor-pointer ${
                         clientFilter === null
-                          ? "border-amber-500 bg-amber-500 text-white"
+                          ? "border-amber-500/70 bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold"
                           : "border-border hover:bg-muted/60 text-foreground"
                       } ${batchId ? "opacity-60 cursor-not-allowed" : ""}`}
                     >
@@ -853,7 +853,7 @@ export function BatchScanPanel({
                       <span
                         className={
                           clientFilter === null
-                            ? "text-[10px] text-white/80"
+                            ? "text-[10px] text-amber-700/70 dark:text-amber-300/70"
                             : "text-[10px] text-muted-foreground"
                         }
                       >
@@ -872,7 +872,7 @@ export function BatchScanPanel({
                           disabled={!!batchId}
                           className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors cursor-pointer ${
                             active
-                              ? "border-amber-500 bg-amber-500 text-white"
+                              ? "border-amber-500/70 bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold"
                               : "border-border hover:bg-muted/60 text-foreground"
                           } ${batchId ? "opacity-60 cursor-not-allowed" : ""}`}
                         >
@@ -887,7 +887,7 @@ export function BatchScanPanel({
                           <span
                             className={
                               active
-                                ? "text-[10px] text-white/80"
+                                ? "text-[10px] text-amber-700/70 dark:text-amber-300/70"
                                 : "text-[10px] text-muted-foreground"
                             }
                           >
@@ -903,7 +903,7 @@ export function BatchScanPanel({
                         disabled={!!batchId}
                         className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors cursor-pointer ${
                           clientFilter === "_unassigned"
-                            ? "border-amber-500 bg-amber-500 text-white"
+                            ? "border-amber-500/70 bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold"
                             : "border-border hover:bg-muted/60 text-foreground"
                         } ${batchId ? "opacity-60 cursor-not-allowed" : ""}`}
                       >
@@ -911,7 +911,7 @@ export function BatchScanPanel({
                         <span
                           className={
                             clientFilter === "_unassigned"
-                              ? "text-[10px] text-white/80"
+                              ? "text-[10px] text-amber-700/70 dark:text-amber-300/70"
                               : "text-[10px] text-muted-foreground"
                           }
                         >
@@ -927,9 +927,9 @@ export function BatchScanPanel({
                   scelto sopra. Se un canale non ha brand configurati nel
                   progetto, e' disabilitato (non in vuoto). */}
               <div>
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <Globe2 className="size-3.5 text-muted-foreground" />
-                  <span className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold">
+                <div className="flex items-center gap-1.5 mb-2.5">
+                  <Globe2 className="size-4 text-foreground" />
+                  <span className="text-[12px] uppercase tracking-[0.08em] text-foreground font-bold">
                     Canale
                   </span>
                 </div>
@@ -951,7 +951,7 @@ export function BatchScanPanel({
                         disabled={!!batchId || !usable}
                         className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors cursor-pointer ${
                           active
-                            ? "border-amber-500 bg-amber-500 text-white"
+                            ? "border-amber-500/70 bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold"
                             : usable
                               ? "border-border hover:bg-muted/60 text-foreground"
                               : "border-border/40 text-muted-foreground/60 cursor-not-allowed"
@@ -963,7 +963,7 @@ export function BatchScanPanel({
                           <span
                             className={
                               active
-                                ? "text-[10px] text-white/80"
+                                ? "text-[10px] text-amber-700/70 dark:text-amber-300/70"
                                 : "text-[10px] text-muted-foreground"
                             }
                           >
@@ -987,58 +987,64 @@ export function BatchScanPanel({
                 Su Google e' solo metadata storico sul job; su Meta
                 (futuro async) sara' filtro alla fonte. */}
             <div>
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <CalendarRange className="size-3.5 text-muted-foreground" />
-                <span className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold">
+              <div className="flex items-center gap-1.5 mb-2.5">
+                <CalendarRange className="size-4 text-foreground" />
+                <span className="text-[12px] uppercase tracking-[0.08em] text-foreground font-bold">
                   Periodo di scansione
                 </span>
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <Input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  placeholder={daysAgo(30)}
-                  aria-label="Da"
-                  disabled={!!batchId}
-                  className="text-sm h-9 w-40"
-                />
-                <span className="text-sm text-muted-foreground">→</span>
-                <Input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  aria-label="A"
-                  disabled={!!batchId}
-                  className="text-sm h-9 w-40"
-                />
-                {(dateFrom || dateTo) && !batchId && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDateFrom("");
-                      setDateTo("");
+              {/* Riga unica: input a sinistra, shortcuts a destra
+                  cosi' usiamo tutto lo spazio orizzontale invece di
+                  accatastare in verticale. flex-wrap permette ai
+                  shortcuts di scendere sotto solo su viewport stretti. */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-2 shrink-0">
+                  <Input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    placeholder={daysAgo(30)}
+                    aria-label="Da"
+                    disabled={!!batchId}
+                    className="text-sm h-9 w-40"
+                  />
+                  <span className="text-sm text-muted-foreground">→</span>
+                  <Input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    aria-label="A"
+                    disabled={!!batchId}
+                    className="text-sm h-9 w-40"
+                  />
+                </div>
+                <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
+                  <DateRangeShortcuts
+                    presets={defaultPresets((s, k) => t(s, k))}
+                    activeFrom={dateFrom}
+                    activeTo={dateTo}
+                    onPick={(r) => {
+                      if (batchId) return;
+                      setDateFrom(r.from);
+                      setDateTo(r.to);
                     }}
-                    className="text-xs text-muted-foreground hover:text-foreground underline"
-                  >
-                    Reset
-                  </button>
-                )}
-              </div>
-              <div className="mt-1.5">
-                <DateRangeShortcuts
-                  presets={defaultPresets((s, k) => t(s, k))}
-                  activeFrom={dateFrom}
-                  activeTo={dateTo}
-                  onPick={(r) => {
-                    if (batchId) return;
-                    setDateFrom(r.from);
-                    setDateTo(r.to);
-                  }}
-                />
+                  />
+                  {(dateFrom || dateTo) && !batchId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDateFrom("");
+                        setDateTo("");
+                      }}
+                      className="text-xs text-muted-foreground hover:text-foreground underline cursor-pointer"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
               </div>
               {!dateFrom && !dateTo && (
-                <p className="text-[11px] text-muted-foreground mt-1.5">
+                <p className="text-[11px] text-muted-foreground mt-2">
                   {`Default: ultimi 30 giorni (${effectiveFrom} → ${effectiveTo}). Il range verra' memorizzato come metadata su ogni job.`}
                 </p>
               )}
