@@ -627,8 +627,13 @@ export default async function CompetitorDetailPage({
           "chiudi il riquadro filtri prima dei risultati". Le 2
           card girano insieme dentro ChannelTabs (stesso URL state
           via useSearchParams), niente prop drilling extra. */}
+      {/* Suspense key NON include date/compare: useTransition nel
+          DateFilter mantiene la UI vecchia mentre la nuova streamma
+          → niente flash dello skeleton sul date change. La key
+          include solo i filtri che richiedono un remount cognitivo
+          completo (cambio canale / status / countries). */}
       <Suspense
-        key={`${tab}|${statusFilter ?? "all"}|${countriesFilter.join(",")}|${dateFromParam ?? ""}|${dateToParam ?? ""}|${computedCompareFrom ?? ""}|${computedCompareTo ?? ""}`}
+        key={`${tab}|${statusFilter ?? "all"}|${countriesFilter.join(",")}`}
         fallback={<BrandChannelsSkeleton />}
       >
           <BrandChannelsSection

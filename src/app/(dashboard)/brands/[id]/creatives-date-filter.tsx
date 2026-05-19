@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { Check, RotateCcw } from "lucide-react";
+import { Check, RotateCcw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateRangeShortcuts, defaultPresets } from "@/components/ui/date-range-shortcuts";
@@ -48,6 +48,11 @@ export function CreativesDateFilter({
   const [compareOn, setCompareOn] = useState(compareEnabled);
   const [cFrom, setCFrom] = useState(compareFrom ?? "");
   const [cTo, setCTo] = useState(compareTo ?? "");
+  // useTransition fa percepire la navigazione meno "refresh anni
+  // 2000": l'UI vecchia resta visibile mentre la nuova streamma in
+  // background. isPending alimenta lo spinner accanto al bottone
+  // Applica cosi l'utente sa che sta succedendo qualcosa.
+  const [isPending, startTransition] = useTransition();
   const toRef = useRef<HTMLInputElement | null>(null);
   const cToRef = useRef<HTMLInputElement | null>(null);
 
@@ -87,9 +92,15 @@ export function CreativesDateFilter({
 
   function apply() {
     if (rangeInvalid || compareInvalid) return;
-    router.push(
-      buildHref({ f: from, tt: to, cf: cFrom, ct: cTo, cmpOn: compareOn }),
-    );
+    startTransition(() => {
+      router.push(
+        buildHref({ f: from, tt: to, cf: cFrom, ct: cTo, cmpOn: compareOn }),
+        // scroll: false → no auto-scroll al top. L'utente resta dove
+        // sta a guardare i risultati invece di essere riportato al
+        // channel pivot in alto.
+        { scroll: false },
+      );
+    });
   }
 
   function reset() {
@@ -98,7 +109,12 @@ export function CreativesDateFilter({
     setCompareOn(false);
     setCFrom("");
     setCTo("");
-    router.push(buildHref({ f: "", tt: "", cf: "", ct: "", cmpOn: false }));
+    startTransition(() => {
+      router.push(
+        buildHref({ f: "", tt: "", cf: "", ct: "", cmpOn: false }),
+        { scroll: false },
+      );
+    });
   }
 
   function toggleCompare() {
@@ -145,15 +161,18 @@ export function CreativesDateFilter({
           onPick={(r) => {
             setFrom(r.from);
             setTo(r.to);
-            router.push(
-              buildHref({
-                f: r.from,
-                tt: r.to,
-                cf: cFrom,
-                ct: cTo,
-                cmpOn: compareOn,
-              }),
-            );
+            startTransition(() => {
+              router.push(
+                buildHref({
+                  f: r.from,
+                  tt: r.to,
+                  cf: cFrom,
+                  ct: cTo,
+                  cmpOn: compareOn,
+                }),
+                { scroll: false },
+              );
+            });
           }}
         />
         {rangeInvalid && (
@@ -161,27 +180,6 @@ export function CreativesDateFilter({
             {t("benchmarks", "rangeInvalid")}
           </span>
         )}
-        <div className="ml-auto flex items-center gap-2">
-          <Button
-            onClick={reset}
-            variant="outline"
-            size="sm"
-            className="h-8 text-xs cursor-pointer"
-            disabled={!from && !to && !compareOn}
-          >
-            <RotateCcw className="size-3.5" />
-            {t("benchmarks", "resetFilters")}
-          </Button>
-          <Button
-            onClick={apply}
-            disabled={!dirty || rangeInvalid || compareInvalid}
-            size="sm"
-            className="h-8 text-xs cursor-pointer"
-          >
-            <Check className="size-3.5" />
-            {t("benchmarks", "apply")}
-          </Button>
-        </div>
       </div>
 
       {/* Toggle "Confronta con un altro periodo" — checkbox piu'
@@ -260,6 +258,35 @@ export function CreativesDateFilter({
           </div>
         </section>
       )}
+
+      {/* Bottoni Reset / Applica in basso a destra del box date
+          — riga dedicata cosi non competono col primo input.
+          Richiesta utente 2026-05-19. */}
+      <div className="flex items-center justify-end gap-2 pt-1">
+        <Button
+          onClick={reset}
+          variant="outline"
+          size="sm"
+          className="h-8 text-xs cursor-pointer"
+          disabled={(!from && !to && !compareOn) || isPending}
+        >
+          <RotateCcw className="size-3.5" />
+          {t("benchmarks", "resetFilters")}
+        </Button>
+        <Button
+          onClick={apply}
+          disabled={!dirty || rangeInvalid || compareInvalid || isPending}
+          size="sm"
+          className="h-8 text-xs cursor-pointer"
+        >
+          {isPending ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Check className="size-3.5" />
+          )}
+          {t("benchmarks", "apply")}
+        </Button>
+      </div>
     </div>
   );
 }
