@@ -146,36 +146,45 @@ export function SectionHeader({
     danger: "bg-danger-soft tone-danger",
     neutral: "bg-neutral-soft text-[color:var(--neutral)]",
   };
+  // CRITICO: la description vive su una riga propria SOTTO il
+  // title+action, mai dentro la colonna del title. Errore recidivo
+  // (memory rule feedback_no_max_width_on_descriptions): se il
+  // <p>description sta dentro lo stesso flex item del titolo, viene
+  // strozzato dalla larghezza residua dopo l'action button. Mettere
+  // un max-w-2xl peggiora; togliere il max-w non basta — solo
+  // spostando la description fuori si ottiene full-width.
   return (
-    <header className={cn("flex items-start justify-between gap-4", className)}>
-      <div className="flex items-start gap-3 min-w-0">
-        {icon && size !== "page" && (
-          <div className={cn("size-9 rounded-lg grid place-items-center shrink-0", iconBg[iconTone])}>
-            {icon}
-          </div>
-        )}
-        <div className="min-w-0 space-y-1">
-          {eyebrow && <div className="eyebrow">{eyebrow}</div>}
-          {size === "page" ? (
-            <div className="flex items-center gap-3">
-              {icon && (
-                <div className={cn("size-10 rounded-lg grid place-items-center shrink-0", iconBg[iconTone])}>
-                  {icon}
-                </div>
-              )}
-              <h1 className="text-3xl font-serif tracking-tight">{title}</h1>
+    <header className={cn("space-y-2", className)}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
+          {icon && size !== "page" && (
+            <div className={cn("size-9 rounded-lg grid place-items-center shrink-0", iconBg[iconTone])}>
+              {icon}
             </div>
-          ) : (
-            <h2 className="text-lg font-semibold tracking-tight leading-tight">{title}</h2>
           )}
-          {description && (
-            <p className="text-sm text-muted-foreground text-pretty">
-              {description}
-            </p>
-          )}
+          <div className="min-w-0 space-y-1">
+            {eyebrow && <div className="eyebrow">{eyebrow}</div>}
+            {size === "page" ? (
+              <div className="flex items-center gap-3">
+                {icon && (
+                  <div className={cn("size-10 rounded-lg grid place-items-center shrink-0", iconBg[iconTone])}>
+                    {icon}
+                  </div>
+                )}
+                <h1 className="text-3xl font-serif tracking-tight">{title}</h1>
+              </div>
+            ) : (
+              <h2 className="text-lg font-semibold tracking-tight leading-tight">{title}</h2>
+            )}
+          </div>
         </div>
+        {action && <div className="shrink-0 print:hidden">{action}</div>}
       </div>
-      {action && <div className="shrink-0 print:hidden">{action}</div>}
+      {description && (
+        <p className="text-sm text-muted-foreground text-pretty">
+          {description}
+        </p>
+      )}
     </header>
   );
 }
