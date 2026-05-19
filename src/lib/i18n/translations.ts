@@ -280,8 +280,8 @@ const translations = {
   competitors: {
     title: { it: "Brands", en: "Brands" },
     subtitle: {
-      it: "Brand monitorati nel tuo workspace.",
-      en: "Monitored brands in your workspace.",
+      it: "Ogni brand qui dentro e' un'azienda di cui monitoriamo le campagne pubblicitarie sui canali pagati (Meta, Google, Instagram, TikTok, Snapchat, YouTube). Raggruppa i brand in progetti — clienti, competitor set, vertical di settore — lancia scansioni singole o batch e apri la scheda dettaglio per KPI, creativita' e benchmark di settore.",
+      en: "Each brand here is a company whose paid-media campaigns we monitor (Meta, Google, Instagram, TikTok, Snapchat, YouTube). Group brands into projects — clients, competitor sets, industry verticals — run single or batch scans, and open the detail view for KPIs, creatives, and industry benchmarks.",
     },
     addCompetitor: { it: "Aggiungi brand", en: "Add brand" },
     noCompetitors: {

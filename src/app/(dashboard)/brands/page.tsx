@@ -295,11 +295,17 @@ function MiniStat({
     danger: "tone-danger",
   };
   return (
-    <div className="rounded-xl border border-border bg-card px-5 py-4">
+    <div className="rounded-lg border border-border bg-card px-4 py-3">
       <div className="kpi-label">{label}</div>
-      <div className={`kpi-value mt-1 ${toneText[tone]}`}>{value}</div>
+      <div
+        className={`text-[22px] font-semibold tabular-nums tracking-tight leading-none mt-1.5 ${toneText[tone]}`}
+      >
+        {value}
+      </div>
       {hint && (
-        <p className="text-[11px] text-muted-foreground mt-1 leading-snug">{hint}</p>
+        <p className="text-[11px] text-muted-foreground mt-1.5 leading-snug">
+          {hint}
+        </p>
       )}
     </div>
   );

@@ -169,7 +169,7 @@ export function SectionHeader({
             <h2 className="text-lg font-semibold tracking-tight leading-tight">{title}</h2>
           )}
           {description && (
-            <p className="text-sm text-muted-foreground max-w-2xl text-pretty">
+            <p className="text-sm text-muted-foreground text-pretty">
               {description}
             </p>
           )}
