@@ -1169,32 +1169,39 @@ export function ChannelTabs({
                   value={brand.instagramProfile.followersCount}
                   previous={organicCompare?.followersAtCompareDate ?? null}
                   label={t("organic", "followers")}
+                  compareActive={organicCompare != null}
                 />
               )}
               <KpiCardWithDelta
                 value={organicStats.count}
                 previous={organicCompare?.count ?? null}
                 label={t("organic", "totalPosts")}
+                compareActive={organicCompare != null}
               />
               <KpiCardWithDelta
                 value={organicStats.avgLikes}
                 previous={organicCompare?.avgLikes ?? null}
                 label={t("organic", "avgLikes")}
+                compareActive={organicCompare != null}
               />
               <KpiCardWithDelta
                 value={organicStats.avgComments}
                 previous={organicCompare?.avgComments ?? null}
                 label={t("organic", "avgComments")}
+                compareActive={organicCompare != null}
               />
               <KpiCardWithDelta
                 value={organicStats.totalViews}
                 previous={organicCompare?.totalViews ?? null}
                 label={t("organic", "totalViews")}
+                compareActive={organicCompare != null}
               />
               <KpiCardWithDelta
                 value={igCollabPosts}
                 previous={null}
                 label={t("organic", "collabPosts")}
+                compareActive={organicCompare != null}
+                noCompareData
               />
             </div>
           )}
@@ -1277,32 +1284,39 @@ export function ChannelTabs({
                   value={tiktokFollowers}
                   previous={tiktokCompare?.followersAtCompareDate ?? null}
                   label={t("organic", "followers")}
+                  compareActive={tiktokCompare != null}
                 />
               )}
               <KpiCardWithDelta
                 value={tiktokStats.count}
                 previous={tiktokCompare?.count ?? null}
                 label={t("organic", "totalPosts")}
+                compareActive={tiktokCompare != null}
               />
               <KpiCardWithDelta
                 value={tiktokStats.avgLikes}
                 previous={tiktokCompare?.avgLikes ?? null}
                 label={t("organic", "avgLikes")}
+                compareActive={tiktokCompare != null}
               />
               <KpiCardWithDelta
                 value={tiktokStats.avgComments}
                 previous={tiktokCompare?.avgComments ?? null}
                 label={t("organic", "avgComments")}
+                compareActive={tiktokCompare != null}
               />
               <KpiCardWithDelta
                 value={tiktokStats.totalViews}
                 previous={tiktokCompare?.totalViews ?? null}
                 label={t("organic", "totalViews")}
+                compareActive={tiktokCompare != null}
               />
               <KpiCardWithDelta
                 value={ttCollabPosts}
                 previous={null}
                 label={t("organic", "collabPosts")}
+                compareActive={tiktokCompare != null}
+                noCompareData
               />
             </div>
           )}
@@ -1443,12 +1457,14 @@ export function ChannelTabs({
                       value={snapchatStats.followersAtCurrentDate}
                       previous={snapchatCompare?.followersAtCompareDate ?? null}
                       label={t("organic", "followers")}
+                      compareActive={snapchatCompare != null}
                     />
                   )}
                   <KpiCardWithDelta
                     value={snapchatStats.snapshotCount}
                     previous={snapchatCompare?.snapshotCount ?? null}
                     label={t("snapchat", "snapshotsInPeriod")}
+                    compareActive={snapchatCompare != null}
                   />
                 </div>
               )}
@@ -1552,27 +1568,32 @@ export function ChannelTabs({
                       value={youtubeFollowers}
                       previous={youtubeCompare?.followersAtCompareDate ?? null}
                       label={t("organic", "followers")}
+                      compareActive={youtubeCompare != null}
                     />
                   )}
                   <KpiCardWithDelta
                     value={youtubeStats.count}
                     previous={youtubeCompare?.count ?? null}
                     label={t("organic", "totalPosts")}
+                    compareActive={youtubeCompare != null}
                   />
                   <KpiCardWithDelta
                     value={youtubeStats.avgLikes}
                     previous={youtubeCompare?.avgLikes ?? null}
                     label={t("organic", "avgLikes")}
+                    compareActive={youtubeCompare != null}
                   />
                   <KpiCardWithDelta
                     value={youtubeStats.avgComments}
                     previous={youtubeCompare?.avgComments ?? null}
                     label={t("organic", "avgComments")}
+                    compareActive={youtubeCompare != null}
                   />
                   <KpiCardWithDelta
                     value={youtubeStats.totalViews}
                     previous={youtubeCompare?.totalViews ?? null}
                     label={t("organic", "totalViews")}
+                    compareActive={youtubeCompare != null}
                   />
                 </div>
               )}
@@ -1717,58 +1738,105 @@ export function ChannelTabs({
 }
 
 /**
- * KPI card con delta colorato vs periodo confronto.
- * - value: valore corrente (null → em-dash)
- * - previous: valore periodo confronto (null → no delta indicato)
- * - delta % colored: verde positivo, rosso negativo, neutral su 0
+ * KPI card con delta colorato vs periodo confronto. Quattro stati
+ * possibili nella sub-line sotto label:
+ *
+ *   1. Confronto SPENTO (compareActive=false) → nessuna sub-line.
+ *   2. Confronto ATTIVO ma previous=null → "nessun dato nel
+ *      periodo di confronto" (i.e. lo scan non ha raccolto dati
+ *      di quel periodo). Italic muted.
+ *   3. Confronto ATTIVO, previous=0, current>0 → "Nuovo" verde
+ *      (semantica: il KPI e' partito da zero). Niente percentuale,
+ *      che sarebbe infinita.
+ *   4. Confronto ATTIVO, previous>0 → delta % colored
+ *      (verde positivo / rosso negativo).
+ *
+ * Stato distinto da semantiche separate: distingue tra "nessun dato
+ * raccolto" e "previous era 0 e ora abbiamo crescita" — prima erano
+ * entrambi (—) e l'utente non capiva la differenza.
  */
 function KpiCardWithDelta({
   value,
   previous,
   label,
+  compareActive,
+  noCompareData = false,
 }: {
   value: number | null;
   previous: number | null;
   label: string;
+  /** True quando il check "Confronta con altro periodo" e' on. */
+  compareActive: boolean;
+  /** Esplicitamente vero quando il KPI NON ha confronto disponibile
+   *  (es. Post collab che non ha un valore previous). Sopprime la
+   *  sub-line "nessun dato" che altrimenti farebbe pensare a un
+   *  bug. */
+  noCompareData?: boolean;
 }) {
-  const hasCompare = previous != null;
-  const delta =
-    hasCompare && previous !== 0 && value != null
-      ? ((value - previous) / previous) * 100
-      : null;
+  const valueDisplay = value == null ? "—" : formatNumber(value);
+  let subLine: React.ReactNode = null;
+  if (compareActive && !noCompareData) {
+    if (previous == null) {
+      // Caso 2: confronto attivo ma niente dato nel periodo prec
+      subLine = (
+        <p className="text-[11px] text-muted-foreground italic">
+          nessun dato nel periodo di confronto
+        </p>
+      );
+    } else if (previous === 0 && value != null && value > 0) {
+      // Caso 3: previous=0, value>0 → "Nuovo" (da zero a qualcosa)
+      subLine = (
+        <p className="text-[11px] font-semibold tone-success inline-flex items-center gap-1">
+          <span>▲ Nuovo</span>
+          <span className="text-muted-foreground font-normal">(0)</span>
+        </p>
+      );
+    } else if (previous === 0 && (value === 0 || value == null)) {
+      // Caso edge: entrambi 0 → niente delta significativo
+      subLine = (
+        <p className="text-[11px] text-muted-foreground tabular-nums">
+          = 0 (anche periodo prec.)
+        </p>
+      );
+    } else if (value == null) {
+      // Caso edge: previous c'e' ma current null
+      subLine = (
+        <p className="text-[11px] text-muted-foreground italic">
+          dato corrente non disponibile
+        </p>
+      );
+    } else {
+      // Caso 4: delta % normale
+      const delta = ((value - previous) / previous) * 100;
+      subLine = (
+        <p
+          className={cn(
+            "text-[11px] font-semibold tabular-nums inline-flex items-center gap-1",
+            delta > 0
+              ? "tone-success"
+              : delta < 0
+                ? "text-rose-600 dark:text-rose-400"
+                : "text-muted-foreground",
+          )}
+        >
+          <span>
+            {delta > 0 ? "▲" : delta < 0 ? "▼" : "•"}{" "}
+            {delta > 0 ? "+" : ""}
+            {Math.round(delta * 10) / 10}%
+          </span>
+          <span className="text-muted-foreground font-normal">
+            ({formatNumber(previous)})
+          </span>
+        </p>
+      );
+    }
+  }
   return (
     <Card>
       <CardContent className="py-4 text-center space-y-1">
-        <p className="text-2xl font-semibold">
-          {value == null ? "—" : formatNumber(value)}
-        </p>
+        <p className="text-2xl font-semibold">{valueDisplay}</p>
         <p className="text-xs text-muted-foreground">{label}</p>
-        {hasCompare && delta != null && (
-          <p
-            className={cn(
-              "text-[11px] font-semibold tabular-nums inline-flex items-center gap-1",
-              delta > 0
-                ? "tone-success"
-                : delta < 0
-                  ? "text-rose-600 dark:text-rose-400"
-                  : "text-muted-foreground",
-            )}
-          >
-            <span>
-              {delta > 0 ? "▲" : delta < 0 ? "▼" : "•"}{" "}
-              {delta > 0 ? "+" : ""}
-              {Math.round(delta * 10) / 10}%
-            </span>
-            <span className="text-muted-foreground font-normal">
-              ({formatNumber(previous!)})
-            </span>
-          </p>
-        )}
-        {hasCompare && delta == null && previous != null && (
-          <p className="text-[11px] text-muted-foreground tabular-nums">
-            (—)
-          </p>
-        )}
+        {subLine}
       </CardContent>
     </Card>
   );
