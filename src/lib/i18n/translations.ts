@@ -360,6 +360,10 @@ const translations = {
       it: "Periodo confronto",
       en: "Comparison period",
     },
+    compareRangeHeader: {
+      it: "Periodo di confronto",
+      en: "Comparison period",
+    },
     compareActive: {
       it: "Confronto attivo",
       en: "Comparison active",

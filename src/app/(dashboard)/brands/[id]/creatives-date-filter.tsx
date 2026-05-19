@@ -111,7 +111,7 @@ export function CreativesDateFilter({
   }
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-5">
       {/* Riga principale: range corrente + shortcuts + actions */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <Input
@@ -128,7 +128,14 @@ export function CreativesDateFilter({
           ref={toRef}
           type="date"
           value={to}
-          onChange={(e) => setTo(e.target.value)}
+          onChange={(e) => {
+            setTo(e.target.value);
+            // Blur esplicito per chiudere il native picker dopo la
+            // selezione — alcuni browser (Chrome) lo lasciavano
+            // aperto quando l'input era stato focusato programmati-
+            // camente dal jumpToDateInput precedente.
+            if (e.target.value) e.target.blur();
+          }}
           className="text-xs h-8 w-36"
         />
         <DateRangeShortcuts
@@ -177,75 +184,81 @@ export function CreativesDateFilter({
         </div>
       </div>
 
-      {/* Toggle "Confronta con un altro periodo" — quando attivo
-          appare la riga del confronto sotto col secondo paio di
-          date inputs. Disable se manca il range principale (senza
-          un periodo corrente non c'e' niente da confrontare). */}
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={toggleCompare}
+      {/* Toggle "Confronta con un altro periodo" — checkbox piu'
+          grande e con label visibile. Spacing generoso (space-y-5
+          sopra) per non sembrare incollata al range principale. */}
+      <label
+        className={cn(
+          "inline-flex items-center gap-2.5 cursor-pointer select-none transition-colors",
+          !from || !to
+            ? "opacity-50 cursor-not-allowed"
+            : "hover:opacity-90",
+        )}
+        title={
+          !from || !to
+            ? t("competitors", "compareRequiresDateRange")
+            : undefined
+        }
+      >
+        <input
+          type="checkbox"
+          checked={compareOn}
+          onChange={toggleCompare}
           disabled={!from || !to}
+          className="sr-only peer"
+        />
+        <span
           className={cn(
-            "inline-flex items-center gap-2 text-xs cursor-pointer transition-colors",
-            !from || !to
-              ? "text-muted-foreground/50 cursor-not-allowed"
-              : "text-muted-foreground hover:text-foreground",
+            "inline-flex items-center justify-center size-5 rounded-md border-2 transition-colors",
+            compareOn
+              ? "bg-gold border-gold text-gold-foreground"
+              : "bg-background border-foreground/40",
           )}
-          title={
-            !from || !to
-              ? t("competitors", "compareRequiresDateRange")
-              : undefined
-          }
         >
-          <span
-            className={cn(
-              "inline-flex items-center justify-center size-4 rounded border transition-colors",
-              compareOn
-                ? "bg-gold border-gold text-gold-foreground"
-                : "bg-background border-border",
-            )}
-          >
-            {compareOn && <Check className="size-3" />}
-          </span>
-          <span className="font-medium">
-            {t("competitors", "compareEnableLabel")}
-          </span>
-        </button>
-      </div>
+          {compareOn && <Check className="size-3.5" strokeWidth={3} />}
+        </span>
+        <span className="text-sm font-medium text-foreground">
+          {t("competitors", "compareEnableLabel")}
+        </span>
+      </label>
 
-      {/* Secondo paio di date inputs — visibile solo quando il
-          confronto e' attivo. Layout identico al main range cosi
-          l'utente capisce immediatamente che e' lo stesso tipo
-          di scelta (un'altra finestra temporale). */}
+      {/* "Periodo di confronto" come sezione titolata separata —
+          stesso formato di "Periodo di analisi" (h3 small-caps bold
+          + range sotto). Visibile solo quando il check sopra e'
+          attivo. */}
       {compareOn && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pl-6 pt-1">
-          <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
-            {t("competitors", "compareRangeLabel")}
-          </span>
-          <Input
-            type="date"
-            value={cFrom}
-            onChange={(e) => {
-              setCFrom(e.target.value);
-              if (e.target.value) jumpToDateInput(cToRef.current);
-            }}
-            className="text-xs h-8 w-36"
-          />
-          <span className="text-muted-foreground text-xs">—</span>
-          <Input
-            ref={cToRef}
-            type="date"
-            value={cTo}
-            onChange={(e) => setCTo(e.target.value)}
-            className="text-xs h-8 w-36"
-          />
-          {compareInvalid && (
-            <span className="text-[11px] text-red-500">
-              {t("benchmarks", "rangeInvalid")}
-            </span>
-          )}
-        </div>
+        <section className="space-y-3 pt-1">
+          <h3 className="text-[11px] uppercase tracking-wider text-foreground font-bold">
+            {t("competitors", "compareRangeHeader")}
+          </h3>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <Input
+              type="date"
+              value={cFrom}
+              onChange={(e) => {
+                setCFrom(e.target.value);
+                if (e.target.value) jumpToDateInput(cToRef.current);
+              }}
+              className="text-xs h-8 w-36"
+            />
+            <span className="text-muted-foreground text-xs">—</span>
+            <Input
+              ref={cToRef}
+              type="date"
+              value={cTo}
+              onChange={(e) => {
+                setCTo(e.target.value);
+                if (e.target.value) e.target.blur();
+              }}
+              className="text-xs h-8 w-36"
+            />
+            {compareInvalid && (
+              <span className="text-[11px] text-red-500">
+                {t("benchmarks", "rangeInvalid")}
+              </span>
+            )}
+          </div>
+        </section>
       )}
     </div>
   );

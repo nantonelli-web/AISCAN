@@ -1,22 +1,20 @@
 /**
- * Channel logos — wrapper sottile sopra @icons-pack/react-simple-icons.
+ * Channel logos — wrapper sopra @icons-pack/react-simple-icons.
  * I path SVG vengono dal database simple-icons.org, autorevole sui
- * brand mark ufficiali. Usiamo questa libreria invece di inline SVG
- * fatti a mano perche':
- *   1. i path brand sono difficili da riprodurre a mano (l'infinity
- *      loop di Meta in particolare ha curve precise)
- *   2. la libreria si aggiorna automaticamente quando i brand
- *      restilizzano i loro logo
- *   3. tree-shaking
+ * brand mark ufficiali. Quando `colored={true}` passiamo color="default"
+ * (la libreria internamente la traduce in defaultColor brand). Senza
+ * colored forziamo color="currentColor" per ereditare il text-color
+ * del parent (per usi in liste muted / placeholder).
  *
- * Quando `colored={true}` NON passiamo `color` prop: simple-icons
- * usa di default il brand color autorevole baked-in. Quando colored
- * e' false (default), forziamo color="currentColor" per ereditare
- * il text-color del parent (per pillole muted / liste secondarie).
+ * **NB importante**: il default della libreria simple-icons e' GIA'
+ * "currentColor" (vedi `color = "currentColor"` di default in
+ * SiMeta etc). Quindi `<SiMeta />` senza color → monocromatico
+ * che eredita text-color. Per ottenere il brand color SERVE
+ * passare `color="default"` esplicito.
  *
- * **NB**: questo e' il punto unico per i loghi canale. Se servono
- * altrove (Scan, Creativita, Compare, Benchmarks, Monitoring),
- * importare DA QUI — non duplicare svg inline.
+ * **NB integrazione**: questo e' il punto unico per i loghi canale.
+ * Se servono altrove (Scan, Creativita, Compare, Benchmarks,
+ * Monitoring), importare DA QUI — non duplicare svg inline.
  */
 
 import {
@@ -34,62 +32,36 @@ interface IconProps {
   colored?: boolean;
 }
 
+const colorFor = (colored: boolean) => (colored ? "default" : "currentColor");
+
 export function MetaLogo({ className, colored = false }: IconProps) {
-  return colored ? (
-    <SiMeta className={className} />
-  ) : (
-    <SiMeta className={className} color="currentColor" />
-  );
+  return <SiMeta className={className} color={colorFor(colored)} />;
 }
 
 export function GoogleAdsLogo({ className, colored = false }: IconProps) {
-  return colored ? (
-    <SiGoogleads className={className} />
-  ) : (
-    <SiGoogleads className={className} color="currentColor" />
-  );
+  return <SiGoogleads className={className} color={colorFor(colored)} />;
 }
 
 export function InstagramLogo({ className, colored = false }: IconProps) {
-  return colored ? (
-    <SiInstagram className={className} />
-  ) : (
-    <SiInstagram className={className} color="currentColor" />
-  );
+  return <SiInstagram className={className} color={colorFor(colored)} />;
 }
 
 export function TiktokLogo({ className, colored = false }: IconProps) {
-  return colored ? (
-    <SiTiktok className={className} />
-  ) : (
-    <SiTiktok className={className} color="currentColor" />
-  );
+  return <SiTiktok className={className} color={colorFor(colored)} />;
 }
 
 export function SnapchatLogo({ className, colored = false }: IconProps) {
-  return colored ? (
-    <SiSnapchat className={className} />
-  ) : (
-    <SiSnapchat className={className} color="currentColor" />
-  );
+  return <SiSnapchat className={className} color={colorFor(colored)} />;
 }
 
 export function YouTubeLogo({ className, colored = false }: IconProps) {
-  return colored ? (
-    <SiYoutube className={className} />
-  ) : (
-    <SiYoutube className={className} color="currentColor" />
-  );
+  return <SiYoutube className={className} color={colorFor(colored)} />;
 }
 
 export function GoogleMapsLogo({ className, colored = false }: IconProps) {
-  return colored ? (
-    <SiGooglemaps className={className} />
-  ) : (
-    <SiGooglemaps className={className} color="currentColor" />
-  );
+  return <SiGooglemaps className={className} color={colorFor(colored)} />;
 }
 
-/* Backward-compat aliases — qualche file legacy importa GoogleLogo
+/* Backward-compat alias — qualche file legacy importa GoogleLogo
    come Google "G" generico per Google Ads. */
 export const GoogleLogo = GoogleAdsLogo;

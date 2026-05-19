@@ -247,12 +247,12 @@ export function ChannelTabs({
     return src === "google";
   });
 
-  // Country filter only narrows Meta ads (Google rows have NULL
-  // scan_countries; Instagram and TikTok do not carry the column).
-  // Showing it on those tabs would imply a filter that does nothing.
-  const showCountryFilter =
-    availableCountries.length > 0 &&
-    (channel === "all" || channel === "meta");
+  // 2026-05-19: filtri Paesi sempre visibili (utente: "non deve
+  // cambiare il comportamento rispetto al canale selezionato").
+  // Per Google/IG/TT/SC/YT/SERP/Maps il filtro paesi resta un
+  // no-op a livello query — la coerenza visiva ha priorita' sulla
+  // funzionalita' per evitare disorientamento utente.
+  const showCountryFilter = availableCountries.length > 0;
 
   // ── Load more: client-appended ads beyond the initial 30 ──
   // The server-rendered Suspense child caps the first paint at 30
@@ -595,8 +595,10 @@ export function ChannelTabs({
   // Filtri: ogni gruppo ha un titolo standalone (CANALI / PERIODO DI
   // ANALISI / PAESI / STATO) — coerenza richiesta utente. Righe
   // separate da horizontal divider, niente sub-card frame.
-  const showTimeControls =
-    channel === "all" || channel === "meta" || channel === "google";
+  // 2026-05-19: time controls sempre visibili (utente: "non deve
+  // cambiare il comportamento rispetto al canale selezionato").
+  // Il filtro data si applica anche ai post organici (posted_at).
+  const showTimeControls = true;
   // Compare URL state: legacy "previous" rimosso (utente lo ha
   // chiesto), il confronto adesso e' sempre "custom" — date inputs
   // espliciti nel DateFilter sotto.
@@ -611,19 +613,6 @@ export function ChannelTabs({
         <h3 className="text-[11px] uppercase tracking-wider text-foreground font-bold">
           {t("competitors", "channelsHeader")}
         </h3>
-        {allTab && (
-          <Link
-            href={buildHref({ tab: null })}
-            className={chipClass(channel === "all")}
-          >
-            <span>{t("competitors", "channelAllExplicit")}</span>
-            {allTab.count > 0 && (
-              <span className="text-[10px] tabular-nums opacity-70 ml-1">
-                {allTab.count}
-              </span>
-            )}
-          </Link>
-        )}
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
           {paidTabs.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap">
@@ -656,6 +645,24 @@ export function ChannelTabs({
             </>
           )}
         </div>
+        {/* "Tutti i canali" — catch-all sotto i 3 gruppi (richiesta
+            utente 2026-05-19: era in cima e confondeva la gerarchia,
+            adesso e' un fallback evidente in fondo). */}
+        {allTab && (
+          <div className="pt-1">
+            <Link
+              href={buildHref({ tab: null })}
+              className={chipClass(channel === "all")}
+            >
+              <span>{t("competitors", "channelAllExplicit")}</span>
+              {allTab.count > 0 && (
+                <span className="text-[10px] tabular-nums opacity-70 ml-1">
+                  {allTab.count}
+                </span>
+              )}
+            </Link>
+          </div>
+        )}
       </section>
 
       {/* ─── PERIODO DI ANALISI (con confronto integrato) ───── */}
@@ -759,7 +766,8 @@ export function ChannelTabs({
         title={t("brandHero", "creativesHeader")}
         subtitle={t("brandHero", "creativesSubtitle")}
         tone="info"
-        defaultOpen={false}
+        defaultOpen={true}
+        persistKey={`brand-${competitorId}:creatives`}
       >
         {filtersNode}
       </CollapsibleSectionCard>
@@ -776,6 +784,7 @@ export function ChannelTabs({
         subtitle={t("competitors", "resultsSubtitle")}
         tone="neutral"
         defaultOpen={true}
+        persistKey={`brand-${competitorId}:results`}
       >
         <div className="space-y-5">
 

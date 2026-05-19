@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -22,6 +22,19 @@ import { Card, CardContent } from "@/components/ui/card";
  */
 type Tone = "gold" | "info" | "neutral";
 
+// 2026-05-19: utente ha chiesto coerenza visiva tra le 3 card top-
+// level (Scan / Creativita / Risultati). Stili "gold" "info" "neutral"
+// ora rendono TUTTI uguali (card border standard + icon container
+// neutro) cosi le sezioni si leggono come una serie omogenea.
+// L'ordine semantico delle sezioni e' gia' chiaro dalla loro
+// posizione + icona + titolo: aggiungere tinting al frame creava
+// dissonanza ottica.
+const sharedCardStyle = {
+  card: "border-border bg-card",
+  headerHover: "hover:bg-muted/40",
+  iconBg: "bg-muted",
+  iconFg: "text-foreground",
+};
 const toneStyles: Record<
   Tone,
   {
@@ -31,24 +44,9 @@ const toneStyles: Record<
     iconFg: string;
   }
 > = {
-  gold: {
-    card: "border-gold/30 bg-gold-soft/40",
-    headerHover: "hover:bg-gold-soft/60",
-    iconBg: "bg-gold",
-    iconFg: "text-gold-foreground",
-  },
-  info: {
-    card: "border-info/25 bg-info-soft/40",
-    headerHover: "hover:bg-info-soft/60",
-    iconBg: "bg-info-soft tone-info",
-    iconFg: "",
-  },
-  neutral: {
-    card: "border-border bg-muted/30",
-    headerHover: "hover:bg-muted/50",
-    iconBg: "bg-muted",
-    iconFg: "text-foreground",
-  },
+  gold: sharedCardStyle,
+  info: sharedCardStyle,
+  neutral: sharedCardStyle,
 };
 
 export function CollapsibleSectionCard({
@@ -57,6 +55,7 @@ export function CollapsibleSectionCard({
   subtitle,
   tone = "neutral",
   defaultOpen = false,
+  persistKey,
   children,
   rightSlot,
 }: {
@@ -65,12 +64,37 @@ export function CollapsibleSectionCard({
   subtitle: string;
   tone?: Tone;
   defaultOpen?: boolean;
+  /** Stable storage key per persistere lo stato aperto/chiuso in
+   *  localStorage. Risolve il caso in cui il Suspense boundary
+   *  esterno re-monta il componente su cambio URL (es. dopo
+   *  navigazione al channel pivot) e il useState locale veniva
+   *  reset a defaultOpen — l'utente perdeva il box aperto ogni
+   *  volta che cliccava un filtro. */
+  persistKey?: string;
   /** Optional right-aligned slot on the header (e.g. count badge,
    *  small action). Sits between subtitle and the chevron. */
   rightSlot?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  // Hydrate da localStorage AL CLIENT (skip SSR) cosi se l'utente
+  // aveva la card aperta, dopo un remount del Suspense la
+  // ritrova aperta. Lasciamo il defaultOpen iniziale per non
+  // creare flash di chiusura → poi se c'e' uno stato salvato lo
+  // applichiamo.
+  useEffect(() => {
+    if (!persistKey || typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(`section-card:${persistKey}`);
+    if (stored === "1") setOpen(true);
+    else if (stored === "0") setOpen(false);
+  }, [persistKey]);
+  useEffect(() => {
+    if (!persistKey || typeof window === "undefined") return;
+    window.localStorage.setItem(
+      `section-card:${persistKey}`,
+      open ? "1" : "0",
+    );
+  }, [open, persistKey]);
   const styles = toneStyles[tone];
 
   return (

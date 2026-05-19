@@ -535,6 +535,7 @@ export default async function CompetitorDetailPage({
         subtitle={t("scan", "scanNowSubtitle")}
         tone="gold"
         defaultOpen={false}
+        persistKey={`brand-${c.id}:scan`}
       >
           {/* Tipologia di scan (Manuale / Daily / Weekly) — proprieta'
               dell'azione Scan, vive in cima al body. La modifica e'

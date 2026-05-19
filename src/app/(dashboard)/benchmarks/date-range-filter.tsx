@@ -102,7 +102,12 @@ export function DateRangeFilter({
         ref={toRef}
         type="date"
         value={to}
-        onChange={(e) => setTo(e.target.value)}
+        onChange={(e) => {
+          setTo(e.target.value);
+          // Blur per chiudere il native picker dopo la selezione
+          // (utente segnala che restava aperto su Chrome).
+          if (e.target.value) e.target.blur();
+        }}
         className="text-xs h-8 w-36"
       />
       {/* Shortcut chips — auto-apply on click since the user's intent

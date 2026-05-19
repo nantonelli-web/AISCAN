@@ -53,13 +53,12 @@ export function isPlayableVideoUrl(url: string | null | undefined): boolean {
 
 export function jumpToDateInput(el: HTMLInputElement | null): void {
   if (!el) return;
-  setTimeout(() => {
-    try {
-      el.focus();
-      el.showPicker?.();
-    } catch {
-      // showPicker can throw without a fresh user activation — the
-      // focus() above already moved the cursor, which is enough.
-    }
-  }, 0);
+  // 2026-05-19: rimossa la chiamata a showPicker() che causava un race
+  // condition col native dismiss del picker From: il browser stava
+  // ancora chiudendo il primo calendario quando aprivamo il secondo,
+  // risultato il secondo picker NON propagava piu la selezione al
+  // value (utente sceglieva data, field restava vuoto / calendario
+  // non si chiudeva al click fuori). Adesso solo focus, lasciamo
+  // all'utente decidere se aprire il picker della finestra To.
+  el.focus();
 }
