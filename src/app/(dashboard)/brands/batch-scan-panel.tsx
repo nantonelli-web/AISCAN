@@ -20,11 +20,11 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   DateRangeShortcuts,
   defaultPresets,
 } from "@/components/ui/date-range-shortcuts";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { useT } from "@/lib/i18n/context";
 
 function daysAgo(n: number): string {
@@ -993,31 +993,22 @@ export function BatchScanPanel({
                   Periodo di scansione
                 </span>
               </div>
-              {/* Riga unica: input a sinistra, shortcuts a destra
-                  cosi' usiamo tutto lo spazio orizzontale invece di
-                  accatastare in verticale. flex-wrap permette ai
-                  shortcuts di scendere sotto solo su viewport stretti. */}
+              {/* DateRangePicker: un solo trigger button con range
+                  formattato in italiano, click apre Calendar in
+                  Popover. Sostituisce la coppia di <input type=date>
+                  nativi (UX bug macOS + styling cross-browser
+                  inconsistente). Shortcuts restano a destra. */}
               <div className="flex items-center gap-3 flex-wrap">
-                <div className="flex items-center gap-2 shrink-0">
-                  <Input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                    placeholder={daysAgo(30)}
-                    aria-label="Da"
-                    disabled={!!batchId}
-                    className="text-sm h-9 w-40"
-                  />
-                  <span className="text-sm text-muted-foreground">→</span>
-                  <Input
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                    aria-label="A"
-                    disabled={!!batchId}
-                    className="text-sm h-9 w-40"
-                  />
-                </div>
+                <DateRangePicker
+                  from={dateFrom}
+                  to={dateTo}
+                  disabled={!!batchId}
+                  onChange={({ from, to }) => {
+                    setDateFrom(from);
+                    setDateTo(to);
+                  }}
+                  className="min-w-[280px]"
+                />
                 <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
                   <DateRangeShortcuts
                     presets={defaultPresets((s, k) => t(s, k))}

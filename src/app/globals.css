@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 /* Light theme — pure-white background so dashboard screenshots drop cleanly
    into white client presentations. Brand accent (under --gold for codebase
@@ -26,6 +27,30 @@
   --gold-soft: #eef2fb;
   --destructive: #dc2626;
   --ring: #0e3590;
+
+  /* shadcn-compat tokens — mappano gli identificatori shadcn standard
+     (--primary, --popover, --accent, etc.) sui token AISCAN gia'
+     definiti sopra. Cosi' qualunque componente aggiunto via
+     `shadcn add` lavora out-of-the-box senza riscrivere classi a
+     mano. Vedi memory project_shadcn_setup.md. */
+  --primary: var(--gold);
+  --primary-foreground: var(--gold-foreground);
+  --secondary: var(--muted);
+  --secondary-foreground: var(--foreground);
+  --accent: var(--gold-soft);
+  --accent-foreground: var(--gold);
+  --popover: var(--card);
+  --popover-foreground: var(--card-foreground);
+  --destructive-foreground: #ffffff;
+  --input: var(--border);
+  --sidebar: var(--card);
+  --sidebar-foreground: var(--card-foreground);
+  --sidebar-primary: var(--gold);
+  --sidebar-primary-foreground: var(--gold-foreground);
+  --sidebar-accent: var(--gold-soft);
+  --sidebar-accent-foreground: var(--gold);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
 
   /* Semantic palette — used by KPIs, status badges, trend arrows, alerts.
      Each tone has a "main" (icons, text on light bg, accents) and a "soft"
@@ -67,11 +92,34 @@
   --color-gold: var(--gold);
   --color-gold-foreground: var(--gold-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-ring: var(--ring);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
   --color-info: var(--info);
+
+  /* shadcn-compat — espone i token primary/accent/popover/... come
+     classi Tailwind (bg-primary, bg-accent, text-popover-foreground)
+     mappati sul theme AISCAN (gold-soft, gold, etc.). */
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-input: var(--input);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Inter", "Segoe UI", Helvetica, Arial, sans-serif;
   --font-serif: Georgia, "Times New Roman", serif;
 }
