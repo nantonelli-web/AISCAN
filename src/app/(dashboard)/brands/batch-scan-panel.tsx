@@ -845,7 +845,7 @@ export function BatchScanPanel({
                       disabled={!!batchId}
                       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors cursor-pointer ${
                         clientFilter === null
-                          ? "border-amber-500/70 bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold"
+                          ? "border-amber-500 bg-amber-100 text-amber-900 dark:bg-amber-500/25 dark:text-amber-100 font-semibold"
                           : "border-border hover:bg-muted/60 text-foreground"
                       } ${batchId ? "opacity-60 cursor-not-allowed" : ""}`}
                     >
@@ -853,7 +853,7 @@ export function BatchScanPanel({
                       <span
                         className={
                           clientFilter === null
-                            ? "text-[10px] text-amber-700/70 dark:text-amber-300/70"
+                            ? "text-[10px] text-amber-900/70 dark:text-amber-100/70"
                             : "text-[10px] text-muted-foreground"
                         }
                       >
@@ -872,7 +872,7 @@ export function BatchScanPanel({
                           disabled={!!batchId}
                           className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors cursor-pointer ${
                             active
-                              ? "border-amber-500/70 bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold"
+                              ? "border-amber-500 bg-amber-100 text-amber-900 dark:bg-amber-500/25 dark:text-amber-100 font-semibold"
                               : "border-border hover:bg-muted/60 text-foreground"
                           } ${batchId ? "opacity-60 cursor-not-allowed" : ""}`}
                         >
@@ -887,7 +887,7 @@ export function BatchScanPanel({
                           <span
                             className={
                               active
-                                ? "text-[10px] text-amber-700/70 dark:text-amber-300/70"
+                                ? "text-[10px] text-amber-900/70 dark:text-amber-100/70"
                                 : "text-[10px] text-muted-foreground"
                             }
                           >
@@ -903,7 +903,7 @@ export function BatchScanPanel({
                         disabled={!!batchId}
                         className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors cursor-pointer ${
                           clientFilter === "_unassigned"
-                            ? "border-amber-500/70 bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold"
+                            ? "border-amber-500 bg-amber-100 text-amber-900 dark:bg-amber-500/25 dark:text-amber-100 font-semibold"
                             : "border-border hover:bg-muted/60 text-foreground"
                         } ${batchId ? "opacity-60 cursor-not-allowed" : ""}`}
                       >
@@ -911,7 +911,7 @@ export function BatchScanPanel({
                         <span
                           className={
                             clientFilter === "_unassigned"
-                              ? "text-[10px] text-amber-700/70 dark:text-amber-300/70"
+                              ? "text-[10px] text-amber-900/70 dark:text-amber-100/70"
                               : "text-[10px] text-muted-foreground"
                           }
                         >
@@ -951,7 +951,7 @@ export function BatchScanPanel({
                         disabled={!!batchId || !usable}
                         className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors cursor-pointer ${
                           active
-                            ? "border-amber-500/70 bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold"
+                            ? "border-amber-500 bg-amber-100 text-amber-900 dark:bg-amber-500/25 dark:text-amber-100 font-semibold"
                             : usable
                               ? "border-border hover:bg-muted/60 text-foreground"
                               : "border-border/40 text-muted-foreground/60 cursor-not-allowed"
@@ -963,7 +963,7 @@ export function BatchScanPanel({
                           <span
                             className={
                               active
-                                ? "text-[10px] text-amber-700/70 dark:text-amber-300/70"
+                                ? "text-[10px] text-amber-900/70 dark:text-amber-100/70"
                                 : "text-[10px] text-muted-foreground"
                             }
                           >
