@@ -249,18 +249,42 @@ export function BatchScanPanel({
   const effectiveFrom = dateFrom || daysAgo(30);
   const effectiveTo = dateTo || new Date().toISOString().slice(0, 10);
 
-  // Eligible brands: hanno config per il canale selezionato + match il filtro client
-  const eligibleBrands = useMemo(() => {
+  // Brand filtrati per progetto (pre-canale). Usato sia per la lista
+  // visibile sia per calcolare i conteggi per ogni canale.
+  const brandsInProject = useMemo(() => {
     return brands.filter((b) => {
-      if (!hasChannelConfig(b, channel)) return false;
-      if (clientFilter !== null) {
-        if (clientFilter === "_unassigned" && b.client_id !== null) return false;
-        if (clientFilter !== "_unassigned" && b.client_id !== clientFilter)
-          return false;
-      }
-      return true;
+      if (clientFilter === null) return true;
+      if (clientFilter === "_unassigned") return b.client_id === null;
+      return b.client_id === clientFilter;
     });
-  }, [brands, channel, clientFilter]);
+  }, [brands, clientFilter]);
+
+  // Conteggi per canale CALCOLATI dentro il progetto selezionato.
+  // Driver primario della UI: se un canale ha 0 brand configurati nel
+  // progetto, lo disabilitiamo (no scelta in vuoto). Il canale viene
+  // dopo il progetto perche' senza progetto non sai chi puo' essere
+  // scansionato.
+  const channelCountsForProject = useMemo(() => {
+    const counts: Record<Channel, number> = {
+      google: 0,
+      snapchat: 0,
+      meta: 0,
+      instagram: 0,
+      tiktok: 0,
+      youtube: 0,
+    };
+    for (const b of brandsInProject) {
+      for (const k of Object.keys(counts) as Channel[]) {
+        if (hasChannelConfig(b, k)) counts[k]++;
+      }
+    }
+    return counts;
+  }, [brandsInProject]);
+
+  // Eligible brands: dentro il progetto + config per il canale corrente
+  const eligibleBrands = useMemo(() => {
+    return brandsInProject.filter((b) => hasChannelConfig(b, channel));
+  }, [brandsInProject, channel]);
 
   const selectedList = useMemo(
     () => eligibleBrands.filter((b) => selected.has(b.id)),
@@ -300,10 +324,54 @@ export function BatchScanPanel({
       if (target?.comingNote) toast.info(target.comingNote, { duration: 6000 });
       return;
     }
+    if (channelCountsForProject[c] === 0) {
+      toast.info(
+        "Nessun brand del progetto selezionato ha la configurazione per questo canale.",
+        { duration: 5000 },
+      );
+      return;
+    }
     setChannel(c);
     // Cambio canale resetta selezione (un brand che ha Google config
     // potrebbe non avere TikTok config quindi e' piu' sicuro pulire).
     setSelected(new Set());
+  }
+
+  /**
+   * Cambio progetto: ricalcola i canali validi e, se il canale
+   * corrente non ha brand nel nuovo progetto, salta al primo canale
+   * disponibile (Google → Snapchat → ...). Cosi' l'utente non resta
+   * mai con lista vuota e UI muta.
+   */
+  function selectProject(filterValue: string | null) {
+    setClientFilter(filterValue);
+    setSelected(new Set());
+    // Calcola counts per il nuovo filtro (non possiamo usare lo state
+    // perche' setState e' async)
+    const counts: Record<Channel, number> = {
+      google: 0,
+      snapchat: 0,
+      meta: 0,
+      instagram: 0,
+      tiktok: 0,
+      youtube: 0,
+    };
+    for (const b of brands) {
+      if (filterValue !== null) {
+        if (filterValue === "_unassigned" && b.client_id !== null) continue;
+        if (filterValue !== "_unassigned" && b.client_id !== filterValue)
+          continue;
+      }
+      for (const k of Object.keys(counts) as Channel[]) {
+        if (hasChannelConfig(b, k)) counts[k]++;
+      }
+    }
+    if (counts[channel] === 0) {
+      const fallback = CHANNELS.find(
+        (c) => c.available && counts[c.key] > 0,
+      );
+      if (fallback) setChannel(fallback.key);
+    }
   }
 
   async function submit() {
@@ -507,31 +575,36 @@ export function BatchScanPanel({
   }, [open]);
 
   // Hooks-friendly: useMemo PRIMA di qualsiasi early return.
-  const totalGoogleEligible = useMemo(
-    () => brands.filter((b) => hasChannelConfig(b, "google")).length,
+  // Brand con almeno 1 canale supportato configurato (Google o
+  // Snapchat al momento). Usato sia per il gate di visibilita' del
+  // panel sia per i conteggi del pill "Progetto".
+  const brandsWithAnyChannel = useMemo(
+    () =>
+      brands.filter(
+        (b) =>
+          hasChannelConfig(b, "google") || hasChannelConfig(b, "snapchat"),
+      ),
     [brands],
   );
 
-  // Conteggio clients che hanno almeno 1 brand col canale corrente
-  const clientCountsForChannel = useMemo(() => {
+  // Conteggio clients per pill "Progetto". Conta SOLO brand con
+  // almeno un canale supportato — i brand senza config non sono
+  // batchabili e non vanno mostrati nei contatori per progetto.
+  const clientCountsAnyChannel = useMemo(() => {
     const m = new Map<string, number>();
     let unassigned = 0;
-    for (const b of brands) {
-      if (!hasChannelConfig(b, channel)) continue;
+    for (const b of brandsWithAnyChannel) {
       if (b.client_id === null) unassigned++;
       else m.set(b.client_id, (m.get(b.client_id) ?? 0) + 1);
     }
-    return { byId: m, unassigned };
-  }, [brands, channel]);
+    return { byId: m, unassigned, total: brandsWithAnyChannel.length };
+  }, [brandsWithAnyChannel]);
 
-  // Non mostrare il panel se non ci sono brand con config Google nel workspace
-  if (totalGoogleEligible < 2) return null;
+  // Non mostrare il panel se non ci sono almeno 2 brand batchabili
+  if (clientCountsAnyChannel.total < 2) return null;
 
   return (
-    <Card
-      ref={panelRef}
-      className="border-violet-500/30 bg-gradient-to-br from-violet-500/5 via-fuchsia-500/3 to-transparent"
-    >
+    <Card ref={panelRef}>
       <CardContent className="p-5 space-y-4">
         {/* Header con toggle. Quando c'e' un batch in corso, mostra
             inline il counter + dot pulsante anche se il pannello e'
@@ -544,7 +617,7 @@ export function BatchScanPanel({
           aria-expanded={open}
         >
           <div className="flex items-center gap-3 min-w-0">
-            <div className="size-9 rounded-lg bg-violet-500/15 text-violet-500 grid place-items-center shrink-0">
+            <div className="size-9 rounded-lg bg-muted text-foreground grid place-items-center shrink-0">
               <Layers className="size-4" />
             </div>
             <div className="min-w-0">
@@ -560,10 +633,10 @@ export function BatchScanPanel({
           </div>
           <div className="flex items-center gap-3 shrink-0">
             {batchId && pollResult && polling && (
-              <span className="inline-flex items-center gap-2 rounded-full bg-violet-500/15 text-violet-700 dark:text-violet-300 px-2.5 py-1 text-[11.5px] font-medium">
+              <span className="inline-flex items-center gap-2 rounded-full bg-muted text-foreground px-2.5 py-1 text-[11.5px] font-medium">
                 <span className="relative flex size-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-violet-500 opacity-75" />
-                  <span className="relative inline-flex size-2 rounded-full bg-violet-500" />
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-foreground opacity-60" />
+                  <span className="relative inline-flex size-2 rounded-full bg-foreground" />
                 </span>
                 Batch in corso · {pollResult.counts.total - pollResult.counts.running}/{pollResult.counts.total}
               </span>
@@ -699,7 +772,7 @@ export function BatchScanPanel({
                     aria-label="Avanzamento batch"
                   >
                     <div
-                      className="h-full bg-violet-500 transition-all duration-300"
+                      className="h-full bg-foreground transition-all duration-300"
                       style={{ width: `${percent}%` }}
                     />
                   </div>
@@ -730,7 +803,7 @@ export function BatchScanPanel({
                     </span>
                     {polling && pollResult.counts.running > 0 && (
                       <span className="inline-flex items-center gap-1.5">
-                        <span className="size-1.5 rounded-full bg-violet-500 animate-pulse" />
+                        <span className="size-1.5 rounded-full bg-foreground animate-pulse" />
                         <strong className="text-foreground">
                           {pollResult.counts.running}
                         </strong>{" "}
@@ -748,49 +821,13 @@ export function BatchScanPanel({
               );
             })()}
 
-            {/* Riga filtri: canale + cliente */}
+            {/* Riga filtri: PROGETTO prima, CANALE dopo (i canali sono
+                proprieta' del brand → senza brand non puoi sapere quali
+                canali sono validi). Il count di ciascun canale dipende
+                dal progetto selezionato. */}
             <div className="space-y-3">
-              {/* Canale */}
-              <div>
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <Globe2 className="size-3.5 text-muted-foreground" />
-                  <span className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold">
-                    Canale
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {CHANNELS.map((c) => {
-                    const active = c.key === channel && c.available;
-                    return (
-                      <button
-                        key={c.key}
-                        type="button"
-                        onClick={() => changeChannel(c.key)}
-                        disabled={!!batchId}
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors ${
-                          active
-                            ? "border-violet-500/40 bg-violet-500/15 text-violet-700 dark:text-violet-300"
-                            : c.available
-                              ? "border-border hover:bg-muted/60 text-foreground"
-                              : "border-border/40 text-muted-foreground/60 cursor-not-allowed line-through-none"
-                        } ${batchId ? "opacity-60 cursor-not-allowed" : ""}`}
-                        title={!c.available ? c.comingNote : undefined}
-                      >
-                        {c.label}
-                        {!c.available && (
-                          <span className="text-[9px] uppercase tracking-wider opacity-80">
-                            presto
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Cliente / Progetto */}
-              {(clients.length > 0 ||
-                clientCountsForChannel.unassigned > 0) && (
+              {/* 1) Progetto */}
+              {(clients.length > 0 || clientCountsAnyChannel.unassigned > 0) && (
                 <div>
                   <div className="flex items-center gap-1.5 mb-1.5">
                     <Folder className="size-3.5 text-muted-foreground" />
@@ -801,38 +838,38 @@ export function BatchScanPanel({
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <button
                       type="button"
-                      onClick={() => {
-                        setClientFilter(null);
-                        setSelected(new Set());
-                      }}
+                      onClick={() => selectProject(null)}
                       disabled={!!batchId}
-                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors ${
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors cursor-pointer ${
                         clientFilter === null
-                          ? "border-violet-500/40 bg-violet-500/15 text-violet-700 dark:text-violet-300"
+                          ? "border-foreground bg-foreground text-background"
                           : "border-border hover:bg-muted/60 text-foreground"
                       } ${batchId ? "opacity-60 cursor-not-allowed" : ""}`}
                     >
                       Tutti
-                      <span className="text-[10px] text-muted-foreground">
-                        {totalGoogleEligible}
+                      <span
+                        className={
+                          clientFilter === null
+                            ? "text-[10px] text-background/70"
+                            : "text-[10px] text-muted-foreground"
+                        }
+                      >
+                        {clientCountsAnyChannel.total}
                       </span>
                     </button>
                     {clients.map((c) => {
-                      const count = clientCountsForChannel.byId.get(c.id) ?? 0;
+                      const count = clientCountsAnyChannel.byId.get(c.id) ?? 0;
                       if (count === 0) return null;
                       const active = clientFilter === c.id;
                       return (
                         <button
                           key={c.id}
                           type="button"
-                          onClick={() => {
-                            setClientFilter(c.id);
-                            setSelected(new Set());
-                          }}
+                          onClick={() => selectProject(c.id)}
                           disabled={!!batchId}
-                          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors ${
+                          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors cursor-pointer ${
                             active
-                              ? "border-violet-500/40 bg-violet-500/15 text-violet-700 dark:text-violet-300"
+                              ? "border-foreground bg-foreground text-background"
                               : "border-border hover:bg-muted/60 text-foreground"
                           } ${batchId ? "opacity-60 cursor-not-allowed" : ""}`}
                         >
@@ -844,35 +881,102 @@ export function BatchScanPanel({
                             aria-hidden
                           />
                           {c.name}
-                          <span className="text-[10px] text-muted-foreground">
+                          <span
+                            className={
+                              active
+                                ? "text-[10px] text-background/70"
+                                : "text-[10px] text-muted-foreground"
+                            }
+                          >
                             {count}
                           </span>
                         </button>
                       );
                     })}
-                    {clientCountsForChannel.unassigned > 0 && (
+                    {clientCountsAnyChannel.unassigned > 0 && (
                       <button
                         type="button"
-                        onClick={() => {
-                          setClientFilter("_unassigned");
-                          setSelected(new Set());
-                        }}
+                        onClick={() => selectProject("_unassigned")}
                         disabled={!!batchId}
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors ${
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors cursor-pointer ${
                           clientFilter === "_unassigned"
-                            ? "border-violet-500/40 bg-violet-500/15 text-violet-700 dark:text-violet-300"
+                            ? "border-foreground bg-foreground text-background"
                             : "border-border hover:bg-muted/60 text-foreground"
                         } ${batchId ? "opacity-60 cursor-not-allowed" : ""}`}
                       >
                         Senza progetto
-                        <span className="text-[10px] text-muted-foreground">
-                          {clientCountsForChannel.unassigned}
+                        <span
+                          className={
+                            clientFilter === "_unassigned"
+                              ? "text-[10px] text-background/70"
+                              : "text-[10px] text-muted-foreground"
+                          }
+                        >
+                          {clientCountsAnyChannel.unassigned}
                         </span>
                       </button>
                     )}
                   </div>
                 </div>
               )}
+
+              {/* 2) Canale — count e disabled state derivano dal progetto
+                  scelto sopra. Se un canale non ha brand configurati nel
+                  progetto, e' disabilitato (non in vuoto). */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Globe2 className="size-3.5 text-muted-foreground" />
+                  <span className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold">
+                    Canale
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {CHANNELS.map((c) => {
+                    const countInProject = channelCountsForProject[c.key];
+                    const usable = c.available && countInProject > 0;
+                    const active = c.key === channel && usable;
+                    const reason = !c.available
+                      ? c.comingNote
+                      : countInProject === 0
+                        ? "Nessun brand del progetto ha la config per questo canale"
+                        : undefined;
+                    return (
+                      <button
+                        key={c.key}
+                        type="button"
+                        onClick={() => changeChannel(c.key)}
+                        disabled={!!batchId || !usable}
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors cursor-pointer ${
+                          active
+                            ? "border-foreground bg-foreground text-background"
+                            : usable
+                              ? "border-border hover:bg-muted/60 text-foreground"
+                              : "border-border/40 text-muted-foreground/60 cursor-not-allowed"
+                        } ${batchId ? "opacity-60 cursor-not-allowed" : ""}`}
+                        title={reason}
+                      >
+                        {c.label}
+                        {c.available && (
+                          <span
+                            className={
+                              active
+                                ? "text-[10px] text-background/70"
+                                : "text-[10px] text-muted-foreground"
+                            }
+                          >
+                            {countInProject}
+                          </span>
+                        )}
+                        {!c.available && (
+                          <span className="text-[9px] uppercase tracking-wider opacity-80">
+                            presto
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
             {/* Periodo di scansione (date range). Default vuoto =
@@ -954,7 +1058,7 @@ export function BatchScanPanel({
                     <button
                       type="button"
                       onClick={selectFirstN}
-                      className="text-violet-500 hover:underline disabled:opacity-50"
+                      className="text-foreground hover:underline disabled:opacity-50 cursor-pointer"
                       disabled={!!batchId}
                     >
                       Seleziona primi {MAX_BATCH}
@@ -987,14 +1091,12 @@ export function BatchScanPanel({
                           type="button"
                           onClick={() => !batchId && toggleSelect(b.id)}
                           disabled={!!batchId}
-                          className={`w-full flex items-center gap-3 px-3 py-2 text-left text-[13px] transition-colors ${
-                            isSelected
-                              ? "bg-violet-500/10"
-                              : "hover:bg-muted/60"
+                          className={`w-full flex items-center gap-3 px-3 py-2 text-left text-[13px] transition-colors cursor-pointer ${
+                            isSelected ? "bg-muted" : "hover:bg-muted/60"
                           } ${batchId ? "opacity-60 cursor-not-allowed" : ""}`}
                         >
                           {isSelected ? (
-                            <CheckSquare className="size-4 text-violet-500 shrink-0" />
+                            <CheckSquare className="size-4 text-foreground shrink-0" />
                           ) : (
                             <SquareIcon className="size-4 text-muted-foreground shrink-0" />
                           )}
@@ -1015,7 +1117,7 @@ export function BatchScanPanel({
             )}
 
             {/* Footer: cost + submit */}
-            <div className="flex items-center justify-between gap-3 flex-wrap pt-3 border-t border-violet-500/15">
+            <div className="flex items-center justify-between gap-3 flex-wrap pt-3 border-t border-border">
               <div className="text-[12px]">
                 {batchId ? (
                   <span className="text-muted-foreground inline-flex items-center gap-1.5">
@@ -1045,7 +1147,7 @@ export function BatchScanPanel({
               <Button
                 onClick={submit}
                 disabled={!canSubmit}
-                className="bg-violet-500 hover:bg-violet-600 text-white gap-2"
+                className="gap-2"
               >
                 {submitting ? (
                   <>
