@@ -215,7 +215,15 @@ export async function POST(req: Request) {
       }
       await admin
         .from("mait_competitors")
-        .update({ tiktok_profile: result.profile })
+        .update({
+          tiktok_profile: result.profile,
+          // Last-writer-wins su profile_picture_url cosi brand
+          // senza Meta scan mostrano comunque l'avatar dal canale
+          // scansionato piu di recente.
+          ...(result.profile.avatarUrl
+            ? { profile_picture_url: result.profile.avatarUrl }
+            : {}),
+        })
         .eq("id", competitor.id);
       // Snapshot storico TikTok (migration 0056) — vedi
       // /api/instagram/scan per il razionale. Mappa: followers,

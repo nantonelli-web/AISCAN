@@ -339,15 +339,18 @@ export default async function CompetitorDetailPage({
       !!j.apify_run_id,
   );
 
-  // PostgREST returns the JSON-path projections as their underlying
-  // type. Coerce defensively in case scan_data shape ever drifts.
-  const heroLatestAd = latestAd as
-    | { page_like_count: number | null; page_profile_picture_url: string | null }
-    | null;
-  const pageProfilePicture =
-    c.profile_picture_url ??
-    heroLatestAd?.page_profile_picture_url ??
-    null;
+  // 2026-05-19: fallback su heroLatestAd.page_profile_picture_url
+  // RIMOSSO. Prima, se l'utente cliccava "X" per pulire il logo
+  // sbagliato, page.tsx ripescava lo stesso avatar dal raw_data
+  // della Meta ad piu recente — risultato: X non funzionava.
+  // Adesso pageProfilePicture = SOLO c.profile_picture_url. Se
+  // null, viene reso il placeholder con la lettera iniziale.
+  // Per ri-popolare l'avatar, rilanciare uno scan IG/TT/SC/YT
+  // che scriva profile_picture_url via le rispettive API.
+  // heroLatestAd resta nella select solo per page_like_count
+  // (campo nullable usato altrove in futuro).
+  void latestAd;
+  const pageProfilePicture = c.profile_picture_url ?? null;
   // pageLikeCount used to render in the hero metadata row but
   // was removed alongside the country list (user feedback
   // 2026-05-04). The single-row JSON projection still pulls

@@ -237,7 +237,13 @@ export async function POST(req: Request) {
     // header (same as instagram_profile + tiktok_profile).
     await admin
       .from("mait_competitors")
-      .update({ snapchat_profile: result.profile })
+      .update({
+        snapchat_profile: result.profile,
+        // Last-writer-wins su profile_picture_url.
+        ...(result.profile.profile_picture_url
+          ? { profile_picture_url: result.profile.profile_picture_url }
+          : {}),
+      })
       .eq("id", competitor.id);
 
     // Append a fresh row to the snapshot history table — one row per

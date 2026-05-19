@@ -455,15 +455,16 @@ export function ChannelTabs({
   // set) we show the tab even with zero queries — the tab content
   // hosts the "Create query" entry point that bootstraps the first
   // linked query, so hiding it would break the flow.
+  // 2026-05-19: tutti i tab canali SEMPRE visibili, anche con count=0.
+  // Filtrarli sui dati nascondeva PAID/ORGANIC per i brand appena
+  // creati (es. Born Outside: 0 creativita su tutti i canali →
+  // restavano solo Monitoring). L'utente vuole sempre vedere quali
+  // canali esistono e cliccarli per scoprire "no scans yet" invece
+  // di chiedersi dove siano finiti. Eccezione: SERP solo se il
+  // brand ha un google_domain configurato (senza dominio la SERP
+  // tab non puo' rendere niente di sensato).
   const visibleTabs = tabs.filter(
-    (entry) =>
-      entry.key === "all" ||
-      entry.count > 0 ||
-      (entry.key === "serp" && serpTabVisible) ||
-      // Maps sempre visibile come tab nel pivot (placeholder fino a
-      // che l'aggregazione brand-level non e' pronta). Coerente con
-      // /benchmarks dove e' sempre nel pivot Monitoring.
-      entry.key === "maps",
+    (entry) => entry.key !== "serp" || serpTabVisible,
   );
 
   const showMeta = channel === "all" || channel === "meta";

@@ -215,7 +215,13 @@ export async function POST(req: Request) {
       }
       await admin
         .from("mait_competitors")
-        .update({ youtube_profile: result.channel })
+        .update({
+          youtube_profile: result.channel,
+          // Last-writer-wins su profile_picture_url.
+          ...(result.channel.avatar_url
+            ? { profile_picture_url: result.channel.avatar_url }
+            : {}),
+        })
         .eq("id", competitor.id);
 
       // Append a row to the snapshot history table — one row per

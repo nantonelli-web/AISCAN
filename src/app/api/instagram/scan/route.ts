@@ -235,7 +235,16 @@ export async function POST(req: Request) {
       }
       await admin
         .from("mait_competitors")
-        .update({ instagram_profile: profile })
+        .update({
+          instagram_profile: profile,
+          // Aggiornare anche profile_picture_url cosi il brand-hero
+          // mostra il logo IG anche per brand senza Meta scan
+          // (caso Born Outside). L'ultima scan vince — last writer
+          // wins tra Meta/IG/TT/SC/YT pattern.
+          ...(profile.profilePicUrl
+            ? { profile_picture_url: profile.profilePicUrl }
+            : {}),
+        })
         .eq("id", competitor.id);
       // Snapshot storico (migration 0056): a ogni scan salviamo
       // followers/follows/posts come point-in-time per il delta
