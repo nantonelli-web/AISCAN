@@ -94,6 +94,16 @@ interface BatchResponse {
   };
 }
 
+interface BatchJobRow {
+  id: string;
+  competitor_id: string;
+  status: string;
+  records_count: number;
+  error: string | null;
+  started_at: string;
+  completed_at: string | null;
+}
+
 interface BatchStatusResponse {
   batch_id: string;
   counts: {
@@ -105,6 +115,7 @@ interface BatchStatusResponse {
   };
   total_records: number;
   terminal: boolean;
+  jobs?: BatchJobRow[];
 }
 
 type Channel =
@@ -1135,6 +1146,19 @@ export function BatchScanPanel({
                         )
                       : null;
                     const recentScan = hoursAgo !== null && hoursAgo < 6;
+                    // Outcome del batch terminale per questo brand,
+                    // se presente.
+                    const batchJob =
+                      batchId && pollResult?.jobs
+                        ? pollResult.jobs.find((j) => j.competitor_id === b.id)
+                        : undefined;
+                    const isBatchTerminal = !!batchId && !!pollResult?.terminal;
+                    const succeededInBatch =
+                      isBatchTerminal && batchJob?.status === "succeeded";
+                    const partialInBatch =
+                      isBatchTerminal && batchJob?.status === "partial";
+                    const failedInBatch =
+                      isBatchTerminal && batchJob?.status === "failed";
                     return (
                       <li key={b.id}>
                         <button
@@ -1142,12 +1166,24 @@ export function BatchScanPanel({
                           onClick={() => !batchId && toggleSelect(b.id)}
                           disabled={!!batchId}
                           className={`w-full flex items-center gap-3 px-3 py-2 text-left text-[13px] transition-colors cursor-pointer ${
-                            isSelected
-                              ? "bg-amber-500/10"
-                              : "hover:bg-muted/60"
-                          } ${batchId ? "opacity-60 cursor-not-allowed" : ""}`}
+                            succeededInBatch
+                              ? "bg-emerald-500/10"
+                              : partialInBatch
+                                ? "bg-amber-500/15"
+                                : failedInBatch
+                                  ? "bg-red-500/10"
+                                  : isSelected
+                                    ? "bg-amber-500/10"
+                                    : "hover:bg-muted/60"
+                          } ${batchId ? "opacity-90 cursor-not-allowed" : ""}`}
                         >
-                          {isSelected ? (
+                          {succeededInBatch ? (
+                            <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          ) : partialInBatch ? (
+                            <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                          ) : failedInBatch ? (
+                            <AlertTriangle className="size-4 text-red-600 dark:text-red-400 shrink-0" />
+                          ) : isSelected ? (
                             <CheckSquare className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
                           ) : (
                             <SquareIcon className="size-4 text-muted-foreground shrink-0" />
@@ -1155,7 +1191,27 @@ export function BatchScanPanel({
                           <span className="flex-1 truncate font-medium">
                             {b.page_name ?? "(senza nome)"}
                           </span>
-                          {recentScan && (
+                          {/* Outcome post-batch: badge a destra con
+                              count records o motivo del fail */}
+                          {succeededInBatch && (
+                            <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 tabular-nums">
+                              +{batchJob.records_count} ads
+                            </span>
+                          )}
+                          {partialInBatch && (
+                            <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 tabular-nums">
+                              +{batchJob.records_count} parziali
+                            </span>
+                          )}
+                          {failedInBatch && (
+                            <span
+                              className="text-[11px] font-semibold text-red-600 dark:text-red-400"
+                              title={batchJob.error ?? undefined}
+                            >
+                              Fallito
+                            </span>
+                          )}
+                          {!isBatchTerminal && recentScan && (
                             <span className="text-[10.5px] text-amber-600 dark:text-amber-400">
                               scansionato {hoursAgo}h fa
                             </span>
@@ -1168,51 +1224,98 @@ export function BatchScanPanel({
               </div>
             )}
 
-            {/* Footer: cost + submit */}
+            {/* Footer: stati diversi
+                  - batch terminato: CTA per vedere risultati o
+                    iniziare un nuovo batch
+                  - batch in corso: messaggio "puoi navigare altrove"
+                  - pre-batch: cost preview + bottone Lancia */}
             <div className="flex items-center justify-between gap-3 flex-wrap pt-3 border-t border-amber-500/15">
-              <div className="text-[12px]">
-                {batchId ? (
-                  <span className="text-muted-foreground inline-flex items-center gap-1.5">
-                    <CheckCircle2 className="size-3.5 text-emerald-500" />
-                    {polling
-                      ? "Batch in corso, puoi chiudere il pannello e navigare altrove"
-                      : "Batch completato"}
-                  </span>
-                ) : overLimit ? (
-                  <span className="text-red-500">
-                    Max {MAX_BATCH} brand per batch (ne hai selezionati{" "}
-                    {selectedList.length})
-                  </span>
-                ) : selectedList.length === 0 ? (
-                  <span className="text-muted-foreground">
-                    Seleziona almeno un brand dalla lista
-                  </span>
-                ) : (
-                  <>
-                    <strong>{selectedList.length}</strong> selezionati · Costo:{" "}
-                    <strong>
-                      {totalCost} {totalCost === 1 ? "credito" : "crediti"}
-                    </strong>
-                  </>
-                )}
-              </div>
-              <Button
-                onClick={submit}
-                disabled={!canSubmit}
-                className="bg-amber-500 hover:bg-amber-600 text-white gap-2"
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" />
-                    Avvio…
-                  </>
-                ) : (
-                  <>
-                    <Layers className="size-4" />
-                    Lancia batch ({selectedList.length})
-                  </>
-                )}
-              </Button>
+              {batchId && pollResult?.terminal ? (
+                <>
+                  <div className="text-[12px] inline-flex items-center gap-1.5">
+                    <CheckCircle2 className="size-4 text-emerald-500" />
+                    <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                      Batch completato.
+                    </span>
+                    <span className="text-muted-foreground">
+                      {pollResult.total_records} ads salvati su {pollResult.counts.succeeded + pollResult.counts.partial} brand.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={resetForNewBatch}
+                      className="gap-2"
+                    >
+                      <Layers className="size-4" />
+                      Nuovo batch
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        // Scroll giu' verso le brand card aggiornate.
+                        // Il pannello e' in cima alla pagina; sotto ci
+                        // sono le sezioni Cliente con le brand card che
+                        // dopo router.refresh() mostrano l'ultimo scan
+                        // e l'updated freshness pill.
+                        setOpen(false);
+                        window.scrollTo({
+                          top: panelRef.current
+                            ? panelRef.current.offsetHeight + panelRef.current.offsetTop
+                            : 0,
+                          behavior: "smooth",
+                        });
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                    >
+                      Vedi brand aggiornati
+                    </Button>
+                  </div>
+                </>
+              ) : batchId ? (
+                <div className="text-[12px] text-muted-foreground inline-flex items-center gap-1.5">
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Batch in corso, puoi chiudere il pannello e navigare altrove.
+                </div>
+              ) : (
+                <>
+                  <div className="text-[12px]">
+                    {overLimit ? (
+                      <span className="text-red-500">
+                        Max {MAX_BATCH} brand per batch (ne hai selezionati{" "}
+                        {selectedList.length})
+                      </span>
+                    ) : selectedList.length === 0 ? (
+                      <span className="text-muted-foreground">
+                        Seleziona almeno un brand dalla lista
+                      </span>
+                    ) : (
+                      <>
+                        <strong>{selectedList.length}</strong> selezionati · Costo:{" "}
+                        <strong>
+                          {totalCost} {totalCost === 1 ? "credito" : "crediti"}
+                        </strong>
+                      </>
+                    )}
+                  </div>
+                  <Button
+                    onClick={submit}
+                    disabled={!canSubmit}
+                    className="bg-amber-500 hover:bg-amber-600 text-white gap-2"
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        Avvio…
+                      </>
+                    ) : (
+                      <>
+                        <Layers className="size-4" />
+                        Lancia batch ({selectedList.length})
+                      </>
+                    )}
+                  </Button>
+                </>
+              )}
             </div>
           </>
         )}
