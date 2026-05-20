@@ -19,6 +19,8 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { refundCredits } from "@/lib/credits/consume";
+import type { CreditAction } from "@/config/pricing";
 import {
   BATCH_MAX,
   CONCURRENCY_CAP_PER_WORKSPACE,
@@ -29,6 +31,66 @@ import {
   type BatchSource,
   type SkipReason,
 } from "@/lib/apify/batch-safety";
+
+/**
+ * Auto-cleanup zombi Pattern B: prima di ogni batch, marca i job
+ * 'running' del workspace con batch_id stamped + source corrente
+ * + started_at >10min ago come failed e rifonde i crediti.
+ *
+ * Soglia 10 min e' deliberatamente piu' alta del maxDuration=300s
+ * del per-brand /scan, cosi' job legittimi in corso non vengono
+ * mai colpiti per errore.
+ */
+async function cleanupZombieJobs(
+  workspaceId: string,
+  source: BatchSource,
+  admin: ReturnType<typeof createAdminClient>,
+): Promise<{ cleaned: number; refunded: number }> {
+  const cutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const { data: zombies } = await admin
+    .from("mait_scrape_jobs")
+    .select("id, source, created_by")
+    .eq("workspace_id", workspaceId)
+    .eq("source", source)
+    .eq("status", "running")
+    .not("batch_id", "is", null)
+    .lt("started_at", cutoff);
+
+  const list = (zombies ?? []) as Array<{
+    id: string;
+    source: string;
+    created_by: string | null;
+  }>;
+  if (list.length === 0) return { cleaned: 0, refunded: 0 };
+
+  let refunded = 0;
+  for (const z of list) {
+    await admin
+      .from("mait_scrape_jobs")
+      .update({
+        status: "failed",
+        completed_at: new Date().toISOString(),
+        error: "Auto-cleanup zombie (batch dispatch failed >10min ago)",
+      })
+      .eq("id", z.id);
+    if (z.created_by) {
+      try {
+        await refundCredits(
+          z.created_by,
+          `scan_${z.source}` as CreditAction,
+          `Auto-cleanup zombie ${z.source} scan`,
+        );
+        refunded++;
+      } catch (e) {
+        console.error(`[batch auto-cleanup] refund failed for ${z.id}:`, e);
+      }
+    }
+  }
+  console.log(
+    `[batch auto-cleanup] source=${source} cleaned=${list.length} refunded=${refunded}`,
+  );
+  return { cleaned: list.length, refunded };
+}
 
 export const batchSchema = z.object({
   competitor_ids: z.array(z.string().uuid()).min(1).max(BATCH_MAX),
@@ -107,6 +169,11 @@ export async function dispatchAsyncBatch<
       { status: 404 },
     );
   }
+
+  // PRE-FLIGHT: auto-cleanup zombie del SAME source (Pattern B
+  // safeguard, vedi cleanupZombieJobs sopra). Cosi' un batch
+  // precedente fallito non blocca i nuovi tentativi.
+  await cleanupZombieJobs(workspaceId, cfg.source, admin);
 
   // SAFETY 1: daily cost cap
   const costCheck = await checkDailyCostCap(workspaceId, admin);
