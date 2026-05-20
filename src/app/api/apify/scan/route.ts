@@ -41,6 +41,11 @@ const schema = z.object({
   max_items: z.number().int().min(1).max(1000).optional(),
   date_from: z.string().optional(),
   date_to: z.string().optional(),
+  // Batched flow flag — la rotta /api/apify/scan/batch ha gia'
+  // chargato i crediti e creato il job_id. Vedi commento equivalente
+  // in /api/instagram/scan/route.ts.
+  batched: z.literal(true).optional(),
+  job_id: z.string().uuid().optional(),
 });
 
 export async function POST(req: Request) {
@@ -93,27 +98,32 @@ export async function POST(req: Request) {
 
   const admin = createAdminClient();
 
-  // Cleanup stale jobs: any "running" job older than 10 min → mark failed
-  const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-  await admin
-    .from("mait_scrape_jobs")
-    .update({ status: "failed", completed_at: new Date().toISOString(), error: "Timeout (stale)" })
-    .eq("competitor_id", competitor.id)
-    .eq("status", "running")
-    .lt("started_at", tenMinAgo);
+  // Batched flow: skip checks gia' fatti dal batch endpoint.
+  const isBatched = !!parsed.data.batched && !!parsed.data.job_id;
 
-  const rate = await checkScanConcurrency(admin, {
-    workspaceId: competitor.workspace_id,
-    competitorId: competitor.id,
-  });
-  if (!rate.ok) {
-    return NextResponse.json({ error: rate.reason }, { status: 429 });
-  }
+  if (!isBatched) {
+    // Cleanup stale jobs: any "running" job older than 10 min → mark failed
+    const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    await admin
+      .from("mait_scrape_jobs")
+      .update({ status: "failed", completed_at: new Date().toISOString(), error: "Timeout (stale)" })
+      .eq("competitor_id", competitor.id)
+      .eq("status", "running")
+      .lt("started_at", tenMinAgo);
 
-  // Credit check AFTER rate check so we don't charge on 429.
-  const credits = await consumeCredits(user.id, "scan_meta", `Meta Ads scan: ${competitor.page_name}`);
-  if (!credits.ok) {
-    return NextResponse.json({ error: "Insufficient credits", balance: credits.balance, cost: 5 }, { status: 402 });
+    const rate = await checkScanConcurrency(admin, {
+      workspaceId: competitor.workspace_id,
+      competitorId: competitor.id,
+    });
+    if (!rate.ok) {
+      return NextResponse.json({ error: rate.reason }, { status: 429 });
+    }
+
+    // Credit check AFTER rate check so we don't charge on 429.
+    const credits = await consumeCredits(user.id, "scan_meta", `Meta Ads scan: ${competitor.page_name}`);
+    if (!credits.ok) {
+      return NextResponse.json({ error: "Insufficient credits", balance: credits.balance, cost: 5 }, { status: 402 });
+    }
   }
 
   // If page_id was never resolved, try again now. We already
@@ -134,32 +144,35 @@ export async function POST(req: Request) {
     }
   }
 
-  // Create job row. date_from/date_to capture the user-requested
-  // window so the brand list can later display "scan period
-  // 22/03 → 22/04" without re-deriving from the ads.
-  const { data: job, error: jobErr } = await admin
-    .from("mait_scrape_jobs")
-    .insert({
-      workspace_id: competitor.workspace_id,
-      competitor_id: competitor.id,
-      status: "running",
-      source: "meta",
-      date_from: parsed.data.date_from ?? null,
-      date_to: parsed.data.date_to ?? null,
-    })
-    .select("id")
-    .single();
-
-  if (jobErr || !job) {
-    // Race-loss against the partial unique index from migration 0033 —
-    // a concurrent request beat us after we passed the rate check.
-    // Refund credits and return the same 429 the rate check would
-    // have given.
-    if ((jobErr as { code?: string } | null)?.code === "23505") {
-      await refundCredits(user.id, "scan_meta", `Meta Ads scan race-rejected: ${competitor.page_name}`);
-      return NextResponse.json({ error: "already_running" }, { status: 429 });
+  // Job row: in batched flow viene da batch, altrimenti creiamo qui.
+  let job: { id: string };
+  if (isBatched) {
+    job = { id: parsed.data.job_id as string };
+  } else {
+    const { data: jobIns, error: jobErr } = await admin
+      .from("mait_scrape_jobs")
+      .insert({
+        workspace_id: competitor.workspace_id,
+        competitor_id: competitor.id,
+        status: "running",
+        source: "meta",
+        date_from: parsed.data.date_from ?? null,
+        date_to: parsed.data.date_to ?? null,
+      })
+      .select("id")
+      .single();
+    if (jobErr || !jobIns) {
+      // Race-loss against the partial unique index from migration 0033 —
+      // a concurrent request beat us after we passed the rate check.
+      // Refund credits and return the same 429 the rate check would
+      // have given.
+      if ((jobErr as { code?: string } | null)?.code === "23505") {
+        await refundCredits(user.id, "scan_meta", `Meta Ads scan race-rejected: ${competitor.page_name}`);
+        return NextResponse.json({ error: "already_running" }, { status: 429 });
+      }
+      return NextResponse.json({ error: jobErr?.message ?? "Job error" }, { status: 500 });
     }
-    return NextResponse.json({ error: jobErr?.message ?? "Job error" }, { status: 500 });
+    job = jobIns;
   }
 
   try {

@@ -18,6 +18,13 @@ const schema = z.object({
   max_posts: z.number().int().min(1).max(500).optional(),
   date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  // Quando lo scan e' parte di un batch, la rotta batch ha gia'
+  // (a) caricato i crediti, (b) inserito il job row, (c) stampato
+  // batch_id. Questa rotta riceve il job_id e SKIPPA charge+insert,
+  // limitandosi a finalizzare il job esistente. Cosi' single-brand
+  // UX dal pannello brand resta invariato.
+  batched: z.literal(true).optional(),
+  job_id: z.string().uuid().optional(),
 });
 
 export async function POST(req: Request) {
@@ -60,26 +67,34 @@ export async function POST(req: Request) {
 
   const admin = createAdminClient();
 
-  // Stale-job cleanup + concurrency gate BEFORE charging credits.
-  const tenMinAgoPre = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-  await admin
-    .from("mait_scrape_jobs")
-    .update({ status: "failed", completed_at: new Date().toISOString(), error: "Timeout (stale)" })
-    .eq("competitor_id", competitor.id)
-    .eq("status", "running")
-    .lt("started_at", tenMinAgoPre);
+  // Batched flow: la rotta batch ha gia' fatto stale-cleanup,
+  // concurrency check, credit charge e job insert (con batch_id
+  // stamped). Saltiamo questi step e useremo job_id passato. Per
+  // single-brand flow tutto resta uguale.
+  const isBatched = !!parsed.data.batched && !!parsed.data.job_id;
 
-  const rate = await checkScanConcurrency(admin, {
-    workspaceId: competitor.workspace_id,
-    competitorId: competitor.id,
-  });
-  if (!rate.ok) {
-    return NextResponse.json({ error: rate.reason }, { status: 429 });
-  }
+  if (!isBatched) {
+    // Stale-job cleanup + concurrency gate BEFORE charging credits.
+    const tenMinAgoPre = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    await admin
+      .from("mait_scrape_jobs")
+      .update({ status: "failed", completed_at: new Date().toISOString(), error: "Timeout (stale)" })
+      .eq("competitor_id", competitor.id)
+      .eq("status", "running")
+      .lt("started_at", tenMinAgoPre);
 
-  const credits = await consumeCredits(user.id, "scan_instagram", `Instagram scan: ${competitor.page_name}`);
-  if (!credits.ok) {
-    return NextResponse.json({ error: "Insufficient credits", balance: credits.balance, cost: 2 }, { status: 402 });
+    const rate = await checkScanConcurrency(admin, {
+      workspaceId: competitor.workspace_id,
+      competitorId: competitor.id,
+    });
+    if (!rate.ok) {
+      return NextResponse.json({ error: rate.reason }, { status: 429 });
+    }
+
+    const credits = await consumeCredits(user.id, "scan_instagram", `Instagram scan: ${competitor.page_name}`);
+    if (!credits.ok) {
+      return NextResponse.json({ error: "Insufficient credits", balance: credits.balance, cost: 2 }, { status: 402 });
+    }
   }
 
   // Resolve instagram_username. If the stored value is a full URL or
@@ -140,35 +155,39 @@ export async function POST(req: Request) {
     );
   }
 
-  // Create job row (same pattern as Meta/Google scans). Persist the
-  // requested window so /competitors can show the period covered by
-  // the latest scan beneath the run date.
-  const { data: job, error: jobErr } = await admin
-    .from("mait_scrape_jobs")
-    .insert({
-      workspace_id: competitor.workspace_id,
-      competitor_id: competitor.id,
-      status: "running",
-      source: "instagram",
-      date_from: parsed.data.date_from ?? null,
-      date_to: parsed.data.date_to ?? null,
-    })
-    .select("id")
-    .single();
-
-  if (jobErr || !job) {
-    if ((jobErr as { code?: string } | null)?.code === "23505") {
-      await refundCredits(
-        user.id,
-        "scan_instagram",
-        `Instagram scan race-rejected: ${competitor.page_name}`,
+  // Job row: se in batch flow lo prendiamo da batch, altrimenti lo
+  // creiamo qui (single-brand flow standard).
+  let job: { id: string };
+  if (isBatched) {
+    job = { id: parsed.data.job_id as string };
+  } else {
+    const { data: jobIns, error: jobErr } = await admin
+      .from("mait_scrape_jobs")
+      .insert({
+        workspace_id: competitor.workspace_id,
+        competitor_id: competitor.id,
+        status: "running",
+        source: "instagram",
+        date_from: parsed.data.date_from ?? null,
+        date_to: parsed.data.date_to ?? null,
+      })
+      .select("id")
+      .single();
+    if (jobErr || !jobIns) {
+      if ((jobErr as { code?: string } | null)?.code === "23505") {
+        await refundCredits(
+          user.id,
+          "scan_instagram",
+          `Instagram scan race-rejected: ${competitor.page_name}`,
+        );
+        return NextResponse.json({ error: "already_running" }, { status: 429 });
+      }
+      return NextResponse.json(
+        { error: jobErr?.message ?? "Job error" },
+        { status: 500 }
       );
-      return NextResponse.json({ error: "already_running" }, { status: 429 });
     }
-    return NextResponse.json(
-      { error: jobErr?.message ?? "Job error" },
-      { status: 500 }
-    );
+    job = jobIns;
   }
 
   try {

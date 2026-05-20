@@ -38,7 +38,7 @@ export default async function CompetitorsPage() {
   ] = await Promise.all([
     supabase
       .from("mait_competitors")
-      .select("id, workspace_id, client_id, page_name, page_id, page_url, category, country, instagram_username, snapchat_handle, google_advertiser_id, google_domain, profile_picture_url, monitor_config, last_scraped_at, created_at")
+      .select("id, workspace_id, client_id, page_name, page_id, page_url, category, country, instagram_username, snapchat_handle, tiktok_username, youtube_channel_url, google_advertiser_id, google_domain, profile_picture_url, monitor_config, last_scraped_at, created_at")
       .eq("workspace_id", profile.workspace_id!)
       .order("page_name"),
     admin
@@ -187,6 +187,11 @@ export default async function CompetitorsPage() {
             google_advertiser_id: c.google_advertiser_id,
             google_domain: c.google_domain,
             snapchat_handle: c.snapchat_handle,
+            page_id: c.page_id,
+            page_url: c.page_url,
+            instagram_username: c.instagram_username,
+            tiktok_username: c.tiktok_username,
+            youtube_channel_url: c.youtube_channel_url,
             last_scraped_at: c.last_scraped_at,
           }))}
           clients={clients.map((c) => ({

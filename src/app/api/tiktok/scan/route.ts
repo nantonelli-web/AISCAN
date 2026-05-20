@@ -23,6 +23,11 @@ const schema = z.object({
   // wanted consistent scope display across channels).
   date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  // Batched flow flag: skip credit+job-row creation (gia' fatti dal
+  // batch endpoint), usa il job_id passato. Vedi commento in
+  // /api/instagram/scan/route.ts per dettagli.
+  batched: z.literal(true).optional(),
+  job_id: z.string().uuid().optional(),
 });
 
 export async function POST(req: Request) {
@@ -65,37 +70,43 @@ export async function POST(req: Request) {
 
   const admin = createAdminClient();
 
-  // Stale-job cleanup + concurrency gate BEFORE charging credits.
-  const tenMinAgoPre = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-  await admin
-    .from("mait_scrape_jobs")
-    .update({
-      status: "failed",
-      completed_at: new Date().toISOString(),
-      error: "Timeout (stale)",
-    })
-    .eq("competitor_id", competitor.id)
-    .eq("status", "running")
-    .lt("started_at", tenMinAgoPre);
+  // Batched flow: la rotta batch ha gia' fatto stale-cleanup,
+  // concurrency, charge crediti e job insert.
+  const isBatched = !!parsed.data.batched && !!parsed.data.job_id;
 
-  const rate = await checkScanConcurrency(admin, {
-    workspaceId: competitor.workspace_id,
-    competitorId: competitor.id,
-  });
-  if (!rate.ok) {
-    return NextResponse.json({ error: rate.reason }, { status: 429 });
-  }
+  if (!isBatched) {
+    // Stale-job cleanup + concurrency gate BEFORE charging credits.
+    const tenMinAgoPre = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    await admin
+      .from("mait_scrape_jobs")
+      .update({
+        status: "failed",
+        completed_at: new Date().toISOString(),
+        error: "Timeout (stale)",
+      })
+      .eq("competitor_id", competitor.id)
+      .eq("status", "running")
+      .lt("started_at", tenMinAgoPre);
 
-  const credits = await consumeCredits(
-    user.id,
-    "scan_tiktok",
-    `TikTok scan: ${competitor.page_name}`,
-  );
-  if (!credits.ok) {
-    return NextResponse.json(
-      { error: "Insufficient credits", balance: credits.balance, cost: 2 },
-      { status: 402 },
+    const rate = await checkScanConcurrency(admin, {
+      workspaceId: competitor.workspace_id,
+      competitorId: competitor.id,
+    });
+    if (!rate.ok) {
+      return NextResponse.json({ error: rate.reason }, { status: 429 });
+    }
+
+    const credits = await consumeCredits(
+      user.id,
+      "scan_tiktok",
+      `TikTok scan: ${competitor.page_name}`,
     );
+    if (!credits.ok) {
+      return NextResponse.json(
+        { error: "Insufficient credits", balance: credits.balance, cost: 2 },
+        { status: 402 },
+      );
+    }
   }
 
   // Resolve tiktok_username, normalising legacy entries the same way the
@@ -132,36 +143,38 @@ export async function POST(req: Request) {
     );
   }
 
-  // Create job row. Date range is persisted when supplied so the
-  // history chip can render DD/MM → DD/MM (same as the paid +
-  // Instagram scans). Records get filtered by posted_at below
-  // before persistence.
-  const { data: job, error: jobErr } = await admin
-    .from("mait_scrape_jobs")
-    .insert({
-      workspace_id: competitor.workspace_id,
-      competitor_id: competitor.id,
-      status: "running",
-      source: "tiktok",
-      date_from: parsed.data.date_from ?? null,
-      date_to: parsed.data.date_to ?? null,
-    })
-    .select("id")
-    .single();
-
-  if (jobErr || !job) {
-    await refundCredits(
-      user.id,
-      "scan_tiktok",
-      `TikTok scan: ${competitor.page_name}`,
-    );
-    if ((jobErr as { code?: string } | null)?.code === "23505") {
-      return NextResponse.json({ error: "already_running" }, { status: 429 });
+  // Job row: in batched flow viene da batch, altrimenti creiamo qui.
+  let job: { id: string };
+  if (isBatched) {
+    job = { id: parsed.data.job_id as string };
+  } else {
+    const { data: jobIns, error: jobErr } = await admin
+      .from("mait_scrape_jobs")
+      .insert({
+        workspace_id: competitor.workspace_id,
+        competitor_id: competitor.id,
+        status: "running",
+        source: "tiktok",
+        date_from: parsed.data.date_from ?? null,
+        date_to: parsed.data.date_to ?? null,
+      })
+      .select("id")
+      .single();
+    if (jobErr || !jobIns) {
+      await refundCredits(
+        user.id,
+        "scan_tiktok",
+        `TikTok scan: ${competitor.page_name}`,
+      );
+      if ((jobErr as { code?: string } | null)?.code === "23505") {
+        return NextResponse.json({ error: "already_running" }, { status: 429 });
+      }
+      return NextResponse.json(
+        { error: jobErr?.message ?? "Job error" },
+        { status: 500 },
+      );
     }
-    return NextResponse.json(
-      { error: jobErr?.message ?? "Job error" },
-      { status: 500 },
-    );
+    job = jobIns;
   }
 
   try {

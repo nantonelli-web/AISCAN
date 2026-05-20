@@ -63,6 +63,11 @@ interface BrandRow {
   google_advertiser_id: string | null;
   google_domain: string | null;
   snapchat_handle: string | null;
+  page_id: string | null;
+  page_url: string | null;
+  instagram_username: string | null;
+  tiktok_username: string | null;
+  youtube_channel_url: string | null;
   last_scraped_at: string | null;
 }
 
@@ -121,44 +126,11 @@ interface ChannelOption {
 
 const CHANNELS: ChannelOption[] = [
   { key: "google", label: "Google Ads", available: true, costPerScan: 2 },
-  {
-    key: "snapchat",
-    label: "Snapchat",
-    available: true,
-    costPerScan: 1,
-  },
-  {
-    key: "meta",
-    label: "Meta Ads",
-    available: false,
-    costPerScan: 5,
-    comingNote:
-      "Meta scan e' sync con timeout 5min — batch richiede refactor async (pipeline Apify start+webhook)",
-  },
-  {
-    key: "instagram",
-    label: "Instagram",
-    available: false,
-    costPerScan: 2,
-    comingNote:
-      "Batch IG in arrivo dopo refactor async (pipeline Apify start+webhook)",
-  },
-  {
-    key: "tiktok",
-    label: "TikTok",
-    available: false,
-    costPerScan: 2,
-    comingNote:
-      "Batch TT in arrivo dopo refactor async (pipeline Apify start+webhook)",
-  },
-  {
-    key: "youtube",
-    label: "YouTube",
-    available: false,
-    costPerScan: 1,
-    comingNote:
-      "Batch YT in arrivo dopo refactor async (pipeline Apify start+webhook)",
-  },
+  { key: "meta", label: "Meta Ads", available: true, costPerScan: 5 },
+  { key: "instagram", label: "Instagram", available: true, costPerScan: 2 },
+  { key: "tiktok", label: "TikTok", available: true, costPerScan: 2 },
+  { key: "snapchat", label: "Snapchat", available: true, costPerScan: 1 },
+  { key: "youtube", label: "YouTube", available: true, costPerScan: 1 },
 ];
 
 function reasonLabel(r: string): string {
@@ -186,10 +158,13 @@ function hasChannelConfig(brand: BrandRow, channel: Channel): boolean {
     case "snapchat":
       return !!brand.snapchat_handle;
     case "meta":
+      return !!(brand.page_id || brand.page_url);
     case "instagram":
+      return !!brand.instagram_username;
     case "tiktok":
+      return !!brand.tiktok_username;
     case "youtube":
-      return false; // batch non ancora supportato per questi canali
+      return !!brand.youtube_channel_url;
   }
 }
 
@@ -199,8 +174,14 @@ function batchEndpointFor(channel: Channel): string | null {
       return "/api/apify/scan-google/batch";
     case "snapchat":
       return "/api/snapchat/scan/batch";
-    default:
-      return null;
+    case "meta":
+      return "/api/apify/scan/batch";
+    case "instagram":
+      return "/api/instagram/scan/batch";
+    case "tiktok":
+      return "/api/tiktok/scan/batch";
+    case "youtube":
+      return "/api/youtube/scan/batch";
   }
 }
 
@@ -383,16 +364,18 @@ export function BatchScanPanel({
     }
     setSubmitting(true);
     try {
-      // Body differente per canale. Google: include max_items + range
-      // (sono parametri di scrape). Snapchat: solo competitor_ids
-      // (scan profilo, niente parametri di range).
+      // Body per canale:
+      //  - Snapchat: solo competitor_ids (scan profilo, niente range)
+      //  - Google: max_items + range (sono parametri di scrape)
+      //  - Meta/IG/TT/YT: range + max_items (filtri client-side
+      //    post-fetch nei rispettivi /scan endpoints)
       const body: Record<string, unknown> = {
         competitor_ids: Array.from(selected),
       };
-      if (channel === "google") {
-        body.max_items = 500;
+      if (channel !== "snapchat") {
         body.date_from = effectiveFrom;
         body.date_to = effectiveTo;
+        body.max_items = channel === "google" ? 500 : 100;
       }
       const res = await fetch(endpoint, {
         method: "POST",
