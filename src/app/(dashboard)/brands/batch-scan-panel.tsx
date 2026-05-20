@@ -207,6 +207,7 @@ export function BatchScanPanel({
   const [submitting, setSubmitting] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [reconciling, setReconciling] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
   const [batchId, setBatchId] = useState<string | null>(null);
   // Canale del batch in corso. Necessario per il polling URL: ogni
   // canale ha il proprio endpoint /api/.../batch?batch_id=. Lo
@@ -476,6 +477,46 @@ export function BatchScanPanel({
     }
   }
 
+  /**
+   * Cleanup zombi Pattern B: job 'running' del workspace con
+   * batch_id stamped + source IN (meta/IG/TT/YT) + started_at
+   * >5min ago. Vengono marcati 'failed' + i crediti rifondati.
+   * Solo per il workspace dell'utente (RLS via cookie auth).
+   */
+  async function cleanupZombies() {
+    setCleaning(true);
+    const toastId = toast.loading("Pulisco i job in stallo…");
+    try {
+      const res = await fetch("/api/scan/batch/cleanup", {
+        method: "POST",
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        toast.error(j.error ?? "Cleanup failed", { id: toastId });
+        return;
+      }
+      if (j.cleaned === 0) {
+        toast.success("Nessun job in stallo da pulire.", { id: toastId });
+      } else {
+        toast.success(
+          `Puliti ${j.cleaned} job in stallo, ${j.refunded} crediti rifondati.`,
+          { id: toastId, duration: 8000 },
+        );
+        // Reset state + refresh per far sparire la UI batch corrotta
+        setBatchId(null);
+        setBatchChannel(null);
+        setPollResult(null);
+        router.refresh();
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Network error", {
+        id: toastId,
+      });
+    } finally {
+      setCleaning(false);
+    }
+  }
+
   async function stopBatch() {
     if (!batchId) return;
     const ok = window.confirm(
@@ -676,6 +717,32 @@ export function BatchScanPanel({
 
         {open && (
           <>
+            {/* Cleanup row: sempre visibile quando il pannello e' aperto.
+                Permette di pulire job 'running' del workspace bloccati
+                in stallo (es. dispatch batch fallito senza retry auto-
+                cleanup ancora attivo). Affidabile via UI invece che via
+                console JS. */}
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border bg-muted/40 px-3 py-2">
+              <p className="text-[11.5px] text-muted-foreground leading-relaxed">
+                <strong className="text-foreground">In stallo?</strong>{" "}
+                Pulisci i job Pattern B (Meta/IG/TT/YT) rimasti 'running' da piu' di 5 min — rifondi i crediti e libera i brand per nuove scansioni.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={cleanupZombies}
+                disabled={cleaning}
+                className="shrink-0 gap-1.5"
+              >
+                {cleaning ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="size-3.5" />
+                )}
+                Pulisci batch in stallo
+              </Button>
+            </div>
+
             {/* Stato batch (post-launch): progress bar prominente,
                 counter sobri, bottone Stop in bianco col bordo rosso
                 cosi' contrasta sul viola del Card parent. */}
