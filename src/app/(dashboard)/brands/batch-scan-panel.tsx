@@ -725,7 +725,7 @@ export function BatchScanPanel({
             <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border bg-muted/40 px-3 py-2">
               <p className="text-[11.5px] text-muted-foreground leading-relaxed">
                 <strong className="text-foreground">In stallo?</strong>{" "}
-                Pulisci i job Pattern B (Meta/IG/TT/YT) rimasti 'running' da piu' di 5 min — rifondi i crediti e libera i brand per nuove scansioni.
+                {"Pulisci i job Pattern B (Meta/IG/TT/YT) rimasti 'running' da piu' di 5 min — rifondi i crediti e libera i brand per nuove scansioni."}
               </p>
               <Button
                 variant="outline"

@@ -2,6 +2,7 @@ import {
   dispatchAsyncBatch,
   getBatchStatus,
 } from "@/lib/apify/batch-dispatch";
+import { POST as youtubeScanHandler } from "@/app/api/youtube/scan/route";
 
 // 300s: il batch endpoint risponde subito al client, poi vive in
 // after() per le ~90s necessarie a tutti gli scan paralleli.
@@ -26,6 +27,7 @@ export async function POST(req: Request) {
     selectFields: "id, workspace_id, page_name, youtube_channel_url",
     hasChannelConfig: (c) => !!c.youtube_channel_url,
     internalScanPath: "/api/youtube/scan",
+    scanHandler: youtubeScanHandler,
     buildScanBody: (c, batch) => ({
       max_videos: batch.max_items ?? undefined,
     }),

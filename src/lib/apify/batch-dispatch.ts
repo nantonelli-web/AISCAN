@@ -14,7 +14,6 @@
  * scan lento" — IG/TT/YT/Meta.
  */
 import { NextResponse, after } from "next/server";
-import { cookies } from "next/headers";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
@@ -111,10 +110,18 @@ export interface DispatchBatchConfig<C extends { id: string; page_name: string |
   selectFields: string;
   /** Predicato che valida la presenza della config canale per il brand. */
   hasChannelConfig: (c: C) => boolean;
-  /** Endpoint interno per per-brand scan. Es: "/api/instagram/scan". */
+  /** Path canonico della rotta /scan per-brand. Usato SOLO come stringa
+   *  identificativa nel Request synthesizzato (NEXT_PUBLIC_APP_URL +
+   *  questo path). Non viene mai fetched via HTTP. */
   internalScanPath: string;
-  /** Costruisce il body JSON da inviare al per-brand scan. Il flag
-   *  `batched: true` + `job_id` vengono aggiunti automaticamente. */
+  /** Handler diretto della rotta /scan per-brand (POST function importata
+   *  dal route module). Chiamato direttamente da after() senza HTTP.
+   *  Vedi 2026-05-20: il pattern fetch+keepalive su Vercel non riusciva
+   *  ad attivare il container target. Direct call bypassa il problema. */
+  scanHandler: (req: Request) => Promise<Response>;
+  /** Costruisce il body JSON aggiuntivo da passare al per-brand scan.
+   *  Il flag `batched: true` + `job_id` + date vengono aggiunti automa-
+   *  ticamente da dispatchAsyncBatch. */
   buildScanBody?: (c: C, batchInput: BatchSchema) => Record<string, unknown>;
   /** Etichetta umana per i log + crediti, es: "Instagram". */
   channelLabel: string;
@@ -280,38 +287,11 @@ export async function dispatchAsyncBatch<
     compToJob.set(j.competitor_id, j.id);
   }
 
-  // Auth cookie forwarding per le internal fetch
-  const cookieStore = await cookies();
-  const cookieHeader = cookieStore
-    .getAll()
-    .map((c) => `${c.name}=${c.value}`)
-    .join("; ");
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
-  if (!appUrl) {
-    // Refund tutti i charge, mark tutti i job come failed.
-    for (const c of toLaunch) {
-      const jobId = compToJob.get(c.id);
-      if (jobId) {
-        await admin
-          .from("mait_scrape_jobs")
-          .update({
-            status: "failed",
-            completed_at: new Date().toISOString(),
-            error: "NEXT_PUBLIC_APP_URL non configurato sul deploy",
-          })
-          .eq("id", jobId);
-      }
-      await refundOneBatchCredit(
-        user.id,
-        cfg.source,
-        `${cfg.channelLabel} batch: app URL missing`,
-      );
-    }
-    return NextResponse.json(
-      { error: "NEXT_PUBLIC_APP_URL non configurato." },
-      { status: 503 },
-    );
-  }
+  // Niente piu' cookie forwarding ne' appUrl — le scan vengono
+  // chiamate via direct function call dentro after(), che mantiene
+  // accesso ai cookies() del request originale via next/headers
+  // context.
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "") || "http://localhost";
 
   // Lista dei brand per cui consideriamo lo scan "lanciato" — il
   // batch endpoint torna SUBITO al client con questa lista,
@@ -352,7 +332,7 @@ export async function dispatchAsyncBatch<
 
   after(async () => {
     console.log(
-      `[Batch ${cfg.channelLabel}] after() entered, dispatching ${toLaunch.length} scans`,
+      `[Batch ${cfg.channelLabel}] after() entered, dispatching ${toLaunch.length} scans via direct call`,
     );
     await Promise.allSettled(
       toLaunch.map(async (c) => {
@@ -360,12 +340,15 @@ export async function dispatchAsyncBatch<
         if (!jobId) return;
         const extraBody = cfg.buildScanBody ? cfg.buildScanBody(c, parsed.data) : {};
         try {
-          const res = await fetch(`${appUrl}${cfg.internalScanPath}`, {
+          // DIRECT CALL: niente fetch HTTP, chiamiamo la funzione
+          // POST del scan route direttamente con un Request synthesi-
+          // zzato. cookies()/headers() rimangono accessibili nel
+          // after() context, quindi il createClient() dentro la
+          // scan route vede gli stessi cookie dell'utente che ha
+          // lanciato il batch.
+          const req = new Request(`${appUrl}${cfg.internalScanPath}`, {
             method: "POST",
-            headers: {
-              "content-type": "application/json",
-              cookie: cookieHeader,
-            },
+            headers: { "content-type": "application/json" },
             body: JSON.stringify({
               competitor_id: c.id,
               batched: true,
@@ -375,17 +358,16 @@ export async function dispatchAsyncBatch<
               ...extraBody,
             }),
           });
+          const res = await cfg.scanHandler(req);
+          const elapsed = Math.round((Date.now() - new Date(launchedAt).getTime()) / 1000);
           if (!res.ok) {
             const txt = await res.text().catch(() => "");
             console.error(
-              `[Batch ${cfg.channelLabel}] scan ${c.id} non-2xx: ${res.status} ${txt.slice(0, 200)}`,
+              `[Batch ${cfg.channelLabel}] scan ${c.id} non-2xx: ${res.status} ${txt.slice(0, 200)} (after ${elapsed}s)`,
             );
-            // Il /scan ha gestito il suo errore lato suo (status
-            // dovrebbe gia' essere 'failed' e crediti rifondati
-            // dal flow per-brand). Niente da fare qui — solo log.
           } else {
             console.log(
-              `[Batch ${cfg.channelLabel}] scan ${c.id} completed (took ${Math.round((Date.now() - new Date(launchedAt).getTime()) / 1000)}s)`,
+              `[Batch ${cfg.channelLabel}] scan ${c.id} completed (took ${elapsed}s)`,
             );
           }
         } catch (err) {
@@ -393,9 +375,8 @@ export async function dispatchAsyncBatch<
             `[Batch ${cfg.channelLabel}] dispatch error for ${c.id}:`,
             err instanceof Error ? err.message : err,
           );
-          // Mark il job come failed se non gia' marcato dal /scan
-          // route stesso (es. la fetch e' fallita PRIMA di
-          // raggiungere il /scan container — DNS, network).
+          // Mark il job come failed e refund — la scan handler ha
+          // lanciato un'eccezione invece di gestire l'errore.
           await admin
             .from("mait_scrape_jobs")
             .update({

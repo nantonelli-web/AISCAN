@@ -2,6 +2,7 @@ import {
   dispatchAsyncBatch,
   getBatchStatus,
 } from "@/lib/apify/batch-dispatch";
+import { POST as instagramScanHandler } from "@/app/api/instagram/scan/route";
 
 // 300s: il batch endpoint risponde subito al client, poi vive in
 // after() per le ~90s necessarie a tutti gli scan paralleli.
@@ -33,6 +34,7 @@ export async function POST(req: Request) {
     selectFields: "id, workspace_id, page_name, instagram_username",
     hasChannelConfig: (c) => !!c.instagram_username,
     internalScanPath: "/api/instagram/scan",
+    scanHandler: instagramScanHandler,
     buildScanBody: (c, batch) => ({
       max_posts: batch.max_items ?? undefined,
     }),

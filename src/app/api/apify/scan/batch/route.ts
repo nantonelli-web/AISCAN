@@ -2,6 +2,7 @@ import {
   dispatchAsyncBatch,
   getBatchStatus,
 } from "@/lib/apify/batch-dispatch";
+import { POST as metaScanHandler } from "@/app/api/apify/scan/route";
 
 // 300s: il batch endpoint risponde subito al client, poi vive in
 // after() per le ~90s necessarie a tutti gli scan paralleli.
@@ -30,6 +31,7 @@ export async function POST(req: Request) {
     selectFields: "id, workspace_id, page_name, page_id, page_url",
     hasChannelConfig: (c) => !!(c.page_id || c.page_url),
     internalScanPath: "/api/apify/scan",
+    scanHandler: metaScanHandler,
     buildScanBody: (c, batch) => ({
       max_items: batch.max_items ?? undefined,
     }),
