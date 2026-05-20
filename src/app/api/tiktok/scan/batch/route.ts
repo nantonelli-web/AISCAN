@@ -3,7 +3,9 @@ import {
   getBatchStatus,
 } from "@/lib/apify/batch-dispatch";
 
-export const maxDuration = 30;
+// 300s: il batch endpoint risponde subito al client, poi vive in
+// after() per le ~90s necessarie a tutti gli scan paralleli.
+export const maxDuration = 300;
 
 /**
  * POST /api/tiktok/scan/batch

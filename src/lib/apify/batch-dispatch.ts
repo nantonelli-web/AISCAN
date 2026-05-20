@@ -13,7 +13,7 @@
  * webhook). Questo helper e' specifico per la categoria "sync
  * scan lento" — IG/TT/YT/Meta.
  */
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { cookies } from "next/headers";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -246,50 +246,89 @@ export async function dispatchAsyncBatch<
     );
   }
 
-  const started: Array<{ competitor_id: string; job_id: string; page_name: string | null }> = [];
-
-  // Fire-and-forget: lanciamo TUTTE le fetch in parallelo con
-  // keepalive + abort 3s. La request raggiunge il container, parte
-  // la function (con suo maxDuration 300s), il batch endpoint puo'
-  // tornare subito senza aspettare lo scan completo.
-  await Promise.all(
-    toLaunch.map(async (c) => {
+  // Lista dei brand per cui consideriamo lo scan "lanciato" — il
+  // batch endpoint torna SUBITO al client con questa lista,
+  // mentre il vero dispatch via fetch avviene in after() dopo
+  // la response.
+  const started = toLaunch
+    .map((c) => {
       const jobId = compToJob.get(c.id);
-      if (!jobId) return;
-      const ctrl = new AbortController();
-      const tmr = setTimeout(() => ctrl.abort(), 3000);
-      const extraBody = cfg.buildScanBody ? cfg.buildScanBody(c, parsed.data) : {};
-      try {
-        await fetch(`${appUrl}${cfg.internalScanPath}`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            cookie: cookieHeader,
-          },
-          body: JSON.stringify({
-            competitor_id: c.id,
-            batched: true,
-            job_id: jobId,
-            date_from: parsed.data.date_from,
-            date_to: parsed.data.date_to,
-            ...extraBody,
-          }),
-          signal: ctrl.signal,
-          keepalive: true,
-        });
-        started.push({ competitor_id: c.id, job_id: jobId, page_name: c.page_name });
-      } catch (err) {
-        const isAbort = err instanceof Error && err.name === "AbortError";
-        if (isAbort) {
-          // Expected: 3s abort dopo che la request e' partita.
-          started.push({ competitor_id: c.id, job_id: jobId, page_name: c.page_name });
-        } else {
-          // Fetch fallita davvero (es. DNS fail, network error). Mark
-          // il job come failed e refund.
+      return jobId
+        ? { competitor_id: c.id, job_id: jobId, page_name: c.page_name }
+        : null;
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+
+  console.log(
+    `[Batch ${cfg.channelLabel}] batchId=${batchId} pre-dispatch started=${started.length}`,
+  );
+
+  // CRITICO: usiamo Next.js after() per schedulare le fetch DOPO
+  // aver risposto al client. La funzione vive fino a maxDuration
+  // grazie a after() — possiamo awaitare le 10 scan in parallelo
+  // (~90s ognuna) senza tenere bloccato il client.
+  //
+  // Perche' non fire-and-forget con keepalive+abort: in Vercel
+  // Node runtime, quando il batch endpoint risponde, il container
+  // puo' uccidere le fetch in-flight ANCHE con keepalive=true,
+  // specialmente se abortite immediatamente (il container vede
+  // la connection chiusa client-side e non avvia il /scan).
+  // Risultato: il /scan container non viene mai invocato, lo scan
+  // non parte mai. Bug osservato in produzione 2026-05-20.
+  //
+  // after() risolve mantenendo viva la function batch per tutto
+  // maxDuration, durante il quale le fetch verso /scan partono
+  // davvero, raggiungono il container target, attivano la
+  // function destinataria che fa il suo full 300s di lavoro
+  // indipendentemente.
+  const launchedAt = new Date().toISOString();
+
+  after(async () => {
+    console.log(
+      `[Batch ${cfg.channelLabel}] after() entered, dispatching ${toLaunch.length} scans`,
+    );
+    await Promise.allSettled(
+      toLaunch.map(async (c) => {
+        const jobId = compToJob.get(c.id);
+        if (!jobId) return;
+        const extraBody = cfg.buildScanBody ? cfg.buildScanBody(c, parsed.data) : {};
+        try {
+          const res = await fetch(`${appUrl}${cfg.internalScanPath}`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              cookie: cookieHeader,
+            },
+            body: JSON.stringify({
+              competitor_id: c.id,
+              batched: true,
+              job_id: jobId,
+              date_from: parsed.data.date_from,
+              date_to: parsed.data.date_to,
+              ...extraBody,
+            }),
+          });
+          if (!res.ok) {
+            const txt = await res.text().catch(() => "");
+            console.error(
+              `[Batch ${cfg.channelLabel}] scan ${c.id} non-2xx: ${res.status} ${txt.slice(0, 200)}`,
+            );
+            // Il /scan ha gestito il suo errore lato suo (status
+            // dovrebbe gia' essere 'failed' e crediti rifondati
+            // dal flow per-brand). Niente da fare qui — solo log.
+          } else {
+            console.log(
+              `[Batch ${cfg.channelLabel}] scan ${c.id} completed (took ${Math.round((Date.now() - new Date(launchedAt).getTime()) / 1000)}s)`,
+            );
+          }
+        } catch (err) {
           console.error(
-            `[Batch ${cfg.channelLabel}] dispatch failed for ${c.id}:`,
+            `[Batch ${cfg.channelLabel}] dispatch error for ${c.id}:`,
             err instanceof Error ? err.message : err,
           );
+          // Mark il job come failed se non gia' marcato dal /scan
+          // route stesso (es. la fetch e' fallita PRIMA di
+          // raggiungere il /scan container — DNS, network).
           await admin
             .from("mait_scrape_jobs")
             .update({
@@ -297,28 +336,20 @@ export async function dispatchAsyncBatch<
               completed_at: new Date().toISOString(),
               error: err instanceof Error ? err.message : "Dispatch failed",
             })
-            .eq("id", jobId);
+            .eq("id", jobId)
+            .eq("status", "running");
           await refundOneBatchCredit(
             user.id,
             cfg.source,
             `${cfg.channelLabel} dispatch failed: ${c.page_name}`,
           );
-          skipped.push({
-            competitor_id: c.id,
-            page_name: c.page_name,
-            reason: "start_failed",
-            detail: err instanceof Error ? err.message : "Dispatch failed",
-          });
         }
-      } finally {
-        clearTimeout(tmr);
-      }
-    }),
-  );
-
-  console.log(
-    `[Batch ${cfg.channelLabel}] batchId=${batchId} started=${started.length} skipped=${skipped.length}`,
-  );
+      }),
+    );
+    console.log(
+      `[Batch ${cfg.channelLabel}] after() finished, batchId=${batchId}`,
+    );
+  });
 
   return NextResponse.json({
     ok: true,
