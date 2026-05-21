@@ -415,9 +415,123 @@ export async function dispatchAsyncBatch<
 }
 
 /**
+ * Reconcile auto: per i job 'running' del batch piu' vecchi di
+ * 5 minuti, controlla se ci sono record salvati nella tabella
+ * dati per quel competitor dopo job.started_at. Se si' → mark
+ * 'succeeded' con il count reale. Se no → mark 'failed' + refund.
+ *
+ * Necessario perche' su Vercel un singolo scan Pattern B che
+ * dura piu' del maxDuration del batch endpoint (300s) viene
+ * killato a meta', lasciando il job in 'running' indefinitamente
+ * anche se Apify ha gia' completato e potrebbe aver salvato i
+ * dati nel DB (l'update di status pero' non e' arrivato).
+ */
+async function reconcileStuckBatchJobs(
+  batchId: string,
+  source: BatchSource,
+  admin: ReturnType<typeof createAdminClient>,
+): Promise<{ reconciled: number; recovered: number; failed: number }> {
+  const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  const { data: stuck } = await admin
+    .from("mait_scrape_jobs")
+    .select("id, competitor_id, source, created_by, started_at")
+    .eq("batch_id", batchId)
+    .eq("source", source)
+    .eq("status", "running")
+    .lt("started_at", cutoff);
+
+  const list = (stuck ?? []) as Array<{
+    id: string;
+    competitor_id: string;
+    source: string;
+    created_by: string | null;
+    started_at: string;
+  }>;
+  if (list.length === 0) return { reconciled: 0, recovered: 0, failed: 0 };
+
+  // Mappa source → query: dove andare a cercare i record per capire
+  // se lo scan ha salvato qualcosa prima di essere killato.
+  let recovered = 0;
+  let failed = 0;
+  for (const j of list) {
+    let count = 0;
+    if (source === "instagram" || source === "tiktok" || source === "youtube") {
+      const platform = source;
+      const { count: c } = await admin
+        .from("mait_organic_posts")
+        .select("post_id", { count: "exact", head: true })
+        .eq("competitor_id", j.competitor_id)
+        .eq("platform", platform)
+        .gt("created_at", j.started_at);
+      count = c ?? 0;
+    } else if (source === "meta") {
+      const { count: c } = await admin
+        .from("mait_ads_external")
+        .select("ad_archive_id", { count: "exact", head: true })
+        .eq("competitor_id", j.competitor_id)
+        .gt("created_at", j.started_at);
+      count = c ?? 0;
+    }
+
+    if (count > 0) {
+      // Recovered — Apify completo' + l'upsert ando' bene, solo la
+      // job-row update e' mancata.
+      await admin
+        .from("mait_scrape_jobs")
+        .update({
+          status: "succeeded",
+          completed_at: new Date().toISOString(),
+          records_count: count,
+          error:
+            "Recovered post-mortem (function timeout): records present in DB",
+        })
+        .eq("id", j.id);
+      // Aggiorna anche last_scraped_at sul competitor — il
+      // handler avrebbe fatto questo ma e' morto prima.
+      await admin
+        .from("mait_competitors")
+        .update({ last_scraped_at: new Date().toISOString() })
+        .eq("id", j.competitor_id);
+      recovered++;
+    } else {
+      // No records: lo scan e' morto prima di salvare alcunche'.
+      await admin
+        .from("mait_scrape_jobs")
+        .update({
+          status: "failed",
+          completed_at: new Date().toISOString(),
+          error: "Stuck: function timeout, no records found in DB",
+        })
+        .eq("id", j.id);
+      if (j.created_by) {
+        try {
+          await refundCredits(
+            j.created_by,
+            `scan_${j.source}` as CreditAction,
+            `Batch reconcile: ${j.source} timeout`,
+          );
+        } catch (e) {
+          console.error(`[batch reconcile] refund failed:`, e);
+        }
+      }
+      failed++;
+    }
+  }
+  console.log(
+    `[batch reconcile] batchId=${batchId} source=${source} stuck=${list.length} recovered=${recovered} failed=${failed}`,
+  );
+  return { reconciled: list.length, recovered, failed };
+}
+
+/**
  * GET handler condiviso: ritorna lo stato del batch in modo
  * polling-friendly. Stessa shape di /api/snapchat/scan/batch e
  * /api/apify/scan-google/batch.
+ *
+ * Effetto collaterale: chiama reconcileStuckBatchJobs() per ripulire
+ * job 'running' bloccati >5min. Cosi' la UI di polling vede un
+ * batch progredire verso completion anche se le scan functions
+ * sono state killate dal maxDuration timeout.
  */
 export async function getBatchStatus(req: Request, source: BatchSource) {
   const url = new URL(req.url);
@@ -435,6 +549,13 @@ export async function getBatchStatus(req: Request, source: BatchSource) {
   }
 
   const admin = createAdminClient();
+
+  // Reconcile auto i job stuck (function timeout) prima di ritornare
+  // lo status — il polling polla ogni 8s, quindi al massimo l'utente
+  // aspetta una decina di secondi prima che la UI mostri il vero
+  // outcome dei job killati a meta'.
+  await reconcileStuckBatchJobs(batchId, source, admin);
+
   const { data: jobs } = await admin
     .from("mait_scrape_jobs")
     .select("id, competitor_id, status, records_count, error, started_at, completed_at")
