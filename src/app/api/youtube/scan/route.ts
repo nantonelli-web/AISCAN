@@ -318,11 +318,16 @@ export async function POST(req: Request) {
       const storedUrls = new Map(
         mediaRows.map((m) => [m.ad_archive_id, m.image_url]),
       );
+      // Bumped on every upsert (anche sui video gia' esistenti) cosi'
+      // il batch reconcile distingue una ri-scansione riuscita da un
+      // job morto prima di salvare. Vedi mait_ads_external / 0057.
+      const seenAt = new Date().toISOString();
       const rows = filteredVideos.map((v) => ({
         ...v,
         thumbnail_url: storedUrls.get(v.video_id) ?? v.thumbnail_url,
         workspace_id: competitor.workspace_id,
         competitor_id: competitor.id,
+        last_seen_in_scan_at: seenAt,
       }));
 
       const { error: upErr } = await admin

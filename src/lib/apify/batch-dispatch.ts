@@ -451,25 +451,52 @@ async function reconcileStuckBatchJobs(
 
   // Mappa source → query: dove andare a cercare i record per capire
   // se lo scan ha salvato qualcosa prima di essere killato.
+  //
+  // CHANNEL SEPARATION: ogni canale ha la SUA tabella e la sua chiave —
+  // NON condividono mait_organic_posts. (organic IG -> mait_organic_posts,
+  // TikTok -> mait_tiktok_posts, YouTube -> mait_youtube_videos, Meta ->
+  // mait_ads_external con source='meta', che convive coi Google ads).
+  //
+  // SEGNALE: usiamo last_seen_in_scan_at, NON created_at. Gli upsert
+  // bumpano last_seen_in_scan_at a ogni passaggio (anche sui record
+  // gia' esistenti ri-scansionati), mentre created_at resta fermo. Una
+  // ri-scansione che ritrova solo post gia' noti salverebbe 0 righe
+  // "nuove" -> con created_at verrebbe marcata erroneamente 'failed'
+  // + refund indebito, pur avendo funzionato. last_seen_in_scan_at
+  // cattura correttamente "questo scan ha toccato dati".
   let recovered = 0;
   let failed = 0;
   for (const j of list) {
     let count = 0;
-    if (source === "instagram" || source === "tiktok" || source === "youtube") {
-      const platform = source;
+    if (source === "instagram") {
       const { count: c } = await admin
         .from("mait_organic_posts")
         .select("post_id", { count: "exact", head: true })
         .eq("competitor_id", j.competitor_id)
-        .eq("platform", platform)
-        .gt("created_at", j.started_at);
+        .eq("platform", "instagram")
+        .gt("last_seen_in_scan_at", j.started_at);
+      count = c ?? 0;
+    } else if (source === "tiktok") {
+      const { count: c } = await admin
+        .from("mait_tiktok_posts")
+        .select("post_id", { count: "exact", head: true })
+        .eq("competitor_id", j.competitor_id)
+        .gt("last_seen_in_scan_at", j.started_at);
+      count = c ?? 0;
+    } else if (source === "youtube") {
+      const { count: c } = await admin
+        .from("mait_youtube_videos")
+        .select("video_id", { count: "exact", head: true })
+        .eq("competitor_id", j.competitor_id)
+        .gt("last_seen_in_scan_at", j.started_at);
       count = c ?? 0;
     } else if (source === "meta") {
       const { count: c } = await admin
         .from("mait_ads_external")
         .select("ad_archive_id", { count: "exact", head: true })
         .eq("competitor_id", j.competitor_id)
-        .gt("created_at", j.started_at);
+        .eq("source", "meta")
+        .gt("last_seen_in_scan_at", j.started_at);
       count = c ?? 0;
     }
 

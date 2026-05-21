@@ -304,12 +304,18 @@ export async function POST(req: Request) {
 
       // Apply stored URLs back to records
       const storedUrls = new Map(mediaRows.map((m) => [m.ad_archive_id, m.image_url]));
+      // Stamp the moment we touched each post in this scan. Bumped on
+      // every upsert (also for already-existing posts re-scanned), so
+      // the batch reconcile can tell a successful re-scan from a job
+      // that died before saving anything. Mirrors mait_ads_external.
+      const seenAt = new Date().toISOString();
       const rows = result.records.map((r) => ({
         ...r,
         display_url: storedUrls.get(r.post_id) ?? r.display_url,
         workspace_id: competitor.workspace_id,
         competitor_id: competitor.id,
         platform: "instagram" as const,
+        last_seen_in_scan_at: seenAt,
       }));
 
       console.log(`[Instagram route] Upserting ${rows.length} posts...`);
