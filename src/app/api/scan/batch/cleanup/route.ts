@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { refundCredits } from "@/lib/credits/consume";
-import type { CreditAction } from "@/config/pricing";
+import { resolveStuckBatchJob } from "@/lib/apify/batch-dispatch";
 
 /**
  * POST /api/scan/batch/cleanup
@@ -19,9 +18,11 @@ import type { CreditAction } from "@/config/pricing";
  *   - source IN (meta, instagram, tiktok, youtube)
  *   - started_at < NOW() - 5 minutes
  *
- * Marca come 'failed' e rifonde i crediti via refundCredits()
- * (che usa la RPC mait_add_credits per coerenza con il pattern
- * esistente).
+ * Per ogni job delega a resolveStuckBatchJob() (logica condivisa con
+ * l'auto-reconcile): RECUPERA i job il cui scan aveva gia' salvato
+ * dati (mark 'succeeded') e marca 'failed' + rifonde solo quelli senza
+ * dati. Niente piu' fail+refund cieco: dopo un crash il recupero
+ * manuale non scarta gli scan riusciti.
  */
 export const maxDuration = 30;
 
@@ -48,7 +49,7 @@ export async function POST() {
   const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
   const { data: zombies } = await admin
     .from("mait_scrape_jobs")
-    .select("id, source, created_by, competitor_id")
+    .select("id, source, created_by, competitor_id, started_at")
     .eq("workspace_id", workspaceId)
     .eq("status", "running")
     .not("batch_id", "is", null)
@@ -60,43 +61,36 @@ export async function POST() {
     source: string;
     created_by: string | null;
     competitor_id: string;
+    started_at: string;
   }>;
 
   if (list.length === 0) {
     return NextResponse.json({
       ok: true,
       cleaned: 0,
+      recovered: 0,
+      failed: 0,
       refunded: 0,
-      message: "Nessun job zombi da pulire.",
+      message: "Nessun job in stallo da pulire.",
     });
   }
 
-  let refunded = 0;
+  let recovered = 0;
+  let failed = 0;
   for (const z of list) {
-    await admin
-      .from("mait_scrape_jobs")
-      .update({
-        status: "failed",
-        completed_at: new Date().toISOString(),
-        error: "Batch dispatch failed (Pattern B bug 2026-05-20 — fix shipped)",
-      })
-      .eq("id", z.id);
-
-    if (z.created_by) {
-      const action = `scan_${z.source}` as CreditAction;
-      try {
-        await refundCredits(z.created_by, action, `Batch zombie cleanup: ${z.source}`);
-        refunded++;
-      } catch (e) {
-        console.error(`[batch cleanup] refund failed for ${z.id}:`, e);
-      }
-    }
+    const outcome = await resolveStuckBatchJob(z, admin, "cleanup");
+    if (outcome === "recovered") recovered++;
+    else failed++;
   }
 
   return NextResponse.json({
     ok: true,
     cleaned: list.length,
-    refunded,
-    message: `Puliti ${list.length} job zombi, ${refunded} refund effettuati.`,
+    recovered,
+    failed,
+    // I job senza dati salvati vengono marcati failed + rifondati;
+    // quelli recuperati no (lo scan e' andato a buon fine).
+    refunded: failed,
+    message: `Risolti ${list.length} job in stallo: ${recovered} recuperati, ${failed} falliti + rifondati.`,
   });
 }

@@ -414,11 +414,142 @@ export async function dispatchAsyncBatch<
   });
 }
 
+/** Un job batch bloccato in 'running', con il minimo per risolverlo. */
+export type StuckBatchJob = {
+  id: string;
+  competitor_id: string;
+  source: string;
+  created_by: string | null;
+  started_at: string;
+};
+
+/**
+ * Conta i record che QUESTO scan ha toccato (last_seen_in_scan_at >
+ * sinceIso) per il competitor, sulla tabella del canale.
+ *
+ * UNICO PUNTO che conosce la mappatura canale → tabella/chiave/filtro.
+ * CHANNEL SEPARATION: ogni canale ha la SUA tabella — NON condividono
+ * mait_organic_posts (organic IG -> mait_organic_posts, TikTok ->
+ * mait_tiktok_posts, YouTube -> mait_youtube_videos, Meta ->
+ * mait_ads_external con source='meta', condivisa coi Google ads).
+ *
+ * SEGNALE: last_seen_in_scan_at, NON created_at. Gli upsert lo bumpano
+ * a ogni passaggio (anche sui record gia' esistenti ri-scansionati),
+ * mentre created_at resta fermo: una ri-scansione che ritrova solo
+ * post gia' noti salva 0 righe "nuove" e con created_at verrebbe vista
+ * come "niente salvato" → falso 'failed' + refund indebito.
+ */
+export async function countScanRecordsSince(
+  admin: ReturnType<typeof createAdminClient>,
+  source: string,
+  competitorId: string,
+  sinceIso: string,
+): Promise<number> {
+  if (source === "instagram") {
+    const { count } = await admin
+      .from("mait_organic_posts")
+      .select("post_id", { count: "exact", head: true })
+      .eq("competitor_id", competitorId)
+      .eq("platform", "instagram")
+      .gt("last_seen_in_scan_at", sinceIso);
+    return count ?? 0;
+  }
+  if (source === "tiktok") {
+    const { count } = await admin
+      .from("mait_tiktok_posts")
+      .select("post_id", { count: "exact", head: true })
+      .eq("competitor_id", competitorId)
+      .gt("last_seen_in_scan_at", sinceIso);
+    return count ?? 0;
+  }
+  if (source === "youtube") {
+    const { count } = await admin
+      .from("mait_youtube_videos")
+      .select("video_id", { count: "exact", head: true })
+      .eq("competitor_id", competitorId)
+      .gt("last_seen_in_scan_at", sinceIso);
+    return count ?? 0;
+  }
+  if (source === "meta") {
+    const { count } = await admin
+      .from("mait_ads_external")
+      .select("ad_archive_id", { count: "exact", head: true })
+      .eq("competitor_id", competitorId)
+      .eq("source", "meta")
+      .gt("last_seen_in_scan_at", sinceIso);
+    return count ?? 0;
+  }
+  return 0;
+}
+
+/**
+ * Risolve un singolo job batch bloccato in 'running':
+ *  - se lo scan ha salvato dati (count > 0) → 'succeeded' + records_count
+ *    reale + stamp last_scraped_at sul competitor (recovery: Apify ha
+ *    finito, solo l'update finale di status e' mancato);
+ *  - altrimenti → 'failed' + refund crediti (lo scan e' morto prima di
+ *    salvare alcunche', l'utente non deve pagare).
+ *
+ * Condivisa da reconcileStuckBatchJobs (auto, sul polling) e dalla
+ * cleanup route (bottone "Pulisci batch in stallo"): cosi' anche il
+ * recupero manuale post-crash recupera gli scan riusciti invece di
+ * marcarli ciecamente failed + refund.
+ */
+export async function resolveStuckBatchJob(
+  job: StuckBatchJob,
+  admin: ReturnType<typeof createAdminClient>,
+  origin: "reconcile" | "cleanup" = "reconcile",
+): Promise<"recovered" | "failed"> {
+  const count = await countScanRecordsSince(
+    admin,
+    job.source,
+    job.competitor_id,
+    job.started_at,
+  );
+  const now = new Date().toISOString();
+
+  if (count > 0) {
+    await admin
+      .from("mait_scrape_jobs")
+      .update({
+        status: "succeeded",
+        completed_at: now,
+        records_count: count,
+        error: `Recovered post-mortem (${origin}): ${count} records present in DB`,
+      })
+      .eq("id", job.id);
+    await admin
+      .from("mait_competitors")
+      .update({ last_scraped_at: now })
+      .eq("id", job.competitor_id);
+    return "recovered";
+  }
+
+  await admin
+    .from("mait_scrape_jobs")
+    .update({
+      status: "failed",
+      completed_at: now,
+      error: `Stuck (${origin}): timeout, no records found in DB`,
+    })
+    .eq("id", job.id);
+  if (job.created_by) {
+    try {
+      await refundCredits(
+        job.created_by,
+        `scan_${job.source}` as CreditAction,
+        `Batch ${origin}: ${job.source} timeout`,
+      );
+    } catch (e) {
+      console.error(`[batch ${origin}] refund failed for ${job.id}:`, e);
+    }
+  }
+  return "failed";
+}
+
 /**
  * Reconcile auto: per i job 'running' del batch piu' vecchi di
- * 5 minuti, controlla se ci sono record salvati nella tabella
- * dati per quel competitor dopo job.started_at. Se si' → mark
- * 'succeeded' con il count reale. Se no → mark 'failed' + refund.
+ * 5 minuti, decide recovery vs failed via resolveStuckBatchJob.
  *
  * Necessario perche' su Vercel un singolo scan Pattern B che
  * dura piu' del maxDuration del batch endpoint (300s) viene
@@ -440,109 +571,15 @@ async function reconcileStuckBatchJobs(
     .eq("status", "running")
     .lt("started_at", cutoff);
 
-  const list = (stuck ?? []) as Array<{
-    id: string;
-    competitor_id: string;
-    source: string;
-    created_by: string | null;
-    started_at: string;
-  }>;
+  const list = (stuck ?? []) as StuckBatchJob[];
   if (list.length === 0) return { reconciled: 0, recovered: 0, failed: 0 };
 
-  // Mappa source → query: dove andare a cercare i record per capire
-  // se lo scan ha salvato qualcosa prima di essere killato.
-  //
-  // CHANNEL SEPARATION: ogni canale ha la SUA tabella e la sua chiave —
-  // NON condividono mait_organic_posts. (organic IG -> mait_organic_posts,
-  // TikTok -> mait_tiktok_posts, YouTube -> mait_youtube_videos, Meta ->
-  // mait_ads_external con source='meta', che convive coi Google ads).
-  //
-  // SEGNALE: usiamo last_seen_in_scan_at, NON created_at. Gli upsert
-  // bumpano last_seen_in_scan_at a ogni passaggio (anche sui record
-  // gia' esistenti ri-scansionati), mentre created_at resta fermo. Una
-  // ri-scansione che ritrova solo post gia' noti salverebbe 0 righe
-  // "nuove" -> con created_at verrebbe marcata erroneamente 'failed'
-  // + refund indebito, pur avendo funzionato. last_seen_in_scan_at
-  // cattura correttamente "questo scan ha toccato dati".
   let recovered = 0;
   let failed = 0;
   for (const j of list) {
-    let count = 0;
-    if (source === "instagram") {
-      const { count: c } = await admin
-        .from("mait_organic_posts")
-        .select("post_id", { count: "exact", head: true })
-        .eq("competitor_id", j.competitor_id)
-        .eq("platform", "instagram")
-        .gt("last_seen_in_scan_at", j.started_at);
-      count = c ?? 0;
-    } else if (source === "tiktok") {
-      const { count: c } = await admin
-        .from("mait_tiktok_posts")
-        .select("post_id", { count: "exact", head: true })
-        .eq("competitor_id", j.competitor_id)
-        .gt("last_seen_in_scan_at", j.started_at);
-      count = c ?? 0;
-    } else if (source === "youtube") {
-      const { count: c } = await admin
-        .from("mait_youtube_videos")
-        .select("video_id", { count: "exact", head: true })
-        .eq("competitor_id", j.competitor_id)
-        .gt("last_seen_in_scan_at", j.started_at);
-      count = c ?? 0;
-    } else if (source === "meta") {
-      const { count: c } = await admin
-        .from("mait_ads_external")
-        .select("ad_archive_id", { count: "exact", head: true })
-        .eq("competitor_id", j.competitor_id)
-        .eq("source", "meta")
-        .gt("last_seen_in_scan_at", j.started_at);
-      count = c ?? 0;
-    }
-
-    if (count > 0) {
-      // Recovered — Apify completo' + l'upsert ando' bene, solo la
-      // job-row update e' mancata.
-      await admin
-        .from("mait_scrape_jobs")
-        .update({
-          status: "succeeded",
-          completed_at: new Date().toISOString(),
-          records_count: count,
-          error:
-            "Recovered post-mortem (function timeout): records present in DB",
-        })
-        .eq("id", j.id);
-      // Aggiorna anche last_scraped_at sul competitor — il
-      // handler avrebbe fatto questo ma e' morto prima.
-      await admin
-        .from("mait_competitors")
-        .update({ last_scraped_at: new Date().toISOString() })
-        .eq("id", j.competitor_id);
-      recovered++;
-    } else {
-      // No records: lo scan e' morto prima di salvare alcunche'.
-      await admin
-        .from("mait_scrape_jobs")
-        .update({
-          status: "failed",
-          completed_at: new Date().toISOString(),
-          error: "Stuck: function timeout, no records found in DB",
-        })
-        .eq("id", j.id);
-      if (j.created_by) {
-        try {
-          await refundCredits(
-            j.created_by,
-            `scan_${j.source}` as CreditAction,
-            `Batch reconcile: ${j.source} timeout`,
-          );
-        } catch (e) {
-          console.error(`[batch reconcile] refund failed:`, e);
-        }
-      }
-      failed++;
-    }
+    const outcome = await resolveStuckBatchJob(j, admin, "reconcile");
+    if (outcome === "recovered") recovered++;
+    else failed++;
   }
   console.log(
     `[batch reconcile] batchId=${batchId} source=${source} stuck=${list.length} recovered=${recovered} failed=${failed}`,

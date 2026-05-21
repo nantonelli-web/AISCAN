@@ -229,6 +229,40 @@ export function BatchScanPanel({
   const [pollResult, setPollResult] = useState<BatchStatusResponse | null>(
     null,
   );
+
+  // Persistenza batch attivo: dopo un hard refresh / crash lo state
+  // React e' perso, quindi il poll non ripartirebbe e l'auto-reconcile
+  // (lato getBatchStatus) non girerebbe mai — proprio lo scenario
+  // crash. Salviamo batchId+canale in localStorage cosi' il poll
+  // riprende da solo e il batch si auto-completa.
+  // Restore PRIMA del persist (vedi sotto): l'ordine di dichiarazione
+  // garantisce che leggiamo il valore salvato prima che il persist
+  // sincronizzi localStorage.
+  useEffect(() => {
+    const savedId = localStorage.getItem("aiscan.batch.id");
+    const savedChannel = localStorage.getItem(
+      "aiscan.batch.channel",
+    ) as Channel | null;
+    if (savedId) {
+      setBatchId(savedId);
+      if (savedChannel) setBatchChannel(savedChannel);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    // Tieni localStorage allineato: scrivi mentre il batch e' attivo,
+    // pulisci quando termina o viene resettato. Copre TUTTI i punti che
+    // cambiano batchId (dispatch, stop, reset, cleanup) senza doverli
+    // toccare singolarmente.
+    if (batchId && !pollResult?.terminal) {
+      localStorage.setItem("aiscan.batch.id", batchId);
+      if (batchChannel) localStorage.setItem("aiscan.batch.channel", batchChannel);
+    } else {
+      localStorage.removeItem("aiscan.batch.id");
+      localStorage.removeItem("aiscan.batch.channel");
+    }
+  }, [batchId, batchChannel, pollResult?.terminal]);
   // Date range del batch. Default vuoto → applichiamo "ultimi 30
   // giorni" alla submit (allineato al pattern dello scan singolo).
   // Su Google il range e' solo metadata sulla row del job (la
@@ -510,7 +544,7 @@ export function BatchScanPanel({
         toast.success("Nessun job in stallo da pulire.", { id: toastId });
       } else {
         toast.success(
-          `Puliti ${j.cleaned} job in stallo, ${j.refunded} crediti rifondati.`,
+          `Risolti ${j.cleaned} job in stallo: ${j.recovered ?? 0} recuperati, ${j.refunded} falliti + rifondati.`,
           { id: toastId, duration: 8000 },
         );
         // Reset state + refresh per far sparire la UI batch corrotta
