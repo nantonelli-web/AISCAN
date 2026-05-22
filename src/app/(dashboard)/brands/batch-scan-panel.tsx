@@ -102,6 +102,9 @@ interface BatchJobRow {
   error: string | null;
   started_at: string;
   completed_at: string | null;
+  // running + apify_run_id valorizzato = Apify finito, salvataggio
+  // immagini in corso (post-processing).
+  apify_run_id?: string | null;
 }
 
 interface BatchStatusResponse {
@@ -601,10 +604,12 @@ export function BatchScanPanel({
     if (!batchId) return;
     if (pollResult?.terminal) return;
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const POLL_MS = 8000;
 
     async function poll() {
       if (cancelled) return;
+      let done = false;
       try {
         const pollEndpoint = batchEndpointFor(batchChannel ?? "google");
         if (!pollEndpoint) return;
@@ -621,18 +626,37 @@ export function BatchScanPanel({
             { duration: 15000 },
           );
           router.refresh();
-          return;
+          done = true;
         }
-        if (!cancelled) setTimeout(poll, POLL_MS);
       } catch (e) {
         console.warn("[batch poll]", e);
-        if (!cancelled) setTimeout(poll, POLL_MS);
       }
+      if (!cancelled && !done) timer = setTimeout(poll, POLL_MS);
     }
-    const h = setTimeout(poll, POLL_MS);
+
+    // Poll SUBITO al rientro sul tab. I browser throttlano i setTimeout
+    // dei tab in background (fino a ~1/min), quindi senza questo il
+    // completamento del batch arriva con minuti di ritardo quando
+    // l'utente sta su un'altra tab (es. la Console Apify). clearTimeout
+    // prima di ripianificare tiene un solo loop attivo anche se
+    // visibilitychange e focus scattano insieme.
+    function pollSoon() {
+      if (cancelled) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(poll, 0);
+    }
+    function onVisible() {
+      if (document.visibilityState === "visible") pollSoon();
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", pollSoon);
+
+    timer = setTimeout(poll, POLL_MS);
     return () => {
       cancelled = true;
-      clearTimeout(h);
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", pollSoon);
     };
   }, [batchId, batchChannel, pollResult?.terminal, router]);
 
@@ -798,6 +822,22 @@ export function BatchScanPanel({
                 pollResult.counts.partial +
                 pollResult.counts.failed;
               const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+              // Distingui i job ancora "running": quelli con apify_run_id
+              // hanno gia' finito su Apify e stanno salvando le immagini
+              // (post-processing, fino a ~1 min su brand grossi), gli
+              // altri sono ancora in scraping. Evita che il batch sembri
+              // impallato quando Apify e' gia' "Finished".
+              const runningJobs = (pollResult.jobs ?? []).filter(
+                (j) => j.status === "running",
+              );
+              const storing = runningJobs.filter((j) => j.apify_run_id).length;
+              const scraping = pollResult.counts.running - storing;
+              const pollSubtitle =
+                storing > 0 && scraping === 0
+                  ? `Apify completato — salvataggio immagini in corso per ${storing} brand. Aggiornamento ogni 8s.`
+                  : storing > 0
+                    ? `${scraping} in scraping, ${storing} in salvataggio immagini. Aggiornamento ogni 8s.`
+                    : `Stiamo aspettando ${pollResult.counts.running} run Apify. Aggiornamento ogni 8s.`;
               return (
                 <div className="rounded-lg border border-border bg-background p-4 space-y-3">
                   <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -809,7 +849,7 @@ export function BatchScanPanel({
                       </p>
                       {polling && (
                         <p className="text-[11px] text-muted-foreground mt-0.5">
-                          {`Stiamo aspettando ${pollResult.counts.running} run Apify. Aggiornamento ogni 8s.`}
+                          {pollSubtitle}
                         </p>
                       )}
                     </div>

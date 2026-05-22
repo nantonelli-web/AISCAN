@@ -214,6 +214,15 @@ export async function POST(req: Request) {
 
     // Download images to permanent storage, then upsert ads
     if (result.records.length > 0) {
+      // Apify ha finito: stampa subito apify_run_id (prima del
+      // salvataggio immagini, la parte lenta) cosi' il batch poll
+      // mostra "Salvataggio immagini..." invece di far sembrare il job
+      // impallato. Vedi instagram/scan per il razionale completo.
+      await admin
+        .from("mait_scrape_jobs")
+        .update({ apify_run_id: result.runId ?? null })
+        .eq("id", job.id);
+
       // Stamp the moment we observed each ad in our scan. Independent
       // of silva's `lastShown` (Google catalog) — useful as a
       // transparency signal on the ad-detail page and as the basis

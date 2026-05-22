@@ -622,7 +622,9 @@ export async function getBatchStatus(req: Request, source: BatchSource) {
 
   const { data: jobs } = await admin
     .from("mait_scrape_jobs")
-    .select("id, competitor_id, status, records_count, error, started_at, completed_at")
+    .select(
+      "id, competitor_id, status, records_count, error, started_at, completed_at, apify_run_id",
+    )
     .eq("batch_id", batchId)
     .eq("source", source)
     .order("started_at", { ascending: false });
@@ -635,6 +637,10 @@ export async function getBatchStatus(req: Request, source: BatchSource) {
     error: string | null;
     started_at: string;
     completed_at: string | null;
+    // running CON apify_run_id valorizzato = Apify finito, fase di
+    // salvataggio immagini in corso (post-processing). Lo usa la UI
+    // batch per distinguere "scraping" da "salvataggio".
+    apify_run_id: string | null;
   }>;
   const counts = {
     total: list.length,

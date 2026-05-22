@@ -299,6 +299,15 @@ export async function POST(req: Request) {
     });
 
     if (filteredVideos.length > 0) {
+      // Apify ha finito: stampa subito apify_run_id (prima del
+      // salvataggio thumbnail, la parte lenta) cosi' il batch poll
+      // mostra "Salvataggio immagini..." invece di far sembrare il job
+      // impallato. Vedi instagram/scan per il razionale completo.
+      await admin
+        .from("mait_scrape_jobs")
+        .update({ apify_run_id: result.runId ?? null })
+        .eq("id", job.id);
+
       // Persist video thumbnails so the brand grid does not break
       // even if Google rotates the URL (it does, occasionally).
       const mediaRows = filteredVideos.map((v) => ({

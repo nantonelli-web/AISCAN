@@ -286,6 +286,15 @@ export async function POST(req: Request) {
     });
 
     if (filtered.length > 0) {
+      // Apify ha finito: stampa subito apify_run_id (prima del
+      // salvataggio cover, la parte lenta) cosi' il batch poll mostra
+      // "Salvataggio immagini..." invece di far sembrare il job
+      // impallato. Vedi instagram/scan per il razionale completo.
+      await admin
+        .from("mait_scrape_jobs")
+        .update({ apify_run_id: result.runId ?? null })
+        .eq("id", job.id);
+
       // Persist cover thumbnails to permanent storage. TikTok cover
       // URLs sit on tiktokcdn.com / .net with short signed TTLs, just
       // like fbcdn — without this the brand grid breaks within a day.

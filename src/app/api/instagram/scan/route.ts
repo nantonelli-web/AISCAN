@@ -295,6 +295,17 @@ export async function POST(req: Request) {
     // Download images to permanent storage, then upsert
     console.log(`[Instagram route] Scrape done: ${result.records.length} records, runId=${result.runId}`);
     if (result.records.length > 0) {
+      // Apify ha finito: stampa subito apify_run_id, PRIMA del
+      // salvataggio immagini (la parte lenta: download + storage di
+      // fino a 100 immagini). Cosi' il batch poll vede "job running CON
+      // apify_run_id" = fase post-processing e la UI mostra
+      // "Salvataggio immagini..." invece di far sembrare il job
+      // impallato mentre Apify risulta gia' completo.
+      await admin
+        .from("mait_scrape_jobs")
+        .update({ apify_run_id: result.runId ?? null })
+        .eq("id", job.id);
+
       // Map to storeAdImages format (expects ad_archive_id + image_url)
       const mediaRows = result.records.map((r) => ({
         ad_archive_id: r.post_id,
