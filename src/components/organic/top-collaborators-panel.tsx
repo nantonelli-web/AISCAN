@@ -28,6 +28,7 @@ import {
   Sparkles,
   Loader2,
   BadgeCheck,
+  Globe,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -93,6 +94,16 @@ const CLS_META: Record<
     cls: "border-border text-muted-foreground bg-muted",
   },
   unknown: { key: "clsUnknown", cls: "border-border text-muted-foreground" },
+};
+
+/** Fascia dimensionale (audience) leggibile + range esplicito. Il
+ *  valore DB "mid" e' la fascia micro (10–100k): mostriamo label +
+ *  range cosi' "mid" non resta un token criptico. */
+const SIZE_TIER: Record<string, { label: string; range: string }> = {
+  nano: { label: "Nano", range: "<10k" },
+  mid: { label: "Micro", range: "10–100k" },
+  macro: { label: "Macro", range: "100k–1M" },
+  mega: { label: "Mega", range: "1M+" },
 };
 
 /** URL del profilo per piattaforma. Preferenza: IG se presente,
@@ -548,7 +559,10 @@ export function TopCollaboratorsPanel({
                   <ExternalLink className="size-3 opacity-40 group-hover:opacity-100 transition-opacity shrink-0" />
                 </a>
                 {acc?.full_name && (
-                  <p className="text-[11px] text-muted-foreground truncate max-w-full">
+                  <p
+                    className="text-[11px] text-muted-foreground truncate max-w-full"
+                    title={acc.biography ?? undefined}
+                  >
                     {acc.full_name}
                   </p>
                 )}
@@ -562,11 +576,36 @@ export function TopCollaboratorsPanel({
                   </Badge>
                 )}
                 {acc?.followers_count != null && (
-                  <p className="text-[11px] text-muted-foreground tabular-nums">
+                  <p className="text-xs text-foreground tabular-nums">
                     {formatNumber(acc.followers_count)}{" "}
-                    {t("organic", "collabFollowers")}
-                    {acc.tier ? ` · ${acc.tier}` : ""}
+                    <span className="text-muted-foreground font-normal">
+                      {t("organic", "collabFollowers")}
+                    </span>
                   </p>
+                )}
+                {acc?.tier && SIZE_TIER[acc.tier] && (
+                  <p className="text-[11px] text-muted-foreground">
+                    {SIZE_TIER[acc.tier].label}{" "}
+                    <span className="opacity-70">
+                      ({SIZE_TIER[acc.tier].range})
+                    </span>
+                  </p>
+                )}
+                {acc?.category && (
+                  <p className="text-[11px] text-muted-foreground truncate max-w-full">
+                    {acc.category}
+                  </p>
+                )}
+                {acc?.external_url && (
+                  <a
+                    href={acc.external_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] text-gold hover:underline max-w-full min-w-0"
+                  >
+                    <Globe className="size-3 shrink-0" />
+                    <span className="truncate">{t("organic", "collabWebsite")}</span>
+                  </a>
                 )}
               </div>
             );
