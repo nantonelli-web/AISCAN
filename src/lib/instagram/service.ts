@@ -145,6 +145,44 @@ interface RawInstagramProfile {
   [k: string]: unknown;
 }
 
+/** Mappa un raw item "details" dell'actor IG nel nostro InstagramProfile.
+ *  Condiviso tra lo scrape singolo (profilo brand) e quello batch
+ *  (enrichment collaboratori L3). */
+function mapRawProfile(
+  p: RawInstagramProfile,
+  fallbackHandle: string,
+): InstagramProfile {
+  // Gli actor restituiscono la pic sotto nomi diversi.
+  const pic =
+    (p.profilePicUrlHD as string | undefined) ??
+    (p.profilePicUrl as string | undefined) ??
+    (p["profile_pic_url_hd"] as string | undefined) ??
+    (p["profile_pic_url"] as string | undefined) ??
+    (p["profilePicture"] as string | undefined) ??
+    null;
+
+  // Apify a volte ritorna "None,Brand" — togli la sottocategoria nulla.
+  const rawCategory = p.businessCategoryName ?? null;
+  const category = rawCategory
+    ? rawCategory.replace(/^None\s*,\s*/i, "").replace(/\s*,\s*None$/i, "").trim() || null
+    : null;
+
+  return {
+    username: p.username ?? fallbackHandle,
+    fullName: p.fullName ?? null,
+    biography: p.biography ?? null,
+    followersCount: p.followersCount ?? null,
+    followsCount: p.followsCount ?? null,
+    postsCount: p.postsCount ?? null,
+    profilePicUrl: pic,
+    verified: p.verified === true,
+    isBusinessAccount: p.isBusinessAccount === true,
+    businessCategoryName: category,
+    externalUrl: p.externalUrl ?? null,
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
 export async function scrapeInstagramProfile(
   usernameInput: string,
   workspaceId?: string,
@@ -226,46 +264,145 @@ export async function scrapeInstagramProfile(
     );
     if (!p) return null;
 
-    // Try a wide set of field-name variants — actors return pics under
-    // profilePicUrlHD / profilePicUrl / profile_pic_url / etc.
-    const pic =
-      (p.profilePicUrlHD as string | undefined) ??
-      (p.profilePicUrl as string | undefined) ??
-      (p["profile_pic_url_hd"] as string | undefined) ??
-      (p["profile_pic_url"] as string | undefined) ??
-      (p["profilePicture"] as string | undefined) ??
-      null;
-    if (!pic) {
-      console.warn(
-        `[Instagram profile] no pic URL field. Raw payload snippet: ${JSON.stringify(p).slice(0, 400)}`
-      );
-    }
-
-    // Apify sometimes returns things like "None,Brand" — strip the null
-    // subcategory so we only display the meaningful part.
-    const rawCategory = p.businessCategoryName ?? null;
-    const category = rawCategory
-      ? rawCategory.replace(/^None\s*,\s*/i, "").replace(/\s*,\s*None$/i, "").trim() || null
-      : null;
-
-    return {
-      username: p.username ?? handle,
-      fullName: p.fullName ?? null,
-      biography: p.biography ?? null,
-      followersCount: p.followersCount ?? null,
-      followsCount: p.followsCount ?? null,
-      postsCount: p.postsCount ?? null,
-      profilePicUrl: pic,
-      verified: p.verified === true,
-      isBusinessAccount: p.isBusinessAccount === true,
-      businessCategoryName: category,
-      externalUrl: p.externalUrl ?? null,
-      fetchedAt: new Date().toISOString(),
-    };
+    return mapRawProfile(p, handle);
   } catch (err) {
     console.error(`[Instagram profile] scrape failed for ${handle}:`, err);
     return null;
   }
+}
+
+export interface InstagramProfilesBatchResult {
+  /** Profili trovati, keyed by handle normalizzato (lowercase, no @). */
+  profiles: Map<string, InstagramProfile>;
+  /** Handle richiesti per cui l'actor non ha restituito alcun item
+   *  (account inesistente / privato / non risolto). */
+  notFound: string[];
+  /** Costo Apify del run in USD (usageTotalUsd), per logging/diagnostica. */
+  costCu: number;
+}
+
+/**
+ * Scrape dei profili IG di PIU' handle in un solo run Apify (directUrls
+ * multipli, resultsType "details"). Usato dall'enrichment collaboratori
+ * L3: arricchire 20 account in un run costa ~$0.05 invece di 20 run
+ * separati. Match dei risultati per username normalizzato.
+ *
+ * I batch grossi vengono spezzati in chunk per non far girare l'actor
+ * troppo a lungo (poll a 5 min per chunk). Handle gia' normalizzati in
+ * ingresso (lowercase, no @); cleanInstagramUsername fa da safety net.
+ */
+export async function scrapeInstagramProfiles(
+  handles: string[],
+  workspaceId?: string,
+  chunkSize = 25,
+): Promise<InstagramProfilesBatchResult> {
+  const profiles = new Map<string, InstagramProfile>();
+  const notFound: string[] = [];
+  let costCu = 0;
+
+  // Dedup + clean. Teniamo la mappa cleaned→original per riportare i
+  // notFound con l'handle che il chiamante conosce.
+  const cleanedToOriginal = new Map<string, string>();
+  for (const raw of handles) {
+    const cleaned = cleanInstagramUsername(raw);
+    if (cleaned) cleanedToOriginal.set(cleaned.toLowerCase(), raw.toLowerCase());
+  }
+  const cleanedHandles = [...cleanedToOriginal.keys()];
+  if (cleanedHandles.length === 0) {
+    return { profiles, notFound, costCu };
+  }
+
+  let token: string;
+  try {
+    const creds = await getApifyCredentials(workspaceId);
+    token = creds.token;
+  } catch (e) {
+    console.error("[Instagram profiles batch] credentials error:", e);
+    // Nessuna credenziale → tutto notFound (il chiamante lo gestisce).
+    return { profiles, notFound: [...cleanedToOriginal.values()], costCu };
+  }
+
+  for (let i = 0; i < cleanedHandles.length; i += chunkSize) {
+    const chunk = cleanedHandles.slice(i, i + chunkSize);
+    const seenInChunk = new Set<string>();
+    try {
+      const input = {
+        directUrls: chunk.map((h) => `https://www.instagram.com/${h}/`),
+        resultsType: "details",
+        // Un item per profilo; lascia headroom.
+        resultsLimit: chunk.length,
+      };
+      const maxItems = chunk.length * 2 + 5;
+
+      const run = await apifyFetch(
+        `/acts/${encodeURIComponent(ACTOR_ID)}/runs?maxItems=${maxItems}`,
+        { method: "POST", body: JSON.stringify(input) },
+        token,
+      );
+
+      const runId: string = run.data?.id ?? run.id ?? "";
+      const datasetId: string =
+        run.data?.defaultDatasetId ?? run.defaultDatasetId ?? "";
+      if (!datasetId) throw new Error("no datasetId from profiles batch run");
+
+      let status = run.data?.status ?? run.status ?? "RUNNING";
+      const start = Date.now();
+      const maxWait = 5 * 60 * 1000;
+      while (
+        (status === "RUNNING" || status === "READY") &&
+        Date.now() - start < maxWait
+      ) {
+        await new Promise((r) => setTimeout(r, 5000));
+        const info = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
+        status = info.data?.status ?? info.status ?? status;
+      }
+      if (status !== "SUCCEEDED") {
+        throw new Error(
+          `profiles batch actor ${status} after ${Math.round((Date.now() - start) / 1000)}s`,
+        );
+      }
+
+      const ds = await apifyFetch(
+        `/datasets/${datasetId}/items?format=json&limit=${maxItems}`,
+        undefined,
+        token,
+      );
+      const list: RawInstagramProfile[] = Array.isArray(ds)
+        ? ds
+        : ((ds as { items?: RawInstagramProfile[] }).items ?? []);
+
+      for (const p of list) {
+        const uname = (p.username ?? "").toLowerCase();
+        if (!uname) continue;
+        const mapped = mapRawProfile(p, uname);
+        profiles.set(uname, mapped);
+        seenInChunk.add(uname);
+      }
+
+      try {
+        const info = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
+        costCu += info.data?.usageTotalUsd ?? 0;
+      } catch {
+        /* ignore cost read */
+      }
+    } catch (err) {
+      console.error(
+        `[Instagram profiles batch] chunk ${i / chunkSize} failed:`,
+        err,
+      );
+      // Chunk fallito: lascia gli handle non visti tra i notFound sotto.
+    }
+
+    // Handle del chunk non risolti = notFound (account privato/inesistente
+    // o chunk fallito). Riportiamo l'handle originale del chiamante.
+    for (const h of chunk) {
+      if (!seenInChunk.has(h)) {
+        notFound.push(cleanedToOriginal.get(h) ?? h);
+      }
+    }
+  }
+
+  return { profiles, notFound, costCu };
 }
 
 export async function scrapeInstagramPosts(

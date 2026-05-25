@@ -27,3 +27,35 @@
  * the UI surfaces are hidden.
  */
 export const AI_TAGS_ENABLED = false;
+
+/**
+ * Collaborazioni L3 — profile enrichment (verified / follower count /
+ * bio / categoria / tier dimensionale) degli account collaboratori,
+ * scrapando il profilo via Apify. Dato REALE di piattaforma, quindi
+ * coerente col principio "real data only".
+ *
+ * On-demand: nessuno scrape parte automaticamente. L'utente clicca
+ * "Analizza collaboratori" nel pannello Top Collaboratori; il costo
+ * (crediti Apify) e' mostrato in preview e addebitato solo al click.
+ *
+ * Instagram live da subito (riusa scrapeInstagramProfile). TikTok in
+ * un secondo step quando sara' scelto un actor profilo TikTok — fino
+ * ad allora l'enrichment TikTok ritorna "skipped" e la UI mostra solo
+ * la classificazione per quegli account.
+ */
+export const COLLAB_ENRICH_ENABLED = true;
+
+/**
+ * Collaborazioni L2 — classificazione AI di ogni account collaboratore
+ * in brand / influencer / celebrity / staff (+ confidence).
+ *
+ * Gated da flag come da principio "real data only — AI classifications
+ * gated by feature flag": e' un'OPINIONE del modello, non un dato di
+ * piattaforma, quindi deve essere disattivabile in un punto solo.
+ * Default ON perche' richiesta esplicitamente; spegnere qui nasconde
+ * badge + filtri di classificazione lasciando intatto l'enrichment L3.
+ *
+ * Input del classificatore = handle + bio + verified + follower (i
+ * campi L3): la classifica e' molto piu' affidabile DOPO l'enrichment.
+ */
+export const COLLAB_CLASSIFY_ENABLED = true;

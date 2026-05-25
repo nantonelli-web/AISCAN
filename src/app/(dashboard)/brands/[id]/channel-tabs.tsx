@@ -1247,6 +1247,8 @@ export function ChannelTabs({
                   collaborators={igCollaborators}
                   totalCollabPosts={igCollabPosts}
                   totalPosts={organicCollabPool.length}
+                  competitorId={competitorId}
+                  platform="instagram"
                 />
               )}
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -1381,6 +1383,8 @@ export function ChannelTabs({
                   collaborators={ttCollaborators}
                   totalCollabPosts={ttCollabPosts}
                   totalPosts={tiktokCollabPool.length}
+                  competitorId={competitorId}
+                  platform="tiktok"
                 />
               )}
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

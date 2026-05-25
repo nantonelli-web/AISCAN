@@ -178,6 +178,26 @@ export function aiAnalysisAction(
 }
 
 // ---------------------------------------------------------------------------
+// Collaborazioni L3 — profile enrichment cost
+// ---------------------------------------------------------------------------
+// L3 arricchisce gli account collaboratori (verified / follower / bio /
+// tier) scrapando il profilo via Apify. Il profile scraper IG costa
+// ~$0.0027/profilo e arricchiamo N profili in UN solo run (directUrls
+// multipli), quindi il costo reale scala col numero di account, non per
+// "scan". Per tenere il ledger a interi senza sovrapprezzare: 1 credito
+// ogni 10 account arricchiti (arrotondato per eccesso) — ≈ $0.027/credito,
+// in linea con l'economia del tier `pragmatic`. Caricato a runtime con
+// consumeCreditsCustom; questo helper e' usato anche dal client per la
+// preview di costo (stessa formula = nessun mismatch UI vs charge).
+export const COLLAB_ENRICH_ACCOUNTS_PER_CREDIT = 10;
+
+/** Crediti per arricchire `accountCount` profili collaboratori. 0 se 0. */
+export function collabEnrichCost(accountCount: number): number {
+  if (!Number.isFinite(accountCount) || accountCount <= 0) return 0;
+  return Math.ceil(accountCount / COLLAB_ENRICH_ACCOUNTS_PER_CREDIT);
+}
+
+// ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 

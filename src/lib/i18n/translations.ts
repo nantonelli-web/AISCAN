@@ -2742,8 +2742,8 @@ const translations = {
       en: "Collaborators",
     },
     topCollabsDescription: {
-      it: "Account taggati o menzionati nei post che NON sono il brand stesso. Un singolo post può taggare più persone, quindi il numero di collaboratori distinti è di solito maggiore del numero di post in collab. Chi compare più volte è un collaboratore strutturale (ambassador, partner di linea); chi compare una volta è una collab one-shot. La distinzione brand vs influencer vs VIP non è ancora automatica.",
-      en: "Accounts tagged or mentioned in posts that are NOT the brand itself. A single post may tag multiple people, so the number of distinct collaborators is usually larger than the number of collab posts. Frequent ones are structural collaborators (ambassadors, line partners); single-occurrence ones are one-shot collabs. Brand vs influencer vs VIP classification not yet automated.",
+      it: "Account taggati o menzionati nei post che NON sono il brand stesso. Un singolo post può taggare più persone, quindi il numero di collaboratori distinti è di solito maggiore del numero di post in collab. Chi compare più volte è un collaboratore strutturale (ambassador, partner di linea); chi compare una volta è una collab one-shot. Usa «Analizza collaboratori» per arricchire i profili (follower, verificato, bio) e classificarli con l'AI in brand, influencer, celebrity o staff.",
+      en: "Accounts tagged or mentioned in posts that are NOT the brand itself. A single post may tag multiple people, so the number of distinct collaborators is usually larger than the number of collab posts. Frequent ones are structural collaborators (ambassadors, line partners); single-occurrence ones are one-shot collabs. Use “Analyze collaborators” to enrich profiles (followers, verified, bio) and classify them with AI as brand, influencer, celebrity or staff.",
     },
     collabPosts: {
       it: "Post in collab",
@@ -2761,6 +2761,41 @@ const translations = {
       it: "Collab one-shot",
       en: "One-shot collabs",
     },
+    // Collaborazioni L2/L3 (2026-05-25): enrichment profili + classifica AI.
+    analyzeCollabs: { it: "Analizza collaboratori", en: "Analyze collaborators" },
+    analyzingCollabs: { it: "Analisi in corso…", en: "Analyzing…" },
+    collabAllAnalyzed: {
+      it: "Collaboratori già analizzati",
+      en: "Collaborators already analyzed",
+    },
+    collabAnalyzeHint: {
+      it: "Arricchisce i profili (follower, verificato, bio) e li classifica con l'AI in brand, influencer, celebrity o staff. On-demand: paghi solo i collaboratori non ancora analizzati.",
+      en: "Enriches profiles (followers, verified, bio) and classifies them with AI as brand, influencer, celebrity or staff. On-demand: you only pay for collaborators not yet analyzed.",
+    },
+    collabEnrichPart: { it: "profili da arricchire", en: "profiles to enrich" },
+    collabClassifyPart: { it: "classificazione AI", en: "AI classification" },
+    creditsUnit: { it: "crediti", en: "credits" },
+    creditUnit: { it: "credito", en: "credit" },
+    clsBrand: { it: "Brand", en: "Brand" },
+    clsInfluencer: { it: "Influencer", en: "Influencer" },
+    clsCelebrity: { it: "Celebrity", en: "Celebrity" },
+    clsStaff: { it: "Staff", en: "Staff" },
+    clsUnknown: { it: "Non classificato", en: "Unclassified" },
+    collabFilterAll: { it: "Tutti", en: "All" },
+    collabVerified: { it: "Verificato", en: "Verified" },
+    collabFollowers: { it: "follower", en: "followers" },
+    collabAiNote: {
+      it: "Classificazione generata dall'AI: può contenere errori.",
+      en: "AI-generated classification: may contain errors.",
+    },
+    collabEnriched: { it: "arricchiti", en: "enriched" },
+    collabClassified: { it: "classificati", en: "classified" },
+    collabNotFoundLabel: { it: "non trovati", en: "not found" },
+    collabAnalyzeError: {
+      it: "Analisi fallita. Riprova.",
+      en: "Analysis failed. Retry.",
+    },
+    collabTierAi: { it: "Modello AI", en: "AI model" },
     collabSingular: { it: "post", en: "post" },
     collabPlural: { it: "post", en: "posts" },
     moreCollaborators: {
