@@ -72,8 +72,6 @@ const TIER_META: Record<
   premium: { name: "tierPremiumName", desc: "tierPremiumDesc" },
 };
 
-const TIKTOK_LABEL = "TikTok";
-const IG_LABEL = "Instagram";
 const INITIAL_VISIBLE = 5;
 
 /** Meta visiva per classificazione (label via i18n + colori). */
@@ -107,6 +105,31 @@ function profileUrlFor(handle: string, platforms: Set<string>): string {
     return `https://www.tiktok.com/@${handle}`;
   }
   return `https://www.instagram.com/${handle}/`;
+}
+
+/** Avatar del collaboratore: foto profilo da enrichment con fallback
+ *  alle iniziali (le URL CDN di IG possono scadere / bloccare hotlink,
+ *  quindi onError -> cerchio con la prima lettera). */
+function CollabAvatar({ handle, src }: { handle: string; src: string | null }) {
+  const [errored, setErrored] = useState(false);
+  if (src && !errored) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt={handle}
+        referrerPolicy="no-referrer"
+        loading="lazy"
+        onError={() => setErrored(true)}
+        className="size-14 rounded-full object-cover border border-border bg-muted"
+      />
+    );
+  }
+  return (
+    <div className="size-14 rounded-full border border-border bg-gold-soft text-gold flex items-center justify-center text-lg font-semibold">
+      {handle.charAt(0).toUpperCase()}
+    </div>
+  );
 }
 
 export function TopCollaboratorsPanel({
@@ -276,14 +299,7 @@ export function TopCollaboratorsPanel({
           (c) => accounts.get(c.handle)?.classification === clsFilter,
         );
   const visible = expanded ? filtered : filtered.slice(0, INITIAL_VISIBLE);
-  const maxCount = collaborators[0]?.count ?? 1;
   const hidden = filtered.length - visible.length;
-
-  const platformsInDataset = new Set<string>();
-  for (const c of collaborators) {
-    for (const p of c.platforms) platformsInDataset.add(p);
-  }
-  const showPlatformBadges = platformsInDataset.size > 1;
 
   const creditWord = (n: number) =>
     n === 1 ? t("organic", "creditUnit") : t("organic", "creditsUnit");
@@ -504,74 +520,63 @@ export function TopCollaboratorsPanel({
           </div>
         )}
 
-        <div className="space-y-1.5 pt-1">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-1">
           {visible.map((c) => {
             const acc = accounts.get(c.handle);
             const cls = acc?.classification ?? null;
             return (
-              <div key={c.handle} className="space-y-1">
-                <div className="flex items-center justify-between gap-3 text-xs">
-                  <span className="flex items-center gap-1.5 min-w-0 flex-wrap">
-                    <a
-                      href={profileUrlFor(c.handle, c.platforms)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="font-medium text-foreground truncate hover:text-gold inline-flex items-center gap-1 group"
-                    >
-                      @{c.handle}
-                      <ExternalLink className="size-3 opacity-50 group-hover:opacity-100 transition-opacity shrink-0" />
-                    </a>
-                    {acc?.verified && (
-                      <BadgeCheck
-                        className="size-3.5 text-blue-500 shrink-0"
-                        aria-label={t("organic", "collabVerified")}
-                      />
-                    )}
-                    {cls && (
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "text-[11px] py-0 px-1.5",
-                          CLS_META[cls].cls,
-                        )}
-                        title={acc?.classification_reason ?? undefined}
-                      >
-                        {t("organic", CLS_META[cls].key)}
-                      </Badge>
-                    )}
-                    {acc?.followers_count != null && (
-                      <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
-                        {formatNumber(acc.followers_count)}{" "}
-                        {t("organic", "collabFollowers")}
-                        {acc.tier ? ` · ${acc.tier}` : ""}
-                      </span>
-                    )}
-                    {showPlatformBadges && c.platforms.has("instagram") && (
-                      <Badge variant="outline" className="text-[11px] py-0 px-1.5">
-                        {IG_LABEL}
-                      </Badge>
-                    )}
-                    {showPlatformBadges && c.platforms.has("tiktok") && (
-                      <Badge variant="outline" className="text-[11px] py-0 px-1.5">
-                        {TIKTOK_LABEL}
-                      </Badge>
-                    )}
+              <div
+                key={c.handle}
+                className="rounded-lg border border-border bg-card p-3 flex flex-col items-center text-center gap-1.5"
+              >
+                <CollabAvatar handle={c.handle} src={acc?.profile_pic_url ?? null} />
+                <a
+                  href={profileUrlFor(c.handle, c.platforms)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 max-w-full min-w-0 text-foreground hover:text-gold group"
+                >
+                  <span className="truncate text-xs font-semibold">
+                    @{c.handle}
                   </span>
-                  <span className="tabular-nums text-muted-foreground shrink-0">
-                    <span className="text-foreground font-medium">
-                      {c.count}
-                    </span>{" "}
-                    {c.count === 1
-                      ? t("organic", "collabSingular")
-                      : t("organic", "collabPlural")}
-                  </span>
-                </div>
-                <div className="h-1 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full bg-gold/70"
-                    style={{ width: `${(c.count / maxCount) * 100}%` }}
-                  />
-                </div>
+                  {acc?.verified && (
+                    <BadgeCheck
+                      className="size-3.5 text-blue-500 shrink-0"
+                      aria-label={t("organic", "collabVerified")}
+                    />
+                  )}
+                  <ExternalLink className="size-3 opacity-40 group-hover:opacity-100 transition-opacity shrink-0" />
+                </a>
+                {acc?.full_name && (
+                  <p className="text-[11px] text-muted-foreground truncate max-w-full">
+                    {acc.full_name}
+                  </p>
+                )}
+                {cls && (
+                  <Badge
+                    variant="outline"
+                    className={cn("text-[11px] py-0 px-1.5", CLS_META[cls].cls)}
+                    title={acc?.classification_reason ?? undefined}
+                  >
+                    {t("organic", CLS_META[cls].key)}
+                  </Badge>
+                )}
+                {acc?.followers_count != null && (
+                  <p className="text-[11px] text-muted-foreground tabular-nums">
+                    {formatNumber(acc.followers_count)}{" "}
+                    {t("organic", "collabFollowers")}
+                    {acc.tier ? ` · ${acc.tier}` : ""}
+                  </p>
+                )}
+                <p
+                  className="text-[11px] text-muted-foreground tabular-nums mt-auto pt-1"
+                  title={t("organic", "collabPostsTooltip")}
+                >
+                  {c.count}{" "}
+                  {c.count === 1
+                    ? t("organic", "collabSingular")
+                    : t("organic", "collabPlural")}
+                </p>
               </div>
             );
           })}

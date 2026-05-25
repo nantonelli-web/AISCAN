@@ -2784,6 +2784,10 @@ const translations = {
     collabFilterAll: { it: "Tutti", en: "All" },
     collabVerified: { it: "Verificato", en: "Verified" },
     collabFollowers: { it: "follower", en: "followers" },
+    collabPostsTooltip: {
+      it: "Numero di post del brand che taggano o menzionano questo account",
+      en: "Number of the brand's posts tagging or mentioning this account",
+    },
     collabAiNote: {
       it: "Classificazione generata dall'AI: può contenere errori.",
       en: "AI-generated classification: may contain errors.",
