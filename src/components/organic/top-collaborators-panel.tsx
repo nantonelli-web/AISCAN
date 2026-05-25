@@ -106,14 +106,6 @@ const SIZE_TIER: Record<string, { label: string; range: string }> = {
   mega: { label: "Mega", range: "1M+" },
 };
 
-/** Confidenza della classificazione AI → pallino colorato + qualifica
- *  (alta/media/bassa). Rende visibile quanto fidarsi del badge, in
- *  linea col principio "AI può sbagliare". */
-function confidenceMeta(conf: number): { dot: string; qualKey: string } {
-  if (conf >= 0.8) return { dot: "bg-emerald-500", qualKey: "confHigh" };
-  if (conf >= 0.5) return { dot: "bg-amber-500", qualKey: "confMed" };
-  return { dot: "bg-muted-foreground", qualKey: "confLow" };
-}
 
 /** URL del profilo per piattaforma. Preferenza: IG se presente,
  *  altrimenti TikTok. */
@@ -496,12 +488,6 @@ export function TopCollaboratorsPanel({
               )}
               {error && <p className="text-xs text-destructive">{error}</p>}
             </div>
-
-            {hasAnyClassification && (
-              <p className="text-[11px] text-muted-foreground italic">
-                {t("organic", "collabAiNote")}
-              </p>
-            )}
           </div>
         )}
 
@@ -537,6 +523,9 @@ export function TopCollaboratorsPanel({
                   {t("organic", CLS_META[cls].key)} ({clsCounts[cls]})
                 </button>
               ))}
+            <span className="ml-auto text-[11px] text-muted-foreground italic">
+              {t("organic", "collabAiNote")}
+            </span>
           </div>
         )}
 
@@ -544,8 +533,6 @@ export function TopCollaboratorsPanel({
           {visible.map((c) => {
             const acc = accounts.get(c.handle);
             const cls = acc?.classification ?? null;
-            const conf = acc?.classification_confidence ?? null;
-            const confM = conf != null ? confidenceMeta(conf) : null;
             return (
               <div
                 key={c.handle}
@@ -578,26 +565,13 @@ export function TopCollaboratorsPanel({
                   </p>
                 )}
                 {cls && (
-                  <span className="inline-flex items-center gap-1">
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "text-[11px] py-0 px-1.5",
-                        CLS_META[cls].cls,
-                      )}
-                      title={acc?.classification_reason ?? undefined}
-                    >
-                      {t("organic", CLS_META[cls].key)}
-                    </Badge>
-                    {conf != null && confM && (
-                      <span
-                        className={cn("size-2 rounded-full shrink-0", confM.dot)}
-                        title={`${t("organic", "collabConfidence")}: ${Math.round(
-                          conf * 100,
-                        )}% (${t("organic", confM.qualKey)})`}
-                      />
-                    )}
-                  </span>
+                  <Badge
+                    variant="outline"
+                    className={cn("text-[11px] py-0 px-1.5", CLS_META[cls].cls)}
+                    title={acc?.classification_reason ?? undefined}
+                  >
+                    {t("organic", CLS_META[cls].key)}
+                  </Badge>
                 )}
                 {acc?.followers_count != null && (
                   <p className="text-xs text-foreground tabular-nums">
