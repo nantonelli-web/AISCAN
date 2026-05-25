@@ -15,7 +15,9 @@ import { resolveStuckBatchJob } from "@/lib/apify/batch-dispatch";
  * Trova tutti i job del workspace dell'utente con:
  *   - status='running'
  *   - batch_id IS NOT NULL
- *   - source IN (meta, instagram, tiktok, youtube)
+ *   - source IN (meta, instagram, tiktok, youtube, snapchat, tiktok_ads,
+ *     snapchat_ads) — tutti i canali con job-row gestita da noi e
+ *     mappati in countScanRecordsSince. Google escluso (webhook).
  *   - started_at < NOW() - 5 minutes
  *
  * Per ogni job delega a resolveStuckBatchJob() (logica condivisa con
@@ -53,7 +55,18 @@ export async function POST() {
     .eq("workspace_id", workspaceId)
     .eq("status", "running")
     .not("batch_id", "is", null)
-    .in("source", ["meta", "instagram", "tiktok", "youtube"])
+    // Canali batch con job-row gestita da noi. Google e' escluso di
+    // proposito: finalizza via webhook Apify + reconcile dedicato, e
+    // countScanRecordsSince non lo mappa (lo marcherebbe failed a torto).
+    .in("source", [
+      "meta",
+      "instagram",
+      "tiktok",
+      "youtube",
+      "snapchat",
+      "tiktok_ads",
+      "snapchat_ads",
+    ])
     .lt("started_at", cutoff);
 
   const list = (zombies ?? []) as Array<{

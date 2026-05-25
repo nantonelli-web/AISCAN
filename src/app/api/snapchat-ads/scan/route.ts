@@ -30,6 +30,11 @@ const schema = z.object({
   countries: z.array(z.string().length(2)).optional(),
   status: z.enum(["ACTIVE", "PAUSED"]).optional(),
   max_results: z.number().int().min(1).max(2000).optional(),
+  // Batch flow: la rotta batch ha gia' (a) caricato i crediti,
+  // (b) inserito il job row con batch_id. Qui riceviamo job_id e
+  // SKIPPiamo charge + gate + insert, finalizzando il job esistente.
+  batched: z.literal(true).optional(),
+  job_id: z.string().uuid().optional(),
 });
 
 export async function POST(req: Request) {
@@ -67,37 +72,42 @@ export async function POST(req: Request) {
 
   const admin = createAdminClient();
 
-  // Stale-job sweep + concurrency gate (same pattern as the other ad scans).
-  const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-  await admin
-    .from("mait_scrape_jobs")
-    .update({
-      status: "failed",
-      completed_at: new Date().toISOString(),
-      error: "Timeout (stale)",
-    })
-    .eq("competitor_id", competitor.id)
-    .eq("status", "running")
-    .lt("started_at", tenMinAgo);
+  // Batch flow: charge + gate + job insert gia' fatti dalla rotta batch.
+  const isBatched = !!parsed.data.batched && !!parsed.data.job_id;
 
-  const rate = await checkScanConcurrency(admin, {
-    workspaceId: competitor.workspace_id,
-    competitorId: competitor.id,
-  });
-  if (!rate.ok) {
-    return NextResponse.json({ error: rate.reason }, { status: 429 });
-  }
+  if (!isBatched) {
+    // Stale-job sweep + concurrency gate (same pattern as the other ad scans).
+    const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    await admin
+      .from("mait_scrape_jobs")
+      .update({
+        status: "failed",
+        completed_at: new Date().toISOString(),
+        error: "Timeout (stale)",
+      })
+      .eq("competitor_id", competitor.id)
+      .eq("status", "running")
+      .lt("started_at", tenMinAgo);
 
-  const credits = await consumeCredits(
-    user.id,
-    "scan_snapchat_ads",
-    `Snapchat Ads: ${competitor.page_name}`,
-  );
-  if (!credits.ok) {
-    return NextResponse.json(
-      { error: "Insufficient credits", balance: credits.balance, cost: 1 },
-      { status: 402 },
+    const rate = await checkScanConcurrency(admin, {
+      workspaceId: competitor.workspace_id,
+      competitorId: competitor.id,
+    });
+    if (!rate.ok) {
+      return NextResponse.json({ error: rate.reason }, { status: 429 });
+    }
+
+    const credits = await consumeCredits(
+      user.id,
+      "scan_snapchat_ads",
+      `Snapchat Ads: ${competitor.page_name}`,
     );
+    if (!credits.ok) {
+      return NextResponse.json(
+        { error: "Insufficient credits", balance: credits.balance, cost: 1 },
+        { status: 402 },
+      );
+    }
   }
 
   // Resolve scan countries: explicit body override > brand's country
@@ -113,33 +123,39 @@ export async function POST(req: Request) {
     scanCountries = fromBrand.length > 0 ? fromBrand : undefined;
   }
 
-  const { data: job, error: jobErr } = await admin
-    .from("mait_scrape_jobs")
-    .insert({
-      workspace_id: competitor.workspace_id,
-      competitor_id: competitor.id,
-      status: "running",
-      // Distinct from `snapchat` (organic profile snapshot) so the
-      // brand-page job history can label them separately.
-      source: "snapchat_ads",
-      date_from: date_from ?? null,
-      date_to: date_to ?? null,
-    })
-    .select("id")
-    .single();
-  if (jobErr || !job) {
-    await refundCredits(
-      user.id,
-      "scan_snapchat_ads",
-      `Snapchat Ads: ${competitor.page_name}`,
-    );
-    if ((jobErr as { code?: string } | null)?.code === "23505") {
-      return NextResponse.json({ error: "already_running" }, { status: 429 });
+  let job: { id: string };
+  if (isBatched) {
+    job = { id: parsed.data.job_id as string };
+  } else {
+    const { data: jobIns, error: jobErr } = await admin
+      .from("mait_scrape_jobs")
+      .insert({
+        workspace_id: competitor.workspace_id,
+        competitor_id: competitor.id,
+        status: "running",
+        // Distinct from `snapchat` (organic profile snapshot) so the
+        // brand-page job history can label them separately.
+        source: "snapchat_ads",
+        date_from: date_from ?? null,
+        date_to: date_to ?? null,
+      })
+      .select("id")
+      .single();
+    if (jobErr || !jobIns) {
+      await refundCredits(
+        user.id,
+        "scan_snapchat_ads",
+        `Snapchat Ads: ${competitor.page_name}`,
+      );
+      if ((jobErr as { code?: string } | null)?.code === "23505") {
+        return NextResponse.json({ error: "already_running" }, { status: 429 });
+      }
+      return NextResponse.json(
+        { error: jobErr?.message ?? "Job error" },
+        { status: 500 },
+      );
     }
-    return NextResponse.json(
-      { error: jobErr?.message ?? "Job error" },
-      { status: 500 },
-    );
+    job = jobIns;
   }
 
   try {

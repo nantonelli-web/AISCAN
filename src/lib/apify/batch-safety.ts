@@ -28,7 +28,12 @@ export type BatchSource =
   | "instagram"
   | "tiktok"
   | "snapchat"
-  | "youtube";
+  | "youtube"
+  // Canali paid per-brand (DSA library). Stesso modello per-brand dei
+  // canali sopra: competitor_id + last_seen_in_scan_at sulle rispettive
+  // tabelle (mait_tiktok_ads / mait_snapchat_ads).
+  | "tiktok_ads"
+  | "snapchat_ads";
 
 /** Cap massimo brand per chiamata batch — limite duro, niente bypass.
  *  Eccederlo significa lanciare troppi scan in parallelo, potenziale
@@ -55,6 +60,8 @@ export function cooldownHoursForSource(source: BatchSource): number {
     case "google":
     case "meta":
     case "snapchat":
+    case "tiktok_ads":
+    case "snapchat_ads":
       return 6;
     case "instagram":
     case "tiktok":

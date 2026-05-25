@@ -48,6 +48,11 @@ const librarySchema = z.object({
   date_to: z.string().optional(),
   region: z.string().optional(),
   max_results: z.number().int().min(1).max(500).optional(),
+  // Batch flow: la rotta batch ha gia' caricato i crediti + inserito il
+  // job row con batch_id. Qui riceviamo job_id e SKIPPiamo charge + gate
+  // + insert, finalizzando il job esistente.
+  batched: z.literal(true).optional(),
+  job_id: z.string().uuid().optional(),
 });
 
 const ccSchema = z.object({
@@ -107,67 +112,78 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Competitor not found" }, { status: 404 });
     }
 
-    // Stale-job sweep + concurrency gate.
-    const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-    await admin
-      .from("mait_scrape_jobs")
-      .update({
-        status: "failed",
-        completed_at: new Date().toISOString(),
-        error: "Timeout (stale)",
-      })
-      .eq("competitor_id", competitor.id)
-      .eq("status", "running")
-      .lt("started_at", tenMinAgo);
+    // Batch flow: charge + gate + job insert gia' fatti dalla rotta batch.
+    const isBatched = !!parsed.data.batched && !!parsed.data.job_id;
 
-    const rate = await checkScanConcurrency(admin, {
-      workspaceId: competitor.workspace_id,
-      competitorId: competitor.id,
-    });
-    if (!rate.ok) {
-      return NextResponse.json({ error: rate.reason }, { status: 429 });
-    }
+    if (!isBatched) {
+      // Stale-job sweep + concurrency gate.
+      const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+      await admin
+        .from("mait_scrape_jobs")
+        .update({
+          status: "failed",
+          completed_at: new Date().toISOString(),
+          error: "Timeout (stale)",
+        })
+        .eq("competitor_id", competitor.id)
+        .eq("status", "running")
+        .lt("started_at", tenMinAgo);
 
-    const credits = await consumeCredits(
-      user.id,
-      "scan_tiktok_ads",
-      `TikTok Ads (DSA): ${competitor.page_name}`,
-    );
-    if (!credits.ok) {
-      return NextResponse.json(
-        { error: "Insufficient credits", balance: credits.balance, cost: 2 },
-        { status: 402 },
-      );
-    }
+      const rate = await checkScanConcurrency(admin, {
+        workspaceId: competitor.workspace_id,
+        competitorId: competitor.id,
+      });
+      if (!rate.ok) {
+        return NextResponse.json({ error: rate.reason }, { status: 429 });
+      }
 
-    const { data: job, error: jobErr } = await admin
-      .from("mait_scrape_jobs")
-      .insert({
-        workspace_id: competitor.workspace_id,
-        competitor_id: competitor.id,
-        status: "running",
-        // Mark the source as "tiktok_ads" so the brand-detail "last
-        // scan" badge can distinguish it from the organic TikTok
-        // scan (`source: "tiktok"`). Same pattern as Meta vs Google.
-        source: "tiktok_ads",
-        date_from: date_from ?? null,
-        date_to: date_to ?? null,
-      })
-      .select("id")
-      .single();
-    if (jobErr || !job) {
-      await refundCredits(
+      const credits = await consumeCredits(
         user.id,
         "scan_tiktok_ads",
         `TikTok Ads (DSA): ${competitor.page_name}`,
       );
-      if ((jobErr as { code?: string } | null)?.code === "23505") {
-        return NextResponse.json({ error: "already_running" }, { status: 429 });
+      if (!credits.ok) {
+        return NextResponse.json(
+          { error: "Insufficient credits", balance: credits.balance, cost: 2 },
+          { status: 402 },
+        );
       }
-      return NextResponse.json(
-        { error: jobErr?.message ?? "Job error" },
-        { status: 500 },
-      );
+    }
+
+    let job: { id: string };
+    if (isBatched) {
+      job = { id: parsed.data.job_id as string };
+    } else {
+      const { data: jobIns, error: jobErr } = await admin
+        .from("mait_scrape_jobs")
+        .insert({
+          workspace_id: competitor.workspace_id,
+          competitor_id: competitor.id,
+          status: "running",
+          // Mark the source as "tiktok_ads" so the brand-detail "last
+          // scan" badge can distinguish it from the organic TikTok
+          // scan (`source: "tiktok"`). Same pattern as Meta vs Google.
+          source: "tiktok_ads",
+          date_from: date_from ?? null,
+          date_to: date_to ?? null,
+        })
+        .select("id")
+        .single();
+      if (jobErr || !jobIns) {
+        await refundCredits(
+          user.id,
+          "scan_tiktok_ads",
+          `TikTok Ads (DSA): ${competitor.page_name}`,
+        );
+        if ((jobErr as { code?: string } | null)?.code === "23505") {
+          return NextResponse.json({ error: "already_running" }, { status: 429 });
+        }
+        return NextResponse.json(
+          { error: jobErr?.message ?? "Job error" },
+          { status: 500 },
+        );
+      }
+      job = jobIns;
     }
 
     try {

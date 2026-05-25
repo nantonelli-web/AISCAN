@@ -127,7 +127,9 @@ type Channel =
   | "meta"
   | "instagram"
   | "tiktok"
-  | "youtube";
+  | "youtube"
+  | "tiktok_ads"
+  | "snapchat_ads";
 
 interface ChannelOption {
   key: Channel;
@@ -143,7 +145,9 @@ const CHANNELS: ChannelOption[] = [
   { key: "meta", label: "Meta Ads", available: true, costPerScan: 5 },
   { key: "instagram", label: "Instagram", available: true, costPerScan: 2 },
   { key: "tiktok", label: "TikTok", available: true, costPerScan: 2 },
+  { key: "tiktok_ads", label: "TikTok Ads", available: true, costPerScan: 2 },
   { key: "snapchat", label: "Snapchat", available: true, costPerScan: 1 },
+  { key: "snapchat_ads", label: "Snapchat Ads", available: true, costPerScan: 1 },
   { key: "youtube", label: "YouTube", available: true, costPerScan: 1 },
 ];
 
@@ -179,6 +183,13 @@ function hasChannelConfig(brand: BrandRow, channel: Channel): boolean {
       return !!brand.tiktok_username;
     case "youtube":
       return !!brand.youtube_channel_url;
+    // Ads paid: proxy di presenza canale per non sprecare crediti su
+    // brand senza segnale (la ricerca e' per nome, ma gateiamo sul
+    // segnale piu' affidabile disponibile).
+    case "tiktok_ads":
+      return !!brand.tiktok_username;
+    case "snapchat_ads":
+      return !!brand.snapchat_handle;
   }
 }
 
@@ -196,6 +207,10 @@ function batchEndpointFor(channel: Channel): string | null {
       return "/api/tiktok/scan/batch";
     case "youtube":
       return "/api/youtube/scan/batch";
+    case "tiktok_ads":
+      return "/api/tiktok-ads/scan/batch";
+    case "snapchat_ads":
+      return "/api/snapchat-ads/scan/batch";
   }
 }
 
@@ -302,6 +317,8 @@ export function BatchScanPanel({
       instagram: 0,
       tiktok: 0,
       youtube: 0,
+      tiktok_ads: 0,
+      snapchat_ads: 0,
     };
     for (const b of brandsInProject) {
       for (const k of Object.keys(counts) as Channel[]) {
@@ -385,6 +402,8 @@ export function BatchScanPanel({
       instagram: 0,
       tiktok: 0,
       youtube: 0,
+      tiktok_ads: 0,
+      snapchat_ads: 0,
     };
     for (const b of brands) {
       if (filterValue !== null) {

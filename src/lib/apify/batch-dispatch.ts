@@ -479,6 +479,33 @@ export async function countScanRecordsSince(
       .gt("last_seen_in_scan_at", sinceIso);
     return count ?? 0;
   }
+  if (source === "tiktok_ads") {
+    const { count } = await admin
+      .from("mait_tiktok_ads")
+      .select("ad_id", { count: "exact", head: true })
+      .eq("competitor_id", competitorId)
+      .gt("last_seen_in_scan_at", sinceIso);
+    return count ?? 0;
+  }
+  if (source === "snapchat_ads") {
+    const { count } = await admin
+      .from("mait_snapchat_ads")
+      .select("ad_id", { count: "exact", head: true })
+      .eq("competitor_id", competitorId)
+      .gt("last_seen_in_scan_at", sinceIso);
+    return count ?? 0;
+  }
+  if (source === "snapchat") {
+    // Organic Snapchat e' snapshot-based (una riga per scan, niente
+    // last_seen_in_scan_at): un nuovo snapshot in questa finestra =
+    // scan riuscito. Segnale = scraped_at.
+    const { count } = await admin
+      .from("mait_snapchat_profiles")
+      .select("competitor_id", { count: "exact", head: true })
+      .eq("competitor_id", competitorId)
+      .gt("scraped_at", sinceIso);
+    return count ?? 0;
+  }
   return 0;
 }
 
