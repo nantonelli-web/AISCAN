@@ -76,11 +76,15 @@ function resolveSurface(channel: string | undefined):
   | "instagram"
   | "tiktok"
   | "snapchat"
-  | "youtube" {
+  | "youtube"
+  | "tiktok_ads"
+  | "snapchat_ads" {
   if (channel === "instagram") return "instagram";
   if (channel === "tiktok") return "tiktok";
   if (channel === "snapchat") return "snapchat";
   if (channel === "youtube") return "youtube";
+  if (channel === "tiktok_ads") return "tiktok_ads";
+  if (channel === "snapchat_ads") return "snapchat_ads";
   return "ads";
 }
 
@@ -196,6 +200,45 @@ export function buildLibraryQuery(
     return ytQuery;
   }
 
+  // TikTok Ads (paid) — SOLO il path DSA library (per-brand). Il
+  // Creative Center e' market-intel workspace-level, fuori dal modello
+  // cross-brand della Library (resta sul brand-detail / single-scan).
+  if (surface === "tiktok_ads") {
+    let taQuery = supabase
+      .from("mait_tiktok_ads")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("source", "library")
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+    taQuery = applyProjectScope(taQuery, args);
+    if (args.q && args.q.trim().length > 0) {
+      const term = `%${args.q.trim()}%`;
+      taQuery = taQuery.or(
+        `ad_title.ilike.${term},ad_text.ilike.${term},advertiser_name.ilike.${term}`,
+      );
+    }
+    return taQuery;
+  }
+
+  // Snapchat Ads (paid) — per-brand, REST DSA library.
+  if (surface === "snapchat_ads") {
+    let saQuery = supabase
+      .from("mait_snapchat_ads")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+    saQuery = applyProjectScope(saQuery, args);
+    if (args.q && args.q.trim().length > 0) {
+      const term = `%${args.q.trim()}%`;
+      saQuery = saQuery.or(
+        `headline.ilike.${term},paying_advertiser_name.ilike.${term}`,
+      );
+    }
+    return saQuery;
+  }
+
   // Ads (Meta + Google) from mait_ads_external. Sort discipline:
   // - no channel filter → source DESC + created_at DESC. PostgREST
   //   doesn't expose a per-value priority (Meta-first is what we
@@ -274,6 +317,35 @@ export function buildLibraryCountQuery(
       );
     }
     return ytQuery;
+  }
+  if (surface === "tiktok_ads") {
+    let taQuery = supabase
+      .from("mait_tiktok_ads")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .eq("source", "library");
+    taQuery = applyProjectScope(taQuery, filterArgs);
+    if (args.q && args.q.trim().length > 0) {
+      const term = `%${args.q.trim()}%`;
+      taQuery = taQuery.or(
+        `ad_title.ilike.${term},ad_text.ilike.${term},advertiser_name.ilike.${term}`,
+      );
+    }
+    return taQuery;
+  }
+  if (surface === "snapchat_ads") {
+    let saQuery = supabase
+      .from("mait_snapchat_ads")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId);
+    saQuery = applyProjectScope(saQuery, filterArgs);
+    if (args.q && args.q.trim().length > 0) {
+      const term = `%${args.q.trim()}%`;
+      saQuery = saQuery.or(
+        `headline.ilike.${term},paying_advertiser_name.ilike.${term}`,
+      );
+    }
+    return saQuery;
   }
   // Ads count.
   let query = supabase

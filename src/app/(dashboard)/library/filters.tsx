@@ -235,6 +235,8 @@ export function LibraryFilters({
   const channelLabels: Record<string, string> = {
     meta: "Meta Ads",
     google: "Google Ads",
+    tiktok_ads: "TikTok Ads",
+    snapchat_ads: "Snapchat Ads",
     instagram: "Instagram",
     tiktok: "TikTok",
     snapchat: "Snapchat",
@@ -282,6 +284,18 @@ export function LibraryFilters({
                 onClick={() => selectChannel("google")}
               >
                 <GoogleIcon className="size-3.5" /> Google
+              </BigPill>
+              <BigPill
+                active={filters.channel === "tiktok_ads"}
+                onClick={() => selectChannel("tiktok_ads")}
+              >
+                <TikTokIcon className="size-3.5" /> TikTok Ads
+              </BigPill>
+              <BigPill
+                active={filters.channel === "snapchat_ads"}
+                onClick={() => selectChannel("snapchat_ads")}
+              >
+                <SnapchatIcon className="size-3.5" /> Snapchat Ads
               </BigPill>
               <BigPill
                 active={!filters.channel}
@@ -459,10 +473,15 @@ export function LibraryFilters({
           </div>
 
           {/* Advanced filters — always visible (toggle removed
-              2026-05-04 per user request). Hidden only when the
-              selected channel is organic (those tables don't
-              carry these facets). */}
-          {!isOrganicChannel(filters.channel) && (
+              2026-05-04 per user request). Hidden quando il canale e'
+              organic (quelle tabelle non hanno questi facet) E sui
+              canali paid TikTok/Snapchat Ads, che vivono su tabelle
+              dedicate (mait_tiktok_ads / mait_snapchat_ads) con colonne
+              diverse da mait_ads_external — questi facet non si
+              applicano. Restano per Meta/Google/Tutti. */}
+          {!isOrganicChannel(filters.channel) &&
+            filters.channel !== "tiktok_ads" &&
+            filters.channel !== "snapchat_ads" && (
             <div className="pt-3 border-t border-border flex flex-wrap gap-x-6 gap-y-3">
               <FilterSelect
                 label={t("library", "formatLabel")}

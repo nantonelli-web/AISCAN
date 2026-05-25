@@ -21,6 +21,8 @@ import type {
   MaitYoutubeVideo,
   MaitClient,
 } from "@/types";
+import type { MaitTiktokAd } from "@/types/tiktok-ads";
+import type { MaitSnapchatAd } from "@/types/snapchat-ads";
 
 export const dynamic = "force-dynamic";
 
@@ -116,6 +118,8 @@ export default async function LibraryPage({
   const isTiktok = sp.channel === "tiktok";
   const isSnapchat = sp.channel === "snapchat";
   const isYoutube = sp.channel === "youtube";
+  const isTiktokAds = sp.channel === "tiktok_ads";
+  const isSnapchatAds = sp.channel === "snapchat_ads";
   const admin = createAdminClient();
 
   const [competitors, { data: clientsData }] = await Promise.all([
@@ -176,6 +180,10 @@ export default async function LibraryPage({
       return { kind: "snapchat" as const, items: initialList as MaitSnapchatProfile[] };
     if (isYoutube)
       return { kind: "youtube" as const, items: initialList as MaitYoutubeVideo[] };
+    if (isTiktokAds)
+      return { kind: "tiktok_ads" as const, items: initialList as MaitTiktokAd[] };
+    if (isSnapchatAds)
+      return { kind: "snapchat_ads" as const, items: initialList as MaitSnapchatAd[] };
     return { kind: "ads" as const, items: initialList as MaitAdExternal[] };
   })();
 

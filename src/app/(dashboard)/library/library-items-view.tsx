@@ -9,6 +9,8 @@ import { OrganicPostCard } from "@/components/organic/organic-post-card";
 import { TikTokPostCard } from "@/components/organic/tiktok-post-card";
 import { SnapchatProfileCard } from "@/components/organic/snapchat-profile-card";
 import { YoutubeVideoCard } from "@/components/organic/youtube-video-card";
+import { TiktokAdCard } from "@/components/ads/tiktok-ad-card";
+import { SnapchatAdCard } from "@/components/ads/snapchat-ad-card";
 import type {
   MaitAdExternal,
   MaitOrganicPost,
@@ -16,6 +18,8 @@ import type {
   MaitSnapchatProfile,
   MaitYoutubeVideo,
 } from "@/types";
+import type { MaitTiktokAd } from "@/types/tiktok-ads";
+import type { MaitSnapchatAd } from "@/types/snapchat-ads";
 
 /**
  * Library items renderer + Load More controller. Holds the current
@@ -29,14 +33,23 @@ import type {
  * disjoint enough that the discriminated union plays well with TS.
  */
 
-type LibraryKind = "ads" | "instagram" | "tiktok" | "snapchat" | "youtube";
+type LibraryKind =
+  | "ads"
+  | "instagram"
+  | "tiktok"
+  | "snapchat"
+  | "youtube"
+  | "tiktok_ads"
+  | "snapchat_ads";
 
 type ItemsByKind =
   | { kind: "ads"; items: MaitAdExternal[] }
   | { kind: "instagram"; items: MaitOrganicPost[] }
   | { kind: "tiktok"; items: MaitTikTokPost[] }
   | { kind: "snapchat"; items: MaitSnapchatProfile[] }
-  | { kind: "youtube"; items: MaitYoutubeVideo[] };
+  | { kind: "youtube"; items: MaitYoutubeVideo[] }
+  | { kind: "tiktok_ads"; items: MaitTiktokAd[] }
+  | { kind: "snapchat_ads"; items: MaitSnapchatAd[] };
 
 interface SearchParamsShape {
   q?: string;
@@ -128,6 +141,10 @@ export function LibraryItemsView({
             return { kind: "snapchat", items: [...prev.items, ...(data.items as MaitSnapchatProfile[])] };
           case "youtube":
             return { kind: "youtube", items: [...prev.items, ...(data.items as MaitYoutubeVideo[])] };
+          case "tiktok_ads":
+            return { kind: "tiktok_ads", items: [...prev.items, ...(data.items as MaitTiktokAd[])] };
+          case "snapchat_ads":
+            return { kind: "snapchat_ads", items: [...prev.items, ...(data.items as MaitSnapchatAd[])] };
         }
       });
       setHasMore(data.hasMore);
@@ -281,6 +298,42 @@ function RenderGrid({
             }
           >
             <YoutubeVideoCard video={v} />
+          </BrandFramedItem>
+        ))}
+      </Grid>
+    );
+  }
+  if (items.kind === "tiktok_ads") {
+    return (
+      <Grid>
+        {items.items.map((a) => (
+          <BrandFramedItem
+            key={a.id}
+            brandName={
+              showBrandLabel
+                ? brandNameById[a.competitor_id ?? ""] ?? null
+                : null
+            }
+          >
+            <TiktokAdCard ad={a} />
+          </BrandFramedItem>
+        ))}
+      </Grid>
+    );
+  }
+  if (items.kind === "snapchat_ads") {
+    return (
+      <Grid>
+        {items.items.map((a) => (
+          <BrandFramedItem
+            key={a.id}
+            brandName={
+              showBrandLabel
+                ? brandNameById[a.competitor_id ?? ""] ?? null
+                : null
+            }
+          >
+            <SnapchatAdCard ad={a} />
           </BrandFramedItem>
         ))}
       </Grid>
