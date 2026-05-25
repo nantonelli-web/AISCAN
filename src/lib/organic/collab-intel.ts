@@ -33,6 +33,8 @@ export interface CollabAccount {
   category: string | null;
   verified: boolean | null;
   followers_count: number | null;
+  posts_count: number | null;
+  follows_count: number | null;
   tier: CollabTier | null;
   profile_pic_url: string | null;
   external_url: string | null;

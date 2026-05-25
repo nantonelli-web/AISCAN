@@ -2784,7 +2784,13 @@ const translations = {
     collabFilterAll: { it: "Tutti", en: "All" },
     collabVerified: { it: "Verificato", en: "Verified" },
     collabFollowers: { it: "follower", en: "followers" },
+    collabFollowing: { it: "seguiti", en: "following" },
+    collabPostsCount: { it: "post", en: "posts" },
     collabWebsite: { it: "Sito web", en: "Website" },
+    collabConfidence: { it: "Confidenza AI", en: "AI confidence" },
+    confHigh: { it: "alta", en: "high" },
+    confMed: { it: "media", en: "medium" },
+    confLow: { it: "bassa", en: "low" },
     collabPostsTooltip: {
       it: "Numero di post del brand che taggano o menzionano questo account",
       en: "Number of the brand's posts tagging or mentioning this account",

@@ -30,7 +30,7 @@ import {
 export const maxDuration = 300;
 
 const ACCOUNT_COLUMNS =
-  "handle, platform, full_name, biography, category, verified, followers_count, tier, profile_pic_url, external_url, enriched_at, enrich_status, classification, classification_confidence, classification_reason, classified_at";
+  "handle, platform, full_name, biography, category, verified, followers_count, posts_count, follows_count, tier, profile_pic_url, external_url, enriched_at, enrich_status, classification, classification_confidence, classification_reason, classified_at";
 
 const schema = z.object({
   competitor_id: z.string().uuid(),

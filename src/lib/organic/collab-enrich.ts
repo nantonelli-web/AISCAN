@@ -102,6 +102,8 @@ export async function enrichCollaborators(opts: {
         category: p.businessCategoryName,
         verified: p.verified,
         followers_count: p.followersCount,
+        posts_count: p.postsCount,
+        follows_count: p.followsCount,
         tier: computeTier(p.followersCount),
         profile_pic_url: picUrl,
         external_url: p.externalUrl,
