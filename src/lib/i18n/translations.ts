@@ -1932,9 +1932,10 @@ const translations = {
     },
     createdOn: { it: "Creata il", en: "Created on" },
     allCollections: { it: "Tutte le collezioni", en: "All collections" },
+    itemsLabel: { it: "elementi", en: "items" },
     noAdsInCollection: {
-      it: "Nessuna ad in questa collezione. Usa l'icona segnalibro sulle card per aggiungerne.",
-      en: "No ads in this collection. Use the bookmark icon on cards to add some.",
+      it: "Nessun elemento in questa collezione. Usa l'icona segnalibro sulle card per aggiungerne.",
+      en: "No items in this collection yet. Use the bookmark icon on cards to add some.",
     },
   },
 

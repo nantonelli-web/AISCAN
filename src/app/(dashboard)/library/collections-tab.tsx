@@ -21,15 +21,15 @@ export async function CollectionsTab({
   const admin = createAdminClient();
   const { data } = await admin
     .from("mait_collections")
-    .select("id, name, description, created_at, mait_collection_ads(count)")
+    .select("id, name, description, created_at, mait_collection_items(count)")
     .eq("workspace_id", workspaceId)
     .order("created_at", { ascending: false });
 
   const collections = (data ?? []).map((c) => ({
     ...c,
-    adCount:
-      (c.mait_collection_ads as unknown as { count: number }[])?.[0]?.count ??
-      0,
+    itemCount:
+      (c.mait_collection_items as unknown as { count: number }[])?.[0]
+        ?.count ?? 0,
   }));
 
   if (collections.length === 0) {
@@ -59,7 +59,9 @@ export async function CollectionsTab({
                     </p>
                   )}
                 </div>
-                <Badge variant="gold">{c.adCount} ads</Badge>
+                <Badge variant="gold">
+                  {c.itemCount} {t("collections", "itemsLabel")}
+                </Badge>
               </div>
               <p className="text-[10px] text-muted-foreground">
                 {t("collections", "createdOn")} {formatDate(c.created_at)}

@@ -6,14 +6,21 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useT } from "@/lib/i18n/context";
+import type { CollectionItemType } from "@/lib/collections/item-types";
 
 interface Collection {
   id: string;
   name: string;
-  adCount: number;
+  itemCount: number;
 }
 
-export function SaveToCollection({ adId }: { adId: string }) {
+export function SaveToCollection({
+  itemType,
+  itemId,
+}: {
+  itemType: CollectionItemType;
+  itemId: string;
+}) {
   const [open, setOpen] = useState(false);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [newName, setNewName] = useState("");
@@ -32,10 +39,10 @@ export function SaveToCollection({ adId }: { adId: string }) {
   }, [open]);
 
   async function addToCollection(collId: string) {
-    const res = await fetch(`/api/collections/${collId}/ads`, {
+    const res = await fetch(`/api/collections/${collId}/items`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ad_id: adId }),
+      body: JSON.stringify({ item_type: itemType, item_id: itemId }),
     });
     if (res.ok) {
       setSavedIn((prev) => new Set([...prev, collId]));
@@ -61,7 +68,7 @@ export function SaveToCollection({ adId }: { adId: string }) {
     }
     await addToCollection(json.id);
     setCollections((prev) => [
-      { id: json.id, name: newName.trim(), adCount: 1 },
+      { id: json.id, name: newName.trim(), itemCount: 1 },
       ...prev,
     ]);
     setNewName("");
@@ -117,7 +124,7 @@ export function SaveToCollection({ adId }: { adId: string }) {
                 <Check className="size-3 text-gold shrink-0" />
               ) : (
                 <span className="text-muted-foreground shrink-0">
-                  {c.adCount}
+                  {c.itemCount}
                 </span>
               )}
             </button>

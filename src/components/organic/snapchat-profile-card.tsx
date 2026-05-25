@@ -15,6 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ChannelCoverBand } from "./channel-cover-band";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
+import { SaveToCollection } from "@/components/ads/save-to-collection";
 import type { MaitSnapchatProfile } from "@/types";
 
 /**
@@ -48,7 +49,11 @@ export function SnapchatProfileCard({ profile }: { profile: MaitSnapchatProfile 
   ];
 
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden relative">
+      {/* Save to collection — top-right (questa card non ha media overlay) */}
+      <div className="absolute top-2 right-2 z-10">
+        <SaveToCollection itemType="snapchat_profile" itemId={profile.id} />
+      </div>
       {/* Channel cover band — yellow Snapchat gradient, parallels
           the YouTube banner-then-identity pattern the user liked. */}
       <ChannelCoverBand

@@ -5,6 +5,7 @@ import { ExternalLink, Eye, ImageIcon, Globe2 } from "lucide-react";
 import { SnapchatIcon } from "@/components/ui/snapchat-icon";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatNumber, cn } from "@/lib/utils";
+import { SaveToCollection } from "@/components/ads/save-to-collection";
 import type { MaitSnapchatAd } from "@/types/snapchat-ads";
 
 /**
@@ -42,8 +43,12 @@ export function SnapchatAdCard({ ad }: { ad: MaitSnapchatAd }) {
             <ImageIcon className="size-10" />
           </div>
         )}
-        {/* Channel pill */}
-        <div className="absolute top-2 left-2 pointer-events-none">
+        {/* Save to collection — top-left, coerente con AdCard */}
+        <div className="absolute top-2 left-2 z-10">
+          <SaveToCollection itemType="snapchat_ad" itemId={ad.id} />
+        </div>
+        {/* Channel pill — shiftato a destra del bottone salva */}
+        <div className="absolute top-2 left-11 pointer-events-none">
           <span className="inline-flex items-center gap-1 rounded backdrop-blur-sm px-1.5 py-0.5 text-[10px] font-medium text-black bg-yellow-300/90">
             <SnapchatIcon className="size-3" />
             Snap

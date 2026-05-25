@@ -3,6 +3,7 @@
 import { ExternalLink, Eye, Heart, MessageCircle, Play, Radio, Film } from "lucide-react";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { useT } from "@/lib/i18n/context";
+import { SaveToCollection } from "@/components/ads/save-to-collection";
 import type { MaitYoutubeVideo } from "@/types";
 
 function formatDuration(s: number | null): string | null {
@@ -49,8 +50,12 @@ export function YoutubeVideoCard({ video }: { video: MaitYoutubeVideo }) {
           </div>
         )}
 
-        {/* Top-left: type badge */}
-        <div className="absolute top-2 left-2">
+        {/* Save to collection — top-left, coerente con AdCard */}
+        <div className="absolute top-2 left-2 z-10">
+          <SaveToCollection itemType="youtube_video" itemId={video.id} />
+        </div>
+        {/* Top-left: type badge — shiftato a destra del bottone salva */}
+        <div className="absolute top-2 left-11">
           <span className="inline-flex items-center gap-1 rounded bg-black/70 backdrop-blur-sm px-1.5 py-0.5 text-[10px] font-medium text-white">
             <TypeIcon className="size-3" />
             {typeLabel}

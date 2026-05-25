@@ -8,6 +8,7 @@ import { useT } from "@/lib/i18n/context";
 import { AI_TAGS_ENABLED } from "@/config/features";
 import { VideoPreview } from "@/components/ads/video-preview";
 import { VideoUnavailable } from "@/components/ui/video-unavailable";
+import { SaveToCollection } from "@/components/ads/save-to-collection";
 import { isCollabPost } from "@/lib/organic/collaborations";
 import type { MaitOrganicPost } from "@/types";
 
@@ -98,8 +99,12 @@ export function OrganicPostCard({
           </a>
         )}
 
-        {/* Type badge */}
-        <div className="absolute top-2 left-2 pointer-events-none">
+        {/* Save to collection — top-left, coerente con AdCard */}
+        <div className="absolute top-2 left-2 z-10">
+          <SaveToCollection itemType="instagram_post" itemId={post.id} />
+        </div>
+        {/* Type badge — shiftato a destra del bottone salva */}
+        <div className="absolute top-2 left-11 pointer-events-none">
           <span className="inline-flex items-center gap-1 rounded bg-black/70 backdrop-blur-sm px-1.5 py-0.5 text-[10px] font-medium text-white">
             <TypeIcon className="size-3" />
             {typeLabel.toUpperCase()}

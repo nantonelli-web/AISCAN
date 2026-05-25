@@ -376,7 +376,7 @@ export function AdCard({
           </div>
         )}
         <div className="absolute top-2 left-2">
-          <SaveToCollection adId={ad.id} />
+          <SaveToCollection itemType="ad" itemId={ad.id} />
         </div>
         <div className="absolute bottom-2 left-2 flex items-center gap-1">
           <span className="inline-flex items-center gap-1 rounded bg-black/70 backdrop-blur-sm px-1.5 py-0.5 text-[10px] font-medium text-white">

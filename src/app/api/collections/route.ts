@@ -36,14 +36,14 @@ export async function GET() {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 
-  // Get ad count per collection
+  // Item count per collection (polimorfico: ads + organic, tutti i canali)
   const collections = await Promise.all(
     (data ?? []).map(async (c) => {
       const { count } = await admin
-        .from("mait_collection_ads")
-        .select("ad_id", { count: "exact", head: true })
+        .from("mait_collection_items")
+        .select("item_id", { count: "exact", head: true })
         .eq("collection_id", c.id);
-      return { ...c, adCount: count ?? 0 };
+      return { ...c, itemCount: count ?? 0 };
     })
   );
 

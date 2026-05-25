@@ -8,6 +8,7 @@ import { useT } from "@/lib/i18n/context";
 import { VideoPreview } from "@/components/ads/video-preview";
 import { VideoUnavailable } from "@/components/ui/video-unavailable";
 import { isCollabPost } from "@/lib/organic/collaborations";
+import { SaveToCollection } from "@/components/ads/save-to-collection";
 import type { MaitTikTokPost } from "@/types";
 
 function formatDuration(s: number | null): string | null {
@@ -119,8 +120,12 @@ export function TikTokPostCard({
           </a>
         )}
 
-        {/* Top-left: type badge */}
-        <div className="absolute top-2 left-2 flex items-center gap-1.5 pointer-events-none">
+        {/* Save to collection — top-left, coerente con AdCard */}
+        <div className="absolute top-2 left-2 z-10">
+          <SaveToCollection itemType="tiktok_post" itemId={post.id} />
+        </div>
+        {/* Top-left: type badge — shiftato a destra del bottone salva */}
+        <div className="absolute top-2 left-11 flex items-center gap-1.5 pointer-events-none">
           <span className="inline-flex items-center gap-1 rounded bg-black/70 backdrop-blur-sm px-1.5 py-0.5 text-[10px] font-medium text-white">
             {post.is_slideshow ? <ImageIcon className="size-3" /> : <Play className="size-3" />}
             {post.is_slideshow ? "SLIDES" : "VIDEO"}
