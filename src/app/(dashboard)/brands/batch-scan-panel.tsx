@@ -668,14 +668,15 @@ export function BatchScanPanel({
   }, [open]);
 
   // Hooks-friendly: useMemo PRIMA di qualsiasi early return.
-  // Brand con almeno 1 canale supportato configurato (Google o
-  // Snapchat al momento). Usato sia per il gate di visibilita' del
-  // panel sia per i conteggi del pill "Progetto".
+  // Brand con almeno 1 canale batch configurato (uno QUALSIASI dei
+  // canali in CHANNELS, non piu' solo Google/Snapchat). Usato sia per
+  // il gate di visibilita' del panel sia per i conteggi del pill
+  // "Progetto", cosi' il pannello appare anche per workspace con brand
+  // solo Meta/IG/TikTok/YouTube.
   const brandsWithAnyChannel = useMemo(
     () =>
-      brands.filter(
-        (b) =>
-          hasChannelConfig(b, "google") || hasChannelConfig(b, "snapchat"),
+      brands.filter((b) =>
+        CHANNELS.some((ch) => ch.available && hasChannelConfig(b, ch.key)),
       ),
     [brands],
   );
