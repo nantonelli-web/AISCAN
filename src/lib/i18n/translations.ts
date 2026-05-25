@@ -2795,7 +2795,28 @@ const translations = {
       it: "Analisi fallita. Riprova.",
       en: "Analysis failed. Retry.",
     },
-    collabTierAi: { it: "Modello AI", en: "AI model" },
+    collabAnalysisTitle: {
+      it: "Analisi AI dei collaboratori",
+      en: "AI collaborator analysis",
+    },
+    collabTierLabel: { it: "Profondità dell'analisi", en: "Analysis depth" },
+    collabTierExplain: {
+      it: "Sceglie il modello AI usato per classificare: più approfondito = più preciso sugli account ambigui, ma costa più crediti.",
+      en: "Picks the AI model used to classify: deeper = more accurate on ambiguous accounts, but costs more credits.",
+    },
+    tierCheapName: { it: "Veloce", en: "Fast" },
+    tierPragmaticName: { it: "Bilanciata", en: "Balanced" },
+    tierPremiumName: { it: "Approfondita", en: "Deep" },
+    tierCheapDesc: {
+      it: "Modello base, per account evidenti",
+      en: "Base model, for obvious accounts",
+    },
+    tierPragmaticDesc: { it: "Buon compromesso", en: "Good trade-off" },
+    tierPremiumDesc: {
+      it: "Massima accuratezza sugli ambigui",
+      en: "Top accuracy on ambiguous ones",
+    },
+    recommended: { it: "consigliata", en: "recommended" },
     collabSingular: { it: "post", en: "post" },
     collabPlural: { it: "post", en: "posts" },
     moreCollaborators: {

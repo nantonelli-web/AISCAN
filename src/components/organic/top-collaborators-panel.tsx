@@ -57,6 +57,21 @@ type ModelTier = "cheap" | "pragmatic" | "premium";
 const TIERS: ModelTier[] = ["cheap", "pragmatic", "premium"];
 const TIER_STORAGE_KEY = "aiscan.collab.aiTier";
 
+/** Label parlanti per i tier (i raw "cheap/pragmatic/premium" non
+ *  dicono nulla all'utente). i18n key + flag "consigliata". */
+const TIER_META: Record<
+  ModelTier,
+  { name: string; desc: string; recommended?: boolean }
+> = {
+  cheap: { name: "tierCheapName", desc: "tierCheapDesc" },
+  pragmatic: {
+    name: "tierPragmaticName",
+    desc: "tierPragmaticDesc",
+    recommended: true,
+  },
+  premium: { name: "tierPremiumName", desc: "tierPremiumDesc" },
+};
+
 const TIKTOK_LABEL = "TikTok";
 const IG_LABEL = "Instagram";
 const INITIAL_VISIBLE = 5;
@@ -327,91 +342,127 @@ export function TopCollaboratorsPanel({
           </div>
         </div>
 
-        {/* ── Intel toolbar (L2/L3): tier picker + CTA analizza ── */}
+        {/* ── Sub-frame con TITOLO: Analisi AI dei collaboratori (L2/L3) ── */}
         {intelEnabled && (
-          <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
-            <p className="text-[11px] text-muted-foreground leading-snug">
+          <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="size-4 text-gold shrink-0" />
+              <h4 className="text-sm font-semibold text-foreground">
+                {t("organic", "collabAnalysisTitle")}
+              </h4>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
               {t("organic", "collabAnalyzeHint")}
             </p>
-            <div className="flex flex-wrap items-center gap-2">
-              {COLLAB_CLASSIFY_ENABLED && (
-                <div className="inline-flex rounded-md border border-border overflow-hidden">
-                  {TIERS.map((tr) => (
-                    <button
-                      key={tr}
-                      type="button"
-                      onClick={() => setTier(tr)}
-                      className={cn(
-                        "px-2.5 py-1 text-[11px] font-medium capitalize cursor-pointer transition-colors",
-                        tier === tr
-                          ? "bg-gold text-black"
-                          : "bg-transparent text-muted-foreground hover:text-foreground",
-                      )}
-                      title={`${tierCost(tr)} ${creditWord(tierCost(tr))}`}
-                    >
-                      {tr}
-                    </button>
-                  ))}
+
+            {/* Selettore profondità (modello AI) — label parlanti, costo
+                esplicito, stato attivo leggibile (no testo nero su navy). */}
+            {COLLAB_CLASSIFY_ENABLED && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-foreground">
+                  {t("organic", "collabTierLabel")}
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {TIERS.map((tr) => {
+                    const meta = TIER_META[tr];
+                    const isActive = tier === tr;
+                    return (
+                      <button
+                        key={tr}
+                        type="button"
+                        onClick={() => setTier(tr)}
+                        aria-pressed={isActive}
+                        className={cn(
+                          "text-left rounded-md border p-2 cursor-pointer transition-colors",
+                          isActive
+                            ? "border-gold bg-gold-soft ring-1 ring-gold"
+                            : "border-border bg-background hover:border-gold/50",
+                        )}
+                      >
+                        <span className="flex items-center justify-between gap-1">
+                          <span className="text-xs font-semibold text-foreground">
+                            {t("organic", meta.name)}
+                          </span>
+                          <span className="text-[11px] font-semibold text-gold tabular-nums shrink-0">
+                            {tierCost(tr)} {creditWord(tierCost(tr))}
+                          </span>
+                        </span>
+                        <span className="block text-[11px] text-muted-foreground leading-snug mt-0.5">
+                          {t("organic", meta.desc)}
+                          {meta.recommended
+                            ? ` · ${t("organic", "recommended")}`
+                            : ""}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
-              )}
+                <p className="text-[11px] text-muted-foreground italic leading-snug">
+                  {t("organic", "collabTierExplain")}
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
               <Button
                 size="sm"
                 onClick={handleAnalyze}
                 disabled={analyzing || nothingToDo}
-                className="h-8"
               >
                 {analyzing ? (
                   <>
-                    <Loader2 className="size-3.5 animate-spin" />
+                    <Loader2 className="size-4 animate-spin" />
                     {t("organic", "analyzingCollabs")}
                   </>
                 ) : nothingToDo ? (
                   <>
-                    <Sparkles className="size-3.5" />
+                    <Sparkles className="size-4" />
                     {t("organic", "collabAllAnalyzed")}
                   </>
                 ) : (
                   <>
-                    <Sparkles className="size-3.5" />
+                    <Sparkles className="size-4" />
                     {t("organic", "analyzeCollabs")} · {preview.total}{" "}
                     {creditWord(preview.total)}
                   </>
                 )}
               </Button>
+              {/* Breakdown costo: come si compone il totale in crediti */}
+              {!nothingToDo && !analyzing && (
+                <p className="text-xs text-muted-foreground">
+                  {preview.toEnrich > 0 && (
+                    <span>
+                      {preview.toEnrich} {t("organic", "collabEnrichPart")} (
+                      {preview.enrichCredits}{" "}
+                      {creditWord(preview.enrichCredits)})
+                    </span>
+                  )}
+                  {preview.toEnrich > 0 && preview.classifyCredits > 0 && " + "}
+                  {preview.classifyCredits > 0 && (
+                    <span>
+                      {t("organic", "collabClassifyPart")} (
+                      {preview.classifyCredits}{" "}
+                      {creditWord(preview.classifyCredits)})
+                    </span>
+                  )}
+                </p>
+              )}
+              {result && (
+                <p className="text-xs font-medium text-foreground">
+                  {result.enriched > 0 &&
+                    `${result.enriched} ${t("organic", "collabEnriched")}`}
+                  {result.enriched > 0 && result.classified > 0 && " · "}
+                  {result.classified > 0 &&
+                    `${result.classified} ${t("organic", "collabClassified")}`}
+                  {result.notFound > 0 &&
+                    ` · ${result.notFound} ${t("organic", "collabNotFoundLabel")}`}
+                </p>
+              )}
+              {error && <p className="text-xs text-destructive">{error}</p>}
             </div>
-            {/* Breakdown costo */}
-            {!nothingToDo && !analyzing && (
-              <p className="text-[10px] text-muted-foreground">
-                {preview.toEnrich > 0 && (
-                  <span>
-                    {preview.toEnrich} {t("organic", "collabEnrichPart")} (
-                    {preview.enrichCredits} {creditWord(preview.enrichCredits)})
-                  </span>
-                )}
-                {preview.toEnrich > 0 && preview.classifyCredits > 0 && " · "}
-                {preview.classifyCredits > 0 && (
-                  <span>
-                    {t("organic", "collabClassifyPart")} (
-                    {preview.classifyCredits}{" "}
-                    {creditWord(preview.classifyCredits)})
-                  </span>
-                )}
-              </p>
-            )}
-            {result && (
-              <p className="text-[11px] text-foreground">
-                {result.enriched > 0 &&
-                  `${result.enriched} ${t("organic", "collabEnriched")}`}
-                {result.enriched > 0 && result.classified > 0 && " · "}
-                {result.classified > 0 &&
-                  `${result.classified} ${t("organic", "collabClassified")}`}
-                {result.notFound > 0 &&
-                  ` · ${result.notFound} ${t("organic", "collabNotFoundLabel")}`}
-              </p>
-            )}
-            {error && <p className="text-[11px] text-destructive">{error}</p>}
+
             {hasAnyClassification && (
-              <p className="text-[10px] text-muted-foreground italic">
+              <p className="text-[11px] text-muted-foreground italic">
                 {t("organic", "collabAiNote")}
               </p>
             )}
@@ -427,7 +478,7 @@ export function TopCollaboratorsPanel({
               className={cn(
                 "px-2 py-0.5 rounded-full text-[11px] font-medium cursor-pointer transition-colors border",
                 clsFilter === "all"
-                  ? "bg-gold text-black border-gold"
+                  ? "bg-gold text-gold-foreground border-gold"
                   : "border-border text-muted-foreground hover:text-foreground",
               )}
             >
@@ -443,7 +494,7 @@ export function TopCollaboratorsPanel({
                   className={cn(
                     "px-2 py-0.5 rounded-full text-[11px] font-medium cursor-pointer transition-colors border",
                     clsFilter === cls
-                      ? "bg-gold text-black border-gold"
+                      ? "bg-gold text-gold-foreground border-gold"
                       : "border-border text-muted-foreground hover:text-foreground",
                   )}
                 >
@@ -480,7 +531,7 @@ export function TopCollaboratorsPanel({
                       <Badge
                         variant="outline"
                         className={cn(
-                          "text-[9px] py-0 px-1.5",
+                          "text-[11px] py-0 px-1.5",
                           CLS_META[cls].cls,
                         )}
                         title={acc?.classification_reason ?? undefined}
@@ -489,19 +540,19 @@ export function TopCollaboratorsPanel({
                       </Badge>
                     )}
                     {acc?.followers_count != null && (
-                      <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+                      <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
                         {formatNumber(acc.followers_count)}{" "}
                         {t("organic", "collabFollowers")}
                         {acc.tier ? ` · ${acc.tier}` : ""}
                       </span>
                     )}
                     {showPlatformBadges && c.platforms.has("instagram") && (
-                      <Badge variant="outline" className="text-[9px] py-0 px-1.5">
+                      <Badge variant="outline" className="text-[11px] py-0 px-1.5">
                         {IG_LABEL}
                       </Badge>
                     )}
                     {showPlatformBadges && c.platforms.has("tiktok") && (
-                      <Badge variant="outline" className="text-[9px] py-0 px-1.5">
+                      <Badge variant="outline" className="text-[11px] py-0 px-1.5">
                         {TIKTOK_LABEL}
                       </Badge>
                     )}
