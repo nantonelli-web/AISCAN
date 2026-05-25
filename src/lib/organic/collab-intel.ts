@@ -72,6 +72,16 @@ function isStale(iso: string | null, days = STALE_DAYS): boolean {
 export function needsEnrichment(row: CollabAccount | undefined | null): boolean {
   if (!row || !row.enriched_at) return true;
   if (row.enrich_status === "error") return true;
+  // Riga legacy con foto salvata come URL CDN grezza (non mirrorata su
+  // storage): scadra'/403 → ri-arricchisci per mirrorarla. Si auto-
+  // corregge in un giro: dopo il re-enrich la URL e' Supabase o null.
+  if (
+    row.enrich_status === "ok" &&
+    row.profile_pic_url &&
+    !row.profile_pic_url.includes("supabase.co/storage")
+  ) {
+    return true;
+  }
   return isStale(row.enriched_at);
 }
 

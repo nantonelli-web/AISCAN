@@ -15,6 +15,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { scrapeInstagramProfiles } from "@/lib/instagram/service";
+import { storeCollabProfilePicture } from "@/lib/media/store-ad-images";
 import {
   computeTier,
   ENRICH_PLATFORMS,
@@ -61,42 +62,60 @@ export async function enrichCollaborators(opts: {
     workspaceId,
   );
 
-  let enriched = 0;
-  let notFound = 0;
-  const rows = handles.map((handle) => {
-    const p = profiles.get(handle.toLowerCase());
-    if (!p) {
-      notFound += 1;
+  // Costruiamo le righe in parallelo: per ogni profilo trovato
+  // mirroriamo la foto su Supabase Storage (le URL IG scadono e danno
+  // 403 → senza mirror la card mostra solo le iniziali).
+  const rows = await Promise.all(
+    handles.map(async (handle) => {
+      const p = profiles.get(handle.toLowerCase());
+      if (!p) {
+        return {
+          workspace_id: workspaceId,
+          handle,
+          platform,
+          enriched_at: now,
+          enrich_status: "not_found" as const,
+          enrich_error: null,
+          updated_at: now,
+        };
+      }
+      // Mirror della foto: salviamo SOLO l'URL permanente Supabase (o
+      // null se il download fallisce). MAI la URL CDN grezza: scade e
+      // da' 403 in render, e farebbe ri-scattare l'enrichment ogni volta
+      // (vedi check "raw url" in needsEnrichment).
+      let picUrl: string | null = null;
+      if (p.profilePicUrl) {
+        picUrl = await storeCollabProfilePicture(
+          admin,
+          workspaceId,
+          platform,
+          handle,
+          p.profilePicUrl,
+        );
+      }
       return {
         workspace_id: workspaceId,
         handle,
         platform,
+        full_name: p.fullName,
+        biography: p.biography,
+        category: p.businessCategoryName,
+        verified: p.verified,
+        followers_count: p.followersCount,
+        tier: computeTier(p.followersCount),
+        profile_pic_url: picUrl,
+        external_url: p.externalUrl,
         enriched_at: now,
-        enrich_status: "not_found" as const,
+        enrich_status: "ok" as const,
         enrich_error: null,
+        raw_profile: p as unknown as Record<string, unknown>,
         updated_at: now,
       };
-    }
-    enriched += 1;
-    return {
-      workspace_id: workspaceId,
-      handle,
-      platform,
-      full_name: p.fullName,
-      biography: p.biography,
-      category: p.businessCategoryName,
-      verified: p.verified,
-      followers_count: p.followersCount,
-      tier: computeTier(p.followersCount),
-      profile_pic_url: p.profilePicUrl,
-      external_url: p.externalUrl,
-      enriched_at: now,
-      enrich_status: "ok" as const,
-      enrich_error: null,
-      raw_profile: p as unknown as Record<string, unknown>,
-      updated_at: now,
-    };
-  });
+    }),
+  );
+
+  const enriched = rows.filter((r) => r.enrich_status === "ok").length;
+  const notFound = rows.filter((r) => r.enrich_status === "not_found").length;
 
   const { error } = await admin
     .from("mait_collab_accounts")

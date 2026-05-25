@@ -166,6 +166,28 @@ export async function storeProfilePicture(
 }
 
 /**
+ * Download & store a COLLABORATOR's profile picture permanently
+ * (L3 enrichment). Le URL del profilo IG hanno signature time-limited
+ * e dopo poche ore danno 403 → senza mirror le card mostrerebbero solo
+ * le iniziali. Chiave per platform+handle (cache workspace-scoped, come
+ * mait_collab_accounts: lo stesso account e' condiviso tra brand).
+ * Ritorna l'URL permanente, o null se il download fallisce.
+ */
+export async function storeCollabProfilePicture(
+  admin: SupabaseClient,
+  workspaceId: string,
+  platform: string,
+  handle: string,
+  profileUrl: string
+): Promise<string | null> {
+  if (!profileUrl) return null;
+  if (profileUrl.includes("supabase.co/storage")) return profileUrl;
+  await ensureBucket(admin);
+  const key = `collab_${platform}_${handle}`.replace(/[^a-zA-Z0-9_.-]/g, "_");
+  return downloadAndStore(admin, workspaceId, key, profileUrl, "collab-profiles");
+}
+
+/**
  * Process an array of ad rows: download images and replace image_url
  * with permanent Supabase Storage URLs. Mutates rows in-place.
  */

@@ -568,15 +568,6 @@ export function TopCollaboratorsPanel({
                     {acc.tier ? ` · ${acc.tier}` : ""}
                   </p>
                 )}
-                <p
-                  className="text-[11px] text-muted-foreground tabular-nums mt-auto pt-1"
-                  title={t("organic", "collabPostsTooltip")}
-                >
-                  {c.count}{" "}
-                  {c.count === 1
-                    ? t("organic", "collabSingular")
-                    : t("organic", "collabPlural")}
-                </p>
               </div>
             );
           })}
