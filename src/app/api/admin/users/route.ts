@@ -52,6 +52,18 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Mirror the state into mait_users so the app can enforce it cheaply
+  // (getSessionUser logout + consumeCredits guard). Tolerated if the
+  // disabled_at column isn't present yet (migration 0061) — the Auth ban
+  // above is the hard backstop regardless.
+  const { error: colError } = await supabase
+    .from("mait_users")
+    .update({ disabled_at: disabled ? new Date().toISOString() : null })
+    .eq("id", userId);
+  if (colError) {
+    console.warn("[admin/users] disabled_at update skipped:", colError.message);
+  }
+
   return NextResponse.json({ ok: true, disabled });
 }
 

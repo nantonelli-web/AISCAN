@@ -28,6 +28,9 @@ export interface MaitUser {
   role: Role;
   workspace_id: string | null;
   created_at: string;
+  /** Non-null when an admin has disabled the account (migration 0061).
+   *  Set alongside a Supabase Auth ban. */
+  disabled_at: string | null;
 }
 
 export interface MaitClient {

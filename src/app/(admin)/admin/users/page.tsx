@@ -35,24 +35,16 @@ export default async function AdminUsersPage() {
     );
   }
 
-  // Disabled state lives in Supabase Auth (banned_until), not in mait_users —
-  // pull it once and map by id. Paginate defensively in case the user base
-  // grows past a single page.
+  // Disabled state (migration 0061). Separate, error-tolerant query that
+  // only pulls disabled rows — so the page still renders if the column
+  // isn't applied yet (query errors → empty set → everyone shown active).
   const disabledIds = new Set<string>();
-  const now = Date.now();
-  for (let page = 1; page <= 20; page++) {
-    const { data: authPage, error } = await admin.auth.admin.listUsers({
-      page,
-      perPage: 1000,
-    });
-    if (error || !authPage?.users?.length) break;
-    for (const au of authPage.users) {
-      const bannedUntil = (au as { banned_until?: string | null }).banned_until;
-      if (bannedUntil && new Date(bannedUntil).getTime() > now) {
-        disabledIds.add(au.id);
-      }
-    }
-    if (authPage.users.length < 1000) break;
+  const { data: flags } = await admin
+    .from("mait_users")
+    .select("id, disabled_at")
+    .not("disabled_at", "is", null);
+  for (const f of (flags ?? []) as { id: string; disabled_at: string | null }[]) {
+    if (f.disabled_at) disabledIds.add(f.id);
   }
 
   const enrichedUsers = (users ?? []).map((u) => ({

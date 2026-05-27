@@ -54,6 +54,24 @@ async function isSubscriptionMode(
 }
 
 /**
+ * True when the acting user's account has been disabled by an admin.
+ * Isolated + error-tolerant: if the `disabled_at` column doesn't exist yet
+ * (migration 0061 not applied), the query errors, `data` is null, and we
+ * treat the user as active so credit flows keep working.
+ */
+async function isActingUserDisabled(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+): Promise<boolean> {
+  const { data } = await admin
+    .from("mait_users")
+    .select("disabled_at")
+    .eq("id", userId)
+    .maybeSingle();
+  return Boolean((data as { disabled_at?: string | null } | null)?.disabled_at);
+}
+
+/**
  * Check if the workspace has enough credits for an action.
  * Credits are checked on the workspace owner's balance — UNLESS
  * the workspace is in subscription mode, in which case we report
@@ -68,6 +86,11 @@ export async function checkCredits(
 ): Promise<{ ok: boolean; balance: number; cost: number }> {
   const cost = creditCosts[action];
   const admin = createAdminClient();
+
+  if (await isActingUserDisabled(admin, userId)) {
+    return { ok: false, balance: 0, cost };
+  }
+
   const { ownerId, workspaceId } = await resolveOwnerAndWorkspace(admin, userId);
 
   if (await isSubscriptionMode(admin, workspaceId)) {
@@ -104,6 +127,11 @@ export async function consumeCredits(
 ): Promise<{ ok: boolean; balance: number }> {
   const cost = creditCosts[action];
   const admin = createAdminClient();
+
+  if (await isActingUserDisabled(admin, userId)) {
+    return { ok: false, balance: 0 };
+  }
+
   const { ownerId, workspaceId } = await resolveOwnerAndWorkspace(admin, userId);
 
   if (await isSubscriptionMode(admin, workspaceId)) {
@@ -173,6 +201,11 @@ export async function consumeCreditsCustom(
     return { ok: false, balance: 0 };
   }
   const admin = createAdminClient();
+
+  if (await isActingUserDisabled(admin, userId)) {
+    return { ok: false, balance: 0 };
+  }
+
   const { ownerId, workspaceId } = await resolveOwnerAndWorkspace(admin, userId);
 
   if (await isSubscriptionMode(admin, workspaceId)) {

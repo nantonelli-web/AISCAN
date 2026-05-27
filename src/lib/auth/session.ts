@@ -29,6 +29,16 @@ export const getSessionUser = cache(async (): Promise<{
     redirect("/login?error=no_profile");
   }
 
+  // Disabled by an admin → log out immediately on this (and every) request.
+  // The Supabase Auth ban also blocks login/refresh, but an already-issued
+  // access token stays valid until expiry; this closes that window for the
+  // dashboard. Field is absent (undefined) until migration 0061 is applied,
+  // so this is a no-op until then.
+  if ((profile as { disabled_at?: string | null }).disabled_at) {
+    await supabase.auth.signOut();
+    redirect("/login?error=disabled");
+  }
+
   const wsName =
     (profile.workspace as { name: string } | null)?.name ?? "\u2014";
 
