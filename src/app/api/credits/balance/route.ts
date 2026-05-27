@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+// Saldo crediti sempre fresco: niente caching lato route/edge/browser.
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const supabase = await createClient();
   const {
@@ -33,10 +36,13 @@ export async function GET() {
     return NextResponse.json({ error: "Owner not found" }, { status: 404 });
   }
 
-  return NextResponse.json({
-    balance: owner.credits_balance ?? 0,
-    tier: owner.subscription_tier ?? "scout",
-    monthlyCredits: owner.monthly_credits ?? 10,
-    periodEnd: owner.current_period_end ?? null,
-  });
+  return NextResponse.json(
+    {
+      balance: owner.credits_balance ?? 0,
+      tier: owner.subscription_tier ?? "scout",
+      monthlyCredits: owner.monthly_credits ?? 10,
+      periodEnd: owner.current_period_end ?? null,
+    },
+    { headers: { "Cache-Control": "no-store, max-age=0" } },
+  );
 }

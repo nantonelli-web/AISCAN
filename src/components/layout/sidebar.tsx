@@ -96,7 +96,10 @@ function CreditBadge() {
   const [balance, setBalance] = useState<number | null>(null);
 
   const load = useCallback(() => {
-    fetch("/api/credits/balance")
+    // no-store: senza questo il browser puo' servire dalla HTTP cache un
+    // saldo vecchio (es. 10 prima di un grant admin) anche dopo un reload,
+    // vanificando i refetch su evento/focus.
+    fetch("/api/credits/balance", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (d) setBalance(d.balance); })
       .catch(() => {});
