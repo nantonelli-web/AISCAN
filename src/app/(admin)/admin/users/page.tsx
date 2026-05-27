@@ -35,11 +35,32 @@ export default async function AdminUsersPage() {
     );
   }
 
+  // Disabled state lives in Supabase Auth (banned_until), not in mait_users —
+  // pull it once and map by id. Paginate defensively in case the user base
+  // grows past a single page.
+  const disabledIds = new Set<string>();
+  const now = Date.now();
+  for (let page = 1; page <= 20; page++) {
+    const { data: authPage, error } = await admin.auth.admin.listUsers({
+      page,
+      perPage: 1000,
+    });
+    if (error || !authPage?.users?.length) break;
+    for (const au of authPage.users) {
+      const bannedUntil = (au as { banned_until?: string | null }).banned_until;
+      if (bannedUntil && new Date(bannedUntil).getTime() > now) {
+        disabledIds.add(au.id);
+      }
+    }
+    if (authPage.users.length < 1000) break;
+  }
+
   const enrichedUsers = (users ?? []).map((u) => ({
     ...u,
     workspace_name: u.workspace_id
       ? workspaceMap[u.workspace_id] ?? "—"
       : "—",
+    disabled: disabledIds.has(u.id),
   }));
 
   return (

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Search, Coins, X } from "lucide-react";
+import { Search, Coins, X, Ban, CircleCheck, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,7 @@ interface User {
   workspace_name: string;
   credits_balance: number;
   created_at: string;
+  disabled: boolean;
 }
 
 export function UserManagement({ users }: { users: User[] }) {
@@ -26,6 +27,7 @@ export function UserManagement({ users }: { users: User[] }) {
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [userList, setUserList] = useState(users);
 
   const filtered = userList.filter((u) => {
@@ -86,6 +88,58 @@ export function UserManagement({ users }: { users: User[] }) {
     }
   }
 
+  async function toggleDisabled(user: User) {
+    const next = !user.disabled;
+    setBusyId(user.id);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, disabled: next }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        toast.error(data.error || "Failed to update user");
+        return;
+      }
+      toast.success(next ? "User disabled" : "User enabled");
+      setUserList((prev) =>
+        prev.map((u) => (u.id === user.id ? { ...u, disabled: next } : u))
+      );
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleDelete(user: User) {
+    const ok = window.confirm(
+      `Delete ${user.email} permanently?\n\nThis removes the account and its credit history. It cannot be undone. Workspace data (brands, ads) is kept.`
+    );
+    if (!ok) return;
+    setBusyId(user.id);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        toast.error(data.error || "Failed to delete user");
+        return;
+      }
+      toast.success("User deleted");
+      setUserList((prev) => prev.filter((u) => u.id !== user.id));
+      if (editingUserId === user.id) setEditingUserId(null);
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   function formatDate(iso: string) {
     return new Date(iso).toLocaleDateString("en-GB", {
       day: "2-digit",
@@ -120,7 +174,7 @@ export function UserManagement({ users }: { users: User[] }) {
             <span>Workspace</span>
             <span className="text-right">Credits</span>
             <span className="text-right">Joined</span>
-            <span className="w-28" />
+            <span className="text-right">Actions</span>
           </div>
 
           {filtered.length === 0 ? (
@@ -130,9 +184,20 @@ export function UserManagement({ users }: { users: User[] }) {
           ) : (
             filtered.map((user) => (
               <div key={user.id}>
-                <div className="grid grid-cols-[1fr_1.5fr_0.6fr_1fr_0.6fr_0.8fr_auto] gap-3 px-4 py-2.5 text-sm items-center">
-                  <span className="truncate font-medium">
-                    {user.name || "—"}
+                <div
+                  className={`grid grid-cols-[1fr_1.5fr_0.6fr_1fr_0.6fr_0.8fr_auto] gap-3 px-4 py-2.5 text-sm items-center ${
+                    user.disabled ? "opacity-60" : ""
+                  }`}
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className="truncate font-medium">
+                      {user.name || "—"}
+                    </span>
+                    {user.disabled && (
+                      <Badge variant="muted" className="shrink-0">
+                        Disabled
+                      </Badge>
+                    )}
                   </span>
                   <span className="truncate text-muted-foreground">
                     {user.email}
@@ -151,7 +216,7 @@ export function UserManagement({ users }: { users: User[] }) {
                   <span className="text-right text-xs text-muted-foreground">
                     {formatDate(user.created_at)}
                   </span>
-                  <span className="w-28">
+                  <span className="flex items-center justify-end gap-1.5">
                     <Button
                       variant="outline"
                       size="sm"
@@ -163,6 +228,29 @@ export function UserManagement({ users }: { users: User[] }) {
                     >
                       <Coins className="size-3" />
                       Credits
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      disabled={busyId === user.id}
+                      title={user.disabled ? "Enable user" : "Disable user"}
+                      onClick={() => toggleDisabled(user)}
+                    >
+                      {user.disabled ? (
+                        <CircleCheck className="size-4" />
+                      ) : (
+                        <Ban className="size-4" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      disabled={busyId === user.id}
+                      title="Delete user"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => handleDelete(user)}
+                    >
+                      <Trash2 className="size-4" />
                     </Button>
                   </span>
                 </div>
