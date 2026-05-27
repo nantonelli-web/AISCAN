@@ -53,6 +53,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useT } from "@/lib/i18n/context";
+import { notifyCreditsChanged } from "@/lib/credits/events";
 import { AnalysisCta } from "@/components/perf/analysis-cta";
 import {
   AnalysisBlock,
@@ -404,6 +405,8 @@ export function DashboardClient({ importId }: { importId: string }) {
           }
           return;
         }
+        // La traduzione e' una chiamata LLM a pagamento: notifica il badge.
+        notifyCreditsChanged();
         await loadAnalyses();
       } catch (e) {
         console.warn("[adv-performance] auto-translate exception:", e);

@@ -65,6 +65,7 @@ import type { CreativeAnalysisResult } from "@/lib/ai/creative-analysis";
 import type { MaitCompetitor, MaitClient } from "@/types";
 import { getCountries } from "@/config/countries";
 import { creditCosts } from "@/config/pricing";
+import { notifyCreditsChanged } from "@/lib/credits/events";
 
 type Tab = "technical" | "copy" | "visual" | "benchmark";
 /**
@@ -817,6 +818,8 @@ export function CompareView({
           return;
         }
         const data = await res.json();
+        // Sezione AI (copy/visual) generata con successo → crediti spesi.
+        notifyCreditsChanged();
         setCache((prev) => ({
           technical_data:
             prev?.technical_data ?? normalizeStats(data.technical_data),
@@ -913,6 +916,11 @@ export function CompareView({
 
       if (res.ok) {
         const data = await res.json();
+        // La rigenerazione spende crediti solo se include una sezione AI;
+        // il branch technical-only e' gratuito server-side.
+        if (sections.includes("copy") || sections.includes("visual")) {
+          notifyCreditsChanged();
+        }
         const normalized = normalizeStats(data.technical_data);
         setCache({
           technical_data: normalized,

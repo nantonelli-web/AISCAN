@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { notifyCreditsChanged } from "@/lib/credits/events";
 
 /**
  * AnalysisCta — pannello "Genera analisi AI" in cima e in fondo al
@@ -232,6 +233,7 @@ export function AnalysisCta({
       toast.success(
         `Analisi ${verb} (${j.sections_generated} sezioni${extra})`,
       );
+      notifyCreditsChanged();
       onGenerated();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Errore");

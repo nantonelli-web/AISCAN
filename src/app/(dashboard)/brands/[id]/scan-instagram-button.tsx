@@ -7,6 +7,7 @@ import { RefreshCw } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n/context";
+import { notifyCreditsChanged } from "@/lib/credits/events";
 
 export function ScanInstagramButton({
   competitorId,
@@ -36,6 +37,7 @@ export function ScanInstagramButton({
         toast.success(`${json.records} ${t("organic", "postsSynced")}`, {
           id: toastId,
         });
+        notifyCreditsChanged();
         router.refresh();
       }
     } catch (e) {

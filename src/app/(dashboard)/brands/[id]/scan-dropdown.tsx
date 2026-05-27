@@ -17,6 +17,7 @@ import { DateRangeShortcuts, defaultPresets } from "@/components/ui/date-range-s
 import { useT } from "@/lib/i18n/context";
 import { cn } from "@/lib/utils";
 import { hasSnapAdsCoverage } from "@/lib/snapchat/eu-countries";
+import { notifyCreditsChanged } from "@/lib/credits/events";
 
 /* ─── Platform SVG logos ─────────────────────────────────── */
 // GoogleIcon vive in @/components/ui/google-icon — usato qui con
@@ -326,6 +327,7 @@ export function ScanDropdown({
       } else {
         if (json.debug) console.log("[AISCAN scan debug]", json.debug);
         toast.success(`${json.records} Meta Ads ${t("scan", "adsSynced")} (${rangeLabel})`, { id: toastId });
+        notifyCreditsChanged();
         focusChannel("meta");
       }
     } catch (e) {
@@ -460,6 +462,8 @@ export function ScanDropdown({
       }
       // Attiva il polling come per un nuovo scan: il webhook arrivera'
       // a completion e cambiera' lo status del job.
+      // Il costo (2 crediti) e' gia' addebitato dalla POST: notifica subito.
+      notifyCreditsChanged();
       setGoogleScanJobId(googlePartialJob.jobId);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Network error", {
@@ -538,6 +542,8 @@ export function ScanDropdown({
       // Da qui in poi gestisce tutto il polling useEffect. Non
       // resettiamo setLoading: il pulsante deve restare 'loading'
       // finche' il webhook ha terminato.
+      // Il costo (2 crediti) e' gia' addebitato dalla POST: notifica subito.
+      notifyCreditsChanged();
       setGoogleScanJobId(json.job_id);
     } catch (e) {
       if ((e as Error).name === "AbortError") {
@@ -583,6 +589,7 @@ export function ScanDropdown({
           `${json.records} Snapchat Ads ${t("scan", "adsSynced")}`,
           { id: toastId },
         );
+        notifyCreditsChanged();
         // Land on the Snapchat tab (paid + organic share it). There
         // is no dedicated "snapchat_ads" tab on the brand page —
         // mirror of the tiktok_ads handler which also routes to the
@@ -630,6 +637,7 @@ export function ScanDropdown({
           `${json.records} TikTok Ads ${t("scan", "adsSynced")}`,
           { id: toastId },
         );
+        notifyCreditsChanged();
         focusChannel("tiktok_ads");
       }
     } catch (e) {
@@ -682,12 +690,14 @@ export function ScanDropdown({
             { id: toastId },
           );
         }
+        notifyCreditsChanged();
         focusChannel("instagram");
       } else {
         toast.success(
           `${json.records} ${t("organic", "postsSynced")} (${rangeLabel})`,
           { id: toastId }
         );
+        notifyCreditsChanged();
         focusChannel("instagram");
       }
     } catch (e) {
@@ -732,6 +742,7 @@ export function ScanDropdown({
           `${json.records} ${t("organic", "postsSynced")}`,
           { id: toastId },
         );
+        notifyCreditsChanged();
         focusChannel("youtube");
       }
     } catch (e) {
@@ -768,6 +779,7 @@ export function ScanDropdown({
         toast.error(json.error ?? "Snapchat scrape failed", { id: toastId });
       } else {
         toast.success(t("scan", "snapshotSynced"), { id: toastId });
+        notifyCreditsChanged();
         focusChannel("snapchat");
       }
     } catch (e) {
@@ -812,6 +824,7 @@ export function ScanDropdown({
           `${json.records} ${t("organic", "postsSynced")}`,
           { id: toastId }
         );
+        notifyCreditsChanged();
         focusChannel("tiktok");
       }
     } catch (e) {

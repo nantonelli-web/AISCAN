@@ -20,6 +20,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useT } from "@/lib/i18n/context";
 import { cn, formatDate } from "@/lib/utils";
+import { notifyCreditsChanged } from "@/lib/credits/events";
 import { getCountries } from "@/config/countries";
 
 interface BrandRef {
@@ -185,6 +186,7 @@ export function SerpPageClient({ initialQueries, competitors }: Props) {
         `${json.organic_count} ${t("serp", "organicResults")} · ${json.paid_count} ${t("serp", "paidResults")}`,
         { id: toastId },
       );
+      notifyCreditsChanged();
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Network error", { id: toastId });

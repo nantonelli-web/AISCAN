@@ -22,6 +22,7 @@ import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
 import { PageLoader } from "@/components/ui/page-loader";
 import { useT } from "@/lib/i18n/context";
+import { notifyCreditsChanged } from "@/lib/credits/events";
 import type { MaitCompetitor } from "@/types";
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -350,6 +351,7 @@ export function ReportBuilder({
 
       setProgress(100);
       setGenerated(true);
+      notifyCreditsChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : t("report", "errorGeneration"));
     } finally {

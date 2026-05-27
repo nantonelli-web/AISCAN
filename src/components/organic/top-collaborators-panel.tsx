@@ -53,6 +53,7 @@ import {
   type CollabPlatform,
   type CollabClassification,
 } from "@/lib/organic/collab-intel";
+import { notifyCreditsChanged } from "@/lib/credits/events";
 
 type ModelTier = "cheap" | "pragmatic" | "premium";
 const TIERS: ModelTier[] = ["cheap", "pragmatic", "premium"];
@@ -266,12 +267,15 @@ export function TopCollaboratorsPanel({
           const m = new Map<string, CollabAccount>();
           for (const a of data.accounts as CollabAccount[]) m.set(a.handle, a);
           setAccounts(m);
+          // Enrichment parziale riuscito: crediti gia' consumati.
+          notifyCreditsChanged();
         }
         return;
       }
       const m = new Map<string, CollabAccount>();
       for (const a of data.accounts as CollabAccount[]) m.set(a.handle, a);
       setAccounts(m);
+      notifyCreditsChanged();
       setResult({
         enriched: data.enriched ?? 0,
         classified: data.classified ?? 0,

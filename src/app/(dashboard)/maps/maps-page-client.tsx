@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { useT } from "@/lib/i18n/context";
 import { formatDate } from "@/lib/utils";
 import { getCountries } from "@/config/countries";
+import { notifyCreditsChanged } from "@/lib/credits/events";
 
 interface SearchWithCounts {
   id: string;
@@ -142,6 +143,7 @@ export function MapsPageClient({ initialSearches }: Props) {
         `${json.places_count} ${t("maps", "places")} · ${json.reviews_count} ${t("maps", "reviews")}`,
         { id: toastId },
       );
+      notifyCreditsChanged();
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Network error", {

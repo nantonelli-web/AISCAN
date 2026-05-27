@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n/context";
+import { notifyCreditsChanged } from "@/lib/credits/events";
 
 interface JobStatusResponse {
   job_id: string;
@@ -126,6 +127,8 @@ export function ScanGoogleButton({
         toastIdRef.current = null;
         return;
       }
+      // Il costo (2 crediti) e' gia' addebitato dalla POST: notifica subito.
+      notifyCreditsChanged();
       setPendingJobId(json.job_id);
     } catch (e) {
       if (toastIdRef.current) toast.dismiss(toastIdRef.current);

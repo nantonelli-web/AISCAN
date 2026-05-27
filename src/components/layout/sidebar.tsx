@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { onCreditsChanged } from "@/lib/credits/events";
 import {
   LayoutDashboard,
   Users,
@@ -93,12 +94,31 @@ const itemDefs: NavItem[] = navGroups.flatMap((g) => g.items);
 
 function CreditBadge() {
   const [balance, setBalance] = useState<number | null>(null);
-  useEffect(() => {
+
+  const load = useCallback(() => {
     fetch("/api/credits/balance")
-      .then((r) => r.ok ? r.json() : null)
+      .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (d) setBalance(d.balance); })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    load();
+    // In-session: a client action spent/changed credits.
+    const unsubscribe = onCreditsChanged(load);
+    // Cross-session (e.g. admin grant from another browser): re-sync when the
+    // tab regains focus, so a stale badge can't survive a balance change made
+    // outside this session.
+    const onVisible = () => { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", load);
+    return () => {
+      unsubscribe();
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", load);
+    };
+  }, [load]);
+
   if (balance === null) return null;
   return (
     <div className="mx-3 mb-2 rounded-md bg-gold/10 border border-gold/30 px-3 py-2 flex items-center justify-between">

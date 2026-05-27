@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/date-range-shortcuts";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { useT } from "@/lib/i18n/context";
+import { notifyCreditsChanged } from "@/lib/credits/events";
 
 function daysAgo(n: number): string {
   const d = new Date();
@@ -472,6 +473,8 @@ export function BatchScanPanel({
       toast.success(
         `Batch avviato: ${j.summary?.launched ?? 0} scan partiti${skippedCount > 0 ? `, ${skippedCount} skippati` : ""}.`,
       );
+      // Ogni scan lanciato addebita crediti (batch-safety): aggiorna il badge.
+      notifyCreditsChanged();
       // Warning critico: i run sono partiti senza webhook config →
       // l'utente dovra' usare 'Recupera dati' al termine.
       const webhooksConfigured = (j as { webhooks_configured?: boolean })

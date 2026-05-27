@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n/context";
+import { notifyCreditsChanged } from "@/lib/credits/events";
 
 export function TagButton({ competitorId }: { competitorId?: string }) {
   const router = useRouter();
@@ -65,6 +66,7 @@ export function TagButton({ competitorId }: { competitorId?: string }) {
               : `${json.tagged} ${t("tagButton", "adsTagged")}.`;
           toast.success(msg, { id: toastId });
         }
+        if (json.tagged > 0) notifyCreditsChanged();
         router.refresh();
       }
     } catch (e) {
