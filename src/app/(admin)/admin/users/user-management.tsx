@@ -69,11 +69,13 @@ export function UserManagement({ users }: { users: User[] }) {
         `Credits ${numAmount > 0 ? "added" : "removed"} successfully`
       );
 
-      // Update the local user list with new balance
+      // Update the local user list with the authoritative balance returned
+      // by the route (field is `balance`; the old `newBalance` never existed
+      // so this always fell back to a client-side estimate).
       setUserList((prev) =>
         prev.map((u) =>
           u.id === userId
-            ? { ...u, credits_balance: data.newBalance ?? u.credits_balance + numAmount }
+            ? { ...u, credits_balance: data.balance ?? u.credits_balance + numAmount }
             : u
         )
       );
