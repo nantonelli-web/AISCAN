@@ -250,6 +250,20 @@ const translations = {
     },
     bootstrapFailed: { it: "Bootstrap fallito:", en: "Bootstrap failed:" },
     accountCreated: { it: "Account creato.", en: "Account created." },
+    // Messages shown when the dashboard/getSessionUser redirects to
+    // /login with an `error` query param.
+    errorDisabled: {
+      it: "Account disabilitato. Contatta il supporto.",
+      en: "Account disabled. Please contact support.",
+    },
+    errorNoWorkspace: {
+      it: "Workspace non trovato per il tuo account.",
+      en: "Workspace not found for your account.",
+    },
+    errorNoProfile: {
+      it: "Profilo utente non trovato.",
+      en: "User profile not found.",
+    },
   },
 
   // ─── Dashboard ─────────────────────────────────────────────

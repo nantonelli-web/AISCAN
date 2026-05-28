@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,27 @@ export function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const { t } = useT();
+
+  // Show a one-time toast for known auth redirect codes. Covers the three
+  // codes the codebase emits today: `disabled` (account banned by an
+  // admin), `no_workspace` and `no_profile` (dashboard layout / session
+  // bootstrap failures). The ref guards against StrictMode double-mount.
+  const errorShown = useRef(false);
+  useEffect(() => {
+    if (errorShown.current) return;
+    const code = params.get("error");
+    if (!code) return;
+    const map: Record<string, string | undefined> = {
+      disabled: t("auth", "errorDisabled"),
+      no_workspace: t("auth", "errorNoWorkspace"),
+      no_profile: t("auth", "errorNoProfile"),
+    };
+    const msg = map[code];
+    if (msg) {
+      errorShown.current = true;
+      toast.error(msg);
+    }
+  }, [params, t]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
