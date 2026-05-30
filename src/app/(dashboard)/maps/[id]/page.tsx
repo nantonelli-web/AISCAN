@@ -26,6 +26,10 @@ import { formatNumber } from "@/lib/utils";
 import { PopularTimesHeatmap } from "@/components/maps/popular-times-heatmap";
 import { LocalSeoAudit } from "@/components/maps/local-seo-audit";
 import { computeLocalSeoAudit } from "@/lib/maps/audit";
+import {
+  MapsAnalysisPanel,
+  type PanelPlace,
+} from "@/components/maps/maps-analysis-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -202,6 +206,24 @@ export default async function MapsSearchDetailPage({
         places.length
       : null;
 
+  // Lightweight projection for the AI comparison panel (client island).
+  const panelPlaces: PanelPlace[] = places.map((p) => ({
+    id: p.id,
+    title: p.title ?? "—",
+    domain: p.normalized_domain,
+    rank: p.rank,
+    rating: p.total_score,
+    reviewsCount: p.reviews_count,
+    hasPopularTimes:
+      !!p.popular_times &&
+      typeof p.popular_times === "object" &&
+      Object.keys(p.popular_times).length > 0,
+    isBrand: !!(
+      p.normalized_domain &&
+      trackedDomains.has(p.normalized_domain.toLowerCase())
+    ),
+  }));
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -343,6 +365,11 @@ export default async function MapsSearchDetailPage({
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* ─── AI store comparison ──────────────────────── */}
+      {places.length >= 2 && (
+        <MapsAnalysisPanel searchId={id} places={panelPlaces} />
       )}
 
       {/* ─── Places list ──────────────────────────────── */}
