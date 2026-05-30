@@ -412,16 +412,24 @@ CONTENT INSTRUCTIONS:
 6. Length varies with how much there is to say. Don't pad.
 
 FORMATTING:
-7. Split text into PARAGRAPHS separated by a blank line (\\n\\n). Use markdown **bold** for key metrics and conclusions (2-4 per paragraph max). For multiple actions use a dashed list ("- " per line). No headings, no code, no tables, no links.
+7. Split text into PARAGRAPHS separated by a blank line. Use markdown **bold** for key metrics and conclusions (2-4 per paragraph max). For multiple actions use a dashed list ("- " per line). No headings, no code, no tables, no links.
 
 SECTIONS TO GENERATE:
 ${sectionList}
 
-OUTPUT: reply ONLY with valid JSON:
-{
-${sections.map((s) => `  "${s}": "..."`).join(",\n")}
-}
-No markdown fences, no preamble. Each value is a string with \\n\\n paragraphs, optional **bold**, and "- " lists. Write all content in English.`;
+OUTPUT FORMAT — read carefully:
+For each section, emit its marker on its own line, then the narrative text below it. Use these EXACT markers:
+${sections.map((s) => `@@${s}@@`).join("\n")}
+
+Example shape:
+@@overview@@
+First paragraph of the overview...
+
+Second paragraph...
+@@reputation@@
+...
+
+Do NOT use JSON, quotes around the text, code fences, or any preamble. The text under each marker is plain markdown (paragraphs, **bold**, "- " lists). Write all content in English.`;
   }
 
   return `Sei un analista senior di local SEO e Google Maps. Stai confrontando schede Google Maps (un "local pack") per uno strumento di brand monitoring. Ragiona SOLO sui dati verificabili forniti sotto — non inventare rating, numeri di review o dati di affluenza.
@@ -438,16 +446,24 @@ ISTRUZIONI DI CONTENUTO:
 6. La lunghezza varia in base a quanto c'è da dire. Non gonfiare.
 
 FORMATTAZIONE:
-7. Scandisci il testo in PARAGRAFI separati da riga vuota (\\n\\n). Usa il **grassetto** markdown per metriche chiave e conclusioni (2-4 per paragrafo al massimo). Per più azioni usa una lista con trattini ("- " per riga). Niente titoli, niente code, niente tabelle, niente link.
+7. Scandisci il testo in PARAGRAFI separati da riga vuota. Usa il **grassetto** markdown per metriche chiave e conclusioni (2-4 per paragrafo al massimo). Per più azioni usa una lista con trattini ("- " per riga). Niente titoli, niente code, niente tabelle, niente link.
 
 SEZIONI DA GENERARE:
 ${sectionList}
 
-OUTPUT: rispondi SOLO con un JSON valido:
-{
-${sections.map((s) => `  "${s}": "..."`).join(",\n")}
-}
-Niente markdown fences, niente preamble. Il valore di ogni chiave è una stringa con paragrafi \\n\\n, eventuali **bold** e liste con "- ". Scrivi tutto in italiano.`;
+FORMATO DI OUTPUT — leggi con attenzione:
+Per ogni sezione, scrivi il suo marcatore su una riga a sé, poi sotto il testo della narrativa. Usa ESATTAMENTE questi marcatori:
+${sections.map((s) => `@@${s}@@`).join("\n")}
+
+Esempio:
+@@overview@@
+Primo paragrafo del quadro d'insieme...
+
+Secondo paragrafo...
+@@reputation@@
+...
+
+NON usare JSON, virgolette attorno al testo, code fences o preamboli. Il testo sotto ogni marcatore è markdown semplice (paragrafi, **bold**, liste "- "). Scrivi tutto in italiano.`;
 }
 
 /* ─── OpenRouter call ─────────────────────────────────────── */
@@ -529,27 +545,33 @@ export async function runMapsAnalysis(
 
   let raw = text.trim();
   if (raw.startsWith("```")) {
-    raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/```$/, "").trim();
+    raw = raw.replace(/^```(?:\w+)?\s*/i, "").replace(/```\s*$/, "").trim();
   }
-  const m = /\{[\s\S]*\}/.exec(raw);
-  if (m) raw = m[0];
 
-  try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const out: Partial<Record<MapsAnalysisSection, string>> = {};
-    for (const s of sections) {
-      const v = parsed[s];
-      if (typeof v === "string" && v.trim()) out[s] = v.trim();
-    }
-    if (Object.keys(out).length === 0) return null;
-    return { facts, sections: out, modelId: opts.modelOpenrouterId };
-  } catch (e) {
+  // Marker-delimited parse: robusto a virgolette/newline nel testo
+  // (cosa che rompe JSON.parse). Split su @@section@@ con capture.
+  const allowed = new Set<string>(sections);
+  const parts = raw.split(/@@(\w+)@@/g);
+  const out: Partial<Record<MapsAnalysisSection, string>> = {};
+  for (let i = 1; i < parts.length; i += 2) {
+    const key = parts[i];
+    const bodyRaw = parts[i + 1] ?? "";
+    if (!allowed.has(key)) continue;
+    // Pulizia: alcuni modelli racchiudono il testo fra virgolette o
+    // aggiungono una virgola di troncamento JSON-style — togliamole.
+    const body = bodyRaw
+      .trim()
+      .replace(/^"+/, "")
+      .replace(/"+,?$/, "")
+      .trim();
+    if (body) out[key as MapsAnalysisSection] = body;
+  }
+  if (Object.keys(out).length === 0) {
     console.error(
-      "[maps-analysis] JSON parse failed:",
-      (e as Error).message,
-      "raw:",
+      "[maps-analysis] no sections parsed from markers. raw:",
       raw.slice(0, 500),
     );
     return null;
   }
+  return { facts, sections: out, modelId: opts.modelOpenrouterId };
 }
