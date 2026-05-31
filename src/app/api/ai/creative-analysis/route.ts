@@ -9,6 +9,7 @@ import {
   type CreativeAnalysisResult,
 } from "@/lib/ai/creative-analysis";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
+import { resolveWorkspaceId, assertOwnedIds } from "@/lib/auth/workspace";
 
 export const maxDuration = 120;
 
@@ -35,15 +36,8 @@ export async function POST(req: Request) {
   if (!user)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Credit check
-  const credit = await consumeCredits(user.id, "ai_analysis", "AI Creative Analysis");
-  if (!credit.ok) {
-    return NextResponse.json(
-      { error: "Insufficient credits", balance: credit.balance },
-      { status: 402 }
-    );
-  }
-
+  // Validate the payload BEFORE charging credits (a malformed body
+  // shouldn't cost the user a credit).
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
@@ -51,6 +45,26 @@ export async function POST(req: Request) {
   }
 
   const admin = createAdminClient();
+
+  // Tenant isolation: the admin client bypasses RLS. Resolve the
+  // caller's workspace and reject any competitor id that isn't theirs
+  // BEFORE charging or fetching — otherwise it's a cross-tenant read.
+  const workspaceId = await resolveWorkspaceId(admin, user.id);
+  if (!workspaceId) {
+    return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  }
+  if (!(await assertOwnedIds(admin, "mait_competitors", parsed.data.competitor_ids, workspaceId))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  // Credit check (after validation + ownership gate)
+  const credit = await consumeCredits(user.id, "ai_analysis", "AI Creative Analysis");
+  if (!credit.ok) {
+    return NextResponse.json(
+      { error: "Insufficient credits", balance: credit.balance },
+      { status: 402 }
+    );
+  }
 
   // Fetch ads from the last 10 days per competitor (cap at 12)
   const tenDaysAgo = new Date(Date.now() - 10 * 86_400_000).toISOString();
@@ -60,11 +74,13 @@ export async function POST(req: Request) {
         admin
           .from("mait_competitors")
           .select("id, page_name")
+          .eq("workspace_id", workspaceId)
           .eq("id", id)
-          .single(),
+          .maybeSingle(),
         admin
           .from("mait_ads_external")
           .select("headline, ad_text, description, cta, image_url")
+          .eq("workspace_id", workspaceId)
           .eq("competitor_id", id)
           .gte("created_at", tenDaysAgo)
           .order("created_at", { ascending: false })

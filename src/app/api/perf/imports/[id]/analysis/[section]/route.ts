@@ -105,9 +105,13 @@ export async function DELETE(
 
   const admin = createAdminClient();
   const locale = ((await getLocale()) as "it" | "en") ?? "it";
+  // Tenant isolation: scope by workspace_id so a caller can't delete
+  // another workspace's saved analysis (the PATCH above already checks
+  // import ownership; the DELETE must too).
   const { error } = await admin
     .from("mait_perf_analyses")
     .delete()
+    .eq("workspace_id", profile.workspace_id)
     .eq("import_id", id)
     .eq("section", section)
     .eq("locale", locale);

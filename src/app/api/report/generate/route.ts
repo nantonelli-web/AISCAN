@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveWorkspaceId, assertOwnedIds } from "@/lib/auth/workspace";
 import { inferObjective } from "@/lib/analytics/objective-inference";
 import {
   classifyAdFormat,
@@ -509,7 +510,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Comparison report requires 2-3 brands" }, { status: 400 });
   }
 
-  // Credit check
+  const admin = createAdminClient();
+
+  // Tenant isolation: admin client bypasses RLS. Resolve the caller's
+  // workspace and reject any competitor id that isn't theirs BEFORE
+  // charging or fetching — otherwise the report would exfiltrate another
+  // workspace's brand data into the generated PPTX/PDF.
+  const workspaceId = await resolveWorkspaceId(admin, user.id);
+  if (!workspaceId) {
+    return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  }
+  if (!(await assertOwnedIds(admin, "mait_competitors", competitor_ids, workspaceId))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  // Credit check (after validation + ownership gate)
   const creditAction = parsed.data.type === "single" ? "report_single" as const : "report_comparison" as const;
   const credit = await consumeCredits(user.id, creditAction, `Report generation: ${parsed.data.type}`);
   if (!credit.ok) {
@@ -519,8 +534,6 @@ export async function POST(req: Request) {
     );
   }
 
-  const admin = createAdminClient();
-
   // Fetch template + brand data IN PARALLEL (saves 0.5-2s)
   const [templateResult, brands] = await Promise.all([
     // Template fetch
@@ -529,8 +542,9 @@ export async function POST(req: Request) {
       const { data: tmpl } = await admin
         .from("mait_client_templates")
         .select("theme_config, storage_path")
+        .eq("workspace_id", workspaceId)
         .eq("id", template_id)
-        .single();
+        .maybeSingle();
       if (!tmpl?.theme_config) return null;
       let cfg = tmpl.theme_config as unknown as ThemeConfig;
       if (tmpl.storage_path) {
@@ -577,12 +591,7 @@ export async function POST(req: Request) {
   if (needsCopy || needsVisual) {
     // Check if we have cached comparison data that's not stale
     const sortedIds = [...competitor_ids].sort();
-    const { data: userProfile } = await admin
-      .from("mait_users")
-      .select("workspace_id")
-      .eq("id", user.id)
-      .single();
-    const wsId = userProfile?.workspace_id;
+    const wsId = workspaceId;
 
     const { data: cached } = wsId
       ? await admin

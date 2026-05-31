@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveWorkspaceId } from "@/lib/auth/workspace";
 
 export async function DELETE(
   req: Request,
@@ -18,11 +19,20 @@ export async function DELETE(
 
   const admin = createAdminClient();
 
+  // Tenant isolation: admin client bypasses RLS. Resolve the caller's
+  // workspace and verify the job belongs to it before any delete —
+  // otherwise this is a destructive cross-tenant operation.
+  const workspaceId = await resolveWorkspaceId(admin, user.id);
+  if (!workspaceId) {
+    return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  }
+
   // Get job details first (to know competitor_id and time range for ad deletion)
   const { data: job, error: jobErr } = await admin
     .from("mait_scrape_jobs")
-    .select("id, competitor_id, started_at, completed_at")
+    .select("id, competitor_id, started_at, completed_at, workspace_id")
     .eq("id", id)
+    .eq("workspace_id", workspaceId)
     .single();
 
   if (jobErr || !job) {
@@ -43,6 +53,7 @@ export async function DELETE(
     await admin
       .from("mait_ads_external")
       .delete()
+      .eq("workspace_id", workspaceId)
       .eq("competitor_id", job.competitor_id)
       .gte("created_at", start.toISOString())
       .lte("created_at", end.toISOString());
@@ -52,6 +63,7 @@ export async function DELETE(
   const { error } = await admin
     .from("mait_scrape_jobs")
     .delete()
+    .eq("workspace_id", workspaceId)
     .eq("id", id);
 
   if (error) {

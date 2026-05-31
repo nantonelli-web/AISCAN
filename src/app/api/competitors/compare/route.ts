@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveWorkspaceId } from "@/lib/auth/workspace";
 import { inferObjective } from "@/lib/analytics/objective-inference";
 
 const schema = z.object({
@@ -26,6 +27,14 @@ export async function POST(req: Request) {
   }
 
   const admin = createAdminClient();
+
+  // Tenant isolation: the admin client bypasses RLS, so scope every
+  // query below to the caller's workspace. Without this any user could
+  // pass another workspace's competitor UUIDs and read their ads.
+  const workspaceId = await resolveWorkspaceId(admin, user.id);
+  if (!workspaceId) {
+    return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  }
 
   // Window for the refresh-rate metric. When the caller passes
   // date_from/date_to we honour it; otherwise default to a rolling 90d
@@ -54,6 +63,7 @@ export async function POST(req: Request) {
         .select(
           "ad_archive_id, headline, ad_text, cta, image_url, video_url, platforms, status, start_date, end_date, created_at, raw_data"
         )
+        .eq("workspace_id", workspaceId)
         .eq("competitor_id", id)
         .limit(500);
       if (dateFilterFrom && dateFilterTo) {
@@ -67,8 +77,9 @@ export async function POST(req: Request) {
         admin
           .from("mait_competitors")
           .select("id, page_name")
+          .eq("workspace_id", workspaceId)
           .eq("id", id)
-          .single(),
+          .maybeSingle(),
         adsQuery,
       ]);
 
