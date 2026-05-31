@@ -100,7 +100,7 @@ export async function POST(req: Request) {
     landing_url: a.landing_url as string | null,
   }));
 
-  const results = await tagAdsBatch(toTag);
+  const results = await tagAdsBatch(toTag, profile.workspace_id);
 
   if (results.size === 0 && toTag.length > 0) {
     await refundCredits(user.id, "ai_tagging", "AI Tagging batch");
@@ -182,7 +182,7 @@ export async function POST(req: Request) {
       hashtags: (p.hashtags as string[] | null) ?? [],
     }));
 
-    const postResults = await tagPostsBatch(postsToTag);
+    const postResults = await tagPostsBatch(postsToTag, profile.workspace_id);
 
     for (const [postId, tags] of postResults) {
       const post = posts.find((p) => p.id === postId);

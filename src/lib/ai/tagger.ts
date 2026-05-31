@@ -2,9 +2,13 @@
  * AI-powered ad tagging via OpenRouter (Claude Haiku).
  *
  * Uses the OpenAI-compatible endpoint at openrouter.ai.
- * Requires OPENROUTER_API_KEY in env. If missing, tagging is silently
- * skipped — the rest of the app works fine without it.
+ * Credentials are resolved per-workspace via getOpenRouterCredentials:
+ * subscription-mode workspaces hit their own BYO key, credits-mode and
+ * keyless callers fall back to the managed env key. If no key resolves,
+ * tagging is silently skipped — the rest of the app works fine without it.
  */
+
+import { getOpenRouterCredentials } from "@/lib/billing/credentials";
 
 export interface AdTagResult {
   sector: string;
@@ -29,8 +33,10 @@ interface AdInput {
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = "anthropic/claude-haiku-4.5";
 
-export async function tagAd(ad: AdInput): Promise<AdTagResult | null> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+export async function tagAd(
+  ad: AdInput,
+  apiKey: string,
+): Promise<AdTagResult | null> {
   if (!apiKey) return null;
 
   const prompt = `Analyze this Meta ad and return a JSON object with exactly these keys:
@@ -96,8 +102,10 @@ interface PostInput {
   hashtags: string[];
 }
 
-export async function tagPost(post: PostInput): Promise<AdTagResult | null> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+export async function tagPost(
+  post: PostInput,
+  apiKey: string,
+): Promise<AdTagResult | null> {
   if (!apiKey) return null;
 
   const prompt = `Analyze this Instagram organic post and return a JSON object with exactly these keys:
@@ -144,16 +152,33 @@ Return ONLY the JSON object, no markdown, no explanation.`;
   }
 }
 
+/** Resolve the OpenRouter key once for a batch. Subscription-mode
+ *  workspaces get their BYO key; credits-mode / keyless callers fall
+ *  back to the managed env key. Returns null when nothing resolves
+ *  (missing BYO key, etc.) so the batch silently skips. */
+async function resolveTaggerKey(workspaceId?: string): Promise<string | null> {
+  try {
+    const creds = await getOpenRouterCredentials(workspaceId);
+    return creds.token || null;
+  } catch (e) {
+    console.error("[tagger] credentials error:", e);
+    return null;
+  }
+}
+
 export async function tagPostsBatch(
   posts: (PostInput & { id: string })[],
+  workspaceId?: string,
   concurrency = 3
 ): Promise<Map<string, AdTagResult>> {
   const results = new Map<string, AdTagResult>();
+  const apiKey = await resolveTaggerKey(workspaceId);
+  if (!apiKey) return results;
   for (let i = 0; i < posts.length; i += concurrency) {
     const batch = posts.slice(i, i + concurrency);
     const settled = await Promise.allSettled(
       batch.map(async (p) => {
-        const tags = await tagPost(p);
+        const tags = await tagPost(p, apiKey);
         if (tags) results.set(p.id, tags);
       })
     );
@@ -167,15 +192,18 @@ export async function tagPostsBatch(
 /** Tag multiple ads in parallel (batched to avoid rate limits). */
 export async function tagAdsBatch(
   ads: (AdInput & { id: string })[],
+  workspaceId?: string,
   concurrency = 3
 ): Promise<Map<string, AdTagResult>> {
   const results = new Map<string, AdTagResult>();
+  const apiKey = await resolveTaggerKey(workspaceId);
+  if (!apiKey) return results;
 
   for (let i = 0; i < ads.length; i += concurrency) {
     const batch = ads.slice(i, i + concurrency);
     const settled = await Promise.allSettled(
       batch.map(async (ad) => {
-        const tags = await tagAd(ad);
+        const tags = await tagAd(ad, apiKey);
         if (tags) results.set(ad.id, tags);
       })
     );

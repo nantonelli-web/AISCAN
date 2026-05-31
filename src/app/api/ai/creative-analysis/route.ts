@@ -115,8 +115,10 @@ export async function POST(req: Request) {
 
   // Run both agents in parallel — if one fails, the other still returns
   const [copywriterReport, creativeDirectorReport] = await Promise.all([
-    analyzeCopy(brands, parsed.data.locale ?? "it"),
-    analyzeVisuals(brands, parsed.data.locale ?? "it"),
+    // Pass workspaceId so subscription-mode workspaces hit their own BYO
+    // OpenRouter key instead of the company's managed key (H7).
+    analyzeCopy(brands, parsed.data.locale ?? "it", undefined, workspaceId),
+    analyzeVisuals(brands, parsed.data.locale ?? "it", undefined, workspaceId),
   ]);
 
   const result: CreativeAnalysisResult = {
