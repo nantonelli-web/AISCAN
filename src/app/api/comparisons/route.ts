@@ -241,7 +241,7 @@ async function computeTechnicalStats(
           .from("mait_competitors")
           .select("id, page_name")
           .eq("id", id)
-          .single(),
+          .maybeSingle(),
         fetchAllAds(),
       ]);
       const active = adsList.filter((a) => a.status === "ACTIVE");
@@ -605,7 +605,7 @@ async function fetchBrandAdData(
           .from("mait_competitors")
           .select("id, page_name")
           .eq("id", id)
-          .single(),
+          .maybeSingle(),
         adsQuery,
       ]);
 
@@ -719,7 +719,7 @@ async function computeTiktokStats(
           .from("mait_competitors")
           .select("id, page_name, tiktok_username")
           .eq("id", id)
-          .single(),
+          .maybeSingle(),
         postsQuery,
       ]);
 
@@ -890,7 +890,7 @@ async function computeOrganicStats(
           .from("mait_competitors")
           .select("id, page_name, instagram_username, instagram_profile")
           .eq("id", id)
-          .single(),
+          .maybeSingle(),
         postsQuery,
       ]);
 
@@ -1062,7 +1062,7 @@ async function fetchBrandOrganicData(
           .from("mait_competitors")
           .select("id, page_name")
           .eq("id", id)
-          .single(),
+          .maybeSingle(),
         admin
           .from("mait_organic_posts")
           .select("caption, display_url, hashtags")

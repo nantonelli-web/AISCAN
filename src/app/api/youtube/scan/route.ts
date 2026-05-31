@@ -121,6 +121,19 @@ export async function POST(req: Request) {
   }
 
   if (!channelUrl) {
+    // Batched: mark the pre-created job failed BEFORE refunding so the
+    // zombie cleanup can't refund it a second time.
+    if (isBatched && parsed.data.job_id) {
+      await admin
+        .from("mait_scrape_jobs")
+        .update({
+          status: "failed",
+          completed_at: new Date().toISOString(),
+          error: "YouTube channel URL not configured",
+        })
+        .eq("id", parsed.data.job_id)
+        .eq("status", "running");
+    }
     await refundCredits(
       user.id,
       "scan_youtube",
