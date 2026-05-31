@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { hasActiveScanSignal } from "@/lib/scan/activity";
 
 /**
  * Polling client-side che invoca /api/apify/scan-google/poll-active
@@ -44,6 +45,14 @@ export function ScanPoller() {
       if (!active) return;
       if (document.hidden) {
         timer = setTimeout(tick, 30_000);
+        return;
+      }
+      // No scan in flight in this session → make ZERO network calls.
+      // Just re-check the local signal periodically (cheap, local-only),
+      // so we start polling within ~15s of a scan launch. This is the
+      // fix for the "every user polls every 10s forever" background load.
+      if (!hasActiveScanSignal()) {
+        timer = setTimeout(tick, 15_000);
         return;
       }
       if (inFlight.current) {

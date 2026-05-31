@@ -15,6 +15,7 @@ import {
   type MapsAnalysisMode,
   type MapsPlaceInput,
 } from "@/lib/maps/analysis";
+import { enforceRateLimit, AI_CALLS_PER_HOUR } from "@/lib/rate-limit/enforce";
 
 export const maxDuration = 150;
 
@@ -210,6 +211,16 @@ export async function POST(
         result: cached.result,
       });
     }
+  }
+
+  // Per-workspace AI rate limit (cache hits above stay free + unlimited).
+  const aiRl = await enforceRateLimit(admin, {
+    key: `ai:${profile.workspace_id}`,
+    limit: AI_CALLS_PER_HOUR,
+    windowSeconds: 3600,
+  });
+  if (!aiRl.ok) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
   // 5. Charge credits.

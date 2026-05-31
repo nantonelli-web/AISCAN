@@ -117,11 +117,19 @@ export async function checkDailyCostCap(
     return { ok: true, spent: 0, cap: -1 };
   }
   const since = new Date(Date.now() - 24 * 3_600_000).toISOString();
-  const { data } = await admin
+  const { data, error } = await admin
     .from("mait_scrape_jobs")
     .select("cost_cu")
     .eq("workspace_id", workspaceId)
     .gt("started_at", since);
+  // Fail CLOSED on a DB error: if we can't prove the workspace is under
+  // budget, don't launch a paid Apify run. (Unlike the rate limiter,
+  // which fails open — here the downside is real money, and a DB error
+  // usually means we can't scan anyway.)
+  if (error) {
+    console.error("[batch-safety] cost-cap query failed (fail-closed):", error.message);
+    return { ok: false, spent: -1, cap };
+  }
   const spent = (data ?? []).reduce(
     (s: number, j: { cost_cu: number | null }) => s + Number(j.cost_cu ?? 0),
     0,

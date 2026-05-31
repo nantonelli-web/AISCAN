@@ -17,6 +17,7 @@ import {
   type PerfSection,
 } from "@/lib/ai/perf-analysis";
 import { getLocale } from "@/lib/i18n/server";
+import { enforceRateLimit, AI_CALLS_PER_HOUR } from "@/lib/rate-limit/enforce";
 import type { ComparisonMode } from "@/lib/perf/comparisons";
 
 export const maxDuration = 180;
@@ -227,6 +228,16 @@ export async function POST(
         { status: 400 },
       );
     }
+  }
+
+  // Per-workspace AI rate limit (shared ceiling with the other LLM routes).
+  const aiRl = await enforceRateLimit(admin, {
+    key: `ai:${profile.workspace_id}`,
+    limit: AI_CALLS_PER_HOUR,
+    windowSeconds: 3600,
+  });
+  if (!aiRl.ok) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
   // 3. Charge credits (costo dinamico dal catalogo modelli)

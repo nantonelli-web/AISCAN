@@ -7,6 +7,7 @@ import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n/context";
 import { notifyCreditsChanged } from "@/lib/credits/events";
+import { markScanActivity } from "@/lib/scan/activity";
 
 interface JobStatusResponse {
   job_id: string;
@@ -129,6 +130,9 @@ export function ScanGoogleButton({
       }
       // Il costo (2 crediti) e' gia' addebitato dalla POST: notifica subito.
       notifyCreditsChanged();
+      // Signal the ScanPoller that a Google scan is in flight so it
+      // starts polling for finalization (it stays idle otherwise).
+      markScanActivity();
       setPendingJobId(json.job_id);
     } catch (e) {
       if (toastIdRef.current) toast.dismiss(toastIdRef.current);
