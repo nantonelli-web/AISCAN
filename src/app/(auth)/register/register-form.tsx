@@ -47,9 +47,9 @@ export function RegisterForm() {
     const res = await fetch("/api/auth/bootstrap", {
       method: "POST",
       headers: { "content-type": "application/json" },
+      // identity (userId/email) is derived server-side from the session,
+      // not sent from the client.
       body: JSON.stringify({
-        userId: data.user.id,
-        email,
         name,
         workspaceName: workspaceName || `${name || "My"} workspace`,
       }),

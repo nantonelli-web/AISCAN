@@ -1,23 +1,51 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+// SECURITY: identity (userId + email) is taken from the authenticated
+// session, NEVER from the request body. The previous version trusted
+// client-supplied userId/email, which let a caller attach their auth id
+// to a workspace with a pending invite for any claimed email, and made
+// free-credit farming trivial. Only profile labels come from the body.
 const schema = z.object({
-  userId: z.string().uuid(),
-  email: z.string().email(),
   name: z.string().min(1).max(120),
   workspaceName: z.string().min(1).max(120),
 });
 
 export async function POST(req: Request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
-  const { userId, email, name, workspaceName } = parsed.data;
+  const { name, workspaceName } = parsed.data;
+  const userId = user.id;
+  const email = user.email ?? "";
+  if (!email) {
+    return NextResponse.json({ error: "Account has no email" }, { status: 400 });
+  }
 
   const admin = createAdminClient();
+
+  // Idempotency: if this user already has a profile, don't re-bootstrap
+  // (and don't let a second call move them into a different workspace).
+  const { data: alreadyProvisioned } = await admin
+    .from("mait_users")
+    .select("workspace_id")
+    .eq("id", userId)
+    .maybeSingle();
+  if (alreadyProvisioned) {
+    return NextResponse.json({ workspaceId: alreadyProvisioned.workspace_id });
+  }
 
   // Check for pending invitation for this email
   const { data: pendingInvite } = await admin
