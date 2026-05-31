@@ -23,6 +23,10 @@
 import { createHash } from "crypto";
 import { getOpenRouterCredentials } from "@/lib/billing/credentials";
 import { computeLocalSeoAudit } from "@/lib/maps/audit";
+import {
+  markerOutputInstruction,
+  parseMarkerSections,
+} from "@/lib/ai/marker-format";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -417,19 +421,8 @@ FORMATTING:
 SECTIONS TO GENERATE:
 ${sectionList}
 
-OUTPUT FORMAT — read carefully:
-For each section, emit its marker on its own line, then the narrative text below it. Use these EXACT markers:
-${sections.map((s) => `@@${s}@@`).join("\n")}
-
-Example shape:
-@@overview@@
-First paragraph of the overview...
-
-Second paragraph...
-@@reputation@@
-...
-
-Do NOT use JSON, quotes around the text, code fences, or any preamble. The text under each marker is plain markdown (paragraphs, **bold**, "- " lists). Write all content in English.`;
+${markerOutputInstruction(sections, "en")}
+Write all content in English.`;
   }
 
   return `Sei un analista senior di local SEO e Google Maps. Stai confrontando schede Google Maps (un "local pack") per uno strumento di brand monitoring. Ragiona SOLO sui dati verificabili forniti sotto — non inventare rating, numeri di review o dati di affluenza.
@@ -451,19 +444,8 @@ FORMATTAZIONE:
 SEZIONI DA GENERARE:
 ${sectionList}
 
-FORMATO DI OUTPUT — leggi con attenzione:
-Per ogni sezione, scrivi il suo marcatore su una riga a sé, poi sotto il testo della narrativa. Usa ESATTAMENTE questi marcatori:
-${sections.map((s) => `@@${s}@@`).join("\n")}
-
-Esempio:
-@@overview@@
-Primo paragrafo del quadro d'insieme...
-
-Secondo paragrafo...
-@@reputation@@
-...
-
-NON usare JSON, virgolette attorno al testo, code fences o preamboli. Il testo sotto ogni marcatore è markdown semplice (paragrafi, **bold**, liste "- "). Scrivi tutto in italiano.`;
+${markerOutputInstruction(sections, "it")}
+Scrivi tutto in italiano.`;
 }
 
 /* ─── OpenRouter call ─────────────────────────────────────── */
@@ -543,33 +525,11 @@ export async function runMapsAnalysis(
     return null;
   }
 
-  let raw = text.trim();
-  if (raw.startsWith("```")) {
-    raw = raw.replace(/^```(?:\w+)?\s*/i, "").replace(/```\s*$/, "").trim();
-  }
-
-  // Marker-delimited parse: robusto a virgolette/newline nel testo
-  // (cosa che rompe JSON.parse). Split su @@section@@ con capture.
-  const allowed = new Set<string>(sections);
-  const parts = raw.split(/@@(\w+)@@/g);
-  const out: Partial<Record<MapsAnalysisSection, string>> = {};
-  for (let i = 1; i < parts.length; i += 2) {
-    const key = parts[i];
-    const bodyRaw = parts[i + 1] ?? "";
-    if (!allowed.has(key)) continue;
-    // Pulizia: alcuni modelli racchiudono il testo fra virgolette o
-    // aggiungono una virgola di troncamento JSON-style — togliamole.
-    const body = bodyRaw
-      .trim()
-      .replace(/^"+/, "")
-      .replace(/"+,?$/, "")
-      .trim();
-    if (body) out[key as MapsAnalysisSection] = body;
-  }
+  const out = parseMarkerSections(text, sections);
   if (Object.keys(out).length === 0) {
     console.error(
       "[maps-analysis] no sections parsed from markers. raw:",
-      raw.slice(0, 500),
+      text.slice(0, 500),
     );
     return null;
   }

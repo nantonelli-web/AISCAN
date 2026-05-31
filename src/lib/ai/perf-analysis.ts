@@ -12,6 +12,11 @@
  */
 
 import { getOpenRouterCredentials } from "@/lib/billing/credentials";
+import {
+  markerOutputInstruction,
+  parseMarkerSections,
+  serializeMarkerSections,
+} from "@/lib/ai/marker-format";
 import type { PerfDashboardData } from "@/types/perf";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -363,12 +368,8 @@ FORMATTING INSTRUCTIONS (important for readability):
 SECTIONS TO GENERATE:
 ${sectionList}
 
-OUTPUT: reply ONLY with valid JSON in the form:
-{
-${sections.map((s) => `  "${s}": "..."`).join(",\n")}
-}
-
-No markdown wrapping (\`\`\`json), no preamble, no postamble. Each key's value is a string with paragraphs separated by \\n\\n, optional **bold** markdown, and "- " lists. Write all narrative content **in English**.`;
+${markerOutputInstruction(sections, "en")}
+Write all narrative content **in English**.`;
   }
 
   return `Sei un analista marketing senior specializzato in paid advertising. Stai analizzando dati di performance di campagne **${ch.name}** per un brand. Importante: ragiona usando i benchmark della piattaforma corretta — NON applicare benchmark di altre piattaforme (es. non confrontare CPM Snapchat con benchmark Meta).
@@ -402,12 +403,8 @@ ISTRUZIONI DI FORMATTAZIONE (importanti per la leggibilita'):
 SEZIONI DA GENERARE:
 ${sectionList}
 
-OUTPUT: rispondi SOLO con un JSON valido nella forma:
-{
-${sections.map((s) => `  "${s}": "..."`).join(",\n")}
-}
-
-Niente markdown wrapping (\`\`\`json), niente preamble, niente postamble. Il valore di ogni chiave e' una stringa con paragrafi separati da \\n\\n, eventuali **bold** markdown e liste con "- ". Scrivi tutto il contenuto narrativo **in italiano**.`;
+${markerOutputInstruction(sections, "it")}
+Scrivi tutto il contenuto narrativo **in italiano**.`;
 }
 
 /* ─── OpenRouter call ────────────────────────────────────── */
@@ -500,10 +497,12 @@ export async function translatePerfAnalysis(
   const targetLangLabel = opts.toLocale === "it" ? "Italian" : "English";
   const sourceLangLabel = opts.fromLocale === "it" ? "Italian" : "English";
 
-  // Passiamo le sezioni come JSON cosi' il modello restituisce lo
-  // stesso JSON ma con il contenuto tradotto. Markdown preservato.
-  const payload: Record<string, string> = {};
-  for (const s of opts.sections) payload[s.section] = s.content;
+  // Passiamo le sezioni in formato marker (NON JSON): la sorgente è
+  // testo markdown con virgolette/newline che, infilato in un JSON,
+  // esporrebbe la LETTURA della risposta allo stesso bug di escaping.
+  const inputMarkers = serializeMarkerSections(
+    opts.sections.map((s) => ({ section: s.section, content: s.content })),
+  );
 
   const prompt = [
     `You are translating performance-analysis commentary from ${sourceLangLabel} to ${targetLangLabel}.`,
@@ -515,11 +514,15 @@ export async function translatePerfAnalysis(
     "- Keep numbers, currencies, percentages, KPI names (CTR, CPM, CPC, ROAS, CPP, CPR, …) and proper nouns unchanged.",
     "- Keep technical short-codes from campaign names (VC, ATC, PUR, ENG, BAU, …) unchanged.",
     `- If text is already in ${targetLangLabel}, leave it unchanged.`,
+    "- Keep the @@section@@ markers EXACTLY as they are — do not translate or alter them.",
     "",
-    "Return ONLY a JSON object with the SAME keys as the input. Each value must be the translated string. No prose, no markdown fences.",
+    markerOutputInstruction(
+      opts.sections.map((s) => s.section),
+      "en",
+    ),
     "",
-    "INPUT JSON:",
-    JSON.stringify(payload, null, 2),
+    "INPUT (markers + text to translate):",
+    inputMarkers,
   ].join("\n");
 
   const controller = new AbortController();
@@ -565,36 +568,18 @@ export async function translatePerfAnalysis(
     return null;
   }
 
-  let raw = text.trim();
-  if (raw.startsWith("```")) {
-    raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/```$/, "").trim();
+  const parsed = parseMarkerSections(
+    text,
+    opts.sections.map((s) => s.section),
+  );
+  const sections: Partial<Record<PerfSection, string>> = {};
+  for (const s of opts.sections) {
+    const v = parsed[s.section];
+    // Fallback: se il modello salta/sbaglia una sezione, riusiamo il
+    // testo originale invece di perdere il contenuto.
+    sections[s.section] = v && v.trim() ? v.trim() : s.content;
   }
-  const m = /\{[\s\S]*\}/.exec(raw);
-  if (m) raw = m[0];
-
-  try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const sections: Partial<Record<PerfSection, string>> = {};
-    for (const s of opts.sections) {
-      const v = parsed[s.section];
-      if (typeof v === "string" && v.trim()) {
-        sections[s.section] = v.trim();
-      } else {
-        // Fallback: se il modello salta una sezione, riusiamo il testo
-        // originale invece di perdere il contenuto.
-        sections[s.section] = s.content;
-      }
-    }
-    return { sections, modelId: opts.modelOpenrouterId };
-  } catch (e) {
-    console.error(
-      "[perf-translate] JSON parse failed:",
-      (e as Error).message,
-      "raw:",
-      raw.slice(0, 500),
-    );
-    return null;
-  }
+  return { sections, modelId: opts.modelOpenrouterId };
 }
 
 export async function runPerfAnalysis(
@@ -661,30 +646,13 @@ export async function runPerfAnalysis(
     return null;
   }
 
-  // Strip markdown fences if model wraps the JSON despite instructions.
-  let raw = text.trim();
-  if (raw.startsWith("```")) {
-    raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/```$/, "").trim();
-  }
-  // Extract first {...} block
-  const m = /\{[\s\S]*\}/.exec(raw);
-  if (m) raw = m[0];
-
-  try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const sections: Partial<Record<PerfSection, string>> = {};
-    for (const s of opts.sections) {
-      const v = parsed[s];
-      if (typeof v === "string" && v.trim()) sections[s] = v.trim();
-    }
-    return { sections, modelId: model };
-  } catch (e) {
+  const sections = parseMarkerSections(text, opts.sections);
+  if (Object.keys(sections).length === 0) {
     console.error(
-      "[perf-analysis] JSON parse failed:",
-      (e as Error).message,
-      "raw:",
-      raw.slice(0, 500),
+      "[perf-analysis] no sections parsed from markers. raw:",
+      text.slice(0, 500),
     );
     return null;
   }
+  return { sections, modelId: model };
 }
