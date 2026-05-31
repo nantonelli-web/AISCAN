@@ -64,15 +64,20 @@ async function cleanupZombieJobs(
 
   let refunded = 0;
   for (const z of list) {
-    await admin
+    // Atomically transition running→failed and refund ONLY if this call
+    // won the transition. Otherwise a concurrent cleanup (or the dispatch
+    // error path that already failed+refunded the job) would double-refund.
+    const { data: failed } = await admin
       .from("mait_scrape_jobs")
       .update({
         status: "failed",
         completed_at: new Date().toISOString(),
         error: "Auto-cleanup zombie (batch dispatch failed >10min ago)",
       })
-      .eq("id", z.id);
-    if (z.created_by) {
+      .eq("id", z.id)
+      .eq("status", "running")
+      .select("id");
+    if (z.created_by && failed && failed.length > 0) {
       try {
         await refundCredits(
           z.created_by,
@@ -376,8 +381,12 @@ export async function dispatchAsyncBatch<
             err instanceof Error ? err.message : err,
           );
           // Mark il job come failed e refund — la scan handler ha
-          // lanciato un'eccezione invece di gestire l'errore.
-          await admin
+          // lanciato un'eccezione invece di gestire l'errore. Refund SOLO
+          // se questa update ha effettivamente transizionato il job da
+          // 'running' a 'failed': se la scan route aveva già gestito
+          // l'errore (e già rifondato), l'update matcha 0 righe e qui non
+          // si deve rifondare di nuovo (doppio rimborso).
+          const { data: failed } = await admin
             .from("mait_scrape_jobs")
             .update({
               status: "failed",
@@ -385,12 +394,15 @@ export async function dispatchAsyncBatch<
               error: err instanceof Error ? err.message : "Dispatch failed",
             })
             .eq("id", jobId)
-            .eq("status", "running");
-          await refundOneBatchCredit(
-            user.id,
-            cfg.source,
-            `${cfg.channelLabel} dispatch failed: ${c.page_name}`,
-          );
+            .eq("status", "running")
+            .select("id");
+          if (failed && failed.length > 0) {
+            await refundOneBatchCredit(
+              user.id,
+              cfg.source,
+              `${cfg.channelLabel} dispatch failed: ${c.page_name}`,
+            );
+          }
         }
       }),
     );

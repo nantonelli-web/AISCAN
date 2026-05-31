@@ -73,7 +73,7 @@ export async function POST(req: Request) {
     competitorId: competitor.id,
   });
   if (!rate.ok) {
-    return NextResponse.json({ error: rate.reason }, { status: 429 });
+    return NextResponse.json({ error: rate.reason }, { status: rate.reason === "cost_cap" ? 402 : 429 });
   }
 
   const credits = await consumeCredits(

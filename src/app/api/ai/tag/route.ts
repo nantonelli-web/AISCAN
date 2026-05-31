@@ -18,13 +18,11 @@ const schema = z.object({
  * Only works if OPENROUTER_API_KEY is set.
  */
 export async function POST(req: Request) {
-  if (!process.env.OPENROUTER_API_KEY) {
-    return NextResponse.json(
-      { error: "OPENROUTER_API_KEY non configurato. Aggiungilo nelle Environment Variables di Vercel e ridepiega." },
-      { status: 503 }
-    );
-  }
-
+  // No hard env-key precondition here: credentials are resolved
+  // per-workspace in tagAdsBatch/tagPostsBatch (BYO key in subscription
+  // mode, managed env otherwise). If nothing resolves, the batch returns
+  // empty and the route refunds below — a blanket 503 on the company env
+  // key would wrongly block a subscription workspace using its own key.
   const supabase = await createClient();
   const {
     data: { user },

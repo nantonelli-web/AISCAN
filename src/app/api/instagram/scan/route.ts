@@ -88,7 +88,7 @@ export async function POST(req: Request) {
       competitorId: competitor.id,
     });
     if (!rate.ok) {
-      return NextResponse.json({ error: rate.reason }, { status: 429 });
+      return NextResponse.json({ error: rate.reason }, { status: rate.reason === "cost_cap" ? 402 : 429 });
     }
 
     const credits = await consumeCredits(user.id, "scan_instagram", `Instagram scan: ${competitor.page_name}`);
@@ -144,6 +144,21 @@ export async function POST(req: Request) {
   }
 
   if (!igUsername) {
+    // In batched mode the batch route pre-created a 'running' job for
+    // this brand. Mark it failed BEFORE refunding so the zombie cleanup
+    // (which also refunds 'running' batch jobs) can't refund a second
+    // time. Single-brand flow has no job yet, so nothing to mark.
+    if (isBatched && parsed.data.job_id) {
+      await admin
+        .from("mait_scrape_jobs")
+        .update({
+          status: "failed",
+          completed_at: new Date().toISOString(),
+          error: "Instagram username not found",
+        })
+        .eq("id", parsed.data.job_id)
+        .eq("status", "running");
+    }
     // Refund credits since the scan cannot proceed
     await refundCredits(user.id, "scan_instagram", `Instagram scan: ${competitor.page_name}`);
     return NextResponse.json(

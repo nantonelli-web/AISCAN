@@ -58,8 +58,13 @@ export async function assertOwnedIds(
   ids: string[],
   workspaceId: string,
 ): Promise<boolean> {
-  const owned = await filterOwnedIds(admin, table, ids, workspaceId);
-  return owned.length === ids.length;
+  // Compare against the UNIQUE set of requested ids: filterOwnedIds runs
+  // `.in("id", ids)` which returns distinct rows, so a legitimately-owned
+  // request that happens to repeat an id (e.g. [X, X]) would otherwise be
+  // wrongly rejected.
+  const uniqueIds = Array.from(new Set(ids));
+  const owned = await filterOwnedIds(admin, table, uniqueIds, workspaceId);
+  return owned.length === uniqueIds.length;
 }
 
 /**

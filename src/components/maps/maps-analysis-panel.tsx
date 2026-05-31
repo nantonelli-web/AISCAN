@@ -92,8 +92,11 @@ function FormattedText({ content }: { content: string }) {
     <div className="space-y-2.5">
       {blocks.map((block, idx) => {
         const lines = block.split(/\n/);
+        // A block where every line starts with "- " is a bullet list —
+        // including a single-item block (LLMs often emit lone bullets);
+        // without this it would fall through and render the literal "- ".
         const isList = lines.every((l) => l.trim().startsWith("- "));
-        if (isList && lines.length >= 2) {
+        if (isList) {
           return (
             <ul
               key={idx}
@@ -184,6 +187,17 @@ export function MapsAnalysisPanel({
     [models, modelId],
   );
 
+  // Monotonic request id. Bumped whenever the inputs change (selection,
+  // mode, model) AND at the start of each generate(); a slow in-flight
+  // generate only applies its result if it's still the latest request,
+  // so changing the selection mid-request can't repopulate the panel
+  // with a stale report (and a spurious success toast).
+  const reqIdRef = useRef(0);
+  function invalidateResult() {
+    reqIdRef.current++;
+    setResult(null);
+  }
+
   function toggle(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -192,7 +206,7 @@ export function MapsAnalysisPanel({
       return next;
     });
     // Una nuova selezione invalida il report mostrato.
-    setResult(null);
+    invalidateResult();
   }
 
   function pickModel(id: string) {
@@ -201,13 +215,14 @@ export function MapsAnalysisPanel({
       window.localStorage.setItem(MODEL_STORAGE_KEY, id);
     }
     setOpen(false);
-    setResult(null);
+    invalidateResult();
   }
 
   const canRun = selected.size >= 2 && selected.size <= 6 && !!modelId;
 
   async function generate(force = false) {
     if (!canRun) return;
+    const myId = ++reqIdRef.current;
     setBusy(true);
     try {
       const res = await fetch(`/api/maps/searches/${searchId}/analysis`, {
@@ -221,6 +236,13 @@ export function MapsAnalysisPanel({
         }),
       });
       const j = await res.json().catch(() => ({}));
+      // Credits were actually spent server-side on a non-cached run —
+      // refresh the badge regardless of whether this is still the active
+      // request.
+      if (res.ok && !j.cached) notifyCreditsChanged();
+      // Stale response (the user changed selection/mode/model meanwhile):
+      // don't touch the UI or toast — it no longer matches the controls.
+      if (reqIdRef.current !== myId) return;
       if (!res.ok) {
         if (res.status === 402) {
           toast.error(
@@ -235,13 +257,16 @@ export function MapsAnalysisPanel({
       }
       setResult(j.result as AnalysisResult);
       setCached(!!j.cached);
-      if (!j.cached) notifyCreditsChanged();
       toast.success(
         j.cached ? t("maps", "analysisServedCache") : t("maps", "analysisDone"),
       );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("maps", "analysisErrorGeneric"));
+      if (reqIdRef.current === myId) {
+        toast.error(e instanceof Error ? e.message : t("maps", "analysisErrorGeneric"));
+      }
     } finally {
+      // Always clear busy: only one generate can be in flight (the button
+      // is disabled while busy and invalidateResult doesn't start a fetch).
       setBusy(false);
     }
   }
@@ -283,7 +308,7 @@ export function MapsAnalysisPanel({
               type="button"
               onClick={() => {
                 setMode("cross_brand");
-                setResult(null);
+                invalidateResult();
               }}
               className={`flex items-start gap-2 rounded-lg border p-3 text-left transition-colors cursor-pointer ${
                 mode === "cross_brand"
@@ -305,7 +330,7 @@ export function MapsAnalysisPanel({
               type="button"
               onClick={() => {
                 setMode("intra_brand");
-                setResult(null);
+                invalidateResult();
               }}
               className={`flex items-start gap-2 rounded-lg border p-3 text-left transition-colors cursor-pointer ${
                 mode === "intra_brand"
@@ -611,17 +636,19 @@ function FactsTable({
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums">
                   <span className="inline-flex items-center gap-1 justify-end">
-                    {e.lifetimeReviews}
+                    {e.lifetimeReviews ?? "—"}
                     {isReviewLeader && (
                       <Trophy className="size-3 text-gold" />
                     )}
                   </span>
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums">
-                  {e.ownerResponseRate}%
+                  {e.ownerResponseRate != null ? `${e.ownerResponseRate}%` : "—"}
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums">
-                  {e.gbpScore}/{e.gbpMax}
+                  {e.gbpScore != null && e.gbpMax != null
+                    ? `${e.gbpScore}/${e.gbpMax}`
+                    : "—"}
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums">
                   <span className="inline-flex items-center gap-1 justify-end">

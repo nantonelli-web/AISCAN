@@ -60,7 +60,7 @@ export async function POST(req: Request) {
   // checked BEFORE charging so we don't bill on a 429.
   const budget = await checkScanBudget(admin, searchRow.workspace_id);
   if (!budget.ok) {
-    return NextResponse.json({ error: budget.reason }, { status: 429 });
+    return NextResponse.json({ error: budget.reason }, { status: budget.reason === "cost_cap" ? 402 : 429 });
   }
 
   const credits = await consumeCredits(
