@@ -44,6 +44,20 @@ export function RegisterForm() {
       return;
     }
 
+    // If the Supabase project requires email confirmation, signUp returns
+    // a user but NO session — so the server-side bootstrap (which derives
+    // identity from the session) would 401. In that case the account is
+    // provisioned later by /api/auth/callback when the user clicks the
+    // confirmation link, so we just tell them to check their email and
+    // skip bootstrap. (Today confirmation is off and a session exists, so
+    // this branch is dormant — but it keeps signup from silently breaking
+    // if confirmation is ever turned on.)
+    if (!data.session) {
+      setLoading(false);
+      toast.success(t("auth", "checkEmail"));
+      return;
+    }
+
     const res = await fetch("/api/auth/bootstrap", {
       method: "POST",
       headers: { "content-type": "application/json" },

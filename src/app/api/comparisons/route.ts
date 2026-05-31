@@ -97,6 +97,11 @@ const postSchema = z.object({
 const deleteSchema = z.object({
   competitor_ids: z.array(z.string().uuid()).min(2).max(3),
   locale: z.enum(["it", "en"]).optional(),
+  // Channel-scoped delete: the cache key includes channel (migration
+  // 0031). Without it, deleting one channel's comparison would wipe the
+  // Meta/Google/IG/TikTok rows (and their paid AI analyses) for the same
+  // brand-set. Optional for legacy callers → falls back to channel-blind.
+  channel: z.enum(["all", "meta", "google", "instagram", "tiktok"]).optional(),
 });
 
 /* ── Helpers ─────────────────────────────────────────────── */
@@ -1307,6 +1312,20 @@ export async function POST(req: Request) {
   const needsAi = sections.includes("copy") || sections.includes("visual");
   const tier: ModelTier = parsed.data.tier ?? "pragmatic";
   if (needsAi) {
+    // TikTok has no AI fetch path: the brand-data fetch below falls back
+    // to mait_ads_external (Meta/Google ads), so a TikTok copy/visual
+    // analysis would silently analyze the WRONG channel's creatives and
+    // still bill the user. Reject before charging until a TikTok-specific
+    // fetch exists. (Technical stats for TikTok work fine.)
+    if (isTiktok) {
+      return NextResponse.json(
+        {
+          error:
+            "AI copy/visual analysis non è ancora disponibile per TikTok. Usa la scheda tecnica.",
+        },
+        { status: 400 },
+      );
+    }
     if (!process.env.OPENROUTER_API_KEY) {
       return NextResponse.json(
         { error: "OPENROUTER_API_KEY non configurato." },
@@ -1523,12 +1542,16 @@ export async function DELETE(req: Request) {
   const ids = sortedIds(parsed.data.competitor_ids);
   const locale = parsed.data.locale ?? "it";
 
-  await admin
+  let del = admin
     .from("mait_comparisons")
     .delete()
     .eq("workspace_id", workspaceId)
     .eq("competitor_ids", `{${ids.join(",")}}`)
     .eq("locale", locale);
+  // Scope to the channel when provided so we don't wipe other channels'
+  // cached analyses for the same brand-set.
+  if (parsed.data.channel) del = del.eq("channel", parsed.data.channel);
+  await del;
 
   return NextResponse.json({ ok: true });
 }

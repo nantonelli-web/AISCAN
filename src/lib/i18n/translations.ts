@@ -250,6 +250,10 @@ const translations = {
     },
     bootstrapFailed: { it: "Bootstrap fallito:", en: "Bootstrap failed:" },
     accountCreated: { it: "Account creato.", en: "Account created." },
+    checkEmail: {
+      it: "Controlla la tua email per confermare l'account, poi accedi.",
+      en: "Check your email to confirm your account, then sign in.",
+    },
     // Messages shown when the dashboard/getSessionUser redirects to
     // /login with an `error` query param.
     errorDisabled: {

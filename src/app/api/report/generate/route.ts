@@ -595,6 +595,8 @@ export async function POST(req: Request) {
     const sortedIds = [...competitor_ids].sort();
     const wsId = workspaceId;
 
+    // Channel must be part of the cache key (migration 0031) — otherwise
+    // a Google report could read the Meta analysis for the same brand-set.
     const { data: cached } = wsId
       ? await admin
           .from("mait_comparisons")
@@ -602,7 +604,8 @@ export async function POST(req: Request) {
           .eq("workspace_id", wsId)
           .eq("competitor_ids", sortedIds)
           .eq("locale", locale)
-          .single()
+          .eq("channel", channel)
+          .maybeSingle()
       : { data: null };
 
     const cachedCopy = cached && !cached.stale ? cached.copy_analysis : null;
@@ -617,15 +620,25 @@ export async function POST(req: Request) {
         brands.map((b) => fetchBrandAdData(admin, b.id, b.name))
       );
 
+      const aiSource =
+        channel === "meta" || channel === "google" ? channel : undefined;
       const [copyResult, visualResult] = await Promise.all([
-        mustGenerateCopy ? analyzeCopy(brandAdData, parsed.data.locale) : null,
-        mustGenerateVisual ? analyzeVisuals(brandAdData, parsed.data.locale) : null,
+        mustGenerateCopy
+          ? analyzeCopy(brandAdData, parsed.data.locale, aiSource, wsId)
+          : null,
+        mustGenerateVisual
+          ? analyzeVisuals(brandAdData, parsed.data.locale, aiSource, wsId)
+          : null,
       ]);
 
       copyAnalysis = copyResult ?? cachedCopy;
       visualAnalysis = visualResult ?? cachedVisual;
 
-      // Save freshly generated analysis to cache for future reuse (fire-and-forget)
+      // Save freshly generated analysis to cache for future reuse
+      // (fire-and-forget). onConflict MUST match idx_mait_comparisons_key
+      // (workspace_id, competitor_ids, locale, channel) from migration
+      // 0031 — the old 3-column target no longer has an index, so the
+      // upsert was silently erroring and the cache never persisted.
       if (wsId && (copyResult || visualResult)) {
         void admin
           .from("mait_comparisons")
@@ -634,12 +647,13 @@ export async function POST(req: Request) {
               workspace_id: wsId,
               competitor_ids: sortedIds,
               locale,
+              channel,
               ...(copyResult ? { copy_analysis: copyResult } : {}),
               ...(visualResult ? { visual_analysis: visualResult } : {}),
               stale: false,
               updated_at: new Date().toISOString(),
             },
-            { onConflict: "workspace_id,competitor_ids,locale" }
+            { onConflict: "workspace_id,competitor_ids,locale,channel" }
           );
       }
     } else {

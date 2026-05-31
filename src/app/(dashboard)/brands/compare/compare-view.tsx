@@ -777,6 +777,15 @@ export function CompareView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, selectedKey, cache?.copy_analysis, cache?.visual_analysis]);
 
+  // TikTok has no AI copy/visual tab — if the user is on one of those
+  // tabs and switches the channel to TikTok, fall back to technical so
+  // they don't sit on a now-hidden tab.
+  useEffect(() => {
+    if (channel === "tiktok" && (activeTab === "copy" || activeTab === "visual")) {
+      setActiveTab("technical");
+    }
+  }, [channel, activeTab]);
+
   // Explicit AI generation trigger — invoked by the "Genera analisi"
   // button in the copy / visual tabs. Carries the user-selected
   // model tier through to the POST so the API charges the correct
@@ -885,6 +894,9 @@ export function CompareView({
         body: JSON.stringify({
           competitor_ids: selectedIds,
           locale,
+          // Current channel only — don't wipe other channels' cached
+          // analyses for the same brand-set on a regenerate.
+          channel,
         }),
       });
 
@@ -1115,7 +1127,12 @@ export function CompareView({
       await fetch("/api/comparisons", {
         method: "DELETE",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ competitor_ids: sc.competitor_ids, locale: sc.locale }),
+        body: JSON.stringify({
+          competitor_ids: sc.competitor_ids,
+          locale: sc.locale,
+          // Delete only this saved comparison's channel row.
+          ...(sc.channel ? { channel: sc.channel } : {}),
+        }),
       });
       setSavedList((prev) => prev.filter((s) => s.id !== sc.id));
     } catch {
@@ -2245,20 +2262,27 @@ export function CompareView({
               icon={<BarChart3 className="size-3.5" />}
               label={t("compare", "tabTechnical")}
             />
-            <TabButton
-              active={activeTab === "copy"}
-              onClick={() => setActiveTab("copy")}
-              icon={<Pen className="size-3.5" />}
-              label={t("compare", "tabCopy")}
-              loading={aiLoading && activeTab === "copy"}
-            />
-            <TabButton
-              active={activeTab === "visual"}
-              onClick={() => setActiveTab("visual")}
-              icon={<Palette className="size-3.5" />}
-              label={t("compare", "tabVisual")}
-              loading={aiLoading && activeTab === "visual"}
-            />
+            {/* AI copy/visual analysis isn't available for TikTok yet
+                (no TikTok-specific AI fetch path), so hide those tabs to
+                avoid analyzing the wrong channel's data. */}
+            {channel !== "tiktok" && (
+              <>
+                <TabButton
+                  active={activeTab === "copy"}
+                  onClick={() => setActiveTab("copy")}
+                  icon={<Pen className="size-3.5" />}
+                  label={t("compare", "tabCopy")}
+                  loading={aiLoading && activeTab === "copy"}
+                />
+                <TabButton
+                  active={activeTab === "visual"}
+                  onClick={() => setActiveTab("visual")}
+                  icon={<Palette className="size-3.5" />}
+                  label={t("compare", "tabVisual")}
+                  loading={aiLoading && activeTab === "visual"}
+                />
+              </>
+            )}
             <TabButton
               active={activeTab === "benchmark"}
               onClick={() => setActiveTab("benchmark")}
