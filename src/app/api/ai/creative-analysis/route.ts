@@ -10,6 +10,7 @@ import {
 } from "@/lib/ai/creative-analysis";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 import { resolveWorkspaceId, assertOwnedIds } from "@/lib/auth/workspace";
+import { enforceRateLimit, AI_CALLS_PER_HOUR } from "@/lib/rate-limit/enforce";
 
 export const maxDuration = 120;
 
@@ -55,6 +56,17 @@ export async function POST(req: Request) {
   }
   if (!(await assertOwnedIds(admin, "mait_competitors", parsed.data.competitor_ids, workspaceId))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  // Per-workspace AI rate limit (H6/H7): caps calls to the company's
+  // OpenRouter key even in subscription mode, where no credits are charged.
+  const rl = await enforceRateLimit(admin, {
+    key: `ai:${workspaceId}`,
+    limit: AI_CALLS_PER_HOUR,
+    windowSeconds: 3600,
+  });
+  if (!rl.ok) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
   // Credit check (after validation + ownership gate)

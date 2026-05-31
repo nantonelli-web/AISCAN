@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { tagAdsBatch, tagPostsBatch } from "@/lib/ai/tagger";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
+import { enforceRateLimit, AI_CALLS_PER_HOUR } from "@/lib/rate-limit/enforce";
 
 export const maxDuration = 120;
 
@@ -43,6 +44,17 @@ export async function POST(req: Request) {
     .single();
   if (!profile?.workspace_id) {
     return NextResponse.json({ error: "No workspace" }, { status: 400 });
+  }
+
+  // Per-workspace AI rate limit (H6/H7): caps OpenRouter calls even in
+  // subscription mode where no credits are charged.
+  const rl = await enforceRateLimit(supabase, {
+    key: `ai:${profile.workspace_id}`,
+    limit: AI_CALLS_PER_HOUR,
+    windowSeconds: 3600,
+  });
+  if (!rl.ok) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
   // Find ads that don't have ai_tags yet

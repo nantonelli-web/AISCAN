@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { scrapeMapsPlaces } from "@/lib/maps/service";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
+import { checkScanBudget } from "@/lib/rate-limit/scan-concurrency";
 
 export const maxDuration = 300; // seconds
 
@@ -54,6 +55,13 @@ export async function POST(req: Request) {
   }
 
   const admin = createAdminClient();
+
+  // Daily Apify cost cap (H5) + per-workspace scan rate limit (H6),
+  // checked BEFORE charging so we don't bill on a 429.
+  const budget = await checkScanBudget(admin, searchRow.workspace_id);
+  if (!budget.ok) {
+    return NextResponse.json({ error: budget.reason }, { status: 429 });
+  }
 
   const credits = await consumeCredits(
     user.id,
