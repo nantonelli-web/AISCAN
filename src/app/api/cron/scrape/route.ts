@@ -4,6 +4,7 @@ import { scrapeMetaAds } from "@/lib/apify/service";
 import { scrapeGoogleAds } from "@/lib/apify/google-ads-service";
 import { reconcileMetaAdStatus } from "@/lib/apify/reconcile-status";
 import { storeAdImages, storeProfilePicture } from "@/lib/media/store-ad-images";
+import { checkDailyCostCap, checkGlobalCostCap } from "@/lib/apify/batch-safety";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
@@ -57,18 +58,45 @@ export async function GET(req: Request) {
   // scraped, so we drop them before the loop instead of failing
   // each insert. Multi-channel-only brands stay in the workspace
   // but skip cron until per-channel cron entries are added.
-  const due = ((competitors ?? []) as CompRow[])
+  const dueAll = ((competitors ?? []) as CompRow[])
     .filter((c) => (c.monitor_config?.frequency ?? "manual") === frequency)
     .filter((c) => !!c.page_url || !!c.page_id);
 
+  // SCALABILITY GUARD: cap how many brands a single cron invocation
+  // scrapes, so it can't exceed maxDuration (each Meta scrape is 60-90s)
+  // and silently drop the tail. The remainder is NOT silently ignored —
+  // we report skipped_for_budget so the next run (or a shard) picks it up.
+  const MAX_PER_RUN = Number.parseInt(
+    process.env.CRON_MAX_SCANS_PER_RUN ?? "40",
+    10,
+  );
+  const due = dueAll.slice(0, MAX_PER_RUN);
+  const skippedForCap = dueAll.length - due.length;
+  if (skippedForCap > 0) {
+    console.warn(
+      `[cron/scrape] ${skippedForCap} brand(s) over the per-run cap (${MAX_PER_RUN}) — not scraped this run. Shard the cron or raise CRON_MAX_SCANS_PER_RUN.`,
+    );
+  }
+
   const results: Array<{
     competitor_id: string;
-    status: "ok" | "error";
+    status: "ok" | "error" | "skipped";
     records?: number;
     error?: string;
   }> = [];
 
   for (const c of due) {
+    // COST GUARD: route cron scrapes through the same daily cost cap as
+    // manual scans (per-workspace + global). The cron previously bypassed
+    // every safety control — re-enabling it without this would bill Apify
+    // for every brand daily with no ceiling.
+    const wsCap = await checkDailyCostCap(c.workspace_id, admin);
+    const globalCap = await checkGlobalCostCap(admin);
+    if (!wsCap.ok || !globalCap.ok) {
+      results.push({ competitor_id: c.id, status: "skipped", error: "cost_cap" });
+      continue;
+    }
+
     const { data: job } = await admin
       .from("mait_scrape_jobs")
       .insert({

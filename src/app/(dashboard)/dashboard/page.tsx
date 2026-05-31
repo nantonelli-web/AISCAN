@@ -20,35 +20,13 @@ export default async function DashboardPage() {
   const locale = await getLocale();
   const t = serverT(locale);
 
-  // Paginated fetch for the top-competitors aggregate: Supabase caps each
-  // response at 1000 rows, so .limit(2000) silently truncated for any
-  // workspace with > 1000 active ads. Walk .range() pages until exhausted.
-  async function fetchActiveAdCompetitors(): Promise<{ competitor_id: string | null }[]> {
-    const PAGE = 1000;
-    const SAFETY_CAP = 100_000;
-    const rows: { competitor_id: string | null }[] = [];
-    for (let from = 0; from < SAFETY_CAP; from += PAGE) {
-      const { data, error } = await supabase
-        .from("mait_ads_external")
-        .select("competitor_id")
-        .eq("workspace_id", wsId)
-        .eq("status", "ACTIVE")
-        .order("id")
-        .range(from, from + PAGE - 1);
-      if (error || !data || data.length === 0) break;
-      rows.push(...data);
-      if (data.length < PAGE) break;
-    }
-    return rows;
-  }
-
   const [
     { count: totalAds },
     { count: activeAds },
     { count: competitorsCount },
     { data: recentAds },
     { data: competitors },
-    topCompRows,
+    { data: topCompRows },
   ] = await Promise.all([
     supabase
       .from("mait_ads_external")
@@ -73,21 +51,24 @@ export default async function DashboardPage() {
       .from("mait_competitors")
       .select("id, page_name")
       .eq("workspace_id", wsId),
-    fetchActiveAdCompetitors(),
+    // SQL GROUP BY instead of paging every ACTIVE ad into Node (was up to
+    // 100k rows on every dashboard load just to count a top-5).
+    supabase.rpc("mait_top_competitors_active", {
+      p_workspace_id: wsId,
+      p_limit: 5,
+    }),
   ]);
 
   const compMap = new Map<string, string>(
     (competitors ?? []).map((c) => [c.id as string, c.page_name as string])
   );
-  const counts = new Map<string, number>();
-  for (const row of topCompRows) {
-    if (!row.competitor_id) continue;
-    counts.set(row.competitor_id, (counts.get(row.competitor_id) ?? 0) + 1);
-  }
-  const topComps = [...counts.entries()]
-    .map(([id, n]) => ({ id, n, name: compMap.get(id) ?? "\u2014" }))
-    .sort((a, b) => b.n - a.n)
-    .slice(0, 5);
+  const topComps = (
+    (topCompRows ?? []) as { competitor_id: string; active_count: number }[]
+  ).map((r) => ({
+    id: r.competitor_id,
+    n: Number(r.active_count),
+    name: compMap.get(r.competitor_id) ?? "\u2014",
+  }));
 
   return (
     <div className="space-y-8">

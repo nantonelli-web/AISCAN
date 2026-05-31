@@ -37,37 +37,29 @@ export async function GET() {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 
-  // Per-search place + review counts, computed in parallel. Cheap on
-  // the DB side (head+exact, no row transfer) and avoids a "fetched 0
-  // places" surprise when the latest scan was empty.
-  const ids = (data ?? []).map((s) => s.id);
+  // Per-search place + review counts via SQL GROUP BY (RPC) instead of
+  // streaming every place + review row in the workspace to count them.
   const placeCounts = new Map<string, number>();
   const reviewCounts = new Map<string, number>();
-  if (ids.length > 0) {
-    const [{ data: pRows }, { data: rRows }] = await Promise.all([
-      supabase
-        .from("mait_maps_places")
-        .select("search_id")
-        .in("search_id", ids),
-      supabase
-        .from("mait_maps_reviews")
-        .select("place_id, mait_maps_places!inner(search_id)")
-        .in("mait_maps_places.search_id", ids),
-    ]);
-    for (const p of pRows ?? []) {
-      placeCounts.set(
-        p.search_id as string,
-        (placeCounts.get(p.search_id as string) ?? 0) + 1,
+  if ((data ?? []).length > 0) {
+    const { data: profileRow } = await supabase
+      .from("mait_users")
+      .select("workspace_id")
+      .eq("id", user.id)
+      .maybeSingle();
+    const workspaceId = profileRow?.workspace_id as string | undefined;
+    if (workspaceId) {
+      const { data: countRows } = await supabase.rpc(
+        "mait_maps_search_counts",
+        { p_workspace_id: workspaceId },
       );
-    }
-    for (const r of rRows ?? []) {
-      const p = r.mait_maps_places as
-        | { search_id: string }
-        | { search_id: string }[]
-        | null;
-      const sid = Array.isArray(p) ? p[0]?.search_id : p?.search_id;
-      if (sid) {
-        reviewCounts.set(sid, (reviewCounts.get(sid) ?? 0) + 1);
+      for (const row of (countRows ?? []) as {
+        search_id: string;
+        place_count: number;
+        review_count: number;
+      }[]) {
+        placeCounts.set(row.search_id, Number(row.place_count));
+        reviewCounts.set(row.search_id, Number(row.review_count));
       }
     }
   }

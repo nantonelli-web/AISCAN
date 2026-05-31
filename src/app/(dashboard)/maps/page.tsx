@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/auth/session";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { MapsPageClient } from "./maps-page-client";
 
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function MapsPage() {
   const supabase = await createClient();
+  const { profile } = await getSessionUser();
   const locale = await getLocale();
   const t = serverT(locale);
 
@@ -26,35 +28,23 @@ export default async function MapsPage() {
     console.error("[/maps page]", error);
   }
 
-  // Per-search place + review tally. Both queries are workspace-
-  // scoped under RLS, so we just count rows per search_id.
-  const ids = (searches ?? []).map((s) => s.id);
+  // Per-search place + review tally via SQL GROUP BY (RPC) instead of
+  // streaming every place AND every review row in the workspace into Node
+  // just to count them — reviews are the largest table and grow with
+  // every re-scan.
   const placeCounts = new Map<string, number>();
   const reviewCounts = new Map<string, number>();
-  if (ids.length > 0) {
-    const [{ data: pRows }, { data: rRows }] = await Promise.all([
-      supabase
-        .from("mait_maps_places")
-        .select("search_id")
-        .in("search_id", ids),
-      supabase
-        .from("mait_maps_reviews")
-        .select("place_id, mait_maps_places!inner(search_id)")
-        .in("mait_maps_places.search_id", ids),
-    ]);
-    for (const p of pRows ?? []) {
-      const sid = (p as { search_id: string }).search_id;
-      placeCounts.set(sid, (placeCounts.get(sid) ?? 0) + 1);
-    }
-    for (const r of rRows ?? []) {
-      const inner = (r as { mait_maps_places: unknown }).mait_maps_places as
-        | { search_id: string }
-        | { search_id: string }[]
-        | null;
-      const sid = Array.isArray(inner) ? inner[0]?.search_id : inner?.search_id;
-      if (sid) {
-        reviewCounts.set(sid, (reviewCounts.get(sid) ?? 0) + 1);
-      }
+  if ((searches ?? []).length > 0 && profile.workspace_id) {
+    const { data: countRows } = await supabase.rpc("mait_maps_search_counts", {
+      p_workspace_id: profile.workspace_id,
+    });
+    for (const row of (countRows ?? []) as {
+      search_id: string;
+      place_count: number;
+      review_count: number;
+    }[]) {
+      placeCounts.set(row.search_id, Number(row.place_count));
+      reviewCounts.set(row.search_id, Number(row.review_count));
     }
   }
 
