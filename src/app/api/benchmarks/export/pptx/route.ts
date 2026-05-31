@@ -3,10 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser } from "@/lib/auth/session";
 import {
-  computeBenchmarks,
-  computeOrganicBenchmarks,
-  computeTiktokBenchmarks,
-} from "@/lib/analytics/benchmarks";
+  getCachedBenchmarks,
+  getCachedOrganicBenchmarks,
+  getCachedTiktokBenchmarks,
+} from "@/lib/analytics/cached-benchmarks";
 import { buildBenchmarksPptx } from "@/lib/pptx/benchmarks-export";
 import { bufferToArrayBuffer } from "@/lib/pptx/common";
 
@@ -94,8 +94,7 @@ export async function GET(req: Request) {
   let buf: Buffer;
   try {
     if (channel === "meta" || channel === "google") {
-      const data = await computeBenchmarks(
-        supabase,
+      const data = await getCachedBenchmarks(
         profile.workspace_id,
         channel,
         brandIds,
@@ -116,8 +115,7 @@ export async function GET(req: Request) {
         countries: countries ?? null,
       });
     } else if (channel === "instagram") {
-      const data = await computeOrganicBenchmarks(
-        supabase,
+      const data = await getCachedOrganicBenchmarks(
         profile.workspace_id,
         brandIds,
         dateFrom,
@@ -135,8 +133,7 @@ export async function GET(req: Request) {
         countries: countries ?? null,
       });
     } else {
-      const data = await computeTiktokBenchmarks(
-        supabase,
+      const data = await getCachedTiktokBenchmarks(
         profile.workspace_id,
         brandIds,
         dateFrom,

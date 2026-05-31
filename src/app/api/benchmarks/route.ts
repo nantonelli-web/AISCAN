@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  computeBenchmarks,
-  computeOrganicBenchmarks,
-  computeTiktokBenchmarks,
-} from "@/lib/analytics/benchmarks";
+  getCachedBenchmarks,
+  getCachedOrganicBenchmarks,
+  getCachedTiktokBenchmarks,
+} from "@/lib/analytics/cached-benchmarks";
 
 export async function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams;
@@ -48,13 +48,12 @@ export async function GET(request: NextRequest) {
   }
 
   if (sourceParam === "instagram") {
-    const data = await computeOrganicBenchmarks(supabase, workspaceId, ids);
+    const data = await getCachedOrganicBenchmarks(workspaceId, ids);
     return NextResponse.json({ kind: "organic", ...data });
   }
 
   if (sourceParam === "tiktok") {
-    const data = await computeTiktokBenchmarks(
-      supabase,
+    const data = await getCachedTiktokBenchmarks(
       workspaceId,
       ids,
       dateFrom,
@@ -65,8 +64,7 @@ export async function GET(request: NextRequest) {
 
   const validSource =
     sourceParam === "meta" || sourceParam === "google" ? sourceParam : undefined;
-  const data = await computeBenchmarks(
-    supabase,
+  const data = await getCachedBenchmarks(
     workspaceId,
     validSource,
     ids,
