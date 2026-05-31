@@ -48,3 +48,38 @@ export const SCANS_PER_MINUTE = Number.parseInt(
   process.env.SCAN_RATE_LIMIT_PER_MINUTE ?? "10",
   10,
 );
+
+/** GLOBAL (whole-account) AI call ceiling per hour. The per-workspace
+ *  limit × N workspaces is otherwise unbounded on the shared OpenRouter
+ *  key. Disabled (0) unless AI_GLOBAL_RATE_LIMIT_PER_HOUR is set. */
+export const AI_GLOBAL_CALLS_PER_HOUR = Number.parseInt(
+  process.env.AI_GLOBAL_RATE_LIMIT_PER_HOUR ?? "0",
+  10,
+);
+
+/**
+ * Standard AI rate-limit gate for any LLM route: enforces the
+ * per-workspace ceiling AND (when configured) a global account-wide
+ * ceiling. Use this in every route that calls OpenRouter so the limit
+ * can't be forgotten or bypassed by hitting a different endpoint.
+ */
+export async function enforceAiRateLimit(
+  admin: SupabaseClient,
+  workspaceId: string,
+): Promise<{ ok: boolean }> {
+  const ws = await enforceRateLimit(admin, {
+    key: `ai:${workspaceId}`,
+    limit: AI_CALLS_PER_HOUR,
+    windowSeconds: 3600,
+  });
+  if (!ws.ok) return { ok: false };
+  if (AI_GLOBAL_CALLS_PER_HOUR > 0) {
+    const global = await enforceRateLimit(admin, {
+      key: "ai:global",
+      limit: AI_GLOBAL_CALLS_PER_HOUR,
+      windowSeconds: 3600,
+    });
+    if (!global.ok) return { ok: false };
+  }
+  return { ok: true };
+}

@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { checkDailyCostCap } from "@/lib/apify/batch-safety";
+import {
+  checkDailyCostCap,
+  checkGlobalCostCap,
+  checkGlobalConcurrency,
+} from "@/lib/apify/batch-safety";
 import { enforceRateLimit, SCANS_PER_MINUTE } from "@/lib/rate-limit/enforce";
 
 /**
@@ -11,8 +15,17 @@ export async function checkScanBudget(
   admin: SupabaseClient,
   workspaceId: string,
 ): Promise<{ ok: true } | { ok: false; reason: "cost_cap" | "rate_limited" }> {
+  // Per-workspace daily cost cap.
   const cost = await checkDailyCostCap(workspaceId, admin);
   if (!cost.ok) return { ok: false, reason: "cost_cap" };
+  // GLOBAL (whole-account) ceilings — no-ops unless the env caps are set,
+  // so this is free until you opt in. They bound total Apify spend +
+  // concurrent runs across ALL workspaces on the shared Apify token.
+  const gCost = await checkGlobalCostCap(admin);
+  if (!gCost.ok) return { ok: false, reason: "cost_cap" };
+  const gConc = await checkGlobalConcurrency(admin);
+  if (!gConc.ok) return { ok: false, reason: "rate_limited" };
+  // Per-workspace scan rate limit.
   const rl = await enforceRateLimit(admin, {
     key: `scan:${workspaceId}`,
     limit: SCANS_PER_MINUTE,

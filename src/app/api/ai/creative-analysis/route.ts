@@ -10,7 +10,7 @@ import {
 } from "@/lib/ai/creative-analysis";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 import { resolveWorkspaceId, assertOwnedIds } from "@/lib/auth/workspace";
-import { enforceRateLimit, AI_CALLS_PER_HOUR } from "@/lib/rate-limit/enforce";
+import { enforceAiRateLimit } from "@/lib/rate-limit/enforce";
 
 export const maxDuration = 120;
 
@@ -60,11 +60,7 @@ export async function POST(req: Request) {
 
   // Per-workspace AI rate limit (H6/H7): caps calls to the company's
   // OpenRouter key even in subscription mode, where no credits are charged.
-  const rl = await enforceRateLimit(admin, {
-    key: `ai:${workspaceId}`,
-    limit: AI_CALLS_PER_HOUR,
-    windowSeconds: 3600,
-  });
+  const rl = await enforceAiRateLimit(admin, workspaceId);
   if (!rl.ok) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }

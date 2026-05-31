@@ -138,6 +138,65 @@ export async function checkDailyCostCap(
 }
 
 /**
+ * GLOBAL (whole-account) Apify daily spend ceiling. Every per-workspace
+ * cap multiplies by the number of workspaces, so without a global ceiling
+ * total spend on the one shared Apify token is unbounded as tenants grow.
+ *
+ * Disabled unless APIFY_GLOBAL_DAILY_COST_CAP_USD is set (>0), so this is
+ * a no-op until you opt in — then it caps the SUM of cost_cu across ALL
+ * workspaces in the last 24h. Fail-closed on a DB error.
+ */
+export async function checkGlobalCostCap(
+  admin: SupabaseClient,
+): Promise<DailyCostCheckResult> {
+  const cap = Number.parseFloat(
+    process.env.APIFY_GLOBAL_DAILY_COST_CAP_USD ?? "",
+  );
+  if (!Number.isFinite(cap) || cap <= 0) {
+    return { ok: true, spent: 0, cap: -1 };
+  }
+  const since = new Date(Date.now() - 24 * 3_600_000).toISOString();
+  const { data, error } = await admin
+    .from("mait_scrape_jobs")
+    .select("cost_cu")
+    .gt("started_at", since);
+  if (error) {
+    console.error("[batch-safety] global cost-cap query failed (fail-closed):", error.message);
+    return { ok: false, spent: -1, cap };
+  }
+  const spent = (data ?? []).reduce(
+    (s: number, j: { cost_cu: number | null }) => s + Number(j.cost_cu ?? 0),
+    0,
+  );
+  return { ok: spent < cap, spent, cap };
+}
+
+/**
+ * GLOBAL Apify concurrency ceiling: total running scrape jobs across ALL
+ * workspaces. Protects the shared Apify account's max-concurrent-runs
+ * limit (per-workspace cap of 8 × N workspaces is otherwise unbounded).
+ *
+ * Disabled unless APIFY_GLOBAL_CONCURRENCY is set (>0). Fail-closed on error.
+ */
+export async function checkGlobalConcurrency(
+  admin: SupabaseClient,
+): Promise<{ ok: boolean; running: number; cap: number }> {
+  const cap = Number.parseInt(process.env.APIFY_GLOBAL_CONCURRENCY ?? "", 10);
+  if (!Number.isFinite(cap) || cap <= 0) {
+    return { ok: true, running: 0, cap: -1 };
+  }
+  const { count, error } = await admin
+    .from("mait_scrape_jobs")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "running");
+  if (error) {
+    console.error("[batch-safety] global concurrency query failed (fail-closed):", error.message);
+    return { ok: false, running: -1, cap };
+  }
+  return { ok: (count ?? 0) < cap, running: count ?? 0, cap };
+}
+
+/**
  * Conta gli scan running del canale specifico per il workspace.
  * Usato per applicare il concurrency cap.
  */

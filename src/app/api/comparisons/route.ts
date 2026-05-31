@@ -16,7 +16,7 @@ import {
 } from "@/lib/ai/creative-analysis";
 import { cleanInstagramUsername } from "@/lib/instagram/service";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
-import { enforceRateLimit, AI_CALLS_PER_HOUR } from "@/lib/rate-limit/enforce";
+import { enforceAiRateLimit } from "@/lib/rate-limit/enforce";
 import { aiAnalysisAction } from "@/config/pricing";
 
 export const maxDuration = 300;
@@ -1188,11 +1188,7 @@ export async function POST(req: Request) {
 
   // Per-workspace AI rate limit (H6/H7): caps OpenRouter calls even in
   // subscription mode where no credits are charged.
-  const rl = await enforceRateLimit(admin, {
-    key: `ai:${workspaceId}`,
-    limit: AI_CALLS_PER_HOUR,
-    windowSeconds: 3600,
-  });
+  const rl = await enforceAiRateLimit(admin, workspaceId);
   if (!rl.ok) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }

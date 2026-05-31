@@ -19,7 +19,7 @@ import {
   type CollabPlatform,
 } from "@/lib/organic/collab-intel";
 import { enrichCollaborators } from "@/lib/organic/collab-enrich";
-import { enforceRateLimit, AI_CALLS_PER_HOUR } from "@/lib/rate-limit/enforce";
+import { enforceAiRateLimit } from "@/lib/rate-limit/enforce";
 import {
   classifyCollaborators,
   type AccountToClassify,
@@ -130,11 +130,7 @@ export async function POST(req: Request) {
 
   // Per-workspace AI rate limit (shared ceiling with the other LLM routes):
   // classification/enrichment hit the company OpenRouter key.
-  const aiRl = await enforceRateLimit(admin, {
-    key: `ai:${workspaceId}`,
-    limit: AI_CALLS_PER_HOUR,
-    windowSeconds: 3600,
-  });
+  const aiRl = await enforceAiRateLimit(admin, workspaceId);
   if (!aiRl.ok) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }

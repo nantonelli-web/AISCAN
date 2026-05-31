@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveWorkspaceId, assertOwnedIds } from "@/lib/auth/workspace";
-import { enforceRateLimit, AI_CALLS_PER_HOUR } from "@/lib/rate-limit/enforce";
+import { enforceAiRateLimit } from "@/lib/rate-limit/enforce";
 import { inferObjective } from "@/lib/analytics/objective-inference";
 import {
   classifyAdFormat,
@@ -530,11 +530,7 @@ export async function POST(req: Request) {
   // Per-workspace AI rate limit: reports run the same OpenRouter copy/
   // visual agents, so they must share the AI ceiling (else the limiter
   // is trivially bypassed by hitting /report instead of /comparisons).
-  const aiRl = await enforceRateLimit(admin, {
-    key: `ai:${workspaceId}`,
-    limit: AI_CALLS_PER_HOUR,
-    windowSeconds: 3600,
-  });
+  const aiRl = await enforceAiRateLimit(admin, workspaceId);
   if (!aiRl.ok) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
