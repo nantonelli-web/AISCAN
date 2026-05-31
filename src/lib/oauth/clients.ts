@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { randomBytes } from "node:crypto";
-import { hashToken } from "./tokens";
+import { hashToken, compareHashes } from "./tokens";
 
 /**
  * Lookup + registrazione dei client OAuth (Claude Desktop, Cursor, ecc.)
@@ -60,7 +60,9 @@ export async function verifyClientSecret(
 ): Promise<boolean> {
   if (!client.client_secret_hash) return false;
   const presentedHash = hashToken(presentedSecret);
-  return client.client_secret_hash === presentedHash;
+  // Constant-time compare (consistent with the project's stated policy)
+  // instead of ===, which short-circuits on the first differing char.
+  return compareHashes(client.client_secret_hash, presentedHash);
 }
 
 /**

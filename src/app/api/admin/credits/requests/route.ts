@@ -80,21 +80,11 @@ export async function PATCH(req: Request) {
       request.package_price_eur,
     ).toFixed(2)})`;
 
-    const { error: rpcErr } = await supabase.rpc("mait_add_credits", {
-      p_user_id: ownerId,
-      p_amount: request.credits_requested,
-      p_reason: reason,
-    });
-
-    if (rpcErr) {
-      console.error("[/api/admin/credits/requests] RPC error:", rpcErr);
-      return NextResponse.json(
-        { error: "Failed to credit balance" },
-        { status: 500 },
-      );
-    }
-
-    await supabase
+    // Atomically CLAIM the request before granting: the `.eq("status",
+    // "pending")` guard means only one concurrent fulfill flips the row,
+    // so two admins (or a double-click) can't both grant credits for the
+    // same request (TOCTOU double-grant).
+    const { data: claimed } = await supabase
       .from("mait_credit_requests")
       .update({
         status: "fulfilled",
@@ -103,7 +93,35 @@ export async function PATCH(req: Request) {
         notes: notes ?? null,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", requestId);
+      .eq("id", requestId)
+      .eq("status", "pending")
+      .select("id");
+
+    if (!claimed || claimed.length === 0) {
+      return NextResponse.json(
+        { error: "Request already processed" },
+        { status: 400 },
+      );
+    }
+
+    const { error: rpcErr } = await supabase.rpc("mait_add_credits", {
+      p_user_id: ownerId,
+      p_amount: request.credits_requested,
+      p_reason: reason,
+    });
+
+    if (rpcErr) {
+      console.error("[/api/admin/credits/requests] RPC error:", rpcErr);
+      // Roll the claim back so the request can be retried.
+      await supabase
+        .from("mait_credit_requests")
+        .update({ status: "pending", fulfilled_by: null, fulfilled_at: null })
+        .eq("id", requestId);
+      return NextResponse.json(
+        { error: "Failed to credit balance" },
+        { status: 500 },
+      );
+    }
   } else {
     await supabase
       .from("mait_credit_requests")

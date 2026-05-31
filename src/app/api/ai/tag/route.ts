@@ -45,15 +45,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No workspace" }, { status: 400 });
   }
 
-  // Credit check
-  const credit = await consumeCredits(user.id, "ai_tagging", "AI Tagging batch");
-  if (!credit.ok) {
-    return NextResponse.json(
-      { error: "Insufficient credits", balance: credit.balance },
-      { status: 402 }
-    );
-  }
-
   // Find ads that don't have ai_tags yet
   let q = supabase
     .from("mait_ads_external")
@@ -71,8 +62,18 @@ export async function POST(req: Request) {
     console.error("[api/ai/tag]", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
+  // No-op: nothing to tag → don't charge the user a credit for zero work.
   if (!ads || ads.length === 0) {
     return NextResponse.json({ ok: true, tagged: 0, message: "No untagged ads found." });
+  }
+
+  // Credit check (only now that we know there's work to do)
+  const credit = await consumeCredits(user.id, "ai_tagging", "AI Tagging batch");
+  if (!credit.ok) {
+    return NextResponse.json(
+      { error: "Insufficient credits", balance: credit.balance },
+      { status: 402 }
+    );
   }
 
   const toTag = ads.map((a) => ({

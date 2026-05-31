@@ -24,9 +24,7 @@ export async function verifyAccessToken(
     return null;
   }
   if (!authorization.toLowerCase().startsWith("bearer ")) {
-    console.log(
-      `[mcp/auth] not Bearer scheme: starts with "${authorization.slice(0, 10)}…"`,
-    );
+    console.log("[mcp/auth] not Bearer scheme");
     return null;
   }
   const token = authorization.slice(7).trim();
@@ -35,11 +33,11 @@ export async function verifyAccessToken(
     return null;
   }
   const hash = hashToken(token);
-  // Non logghiamo il token in chiaro, ma il primo/ultimo 4 char +
-  // lunghezza aiuta a distinguere se Claude manda quello che gli
-  // abbiamo dato (43 char base64url) o qualcos'altro.
+  // Non logghiamo NESSUN carattere del token (nemmeno prefix/suffix): il
+  // solo hash_prefix non-reversibile basta a correlare la richiesta con
+  // la riga in mait_oauth_tokens durante il debug.
   console.log(
-    `[mcp/auth] looking up token len=${token.length} prefix=${token.slice(0, 4)} suffix=${token.slice(-4)} hash_prefix=${hash.slice(0, 8)}`,
+    `[mcp/auth] looking up token len=${token.length} hash_prefix=${hash.slice(0, 8)}`,
   );
   const admin = createAdminClient();
   const { data } = await admin
