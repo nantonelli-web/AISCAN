@@ -7,10 +7,13 @@ import { inferObjective } from "@/lib/analytics/objective-inference";
 
 const schema = z.object({
   ids: z.array(z.string().uuid()).min(2).max(3),
-  /** Optional ISO dates. When supplied, the refresh-rate window
-   *  matches dateFrom→dateTo instead of the legacy fixed 90d. */
-  date_from: z.string().optional(),
-  date_to: z.string().optional(),
+  /** Optional ISO dates (strict YYYY-MM-DD). When supplied, the
+   *  refresh-rate window matches dateFrom→dateTo instead of the legacy
+   *  fixed 90d. The strict format is also a security requirement: these
+   *  values are interpolated into a PostgREST .or() filter string, so an
+   *  unvalidated string would allow filter injection. */
+  date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 export async function POST(req: Request) {

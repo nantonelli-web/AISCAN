@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { safeFetch } from "@/lib/security/ssrf";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -77,7 +78,11 @@ export async function GET(req: Request) {
   // and `Range: bytes=N-` on each scrub.
   const range = req.headers.get("range") ?? undefined;
 
-  const upstream = await fetch(post.video_url, {
+  // SSRF guard: video_url is scraper-derived. safeFetch rejects any
+  // non-public target (and redirect hops), so a poisoned scrape result
+  // can't turn this workspace-authenticated proxy into an internal-read
+  // pipe. Restricted to https.
+  const upstream = await safeFetch(post.video_url, {
     headers: {
       // TikTok CDN gates cross-origin reads on the Referer header.
       // Setting it to the canonical tiktok.com domain matches what
@@ -91,7 +96,7 @@ export async function GET(req: Request) {
     // No credentials — the playAddr URL itself carries the signed
     // token in the query string, no cookie needed.
     cache: "no-store",
-  }).catch((e) => {
+  }, { httpsOnly: true }).catch((e) => {
     console.error("[proxy/tiktok-video] fetch failed:", e);
     return null;
   });

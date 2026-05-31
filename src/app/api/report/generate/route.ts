@@ -29,8 +29,10 @@ const schema = z.object({
   /** Optional analysis window. When supplied, ALL metrics — totals,
    *  format mix, refresh rate, etc. — are scoped to ads/posts overlapping
    *  the range. Mirrors the Compare/Benchmarks contract. Default 90d. */
-  date_from: z.string().optional(),
-  date_to: z.string().optional(),
+  // Strict YYYY-MM-DD: these are interpolated into PostgREST .or()
+  // filter strings, so an unvalidated string would allow filter injection.
+  date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   /** Optional ISO-2 country codes. When supplied (and channel is meta),
    *  the ad query overlaps scan_countries with this list — same
    *  semantics as Compare and Benchmarks. */

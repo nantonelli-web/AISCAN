@@ -25,6 +25,8 @@
  * rest before saving.
  */
 
+import { safeFetch } from "@/lib/security/ssrf";
+
 const FETCH_TIMEOUT_MS = 15_000;
 const MAX_HTML_BYTES = 1_500_000; // 1.5 MB cap — fashion sites can be heavy
 
@@ -128,20 +130,26 @@ async function fetchHtmlOnce(url: string): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(url, {
-      method: "GET",
-      headers: {
-        // A real browser UA gets through Cloudflare's bot heuristics
-        // for 95% of sites without breaking robots semantics — we're
-        // not crawling, just one homepage hit.
-        "user-agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
-        "accept": "text/html,application/xhtml+xml",
-        "accept-language": "it,en;q=0.8",
+    // SSRF guard: `url` is derived from the user-supplied domain. safeFetch
+    // rejects targets resolving to private/loopback/link-local/metadata
+    // addresses and re-validates every redirect hop (a public host could
+    // 3xx to an internal one).
+    const res = await safeFetch(
+      url,
+      {
+        method: "GET",
+        headers: {
+          // A real browser UA gets through Cloudflare's bot heuristics
+          // for 95% of sites without breaking robots semantics — we're
+          // not crawling, just one homepage hit.
+          "user-agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+          "accept": "text/html,application/xhtml+xml",
+          "accept-language": "it,en;q=0.8",
+        },
+        signal: controller.signal,
       },
-      signal: controller.signal,
-      redirect: "follow",
-    });
+    );
     if (!res.ok) {
       console.warn(`[discovery] ${url} → HTTP ${res.status}`);
       return null;

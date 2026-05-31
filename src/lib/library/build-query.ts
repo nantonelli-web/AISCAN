@@ -89,6 +89,19 @@ function resolveSurface(channel: string | undefined):
 }
 
 /**
+ * Strip PostgREST `.or()` grammar characters from the free-text search
+ * term. Inside an `.or("col.ilike.VALUE,...")` string the VALUE is NOT
+ * parameterized, so a comma/parenthesis in the term could break out of
+ * the ilike value and inject extra filter conditions (cross-column
+ * boolean-blind inference). Search is fuzzy ilike anyway, so dropping
+ * these characters changes nothing the user can perceive. Length-capped.
+ */
+function sanitizeLikeTerm(raw: string | undefined): string | undefined {
+  if (raw == null) return raw;
+  return raw.replace(/[,()"\\]/g, " ").replace(/\s+/g, " ").trim().slice(0, 200);
+}
+
+/**
  * Internal — apply per-channel filters to an in-progress query
  * builder. Used by both the data and count helpers so the filter
  * surface stays in lockstep.
@@ -136,6 +149,9 @@ export function buildLibraryQuery(
   supabase: SupabaseClient,
   args: LibraryQueryArgs,
 ) {
+  // Sanitize the free-text term once so every downstream .or()/ilike
+  // sees a value that can't break out of the PostgREST filter grammar.
+  args = { ...args, q: sanitizeLikeTerm(args.q) };
   const { offset, limit, workspaceId, channel } = args;
   const surface = resolveSurface(channel);
 
@@ -268,8 +284,9 @@ export function buildLibraryCountQuery(
   const { workspaceId, channel } = args;
   const surface = resolveSurface(channel);
   // Pad missing offset/limit with zeros — applyAdsFilters/applyProjectScope
-  // don't read those, but the type requires them.
-  const filterArgs = { ...args, offset: 0, limit: 0 };
+  // don't read those, but the type requires them. Sanitize q (see
+  // sanitizeLikeTerm) so the count query's .or() filters are injection-safe.
+  const filterArgs = { ...args, q: sanitizeLikeTerm(args.q), offset: 0, limit: 0 };
 
   if (surface === "instagram") {
     let igQuery = supabase

@@ -9,80 +9,22 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { lookup } from "node:dns/promises";
-import { isIP } from "node:net";
+import { isPublicHttpUrl as isPublicHttpUrlBase } from "@/lib/security/ssrf";
 
 const BUCKET = "media";
 const BATCH_SIZE = 8;
 const DOWNLOAD_TIMEOUT = 10_000; // 10s per image
 
 /**
- * Reject URLs that could hit internal infrastructure (AWS/GCP metadata,
- * loopback, RFC1918 ranges). Returns true if the URL is a safe public target.
+ * Ad-image variant of the SSRF guard: allows the trusted-CDN allowlist
+ * to skip DNS resolution. Necessary because some Facebook edge nodes
+ * (e.g. *.fna.fbcdn.net regional appliances) don't always resolve from
+ * a Vercel datacenter — the lookup would throw and the image silently
+ * drop (production showed ~12% of Sezane Meta ads losing image_url to
+ * exactly this path). The core guard lives in @/lib/security/ssrf.
  */
-function isPrivateIpv4(ip: string): boolean {
-  const parts = ip.split(".").map(Number);
-  if (parts.length !== 4 || parts.some((p) => Number.isNaN(p))) return true;
-  const [a, b] = parts;
-  if (a === 10) return true;
-  if (a === 127) return true;
-  if (a === 0) return true;
-  if (a === 169 && b === 254) return true;
-  if (a === 172 && b >= 16 && b <= 31) return true;
-  if (a === 192 && b === 168) return true;
-  if (a >= 224) return true; // multicast + reserved
-  return false;
-}
-
-function isPrivateIpv6(ip: string): boolean {
-  const lower = ip.toLowerCase();
-  if (lower === "::1" || lower === "::") return true;
-  if (lower.startsWith("fe80:") || lower.startsWith("fc") || lower.startsWith("fd")) return true;
-  if (lower.startsWith("::ffff:")) return isPrivateIpv4(lower.slice(7));
-  return false;
-}
-
-/**
- * Hostnames we trust to be public CDNs by definition. Skipping the
- * DNS check for these is safe (they cannot point at internal infra)
- * and necessary because some Facebook edge nodes (e.g. *.fna.fbcdn.net
- * regional appliances) do not always resolve from a Vercel datacenter
- * — the lookup throws, isPublicHttpUrl returns false, and the image
- * is silently dropped. Production data showed ~12% of Sezane Meta
- * ads losing their image_url to exactly this path.
- */
-const TRUSTED_CDN_HOST_PATTERNS = [
-  /(?:^|\.)fbcdn\.net$/,
-  /(?:^|\.)cdninstagram\.com$/,
-  /(?:^|\.)scontent\..*$/,
-];
-
-function hostIsTrustedCdn(host: string): boolean {
-  return TRUSTED_CDN_HOST_PATTERNS.some((p) => p.test(host));
-}
-
-async function isPublicHttpUrl(rawUrl: string): Promise<boolean> {
-  let u: URL;
-  try { u = new URL(rawUrl); } catch { return false; }
-  if (u.protocol !== "http:" && u.protocol !== "https:") return false;
-  const host = u.hostname;
-  if (!host || host === "localhost") return false;
-  // Literal IP in hostname
-  const ipVer = isIP(host);
-  if (ipVer === 4) return !isPrivateIpv4(host);
-  if (ipVer === 6) return !isPrivateIpv6(host);
-  // Public CDN allowlist: skip DNS resolution. The fetch itself has
-  // a timeout, so unreachable nodes still fail safely.
-  if (hostIsTrustedCdn(host)) return true;
-  // DNS resolve for everything else (catches user-supplied URLs)
-  try {
-    const { address, family } = await lookup(host);
-    if (family === 4) return !isPrivateIpv4(address);
-    if (family === 6) return !isPrivateIpv6(address);
-    return false;
-  } catch {
-    return false;
-  }
+function isPublicHttpUrl(rawUrl: string): Promise<boolean> {
+  return isPublicHttpUrlBase(rawUrl, { allowCdn: true });
 }
 
 interface AdRow {
