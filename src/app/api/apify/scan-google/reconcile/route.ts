@@ -172,6 +172,31 @@ export async function POST(req: Request) {
 
   const reconciled: ReconcileResult[] = [];
 
+  // Atomically transition a job to a terminal state. For the normal
+  // (non-force) path we guard on status='running' and check the row
+  // actually changed: poll-active re-triggers reconcile every 10s while
+  // a job stays 'running' for the whole reconcile runtime, so two
+  // reconciles can run concurrently. Without this guard BOTH would
+  // finalize+refund the same failed scan → double refund (money loss).
+  // Only the reconcile that wins the row transition refunds.
+  const applyFinalize = async (
+    jobId: string,
+    fields: Record<string, unknown>,
+    force: boolean,
+  ): Promise<boolean> => {
+    if (force) {
+      await admin.from("mait_scrape_jobs").update(fields).eq("id", jobId);
+      return true;
+    }
+    const { data } = await admin
+      .from("mait_scrape_jobs")
+      .update(fields)
+      .eq("id", jobId)
+      .eq("status", "running")
+      .select("id");
+    return (data?.length ?? 0) > 0;
+  };
+
   for (const job of jobs) {
     if (!job.apify_run_id) {
       reconciled.push({
@@ -249,16 +274,17 @@ export async function POST(req: Request) {
     }
 
     if (!datasetId) {
-      await admin
-        .from("mait_scrape_jobs")
-        .update({
+      const transitioned = await applyFinalize(
+        job.id,
+        {
           status: "failed",
           completed_at: new Date().toISOString(),
           error: `Reconcile: no datasetId, Apify status=${apifyStatus}`,
           webhook_received_at: new Date().toISOString(),
-        })
-        .eq("id", job.id);
-      if (job.created_by && !isForceRefinalize) {
+        },
+        isForceRefinalize,
+      );
+      if (job.created_by && !isForceRefinalize && transitioned) {
         await refundCredits(
           job.created_by,
           "scan_google",
@@ -348,9 +374,12 @@ export async function POST(req: Request) {
             ? "partial"
             : "failed";
 
-      await admin
-        .from("mait_scrape_jobs")
-        .update({
+      // Atomic transition: only the reconcile that wins running→final
+      // proceeds to refund / alert (prevents concurrent double-refund
+      // and duplicate alerts).
+      const transitioned = await applyFinalize(
+        job.id,
+        {
           status: finalStatus,
           completed_at: new Date().toISOString(),
           records_count: result.records.length,
@@ -362,8 +391,9 @@ export async function POST(req: Request) {
               : finalStatus === "partial"
                 ? `Reconcile: Apify status=${apifyStatus} ma ${result.records.length} items recuperati dal dataset`
                 : null,
-        })
-        .eq("id", job.id);
+        },
+        isForceRefinalize,
+      );
 
       if (job.competitor_id) {
         await admin
@@ -375,7 +405,8 @@ export async function POST(req: Request) {
       if (
         finalStatus === "failed" &&
         job.created_by &&
-        !isForceRefinalize
+        !isForceRefinalize &&
+        transitioned
       ) {
         // Refund only in stale-orphan path: la prima finalize ha
         // generato il job 'running' senza mai persistere ads.
@@ -389,7 +420,7 @@ export async function POST(req: Request) {
         );
       }
 
-      if (result.records.length > 0 && job.competitor_id) {
+      if (transitioned && result.records.length > 0 && job.competitor_id) {
         await admin.from("mait_alerts").insert({
           workspace_id: job.workspace_id,
           competitor_id: job.competitor_id,
@@ -423,15 +454,16 @@ export async function POST(req: Request) {
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Finalize failed";
       console.error(`[Reconcile Google] failed job=${job.id}:`, message);
-      await admin
-        .from("mait_scrape_jobs")
-        .update({
+      const transitioned = await applyFinalize(
+        job.id,
+        {
           status: "failed",
           completed_at: new Date().toISOString(),
           error: `Reconcile failed: ${message}`,
-        })
-        .eq("id", job.id);
-      if (job.created_by) {
+        },
+        isForceRefinalize,
+      );
+      if (job.created_by && transitioned) {
         await refundCredits(
           job.created_by,
           "scan_google",
