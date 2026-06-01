@@ -380,6 +380,157 @@ function googleAdActiveInCountriesDuringRange(
   return !sawMatchingRegion;
 }
 
+/* ─── Volume pass: per-competitor aggregates ──────────────────
+ * Historically computed by paging up to 500k ad rows into Node
+ * (fetchAllVolumeRows) and reducing in JS. The same aggregates now come
+ * from the mait_ads_benchmark_volume RPC (SQL GROUP BY) for the common
+ * case; the row path below is kept verbatim for the google+country case
+ * (per-region date intersection needs raw_data.regionStats per row) and
+ * as a fallback if the RPC errors. Both produce identical VolumeMaps —
+ * verified byte-for-byte against real data before wiring. */
+interface VolumeRow {
+  id: string;
+  competitor_id: string | null;
+  status: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  source: string | null;
+  raw_data: Record<string, unknown> | null;
+}
+interface VolumeRpcRow {
+  competitor_id: string | null;
+  earliest_start: string | null;
+  total: number;
+  with_start_date: number;
+  recent: number;
+  active_in_range: number;
+  inactive_in_range: number;
+  source_breakdown: Record<string, number> | null;
+}
+interface VolumeMaps {
+  volumeMap: Map<string, { active: number; inactive: number }>;
+  earliestByComp: Map<string, string>;
+  recentByComp: Map<string, number>;
+  totalInAdsByComp: Map<string, number>;
+  withStartDateByComp: Map<string, number>;
+  sourceBreakdownByComp: Map<string, Record<string, number>>;
+  inRangeByComp: Map<string, number>;
+  inRangeIds: Set<string>;
+  allAdsMetaSize: number;
+  uniqueCompetitorIdsInPool: number;
+}
+
+function volumeMapsFromRpc(rows: VolumeRpcRow[]): VolumeMaps {
+  const volumeMap = new Map<string, { active: number; inactive: number }>();
+  const earliestByComp = new Map<string, string>();
+  const recentByComp = new Map<string, number>();
+  const totalInAdsByComp = new Map<string, number>();
+  const withStartDateByComp = new Map<string, number>();
+  const sourceBreakdownByComp = new Map<string, Record<string, number>>();
+  const inRangeByComp = new Map<string, number>();
+  const inRangeIds = new Set<string>();
+  let allAdsMetaSize = 0;
+  const distinct = new Set<string>();
+  for (const r of rows) {
+    const key = r.competitor_id ?? "unknown";
+    allAdsMetaSize += Number(r.total);
+    distinct.add(r.competitor_id ?? "null");
+    totalInAdsByComp.set(key, Number(r.total));
+    withStartDateByComp.set(key, Number(r.with_start_date));
+    recentByComp.set(key, Number(r.recent));
+    sourceBreakdownByComp.set(key, r.source_breakdown ?? {});
+    const active = Number(r.active_in_range);
+    const inactive = Number(r.inactive_in_range);
+    volumeMap.set(key, { active, inactive });
+    // earliest / inRange skip the null-competitor group (JS `if (!key) continue`).
+    if (r.competitor_id) {
+      if (r.earliest_start) earliestByComp.set(r.competitor_id, r.earliest_start);
+      const inRange = active + inactive;
+      if (inRange > 0) {
+        inRangeByComp.set(r.competitor_id, inRange);
+        inRangeIds.add(r.competitor_id);
+      }
+    }
+  }
+  return {
+    volumeMap,
+    earliestByComp,
+    recentByComp,
+    totalInAdsByComp,
+    withStartDateByComp,
+    sourceBreakdownByComp,
+    inRangeByComp,
+    inRangeIds,
+    allAdsMetaSize,
+    uniqueCompetitorIdsInPool: distinct.size,
+  };
+}
+
+function volumeMapsFromRows(
+  allAdsMeta: VolumeRow[],
+  volumeRows: VolumeRow[],
+  windowFromMs: number,
+  windowToMs: number,
+): VolumeMaps {
+  const volumeMap = new Map<string, { active: number; inactive: number }>();
+  for (const row of volumeRows) {
+    const key = row.competitor_id ?? "unknown";
+    const entry = volumeMap.get(key) ?? { active: 0, inactive: 0 };
+    if (row.status === "ACTIVE") entry.active++;
+    else entry.inactive++;
+    volumeMap.set(key, entry);
+  }
+  const earliestByComp = new Map<string, string>();
+  const inRangeByComp = new Map<string, number>();
+  const inRangeIds = new Set(
+    volumeRows.map((r) => r.competitor_id).filter(Boolean) as string[],
+  );
+  for (const row of allAdsMeta) {
+    const key = row.competitor_id;
+    if (!key) continue;
+    if (row.start_date) {
+      const prev = earliestByComp.get(key);
+      if (!prev || row.start_date < prev) earliestByComp.set(key, row.start_date);
+    }
+  }
+  for (const row of volumeRows) {
+    const key = row.competitor_id;
+    if (!key) continue;
+    inRangeByComp.set(key, (inRangeByComp.get(key) ?? 0) + 1);
+  }
+  const recentByComp = new Map<string, number>();
+  const totalInAdsByComp = new Map<string, number>();
+  const withStartDateByComp = new Map<string, number>();
+  const sourceBreakdownByComp = new Map<string, Record<string, number>>();
+  for (const row of allAdsMeta) {
+    const key = row.competitor_id ?? "unknown";
+    totalInAdsByComp.set(key, (totalInAdsByComp.get(key) ?? 0) + 1);
+    const srcKey = row.source ?? "(null)";
+    const srcMap = sourceBreakdownByComp.get(key) ?? {};
+    srcMap[srcKey] = (srcMap[srcKey] ?? 0) + 1;
+    sourceBreakdownByComp.set(key, srcMap);
+    if (!row.start_date) continue;
+    withStartDateByComp.set(key, (withStartDateByComp.get(key) ?? 0) + 1);
+    const t = new Date(row.start_date).getTime();
+    if (Number.isNaN(t) || t < windowFromMs || t > windowToMs) continue;
+    recentByComp.set(key, (recentByComp.get(key) ?? 0) + 1);
+  }
+  return {
+    volumeMap,
+    earliestByComp,
+    recentByComp,
+    totalInAdsByComp,
+    withStartDateByComp,
+    sourceBreakdownByComp,
+    inRangeByComp,
+    inRangeIds,
+    allAdsMetaSize: allAdsMeta.length,
+    uniqueCompetitorIdsInPool: new Set(
+      allAdsMeta.map((r) => r.competitor_id ?? "null"),
+    ).size,
+  };
+}
+
 export async function computeBenchmarks(
   supabase: SupabaseClient,
   workspaceId: string,
@@ -408,6 +559,9 @@ export async function computeBenchmarks(
    *  Applied at query level on both heavy + volume passes so the KPIs,
    *  charts and coverage lists all see the same subset. */
   statusFilter?: "active" | "inactive",
+  /** Internal/testing: force the row-based volume path even in the common
+   *  case (used to verify the RPC path produces identical output). */
+  _forceRowPath?: boolean,
 ): Promise<BenchmarkData> {
   const normalisedCountries = countries && countries.length > 0
     ? [...new Set(countries.map((c) => c.toUpperCase()))]
@@ -560,47 +714,105 @@ export async function computeBenchmarks(
     return unique;
   }
 
-  const [{ data: competitors }, rawAdsPages, allAdsMeta] = await Promise.all([
+  const [{ data: competitors }, rawAdsPages] = await Promise.all([
     supabase
       .from("mait_competitors")
       .select("id, page_name, country")
       .eq("workspace_id", workspaceId)
       .order("page_name"),
     fetchAllHeavyRows(),
-    fetchAllVolumeRows(),
   ]);
 
   // Ads within the requested date range — drives volume counts.
   const fromMs = dateFrom ? new Date(dateFrom).getTime() : null;
   const toMs = dateTo ? new Date(dateTo + "T23:59:59Z").getTime() : null;
   // Per-region date intersection — applied ONLY on Google + country
-  // filter. Catches the "lifetime regions vs root-level dates"
-  // mismatch (see googleAdActiveInCountriesDuringRange doc).
+  // filter (see googleAdActiveInCountriesDuringRange). Its presence also
+  // decides the volume-pass path: RPC for the common case, rows for
+  // google+country (the RPC can't do the per-row regionStats intersection).
   const countryFilterSet =
     source === "google" && normalisedCountries
       ? new Set(normalisedCountries)
       : null;
-  const volumeRows = allAdsMeta
-    .filter((r) => {
-      if (!r.start_date) return false;
-      const s = new Date(r.start_date).getTime();
-      if (toMs !== null && s > toMs) return false;
-      if (fromMs !== null) {
-        const stillRunning = r.status === "ACTIVE" || !r.end_date;
-        const e = r.end_date ? new Date(r.end_date).getTime() : null;
-        if (!stillRunning && e !== null && e < fromMs) return false;
-      }
-      return true;
-    })
-    .filter((r) => {
-      if (!countryFilterSet) return true;
-      return googleAdActiveInCountriesDuringRange(
-        r.raw_data ?? null,
-        countryFilterSet,
-        fromMs,
-        toMs,
+  // Refresh-rate window — also needed by the volume aggregation below, so
+  // it's computed here (was previously computed further down).
+  const windowToMs = dateTo
+    ? new Date(dateTo + "T23:59:59Z").getTime()
+    : Date.now();
+  const windowFromMs = dateFrom
+    ? new Date(dateFrom).getTime()
+    : windowToMs - 90 * 86_400_000;
+  const windowDays = Math.max(
+    1,
+    Math.round((windowToMs - windowFromMs) / 86_400_000),
+  );
+
+  // Volume-pass aggregates: SQL GROUP BY (mait_ads_benchmark_volume) for
+  // the common case so we don't page every ad into Node; the row-based
+  // path (byte-identical) is used for google+country and as an RPC-error
+  // fallback. Boundaries are passed to the RPC as timestamptz params so
+  // SQL does only exact comparisons (no date-math divergence).
+  let vol: VolumeMaps | null = null;
+  if (!countryFilterSet && !_forceRowPath) {
+    const { data: rpcRows, error: rpcErr } = await supabase.rpc(
+      "mait_ads_benchmark_volume",
+      {
+        p_workspace_id: workspaceId,
+        p_source: source ?? null,
+        p_competitor_ids:
+          competitorIds && competitorIds.length > 0 ? competitorIds : null,
+        p_countries: normalisedCountries ?? null,
+        p_status: statusFilter ?? null,
+        p_overlap_from: fromMs !== null ? new Date(fromMs).toISOString() : null,
+        p_overlap_to: toMs !== null ? new Date(toMs).toISOString() : null,
+        p_refresh_from: new Date(windowFromMs).toISOString(),
+        p_refresh_to: new Date(windowToMs).toISOString(),
+      },
+    );
+    if (rpcErr) {
+      console.error(
+        "[benchmarks] volume RPC failed, falling back to row path:",
+        rpcErr.message,
       );
-    });
+    } else if (rpcRows) {
+      vol = volumeMapsFromRpc(rpcRows as VolumeRpcRow[]);
+    }
+  }
+  if (!vol) {
+    const allAdsMeta = (await fetchAllVolumeRows()) as VolumeRow[];
+    const volumeRows = allAdsMeta
+      .filter((r) => {
+        if (!r.start_date) return false;
+        const s = new Date(r.start_date).getTime();
+        if (toMs !== null && s > toMs) return false;
+        if (fromMs !== null) {
+          const stillRunning = r.status === "ACTIVE" || !r.end_date;
+          const e = r.end_date ? new Date(r.end_date).getTime() : null;
+          if (!stillRunning && e !== null && e < fromMs) return false;
+        }
+        return true;
+      })
+      .filter((r) => {
+        if (!countryFilterSet) return true;
+        return googleAdActiveInCountriesDuringRange(
+          r.raw_data ?? null,
+          countryFilterSet,
+          fromMs,
+          toMs,
+        );
+      });
+    vol = volumeMapsFromRows(allAdsMeta, volumeRows, windowFromMs, windowToMs);
+  }
+  const {
+    volumeMap,
+    earliestByComp,
+    recentByComp,
+    totalInAdsByComp,
+    withStartDateByComp,
+    sourceBreakdownByComp,
+    inRangeByComp,
+    inRangeIds,
+  } = vol;
 
   const comps = (competitors ?? []) as CompetitorRef[];
   // Heavy rows: apply the same per-region intersection so totalAds
@@ -624,37 +836,6 @@ export async function computeBenchmarks(
     : null;
   const compMap = new Map(comps.map((c) => [c.id, c.page_name]));
 
-  // ---- Volume per competitor (driven by the uncapped paginated query) ----
-  const volumeMap = new Map<string, { active: number; inactive: number }>();
-  for (const row of volumeRows) {
-    const key = row.competitor_id ?? "unknown";
-    const entry = volumeMap.get(key) ?? { active: 0, inactive: 0 };
-    if (row.status === "ACTIVE") entry.active++;
-    else entry.inactive++;
-    volumeMap.set(key, entry);
-  }
-
-  // ---- Coverage per competitor (based on the full paginated set) ----
-  // For each brand we track the earliest start_date we have anywhere in
-  // the DB, regardless of the requested date range. The UI compares this
-  // against dateFrom to surface "this brand's scans do not cover the
-  // analysis window" warnings.
-  const earliestByComp = new Map<string, string>();
-  const inRangeByComp = new Map<string, number>();
-  const inRangeIds = new Set(volumeRows.map((r) => r.competitor_id).filter(Boolean) as string[]);
-  for (const row of allAdsMeta) {
-    const key = row.competitor_id;
-    if (!key) continue;
-    if (row.start_date) {
-      const prev = earliestByComp.get(key);
-      if (!prev || row.start_date < prev) earliestByComp.set(key, row.start_date);
-    }
-  }
-  for (const row of volumeRows) {
-    const key = row.competitor_id;
-    if (!key) continue;
-    inRangeByComp.set(key, (inRangeByComp.get(key) ?? 0) + 1);
-  }
   const coverageIds = scopedCompetitorIds ?? new Set(comps.map((c) => c.id));
   const coverageByCompetitor = [...coverageIds]
     .filter((id) => inRangeIds.has(id) || earliestByComp.has(id) || coverageIds.has(id))
@@ -1148,44 +1329,19 @@ export async function computeBenchmarks(
   // Ads without a real start_date are skipped: Meta does not always
   // populate the field for DPA catalog ads, and the older "fall back
   // to created_at" trick falsely inflated the rate after bulk scans.
-  const windowToMs = dateTo
-    ? new Date(dateTo + "T23:59:59Z").getTime()
-    : Date.now();
-  const windowFromMs = dateFrom
-    ? new Date(dateFrom).getTime()
-    : windowToMs - 90 * 86_400_000;
-  // Round window to whole days for the label, never below 1 to keep
-  // the divisor sane on tiny ranges.
-  const windowDays = Math.max(
-    1,
-    Math.round((windowToMs - windowFromMs) / 86_400_000),
-  );
-  const recentByComp = new Map<string, number>();
-  // Diagnostic bookkeeping — exposed via refreshRateDebug so the UI
-  // can explain where the number comes from.
-  const totalInAdsByComp = new Map<string, number>();
-  const withStartDateByComp = new Map<string, number>();
-  const sourceBreakdownByComp = new Map<string, Record<string, number>>();
-  for (const row of allAdsMeta) {
-    const key = row.competitor_id ?? "unknown";
-    totalInAdsByComp.set(key, (totalInAdsByComp.get(key) ?? 0) + 1);
-    const srcKey = row.source ?? "(null)";
-    const srcMap = sourceBreakdownByComp.get(key) ?? {};
-    srcMap[srcKey] = (srcMap[srcKey] ?? 0) + 1;
-    sourceBreakdownByComp.set(key, srcMap);
-    if (!row.start_date) continue;
-    withStartDateByComp.set(key, (withStartDateByComp.get(key) ?? 0) + 1);
-    const t = new Date(row.start_date).getTime();
-    if (Number.isNaN(t) || t < windowFromMs || t > windowToMs) continue;
-    recentByComp.set(key, (recentByComp.get(key) ?? 0) + 1);
-  }
+  // windowToMs / windowFromMs / windowDays are computed up top (needed by
+  // the volume aggregation). recentByComp / totalInAdsByComp /
+  // withStartDateByComp / sourceBreakdownByComp come from `vol` (RPC or
+  // row path) — see the volume-pass block above.
   const weeks = windowDays / 7;
   const refreshRate = [...recentByComp.entries()]
     .map(([id, n]) => ({
       name: compMap.get(id) ?? "N/A",
       adsPerWeek: Math.round((n / weeks) * 10) / 10,
     }))
-    .sort((a, b) => b.adsPerWeek - a.adsPerWeek);
+    // name tiebreaker → deterministic order independent of Map insertion
+    // order (which differs between the RPC and row volume paths).
+    .sort((a, b) => b.adsPerWeek - a.adsPerWeek || a.name.localeCompare(b.name));
   // Diagnostic: include EVERY brand we iterated, even those with zero
   // ads-in-window, so eyeballing "why is it X" is straightforward.
   const refreshRateDebug = [...totalInAdsByComp.entries()]
@@ -1194,9 +1350,19 @@ export async function computeBenchmarks(
       totalInAds: total,
       withStartDate: withStartDateByComp.get(id) ?? 0,
       countedInWindow: recentByComp.get(id) ?? 0,
-      sourceBreakdown: sourceBreakdownByComp.get(id) ?? {},
+      // Normalise key order (Postgres jsonb orders keys by length, JS by
+      // insertion) so the diagnostic object is deterministic across the
+      // RPC and row volume paths.
+      sourceBreakdown: Object.fromEntries(
+        Object.entries(sourceBreakdownByComp.get(id) ?? {}).sort(([a], [b]) =>
+          a.localeCompare(b),
+        ),
+      ),
     }))
-    .sort((a, b) => b.countedInWindow - a.countedInWindow);
+    .sort(
+      (a, b) =>
+        b.countedInWindow - a.countedInWindow || a.name.localeCompare(b.name),
+    );
 
   // ---- Avg variants per ad (collationCount) ----
   const variantsByComp = new Map<string, number[]>();
@@ -1339,10 +1505,8 @@ export async function computeBenchmarks(
     refreshRateWindowDays: windowDays,
     refreshRateDebug,
     refreshRateMeta: {
-      allAdsMetaSize: allAdsMeta.length,
-      uniqueCompetitorIdsInPool: new Set(
-        allAdsMeta.map((r) => r.competitor_id ?? "null")
-      ).size,
+      allAdsMetaSize: vol.allAdsMetaSize,
+      uniqueCompetitorIdsInPool: vol.uniqueCompetitorIdsInPool,
       competitorIdsFilterSize: competitorIds?.length ?? 0,
       competitorIdsFilterSample: competitorIds?.slice(0, 3) ?? [],
     },
