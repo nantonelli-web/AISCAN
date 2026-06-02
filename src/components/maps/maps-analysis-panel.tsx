@@ -218,6 +218,24 @@ export function MapsAnalysisPanel({
     invalidateResult();
   }
 
+  // Quante schede sono selezionabili in un colpo solo (tetto a 6).
+  const selectableCount = Math.min(6, places.length);
+  const allSelected =
+    selectableCount > 0 && selected.size >= selectableCount;
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelected(new Set());
+    } else {
+      // Prime 6 schede nell'ordine corrente (= classifica). Oltre il tetto
+      // di 6 si avvisa l'utente che la selezione è troncata.
+      const pick = places.slice(0, selectableCount).map((p) => p.id);
+      setSelected(new Set(pick));
+      if (places.length > 6) toast.info(t("maps", "analysisSelectAllCap"));
+    }
+    invalidateResult();
+  }
+
   const canRun = selected.size >= 2 && selected.size <= 6 && !!modelId;
 
   async function generate(force = false) {
@@ -357,9 +375,22 @@ export function MapsAnalysisPanel({
             <span className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold">
               {t("maps", "analysisSelectStores")}
             </span>
-            <span className="text-[11px] text-muted-foreground tabular-nums">
-              {selected.size}/6 {t("maps", "analysisSelected")}
-            </span>
+            <div className="flex items-center gap-2.5">
+              {places.length > 0 && (
+                <button
+                  type="button"
+                  onClick={toggleSelectAll}
+                  className="text-[11px] font-medium text-violet-600 dark:text-violet-400 hover:underline cursor-pointer"
+                >
+                  {allSelected
+                    ? t("maps", "analysisClearAll")
+                    : t("maps", "analysisSelectAll")}
+                </button>
+              )}
+              <span className="text-[11px] text-muted-foreground tabular-nums">
+                {selected.size}/6 {t("maps", "analysisSelected")}
+              </span>
+            </div>
           </div>
           <div className="max-h-72 overflow-y-auto rounded-lg border border-border divide-y divide-border">
             {places.map((p) => {
