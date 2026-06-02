@@ -23,6 +23,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { InfoPopover } from "@/components/ui/info-popover";
 import { useT } from "@/lib/i18n/context";
 import { notifyCreditsChanged } from "@/lib/credits/events";
 import type {
@@ -372,8 +373,12 @@ export function MapsAnalysisPanel({
         {/* Store selection */}
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <span className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold">
+            <span className="flex items-center gap-1.5 text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold">
               {t("maps", "analysisSelectStores")}
+              <InfoPopover
+                content={t("maps", "analysisSelectStoresWhy")}
+                ariaLabel={t("maps", "analysisSelectStoresWhy")}
+              />
             </span>
             <div className="flex items-center gap-2.5">
               {places.length > 0 && (

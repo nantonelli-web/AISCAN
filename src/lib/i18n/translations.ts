@@ -2176,6 +2176,10 @@ const translations = {
       en: "Multiple locations of one brand: variance across stores, weak link, foot traffic.",
     },
     analysisSelectStores: { it: "Schede da confrontare", en: "Listings to compare" },
+    analysisSelectStoresWhy: {
+      it: "Da 2 a 6 schede. Almeno 2 perché serve qualcosa da confrontare; non oltre 6 perché il confronto è discorsivo: con troppe schede l'AI passa da un'analisi ragionata a un elenco superficiale e la tabella diventa illeggibile. Il limite tiene anche stabile il costo in crediti per analisi.",
+      en: "From 2 to 6 listings. At least 2 because there must be something to compare; no more than 6 because the comparison is discursive: with too many listings the AI shifts from reasoned analysis to a shallow list and the table becomes unreadable. The cap also keeps the per-analysis credit cost stable.",
+    },
     analysisSelected: { it: "selezionate", en: "selected" },
     analysisSelectAll: { it: "Seleziona tutte", en: "Select all" },
     analysisClearAll: { it: "Deseleziona", en: "Clear" },
