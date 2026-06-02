@@ -376,7 +376,11 @@ export function MapsAnalysisPanel({
             <span className="flex items-center gap-1.5 text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold">
               {t("maps", "analysisSelectStores")}
               <InfoPopover
-                content={t("maps", "analysisSelectStoresWhy")}
+                content={
+                  <span className="block normal-case tracking-normal font-normal text-muted-foreground">
+                    {t("maps", "analysisSelectStoresWhy")}
+                  </span>
+                }
                 ariaLabel={t("maps", "analysisSelectStoresWhy")}
               />
             </span>
