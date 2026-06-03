@@ -10,16 +10,27 @@
  *      video URL — the source of the "Top CTA empty" + "Avg copy
  *      length 0" + "video tile blank" gaps.
  *
- * 2. `memo23/google-ad-transparency-scraper-cheerio` (new, opt-in)
- *    - $19/mo subscription + usage. HTTP-only.
- *    - Returns the same identifiers PLUS variations[] with
- *      headline/title, description/body, callToAction, video URL,
- *      adImage. Resolves the gaps above without touching downstream
- *      consumers — we map both shapes onto the same NormalizedAd.
+ * 2. `silva95gustavo/google-ads-scraper` (current production choice)
+ *    - Pay-per-event since 2026-06-12: Ad $1.60/1000, Video download
+ *      $4.00/1000, Actor Start $0.00005, platform usage FREE. We do
+ *      NOT request video downloads, so in practice we only pay the
+ *      Ad event (~$0.0016/ad). Cost is read pay-per-event aware via
+ *      computeRunCostUsd() so the daily cap stays accurate.
+ *    - Returns the same identifiers PLUS variations[] with headline,
+ *      description/body, cta, imageUrl, videoUrl, clickUrl, and
+ *      per-region regionStats[]. Resolves the copy/CTA/video gaps
+ *      without touching downstream consumers — we map both shapes
+ *      onto the same NormalizedAd.
  *
- * Switching: set APIFY_GOOGLE_ACTOR_ID env var on Vercel to the new
- * actor id and subscribe on Apify. New scans use the new actor; old
- * rows in the DB stay as-is until re-scanned.
+ * Switching: set APIFY_GOOGLE_ACTOR_ID env var on Vercel to the
+ * desired actor id. New scans use it; old rows in the DB stay as-is
+ * until re-scanned.
+ *
+ * REMOVED 2026-06-03: `memo23/google-ad-transparency-scraper-cheerio`.
+ * It was a $19/mo Rental actor (a model Apify is sunsetting — total
+ * sunset 2026-10-01) kept only as a backup; silva superseded it.
+ * Setting APIFY_GOOGLE_ACTOR_ID to a memo23/* id now throws on first
+ * use so a stale env var can't silently fall back to automation-lab.
  */
 
 import type { NormalizedAd, ScrapeResult } from "./service";
@@ -29,8 +40,18 @@ const APIFY_BASE = "https://api.apify.com/v2";
 const GOOGLE_ACTOR_ID =
   process.env.APIFY_GOOGLE_ACTOR_ID ||
   "automation-lab/google-ads-scraper";
-const isMemoActor = GOOGLE_ACTOR_ID.startsWith("memo23/");
 const isSilvaActor = GOOGLE_ACTOR_ID.startsWith("silva95gustavo/");
+
+// memo23 was dismissed 2026-06-03 (see file header). Fail loud instead
+// of silently falling back to automation-lab if a stale env var still
+// points at it — automation-lab returns no copy/CTA/video and would
+// quietly degrade the data.
+if (GOOGLE_ACTOR_ID.startsWith("memo23/")) {
+  throw new Error(
+    `APIFY_GOOGLE_ACTOR_ID="${GOOGLE_ACTOR_ID}" — the memo23 Google actor was dismissed. ` +
+      `Use silva95gustavo/google-ads-scraper (or leave unset for automation-lab).`,
+  );
+}
 
 function getToken(override?: string): string {
   if (override) return override;
@@ -54,6 +75,76 @@ async function apifyFetch(path: string, init?: RequestInit, token?: string) {
     throw new Error(`Apify API ${res.status}: ${text.slice(0, 300)}`);
   }
   return res.json();
+}
+
+// ─── Run cost, pay-per-event aware ───
+/**
+ * Total USD charged by an Apify run, correct under BOTH the legacy
+ * pay-per-usage model and the new pay-per-event model.
+ *
+ * Why this is not just `usageTotalUsd`:
+ *   silva95gustavo/google-ads-scraper switched to pay-per-event on
+ *   2026-06-12 ("Ad $1.60/1000, Video download $4.00/1000,
+ *   Actor Start $0.00005, platform usage FREE"). Under that model the
+ *   money lives in `chargedEventCounts`, while `usageTotalUsd` (platform
+ *   compute/proxy) drops to ≈0. Reading only `usageTotalUsd` would make
+ *   the daily cost cap and credit accounting silently UNDER-count the
+ *   real spend → runaway-spending risk under the radar of the cap.
+ *
+ * Apify's docs and field semantics are ambiguous on whether
+ * `usageTotalUsd` already folds in event charges. We sidestep the
+ * ambiguity with `max(usageTotalUsd, eventsCost)`:
+ *   - platform-free PPE actor (silva): usageTotalUsd≈0 → eventsCost wins ✓
+ *   - pure pay-per-usage actor (automation-lab): eventsCost=0 → usage wins ✓
+ *   - hypothetical actor where usageTotalUsd already includes events:
+ *     usageTotalUsd ≥ eventsCost → no double-count ✓
+ * The cap can over-estimate slightly but never under-counts, which is
+ * the safe direction for a spend guard.
+ */
+function computeRunCostUsd(runData: unknown): number {
+  const data = (runData ?? {}) as Record<string, unknown>;
+  const usageTotalUsd =
+    typeof data.usageTotalUsd === "number" ? data.usageTotalUsd : 0;
+
+  // Per-event prices published by the actor, keyed by event name.
+  const prices: Record<string, number> = {};
+  const pricingInfo = data.pricingInfo as Record<string, unknown> | undefined;
+  const perEvent = (pricingInfo?.pricingPerEvent as
+    | Record<string, unknown>
+    | undefined)?.actorChargeEvents as Record<string, unknown> | undefined;
+  if (perEvent) {
+    for (const [event, cfg] of Object.entries(perEvent)) {
+      const price = (cfg as Record<string, unknown>)?.eventPriceUsd;
+      if (typeof price === "number") prices[event] = price;
+    }
+  }
+
+  // Actual counts charged on this run, keyed by event name.
+  const counts = data.chargedEventCounts as
+    | Record<string, number>
+    | undefined;
+  let eventsCost = 0;
+  if (counts) {
+    for (const [event, count] of Object.entries(counts)) {
+      if (typeof count !== "number") continue;
+      eventsCost += count * (prices[event] ?? 0);
+    }
+  }
+
+  return Math.max(usageTotalUsd, eventsCost);
+}
+
+/** Fetch a run and return its total USD cost (pay-per-event aware). */
+async function fetchRunCostUsd(
+  runId: string,
+  token?: string,
+): Promise<number> {
+  try {
+    const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
+    return computeRunCostUsd(runInfo.data);
+  } catch {
+    return 0;
+  }
 }
 
 // ─── Persistent webhook registration (replaces ad-hoc) ───
@@ -268,67 +359,16 @@ interface RawGoogleAd {
   [k: string]: unknown;
 }
 
-// ─── Raw shape from memo23/google-ad-transparency-scraper-cheerio ───
-//
-// Field names confirmed from the actor's public docs; the inner
-// `variations` array carries the per-variant media + copy. The exact
-// child field names inside a variation aren't fully spec'd publicly,
-// so the normaliser tries multiple paths and logs the first record's
-// keys on the first run so we can refine after seeing a real sample.
-
-interface MemoGoogleAdVariation {
-  // Image variants
-  adImage?: string;
-  imageUrl?: string;
-  title?: string;
-  description?: string;
-  // Video variants
-  video?: string;
-  videoUrl?: string;
-  thumbnail?: string;
-  // Text variants
-  headline?: string;
-  archiveImage?: string;
-  body?: string;
-  // CTA — may live on the variant or at root (we try both)
-  callToAction?: string;
-  cta?: string;
-  // Landing page
-  destinationUrl?: string;
-  clickUrl?: string;
-  [k: string]: unknown;
-}
-
-interface MemoRawGoogleAd {
-  advertiserId?: string;
-  advertiserName?: string;
-  advertiserDomain?: string;
-  creativeId?: string;
-  adUrl?: string;
-  format?: string; // Video | Image | Text (capitalised in docs)
-  firstShown?: string;
-  lastShown?: string;
-  creativeRegions?: string[];
-  regionStats?: unknown[];
-  variations?: MemoGoogleAdVariation[];
-  // Some shapes hoist top-level CTA / URLs
-  callToAction?: string;
-  destinationUrl?: string;
-  scraped_at?: string;
-  source_url?: string;
-  [k: string]: unknown;
-}
-
 // ─── Raw shape from silva95gustavo/google-ads-scraper ───
 //
 // Schema confirmed from the actor's public output docs. The
 // variations[] array is where the per-creative copy + CTA + media
-// land — unlike memo23, silva exposes `cta` as an explicit field
-// AND populates `headline` / `description` consistently. Video URLs
-// land in `variations[].videoUrl` (rather than always-null on memo23).
+// land — silva exposes `cta` as an explicit field AND populates
+// `headline` / `description` consistently. Video URLs land in
+// `variations[].videoUrl`.
 //
-// Region info: silva returns regionStats[] same as memo23 (per-region
-// firstShown/lastShown/impressions/surfaceServingStats).
+// Region info: silva returns regionStats[] per region
+// (firstShown/lastShown/impressions/surfaceServingStats).
 
 interface SilvaGoogleAdVariation {
   headline?: string | null;
@@ -386,12 +426,12 @@ export interface GoogleScrapeOptions {
   maxResults?: number;
   /** Comma-separated ISO-2 country codes (e.g. "GB,IT,FR,DE,ES").
    *  Same format the Meta scraper accepts on `competitor.country`.
-   *  Honoured ONLY by the memo23 actor — its Transparency-Center URL
+   *  Honoured ONLY by the silva actor — its Transparency-Center URL
    *  takes one `region=XX` per call so we expand to N startUrls.
    *  The legacy automation-lab actor has no region knob and ignores
    *  this; its API returns ALL regions regardless. Empty / undefined
-   *  falls back to the global "anywhere" sweep on memo23 (legacy
-   *  behaviour, expensive — pass real countries to keep cost sane). */
+   *  falls back to the global "anywhere" sweep (expensive — pass real
+   *  countries to keep cost sane). */
   country?: string;
   /** When supplied, the service resolves the Apify token via the
    *  billing helper (getApifyCredentials) so subscription-mode
@@ -415,110 +455,16 @@ export function cleanAdvertiserDomain(raw: string | null | undefined): string | 
   return v;
 }
 
-// ─── Normalize: memo23 ───
-
-/**
- * Convert a memo23 row into the shared NormalizedAd shape.
- *
- * Defensive on field names: the public docs don't fully spec the
- * inner `variations[]` schema, so we try multiple plausible field
- * paths and fall back gracefully. The first dataset run logs
- * Object.keys(items[0]) and Object.keys(items[0].variations[0])
- * (when present) so we can tighten this once we have a real sample.
- */
-function normalizeMemo(
-  ad: MemoRawGoogleAd,
-  /** Fallback regions to seed `scan_countries` when memo23 doesn't
-   *  return `creativeRegions`. Caller passes the regions it asked
-   *  the actor to crawl (e.g. ["GB","IT","FR"]) so each row carries
-   *  the country it was discovered in — same semantics as Meta's
-   *  scan_countries field, which the Benchmarks country filter
-   *  joins against. */
-  fallbackRegions: string[] = [],
-): NormalizedAd {
-  const adId = ad.creativeId ?? "";
-  const variant = ad.variations?.[0] ?? {};
-
-  // Same active heuristic as automation-lab — lastShown is a polling
-  // observation, not a hard end.
-  const todayMs = Date.now();
-  const lastShownMs = ad.lastShown ? new Date(ad.lastShown).getTime() : Number.NaN;
-  const ageDays = Number.isFinite(lastShownMs)
-    ? (todayMs - lastShownMs) / 86_400_000
-    : Number.POSITIVE_INFINITY;
-  const isLikelyActive = ad.lastShown == null || ageDays <= 1;
-  const status = isLikelyActive ? "ACTIVE" : "INACTIVE";
-
-  // Format → platforms hint (same buckets as automation-lab)
-  const fmt = (ad.format ?? "").toLowerCase();
-  const platforms: string[] = [];
-  if (fmt.includes("video")) platforms.push("youtube");
-  if (fmt.includes("text")) platforms.push("google_search");
-  if (fmt.includes("image")) platforms.push("display");
-
-  // Media — branch by format. Prefer the variant's video when
-  // available; fall back to thumbnail as a static preview.
-  let imageUrl: string | null = null;
-  let videoUrl: string | null = null;
-  if (fmt === "video") {
-    videoUrl = variant.video ?? variant.videoUrl ?? null;
-    imageUrl = variant.thumbnail ?? null;
-  } else if (fmt === "image") {
-    imageUrl = variant.adImage ?? variant.imageUrl ?? variant.thumbnail ?? null;
-  } else if (fmt === "text") {
-    // Search/Text ads sometimes ship a rendered screenshot — keep it
-    // when present so the Compare tile has something to show.
-    imageUrl = variant.archiveImage ?? variant.adImage ?? null;
-  }
-
-  const headline = variant.headline ?? variant.title ?? null;
-  const description = variant.description ?? variant.body ?? null;
-  const cta = variant.callToAction ?? variant.cta ?? ad.callToAction ?? null;
-  const landingUrl = variant.destinationUrl ?? variant.clickUrl ?? ad.destinationUrl ?? null;
-
-  return {
-    ad_archive_id: adId,
-    // Memo returns headline/description on Text + Image ads. Use
-    // description as the body field (mait_ads_external.ad_text)
-    // because it matches the Meta `ad_text` semantics used by Avg
-    // copy length and AI Copy analysis.
-    ad_text: description,
-    headline,
-    description,
-    cta,
-    image_url: imageUrl,
-    video_url: videoUrl,
-    landing_url: landingUrl,
-    platforms: platforms.length > 0 ? platforms : ["google"],
-    languages: [],
-    start_date: ad.firstShown ? new Date(ad.firstShown).toISOString() : null,
-    end_date: isLikelyActive ? null : new Date(ad.lastShown!).toISOString(),
-    status,
-    // Persist the original row so classifyAdFormat / future
-    // back-fills can still inspect every field memo23 returns.
-    raw_data: ad as unknown as Record<string, unknown>,
-    // Mirror Meta semantics: each row knows which country the actor
-    // observed it in. memo23 returns `creativeRegions[]` when the
-    // ad served in multiple regions; otherwise we use the regions
-    // that drove the scrape (one startUrl per region → fallbackRegions).
-    scan_countries: (ad.creativeRegions && ad.creativeRegions.length > 0
-      ? ad.creativeRegions.map((r) => r.toUpperCase())
-      : fallbackRegions.length > 0
-        ? fallbackRegions.map((r) => r.toUpperCase())
-        : null),
-  };
-}
-
 // ─── Normalize: silva95gustavo ───
 
 /**
  * Convert a silva95gustavo row into the shared NormalizedAd shape.
  *
  * Schema is well-documented and consistent — minimal defensive code
- * needed compared to memo23. Critical mapping:
+ * needed. Critical mapping:
  *
- *   - `format` is UPPERCASE ("IMAGE"|"VIDEO"|"TEXT") — same as
- *     memo23 but different from automation-lab ("Image"/"Video"/"Text").
+ *   - `format` is UPPERCASE ("IMAGE"|"VIDEO"|"TEXT") — different from
+ *     automation-lab ("Image"/"Video"/"Text").
  *   - `firstShown` / `lastShown` exist at root (good) AND inside
  *     regionStats — root is the cross-region span.
  *   - `variations[]` carries per-creative copy + cta + media:
@@ -624,7 +570,7 @@ function normalizeSilva(
 }
 
 /**
- * Dedupe memo23 records by creativeId. Multi-region scans return
+ * Dedupe silva records by creativeId. Multi-region scans return
  * one row per (creative × region), which would (a) blow up the DB
  * row count, and (b) collapse to the LAST occurrence on upsert
  * because the unique key is (workspace_id, ad_archive_id, source).
@@ -632,7 +578,7 @@ function normalizeSilva(
  * row knows every region it was observed in — matches the Meta
  * scrape semantics in service.ts.
  */
-function dedupeMemoNormalized(records: NormalizedAd[]): NormalizedAd[] {
+function dedupeNormalizedByCreative(records: NormalizedAd[]): NormalizedAd[] {
   const byId = new Map<string, NormalizedAd>();
   for (const r of records) {
     if (!r.ad_archive_id) continue;
@@ -735,38 +681,25 @@ export async function scrapeGoogleAds(
 
   // Compute the URL-driven region list FIRST so we can both size
   // resultsLimit per startUrl AND seed scan_countries during
-  // normalisation. memo23 and silva95gustavo share the same
-  // Transparency-Center URL grammar, so the list is built once and
-  // reused.
+  // normalisation.
   const urlRegionList: string[] = (() => {
-    if (!isMemoActor && !isSilvaActor) return [];
+    if (!isSilvaActor) return [];
     const regions = (opts.country ?? "")
       .split(",")
       .map((c) => c.trim().toUpperCase())
       .filter(Boolean);
     return regions.length > 0 ? regions : ["anywhere"];
   })();
-  // Backward-compat alias for the existing memo branch downstream.
-  const memoRegionList = isMemoActor ? urlRegionList : [];
 
   // Build actor input. The two actors expect very different shapes:
   //  - automation-lab: { advertiserIds | domains | searchTerms, maxAds }
-  //  - memo23:         { startUrls: [<Transparency URL>], maxItems }
-  // We dispatch on isMemoActor so the rest of the pipeline (poll,
+  //  - silva:          { startUrls: [<Transparency URL>], resultsLimit }
+  // We dispatch on isSilvaActor so the rest of the pipeline (poll,
   // fetch, normalize, return) is shared.
   //
-  // memo23's `maxItems` is enforced PER-CRAWL (per startUrl), not
-  // globally — confirmed by the actor's docs. To respect the
-  // caller's `maxResults` total budget, divide it by the region
-  // count and floor at 50 per region so a 5-country scan gets
-  // 50-100 items each (≈ 250-500 total) instead of 500 each
-  // (≈ 2500 total = runaway cost).
-  const memoMaxPerRegion = Math.max(
-    50,
-    Math.floor(maxAds / Math.max(1, memoRegionList.length)),
-  );
-  // silva95gustavo enforces resultsLimit per startUrl as well, same
-  // rationale as memo23 — divide the caller budget by region count.
+  // silva95gustavo enforces resultsLimit PER startUrl, not globally —
+  // divide the caller budget by region count and floor at 50 per
+  // region so a 5-country scan stays bounded.
   // Niente cap secondario: per brand grossi il partial-save sotto
   // recupera comunque tutto cio' che silva ha scrapato prima dei
   // 280s, quindi tagliare il budget a priori farebbe perdere ads
@@ -776,34 +709,35 @@ export async function scrapeGoogleAds(
     50,
     Math.floor(maxAds / Math.max(1, urlRegionList.length)),
   );
-  const input: Record<string, unknown> = isMemoActor
-    ? { maxItems: memoMaxPerRegion }
-    : isSilvaActor
-      ? {
-          resultsLimit: silvaResultsLimit,
-          // skipDetails=false (default) means the actor opens each
-          // ad's detail page to extract headline / description / cta /
-          // clickUrl. Slower than skipDetails=true (which would only
-          // walk the listing) but it's the entire reason we picked
-          // silva over memo23 — flipping this to true defeats the
-          // purpose. Keep explicit so future code reviewers see the
-          // intent.
-          skipDetails: false,
-          // OCR is opt-in. Useful for Search/Text ads where the copy
-          // is rendered as an image asset; significantly slows the
-          // scrape (Apify warns) so we stay off until we see whether
-          // skipDetails=false alone gives us enough.
-          ocr: false,
-        }
-      : { maxAds };
+  const input: Record<string, unknown> = isSilvaActor
+    ? {
+        resultsLimit: silvaResultsLimit,
+        // skipDetails=false (default) means the actor opens each
+        // ad's detail page to extract headline / description / cta /
+        // clickUrl. Slower than skipDetails=true (which would only
+        // walk the listing) but it's the entire reason we picked
+        // silva — flipping this to true defeats the purpose. Keep
+        // explicit so future code reviewers see the intent.
+        skipDetails: false,
+        // OCR is opt-in. Useful for Search/Text ads where the copy
+        // is rendered as an image asset; significantly slows the
+        // scrape (Apify warns) so we stay off until we see whether
+        // skipDetails=false alone gives us enough.
+        ocr: false,
+        // NOTE: pay-per-event since 2026-06-12 — we intentionally do
+        // NOT enable any video-download option here. Video URLs come
+        // back as strings in variations[].videoUrl; downloading them
+        // would trigger silva's $4.00/1000 "Video download" event
+        // (vs $1.60/1000 for the "Ad" event we already pay).
+      }
+    : { maxAds };
 
-  if (isMemoActor || isSilvaActor) {
-    // Both actors take Google Transparency Center URLs as input. The
-    // URL grammar is identical: one region per URL, with either
-    // ?advertiser-id or ?domain= or ?q= as the search axis. Passing
-    // region=anywhere triggers a global crawl (the original memo23
-    // disaster on Karen Millen — 870 pages, $1+, 3min+) so we always
-    // expand to one URL per region from competitor.country.
+  if (isSilvaActor) {
+    // silva takes Google Transparency Center URLs as input: one region
+    // per URL, with either ?advertiser-id or ?domain= or ?q= as the
+    // search axis. Passing region=anywhere triggers a global crawl
+    // (the original disaster on Karen Millen — 870 pages, $1+, 3min+)
+    // so we always expand to one URL per region from competitor.country.
     const baseUrl = "https://adstransparency.google.com";
     const regionList = urlRegionList;
 
@@ -828,18 +762,13 @@ export async function scrapeGoogleAds(
       );
     }
 
-    // Both actors expect Apify Crawlee `startUrls`. memo23 takes
-    // the bare-string variant (verified working on Karen Millen);
-    // silva95gustavo rejects strings with
-    // `Items in input.startUrls ... do not contain valid URLs` and
-    // requires the standard `{ url: "..." }` object form. Branch on
-    // the actor flag so each gets the shape it accepts.
+    // silva95gustavo requires the standard `{ url: "..." }` object
+    // form in startUrls (it rejects bare strings with
+    // `Items in input.startUrls ... do not contain valid URLs`).
     const urls = regionList.map(urlForRegion);
-    input.startUrls = isSilvaActor
-      ? urls.map((url) => ({ url }))
-      : urls;
+    input.startUrls = urls.map((url) => ({ url }));
     console.log(
-      `[Google Ads] ${isSilvaActor ? "silva" : "memo23"} startUrls (${regionList.length} regions):`,
+      `[Google Ads] silva startUrls (${regionList.length} regions):`,
       input.startUrls,
     );
   } else if (opts.advertiserId) {
@@ -861,7 +790,7 @@ export async function scrapeGoogleAds(
   }
 
   console.log(
-    `[Google Ads] Starting: actor=${GOOGLE_ACTOR_ID} (mode=${isSilvaActor ? "silva" : isMemoActor ? "memo23" : "automation-lab"})`,
+    `[Google Ads] Starting: actor=${GOOGLE_ACTOR_ID} (mode=${isSilvaActor ? "silva" : "automation-lab"})`,
   );
   console.log(`[Google Ads] Input:`, JSON.stringify(input));
 
@@ -941,11 +870,11 @@ export async function scrapeGoogleAds(
 
   // Fetch dataset with pagination. The previous limit=1000 silently
   // dropped any record beyond the first 1k -- a real risk on
-  // memo23 multi-region scans where a brand × 5 countries can
+  // silva multi-region scans where a brand × 5 countries can
   // easily push past that. Loop until we've drained the dataset
   // or hit a hard 50k safety cap (any brand needing more than 50k
   // ad rows is signalling a bug, not a real volume).
-  const items: Array<RawGoogleAd | MemoRawGoogleAd> = [];
+  const items: Array<RawGoogleAd | SilvaRawGoogleAd> = [];
   const pageSize = 1000;
   const safetyCap = 50_000;
   for (let offset = 0; offset < safetyCap; offset += pageSize) {
@@ -954,7 +883,7 @@ export async function scrapeGoogleAds(
       undefined,
       token,
     );
-    const pageItems: Array<RawGoogleAd | MemoRawGoogleAd> = Array.isArray(page)
+    const pageItems: Array<RawGoogleAd | SilvaRawGoogleAd> = Array.isArray(page)
       ? page
       : page.items ?? [];
     if (pageItems.length === 0) break;
@@ -983,8 +912,8 @@ export async function scrapeGoogleAds(
     // we can spot a real schema and tighten the normaliser without
     // guessing.
     console.log(`[Google Ads] ${items.length} raw items. Sample keys:`, Object.keys(items[0]));
-    if (isMemoActor || isSilvaActor) {
-      const first = items[0] as MemoRawGoogleAd | SilvaRawGoogleAd;
+    if (isSilvaActor) {
+      const first = items[0] as SilvaRawGoogleAd;
       const variant = first.variations?.[0];
       if (variant) {
         console.log(
@@ -1003,21 +932,18 @@ export async function scrapeGoogleAds(
     .map((it) =>
       isSilvaActor
         ? normalizeSilva(it as SilvaRawGoogleAd, urlRegionList)
-        : isMemoActor
-          ? normalizeMemo(it as MemoRawGoogleAd, memoRegionList)
-          : normalize(it as RawGoogleAd),
+        : normalize(it as RawGoogleAd),
     )
     .filter((a): a is NormalizedAd => !!a.ad_archive_id);
 
-  // memo23 (and silva95gustavo) follow advertiser/category links and
-  // sometimes return ads from OTHER advertisers in the search hits
-  // (memo23 sample on Luisa Viola included Dyson + a generic
-  // Shopping listing). When the caller supplied a known
-  // `advertiserId`, hard-filter rows whose `raw_data.advertiserId`
-  // does not match. Skip the filter when scraping by domain or
-  // search-name only — we don't have a ground-truth advertiser id
-  // to compare against.
-  if ((isMemoActor || isSilvaActor) && opts.advertiserId) {
+  // silva follows advertiser/category links and sometimes returns ads
+  // from OTHER advertisers in the search hits (the Luisa Viola sample
+  // included Dyson + a generic Shopping listing). When the caller
+  // supplied a known `advertiserId`, hard-filter rows whose
+  // `raw_data.advertiserId` does not match. Skip the filter when
+  // scraping by domain or search-name only — we don't have a
+  // ground-truth advertiser id to compare against.
+  if (isSilvaActor && opts.advertiserId) {
     const expected = opts.advertiserId;
     const beforeFilter = records.length;
     records = records.filter((r) => {
@@ -1029,7 +955,7 @@ export async function scrapeGoogleAds(
         `[Google Ads] advertiser-id filter: ${beforeFilter} → ${records.length} (dropped ${beforeFilter - records.length} from other advertisers)`,
       );
     }
-  } else if ((isMemoActor || isSilvaActor) && opts.advertiserDomain) {
+  } else if (isSilvaActor && opts.advertiserDomain) {
     // No ground-truth advertiserId but we know the domain — Google
     // Transparency drifts cross-advertiser when querying by domain
     // (Luisa Viola sample 2026-04-30 came back with 3 unrelated
@@ -1060,13 +986,13 @@ export async function scrapeGoogleAds(
     }
   }
 
-  // memo23 / silva emit one row per (creative × region) on
-  // multi-region scans. Without dedup the upsert collapses on the
-  // unique key `(workspace_id, ad_archive_id, source)` and we keep
-  // only the LAST observation, losing scan_countries from the others.
-  if (isMemoActor || isSilvaActor) {
+  // silva emits one row per (creative × region) on multi-region
+  // scans. Without dedup the upsert collapses on the unique key
+  // `(workspace_id, ad_archive_id, source)` and we keep only the LAST
+  // observation, losing scan_countries from the others.
+  if (isSilvaActor) {
     const before = records.length;
-    records = dedupeMemoNormalized(records);
+    records = dedupeNormalizedByCreative(records);
     if (before !== records.length) {
       console.log(
         `[Google Ads] dedup: ${before} → ${records.length} (merged scan_countries on ${before - records.length} duplicates)`,
@@ -1079,13 +1005,7 @@ export async function scrapeGoogleAds(
   // del brand; il range date e' un filtro di visualizzazione, non
   // di persistenza.
 
-  let costCu = 0;
-  try {
-    const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
-    costCu = runInfo.data?.usageTotalUsd ?? 0;
-  } catch {
-    /* ignore */
-  }
+  const costCu = await fetchRunCostUsd(runId, token);
 
   const elapsed = Math.round((Date.now() - t0) / 1000);
   console.log(`[Google Ads] Done: ${items.length} raw → ${records.length} final in ${elapsed}s, cost $${costCu.toFixed(3)}`);
@@ -1169,7 +1089,7 @@ export async function startGoogleAdsScan(
   const maxAds = opts.maxResults ?? 200;
 
   const urlRegionList: string[] = (() => {
-    if (!isMemoActor && !isSilvaActor) return [];
+    if (!isSilvaActor) return [];
     const regions = (opts.country ?? "")
       .split(",")
       .map((c) => c.trim().toUpperCase())
@@ -1178,25 +1098,21 @@ export async function startGoogleAdsScan(
   })();
 
   // Build actor input — stessa logica di scrapeGoogleAds().
-  const memoMaxPerRegion = Math.max(
-    50,
-    Math.floor(maxAds / Math.max(1, urlRegionList.length)),
-  );
   const silvaResultsLimit = Math.max(
     50,
     Math.floor(maxAds / Math.max(1, urlRegionList.length)),
   );
-  const input: Record<string, unknown> = isMemoActor
-    ? { maxItems: memoMaxPerRegion }
-    : isSilvaActor
-      ? {
-          resultsLimit: silvaResultsLimit,
-          skipDetails: false,
-          ocr: false,
-        }
-      : { maxAds };
+  const input: Record<string, unknown> = isSilvaActor
+    ? {
+        resultsLimit: silvaResultsLimit,
+        skipDetails: false,
+        ocr: false,
+        // No video-download option — see scrapeGoogleAds(): would
+        // trigger silva's $4/1000 "Video download" event.
+      }
+    : { maxAds };
 
-  if (isMemoActor || isSilvaActor) {
+  if (isSilvaActor) {
     const baseUrl = "https://adstransparency.google.com";
     function urlForRegion(region: string): string {
       if (opts.advertiserId) {
@@ -1219,7 +1135,7 @@ export async function startGoogleAdsScan(
       );
     }
     const urls = urlRegionList.map(urlForRegion);
-    input.startUrls = isSilvaActor ? urls.map((url) => ({ url })) : urls;
+    input.startUrls = urls.map((url) => ({ url }));
   } else if (opts.advertiserId) {
     input.advertiserIds = [opts.advertiserId];
   } else if (opts.advertiserDomain) {
@@ -1305,7 +1221,7 @@ export async function startGoogleAdsScan(
   }
 
   console.log(
-    `[Google Ads start] actor=${GOOGLE_ACTOR_ID} (mode=${isSilvaActor ? "silva" : isMemoActor ? "memo23" : "automation-lab"}) timeoutSecs=${apifyTimeoutSecs} webhook(ad-hoc)=${webhooks ? "yes" : "no"} webhook(persistent)=${webhookRegistration.ok ? "yes" : "no"}`,
+    `[Google Ads start] actor=${GOOGLE_ACTOR_ID} (mode=${isSilvaActor ? "silva" : "automation-lab"}) timeoutSecs=${apifyTimeoutSecs} webhook(ad-hoc)=${webhooks ? "yes" : "no"} webhook(persistent)=${webhookRegistration.ok ? "yes" : "no"}`,
   );
 
   // POST /acts/{actor}/runs?timeout=...&webhooks=...
@@ -1389,7 +1305,6 @@ export async function finalizeGoogleAdsScan(
 ): Promise<FinalizeScanResult> {
   const { workspaceId, runId, datasetId, apifyStatus, opts } = args;
   const urlRegionList = args.urlRegionList ?? [];
-  const memoRegionList = isMemoActor ? urlRegionList : [];
 
   const creds = await getApifyCredentials(workspaceId);
   const token = creds.token;
@@ -1398,7 +1313,7 @@ export async function finalizeGoogleAdsScan(
 
   // Fetch dataset (anche se non SUCCEEDED — Apify conserva gli items
   // gia' scritti). Stessa pagination + safety cap di scrapeGoogleAds.
-  const items: Array<RawGoogleAd | MemoRawGoogleAd> = [];
+  const items: Array<RawGoogleAd | SilvaRawGoogleAd> = [];
   const pageSize = 1000;
   const safetyCap = 50_000;
   for (let offset = 0; offset < safetyCap; offset += pageSize) {
@@ -1407,7 +1322,7 @@ export async function finalizeGoogleAdsScan(
       undefined,
       token,
     );
-    const pageItems: Array<RawGoogleAd | MemoRawGoogleAd> = Array.isArray(page)
+    const pageItems: Array<RawGoogleAd | SilvaRawGoogleAd> = Array.isArray(page)
       ? page
       : page.items ?? [];
     if (pageItems.length === 0) break;
@@ -1420,17 +1335,7 @@ export async function finalizeGoogleAdsScan(
   );
 
   if (items.length === 0) {
-    let costCu = 0;
-    try {
-      const runInfo = await apifyFetch(
-        `/actor-runs/${runId}`,
-        undefined,
-        token,
-      );
-      costCu = runInfo.data?.usageTotalUsd ?? 0;
-    } catch {
-      /* ignore */
-    }
+    const costCu = await fetchRunCostUsd(runId, token);
     return { records: [], costCu, complete, rawItemCount: 0 };
   }
 
@@ -1438,20 +1343,18 @@ export async function finalizeGoogleAdsScan(
     .map((it) =>
       isSilvaActor
         ? normalizeSilva(it as SilvaRawGoogleAd, urlRegionList)
-        : isMemoActor
-          ? normalizeMemo(it as MemoRawGoogleAd, memoRegionList)
-          : normalize(it as RawGoogleAd),
+        : normalize(it as RawGoogleAd),
     )
     .filter((a): a is NormalizedAd => !!a.ad_archive_id);
 
   // Advertiser filtering (stessa logica di scrapeGoogleAds).
-  if ((isMemoActor || isSilvaActor) && opts.advertiserId) {
+  if (isSilvaActor && opts.advertiserId) {
     const expected = opts.advertiserId;
     records = records.filter((r) => {
       const adv = (r.raw_data as Record<string, unknown>)?.advertiserId;
       return typeof adv === "string" ? adv === expected : true;
     });
-  } else if ((isMemoActor || isSilvaActor) && opts.advertiserDomain) {
+  } else if (isSilvaActor && opts.advertiserDomain) {
     const counts = new Map<string, number>();
     for (const r of records) {
       const adv = (r.raw_data as Record<string, unknown>)?.advertiserId;
@@ -1468,8 +1371,8 @@ export async function finalizeGoogleAdsScan(
     }
   }
 
-  if (isMemoActor || isSilvaActor) {
-    records = dedupeMemoNormalized(records);
+  if (isSilvaActor) {
+    records = dedupeNormalizedByCreative(records);
   }
 
   // Date filter rimosso intenzionalmente. Strategia: la libreria
@@ -1482,13 +1385,7 @@ export async function finalizeGoogleAdsScan(
   // library, AI analysis) lavorando su tutti i record salvati. Cosi'
   // un cambio di range non costa un nuovo scan.
 
-  let costCu = 0;
-  try {
-    const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
-    costCu = runInfo.data?.usageTotalUsd ?? 0;
-  } catch {
-    /* ignore */
-  }
+  const costCu = await fetchRunCostUsd(runId, token);
 
   console.log(
     `[Google Ads finalize] Done: rawItems=${items.length} → normalized=${records.length}, costCu=$${costCu.toFixed(3)}, complete=${complete}`,
