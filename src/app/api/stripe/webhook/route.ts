@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 
 /**
  * Stripe webhook handler.
@@ -33,7 +34,11 @@ export async function POST(req: Request) {
       process.env.STRIPE_WEBHOOK_SECRET
     );
   } catch (err) {
-    console.error("[stripe webhook] Signature verification failed:", err);
+    logger.error(
+      "Stripe webhook signature verification failed",
+      { channel: "stripe webhook", event: "stripe.signature_failed" },
+      err,
+    );
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 

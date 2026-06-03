@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { creditCosts, type CreditAction } from "@/config/pricing";
+import { logger } from "@/lib/logger";
 
 /**
  * Resolve the workspace owner + workspace_id for the user. The owner
@@ -146,7 +147,11 @@ export async function consumeCredits(
   });
 
   if (error) {
-    console.error("[credits] consume error:", error);
+    logger.error(
+      "Credit consume RPC failed",
+      { channel: "credits", event: "credits.consume_failed", userId, workspaceId, reason, amount: cost },
+      error,
+    );
     return { ok: false, balance: 0 };
   }
 
@@ -220,7 +225,11 @@ export async function consumeCreditsCustom(
   });
 
   if (error) {
-    console.error("[credits] consume(custom) error:", error);
+    logger.error(
+      "Credit consume(custom) RPC failed",
+      { channel: "credits", event: "credits.consume_custom_failed", userId, reason, amount },
+      error,
+    );
     return { ok: false, balance: 0 };
   }
 

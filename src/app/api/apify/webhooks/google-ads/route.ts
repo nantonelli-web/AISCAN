@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
+
+const CH = "Google Ads webhook";
 
 // Apify chiama questo endpoint quando un run Google Ads finisce
 // (SUCCEEDED / ABORTED / FAILED / TIMED-OUT). Il payload e' il
@@ -108,38 +111,44 @@ export async function POST(req: Request) {
   const secret = req.headers.get("x-aiscan-secret");
   const expected = process.env.APIFY_WEBHOOK_SECRET;
   if (!expected) {
-    console.error(
-      "[Google Ads webhook] APIFY_WEBHOOK_SECRET non settata, rifiuto",
-    );
+    logger.error("APIFY_WEBHOOK_SECRET non settata, webhook rifiutato", {
+      channel: CH,
+      event: "webhook.no_secret_configured",
+    });
     return NextResponse.json(
       { error: "Webhook secret not configured" },
       { status: 500 },
     );
   }
   if (secret !== expected) {
-    console.warn("[Google Ads webhook] secret mismatch from", req.headers.get("user-agent"));
+    logger.warn("Webhook secret mismatch (possibile spoofing)", {
+      channel: CH,
+      event: "webhook.secret_mismatch",
+      userAgent: req.headers.get("user-agent"),
+    });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   // 2. Parse payload (accetta sia default Apify che custom-template)
   const payload = (await req.json().catch(() => null)) as WebhookPayload | null;
   if (!payload) {
-    console.error("[Google Ads webhook] empty payload");
+    logger.error("Empty webhook payload", { channel: CH, event: "webhook.empty_payload" });
     return NextResponse.json({ error: "Empty payload" }, { status: 400 });
   }
   const fields = extractWebhookFields(payload);
   if (!fields.runId || !fields.status) {
-    console.error(
-      "[Google Ads webhook] missing runId/status after extraction. Payload keys:",
-      Object.keys(payload),
-      "Extracted:",
-      fields,
-    );
+    logger.error("Missing runId/status after extraction", {
+      channel: CH,
+      event: "webhook.invalid_payload",
+      payloadKeys: Object.keys(payload),
+      extracted: fields,
+    });
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  console.log(
-    `[Google Ads webhook] received: runId=${fields.runId} status=${fields.status} eventType=${payload.eventType}`,
+  logger.info(
+    `Webhook received: status=${fields.status} eventType=${payload.eventType}`,
+    { channel: CH, event: "webhook.received", runId: fields.runId, status: fields.status, eventType: payload.eventType },
   );
 
   // 3. Find the job by apify_run_id (admin client, RLS bypass)
@@ -154,15 +163,21 @@ export async function POST(req: Request) {
     .maybeSingle();
 
   if (jobErr) {
-    console.error("[Google Ads webhook] DB lookup failed:", jobErr.message);
+    logger.error(
+      "Webhook job DB lookup failed",
+      { channel: CH, event: "webhook.lookup_failed", runId: fields.runId },
+      jobErr,
+    );
     return NextResponse.json({ error: jobErr.message }, { status: 500 });
   }
   if (!jobData) {
     // No matching job: probabile webhook spurio (es. run lanciato
     // manualmente in Apify console) o race con la creazione del job.
-    console.warn(
-      `[Google Ads webhook] no job matches runId=${fields.runId} — ignoring`,
-    );
+    logger.warn(`No job matches runId=${fields.runId} — ignoring webhook`, {
+      channel: CH,
+      event: "webhook.no_job_match",
+      runId: fields.runId,
+    });
     return NextResponse.json({ ok: true, ignored: true });
   }
   const job = jobData as JobRow;
@@ -176,14 +191,28 @@ export async function POST(req: Request) {
   //    riavvii il reconcile invece di tornare alreadyProcessed.
   const finalStates = ["succeeded", "partial", "failed"];
   if (job.webhook_received_at && finalStates.includes(job.status)) {
-    console.log(
-      `[Google Ads webhook] job ${job.id} already finalized (${job.status}) at ${job.webhook_received_at} — skip`,
-    );
+    logger.info(`Job already finalized (${job.status}) — skip`, {
+      channel: CH,
+      event: "webhook.already_finalized",
+      jobId: job.id,
+      workspaceId: job.workspace_id,
+      competitorId: job.competitor_id,
+      runId: fields.runId,
+      status: job.status,
+    });
     return NextResponse.json({ ok: true, alreadyProcessed: true });
   }
   if (job.webhook_received_at && !finalStates.includes(job.status)) {
-    console.warn(
-      `[Google Ads webhook] job ${job.id} has webhook_received_at=${job.webhook_received_at} but status=${job.status} — retrying reconcile (previous attempt did not complete)`,
+    logger.warn(
+      `Job has webhook_received_at but status=${job.status} — retrying reconcile`,
+      {
+        channel: CH,
+        event: "webhook.reconcile_retry",
+        jobId: job.id,
+        workspaceId: job.workspace_id,
+        runId: fields.runId,
+        status: job.status,
+      },
     );
   }
 
@@ -221,30 +250,39 @@ export async function POST(req: Request) {
         // function) viene terminato dopo aver mandato la response.
         keepalive: true,
       });
-      console.log(
-        `[Google Ads webhook] reconcile triggered for job=${job.id} run=${fields.runId} status=${recRes.status}`,
-      );
+      logger.info(`Reconcile triggered (status=${recRes.status})`, {
+        channel: CH,
+        event: "webhook.reconcile_triggered",
+        jobId: job.id,
+        workspaceId: job.workspace_id,
+        runId: fields.runId,
+        reconcileStatus: recRes.status,
+      });
     } catch (err) {
       // AbortError dopo 3s e' atteso: la richiesta e' partita, il
       // reconcile sta processando, possiamo chiudere noi.
       const isAbort =
         err instanceof Error && err.name === "AbortError";
       if (isAbort) {
-        console.log(
-          `[Google Ads webhook] reconcile request kept-alive after 3s for job=${job.id}`,
-        );
+        logger.debug(`Reconcile request kept-alive after 3s`, {
+          channel: CH,
+          event: "webhook.reconcile_keepalive",
+          jobId: job.id,
+        });
       } else {
-        console.error(
-          `[Google Ads webhook] reconcile call failed for job=${job.id}:`,
-          err instanceof Error ? err.message : err,
+        logger.error(
+          `Reconcile call failed`,
+          { channel: CH, event: "webhook.reconcile_failed", jobId: job.id, workspaceId: job.workspace_id, runId: fields.runId },
+          err,
         );
       }
     } finally {
       clearTimeout(abortTimer);
     }
   } else {
-    console.error(
-      `[Google Ads webhook] cannot schedule reconcile: NEXT_PUBLIC_APP_URL missing on this function`,
+    logger.error(
+      `Cannot schedule reconcile: NEXT_PUBLIC_APP_URL missing`,
+      { channel: CH, event: "webhook.no_appurl", jobId: job.id },
     );
   }
 
