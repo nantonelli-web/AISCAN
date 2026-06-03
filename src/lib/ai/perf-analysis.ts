@@ -18,6 +18,7 @@ import {
   serializeMarkerSections,
 } from "@/lib/ai/marker-format";
 import type { PerfDashboardData } from "@/types/perf";
+import { logger } from "@/lib/logger";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -486,11 +487,23 @@ export async function translatePerfAnalysis(
     return { sections, modelId: opts.modelOpenrouterId };
   }
   const creds = await getOpenRouterCredentials(opts.workspaceId).catch((e) => {
-    console.error("[perf-translate] credentials error:", e);
+    logger.error(
+      "perf-translate credentials error",
+      {
+        channel: "ai-perf",
+        event: "translate.credentials_failed",
+        workspaceId: opts.workspaceId,
+      },
+      e,
+    );
     return null;
   });
   if (!creds?.token) {
-    console.error("[perf-translate] no OpenRouter credentials");
+    logger.error("perf-translate no OpenRouter credentials", {
+      channel: "ai-perf",
+      event: "translate.no_credentials",
+      workspaceId: opts.workspaceId,
+    });
     return null;
   }
 
@@ -547,16 +560,30 @@ export async function translatePerfAnalysis(
     });
   } catch (e) {
     clearTimeout(timeout);
-    console.error("[perf-translate] fetch error:", e);
+    logger.error(
+      "perf-translate fetch error",
+      {
+        channel: "ai-perf",
+        event: "translate.fetch_failed",
+        workspaceId: opts.workspaceId,
+      },
+      e,
+    );
     return null;
   }
   clearTimeout(timeout);
 
   if (!res.ok) {
     const body = await res.text().catch(() => "<no body>");
-    console.error(
-      `[perf-translate] OpenRouter ${res.status} ${res.statusText} (model=${opts.modelOpenrouterId}): ${body.slice(0, 500)}`,
-    );
+    logger.error("perf-translate OpenRouter error response", {
+      channel: "ai-perf",
+      event: "translate.openrouter_error",
+      workspaceId: opts.workspaceId,
+      status: res.status,
+      statusText: res.statusText,
+      model: opts.modelOpenrouterId,
+      body: body.slice(0, 500),
+    });
     return null;
   }
   const body = (await res.json()) as {
@@ -564,7 +591,11 @@ export async function translatePerfAnalysis(
   };
   const text = body.choices?.[0]?.message?.content ?? null;
   if (!text) {
-    console.error("[perf-translate] empty content");
+    logger.error("perf-translate empty content", {
+      channel: "ai-perf",
+      event: "translate.empty_content",
+      workspaceId: opts.workspaceId,
+    });
     return null;
   }
 
@@ -586,11 +617,23 @@ export async function runPerfAnalysis(
   opts: RunOptions,
 ): Promise<PerfAnalysisOutput | null> {
   const creds = await getOpenRouterCredentials(opts.workspaceId).catch((e) => {
-    console.error("[perf-analysis] credentials error:", e);
+    logger.error(
+      "perf-analysis credentials error",
+      {
+        channel: "ai-perf",
+        event: "analysis.credentials_failed",
+        workspaceId: opts.workspaceId,
+      },
+      e,
+    );
     return null;
   });
   if (!creds?.token) {
-    console.error("[perf-analysis] no OpenRouter credentials");
+    logger.error("perf-analysis no OpenRouter credentials", {
+      channel: "ai-perf",
+      event: "analysis.no_credentials",
+      workspaceId: opts.workspaceId,
+    });
     return null;
   }
   const model = opts.modelOpenrouterId;
@@ -625,16 +668,30 @@ export async function runPerfAnalysis(
     });
   } catch (e) {
     clearTimeout(timeout);
-    console.error("[perf-analysis] fetch error:", e);
+    logger.error(
+      "perf-analysis fetch error",
+      {
+        channel: "ai-perf",
+        event: "analysis.fetch_failed",
+        workspaceId: opts.workspaceId,
+      },
+      e,
+    );
     return null;
   }
   clearTimeout(timeout);
 
   if (!res.ok) {
     const body = await res.text().catch(() => "<no body>");
-    console.error(
-      `[perf-analysis] OpenRouter ${res.status} ${res.statusText} (model=${model}): ${body.slice(0, 500)}`,
-    );
+    logger.error("perf-analysis OpenRouter error response", {
+      channel: "ai-perf",
+      event: "analysis.openrouter_error",
+      workspaceId: opts.workspaceId,
+      status: res.status,
+      statusText: res.statusText,
+      model,
+      body: body.slice(0, 500),
+    });
     return null;
   }
   const body = (await res.json()) as {
@@ -642,16 +699,22 @@ export async function runPerfAnalysis(
   };
   const text = body.choices?.[0]?.message?.content ?? null;
   if (!text) {
-    console.error("[perf-analysis] empty content");
+    logger.error("perf-analysis empty content", {
+      channel: "ai-perf",
+      event: "analysis.empty_content",
+      workspaceId: opts.workspaceId,
+    });
     return null;
   }
 
   const sections = parseMarkerSections(text, opts.sections);
   if (Object.keys(sections).length === 0) {
-    console.error(
-      "[perf-analysis] no sections parsed from markers. raw:",
-      text.slice(0, 500),
-    );
+    logger.error("perf-analysis no sections parsed from markers", {
+      channel: "ai-perf",
+      event: "analysis.no_sections",
+      workspaceId: opts.workspaceId,
+      raw: text.slice(0, 500),
+    });
     return null;
   }
   return { sections, modelId: model };

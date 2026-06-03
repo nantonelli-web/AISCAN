@@ -20,6 +20,9 @@ export async function persistLog(
   ctx: LogContext, // already redacted by the caller (logger.emit)
   err?: unknown,
 ): Promise<void> {
+  // Never run in the browser (no service-role key client-side) nor on
+  // the edge runtime (admin client is a server-trust-only credential).
+  if (typeof window !== "undefined") return;
   if (process.env.NEXT_RUNTIME === "edge") return;
   if (level === "debug") return;
   if (level === "info" && !ctx.event) return;

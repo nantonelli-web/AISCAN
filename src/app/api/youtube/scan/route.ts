@@ -9,6 +9,7 @@ import {
 import { storeAdImages, storeProfilePicture } from "@/lib/media/store-ad-images";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 import { checkScanConcurrency } from "@/lib/rate-limit/scan-concurrency";
+import { logger } from "@/lib/logger";
 
 export const maxDuration = 300; // seconds
 
@@ -261,7 +262,18 @@ export async function POST(req: Request) {
           competitor_id: competitor.id,
         });
       if (snapErr) {
-        console.error(`[YouTube route] Channel snapshot error:`, snapErr);
+        logger.error(
+          "channel snapshot error",
+          {
+            channel: "youtube/scan",
+            event: "scan.channel_snapshot_failed",
+            workspaceId: competitor.workspace_id,
+            competitorId: competitor.id,
+            userId: user.id,
+            jobId: job.id,
+          },
+          snapErr,
+        );
         throw snapErr;
       }
 
@@ -286,9 +298,14 @@ export async function POST(req: Request) {
       .update({ stale: true })
       .contains("competitor_ids", [competitor.id]);
 
-    console.log(
-      `[YouTube route] Scrape done: ${result.videos.length} videos, runId=${result.runId}`,
-    );
+    logger.info(`scrape done: ${result.videos.length} videos`, {
+      channel: "youtube/scan",
+      event: "scan.scrape_done",
+      workspaceId: competitor.workspace_id,
+      competitorId: competitor.id,
+      userId: user.id,
+      jobId: job.id,
+    });
 
     // Apply user-requested date window AFTER fetch (YouTube actor
     // has no server-side date filter — same approach as TikTok).
@@ -356,10 +373,27 @@ export async function POST(req: Request) {
         .from("mait_youtube_videos")
         .upsert(rows, { onConflict: "workspace_id,video_id" });
       if (upErr) {
-        console.error(`[YouTube route] Upsert error:`, upErr);
+        logger.error(
+          "videos upsert error",
+          {
+            channel: "youtube/scan",
+            event: "scan.upsert_failed",
+            workspaceId: competitor.workspace_id,
+            competitorId: competitor.id,
+            userId: user.id,
+            jobId: job.id,
+          },
+          upErr,
+        );
         throw upErr;
       }
-      console.log(`[YouTube route] Upsert OK`);
+      logger.debug("upsert OK", {
+        channel: "youtube/scan",
+        event: "scan.upsert_ok",
+        workspaceId: competitor.workspace_id,
+        competitorId: competitor.id,
+        jobId: job.id,
+      });
     }
 
     // Abort checkpoint #2: stop landed AFTER the upsert (rare race).

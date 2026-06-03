@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCreditPack } from "@/config/pricing";
 import { sendCreditRechargeRequest } from "@/lib/email/resend";
 import { isCompanyComplete, type UserCompany } from "@/config/company";
+import { logger } from "@/lib/logger";
 
 /**
  * AICREA-style credit recharge request.
@@ -120,7 +121,16 @@ export async function POST(req: Request) {
     .single();
 
   if (insertErr || !insertedRow) {
-    console.error("[/api/credits/request] insert error:", insertErr);
+    logger.error(
+      "Failed to save credit request",
+      {
+        channel: "credits/request",
+        event: "create.failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+      },
+      insertErr,
+    );
     return NextResponse.json(
       { error: "Server error while saving the request" },
       { status: 500 },

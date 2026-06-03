@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 
 const schema = z.object({
   filename: z.string().min(1).max(200),
@@ -46,7 +47,15 @@ export async function POST(req: Request) {
     .createSignedUploadUrl(storagePath);
 
   if (error) {
-    console.error("[templates/upload-url] Failed:", error);
+    logger.error(
+      "Upload URL generation failed",
+      {
+        channel: "report/templates/upload-url",
+        event: "signed_url.failed",
+        userId: user.id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Upload URL generation failed" }, { status: 500 });
   }
 

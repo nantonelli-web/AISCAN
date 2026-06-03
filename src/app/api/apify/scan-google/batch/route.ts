@@ -16,6 +16,7 @@ import {
   CONCURRENCY_CAP_PER_WORKSPACE,
   type SkipReason,
 } from "@/lib/apify/batch-safety";
+import { logger } from "@/lib/logger";
 
 /**
  * POST /api/apify/scan-google/batch { competitor_ids: [...], max_items? }
@@ -92,8 +93,14 @@ export async function POST(req: Request) {
     if (!process.env.APIFY_WEBHOOK_SECRET) missing.push("APIFY_WEBHOOK_SECRET");
     if (!process.env.NEXT_PUBLIC_APP_URL) missing.push("NEXT_PUBLIC_APP_URL");
     if (missing.length > 0) {
-      console.error(
-        `[Batch Google] webhook env vars mancanti su questa function: ${missing.join(", ")}`,
+      logger.error(
+        `webhook env vars mancanti su questa function: ${missing.join(", ")}`,
+        {
+          channel: "scan-google/batch",
+          event: "batch.config_missing",
+          userId: user.id,
+          missing,
+        },
       );
       return NextResponse.json(
         {
@@ -156,8 +163,14 @@ export async function POST(req: Request) {
       { status: 429 },
     );
   }
-  console.log(
-    `[Batch Google] daily cost check OK: spent=$${costCheck.spent.toFixed(3)}/${costCheck.cap}`,
+  logger.debug(
+    `daily cost check OK: spent=$${costCheck.spent.toFixed(3)}/${costCheck.cap}`,
+    {
+      channel: "scan-google/batch",
+      event: "batch.cost_check_ok",
+      workspaceId,
+      userId: user.id,
+    },
   );
 
   // 3+4. SAFETY: concurrency cap + cooldown via helper unificato.
@@ -318,7 +331,18 @@ export async function POST(req: Request) {
       });
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Start failed";
-      console.error(`[Batch Google] start failed for ${c.id}:`, message);
+      logger.error(
+        `start failed: ${message}`,
+        {
+          channel: "scan-google/batch",
+          event: "scan.start_failed",
+          workspaceId,
+          userId: user.id,
+          competitorId: c.id,
+          jobId: job.id,
+        },
+        e,
+      );
       await admin
         .from("mait_scrape_jobs")
         .update({
@@ -341,8 +365,15 @@ export async function POST(req: Request) {
     }
   }
 
-  console.log(
-    `[Batch Google] batchId=${batchId} started=${started.length} skipped=${skipped.length}`,
+  logger.info(
+    `batch done: started=${started.length} skipped=${skipped.length}`,
+    {
+      channel: "scan-google/batch",
+      event: "batch.completed",
+      workspaceId,
+      userId: user.id,
+      batchId,
+    },
   );
 
   return NextResponse.json({

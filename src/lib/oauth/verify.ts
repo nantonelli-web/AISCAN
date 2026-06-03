@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 import { hashToken } from "./tokens";
 
 /**
@@ -20,25 +21,37 @@ export async function verifyAccessToken(
   authorization: string | null,
 ): Promise<VerifiedToken | null> {
   if (!authorization) {
-    console.log("[mcp/auth] no authorization header");
+    logger.debug("no authorization header", {
+      channel: "oauth-verify",
+      event: "auth.missing_header",
+    });
     return null;
   }
   if (!authorization.toLowerCase().startsWith("bearer ")) {
-    console.log("[mcp/auth] not Bearer scheme");
+    logger.debug("not Bearer scheme", {
+      channel: "oauth-verify",
+      event: "auth.not_bearer",
+    });
     return null;
   }
   const token = authorization.slice(7).trim();
   if (!token) {
-    console.log("[mcp/auth] empty token after Bearer prefix");
+    logger.debug("empty token after Bearer prefix", {
+      channel: "oauth-verify",
+      event: "auth.empty_token",
+    });
     return null;
   }
   const hash = hashToken(token);
   // Non logghiamo NESSUN carattere del token (nemmeno prefix/suffix): il
   // solo hash_prefix non-reversibile basta a correlare la richiesta con
   // la riga in mait_oauth_tokens durante il debug.
-  console.log(
-    `[mcp/auth] looking up token len=${token.length} hash_prefix=${hash.slice(0, 8)}`,
-  );
+  logger.debug("looking up token", {
+    channel: "oauth-verify",
+    event: "auth.lookup",
+    tokenLength: token.length,
+    hashPrefix: hash.slice(0, 8),
+  });
   const admin = createAdminClient();
   const { data } = await admin
     .from("mait_oauth_tokens")
@@ -58,24 +71,36 @@ export async function verifyAccessToken(
   };
   const row = data as Row | null;
   if (!row) {
-    console.log("[mcp/auth] no row matches access_token_hash");
+    logger.debug("no row matches access_token_hash", {
+      channel: "oauth-verify",
+      event: "auth.no_match",
+    });
     return null;
   }
   if (row.revoked_at) {
-    console.log(
-      `[mcp/auth] token revoked at ${row.revoked_at} (client=${row.client_id})`,
-    );
+    logger.debug("token revoked", {
+      channel: "oauth-verify",
+      event: "auth.revoked",
+      clientId: row.client_id,
+      revokedAt: row.revoked_at,
+    });
     return null;
   }
   if (new Date(row.access_token_expires_at).getTime() < Date.now()) {
-    console.log(
-      `[mcp/auth] token expired at ${row.access_token_expires_at}`,
-    );
+    logger.debug("token expired", {
+      channel: "oauth-verify",
+      event: "auth.expired",
+      expiresAt: row.access_token_expires_at,
+    });
     return null;
   }
-  console.log(
-    `[mcp/auth] token OK client=${row.client_id} user=${row.user_id} scopes=${row.scopes.join(",")}`,
-  );
+  logger.debug("token OK", {
+    channel: "oauth-verify",
+    event: "auth.ok",
+    clientId: row.client_id,
+    userId: row.user_id,
+    scopes: row.scopes.join(","),
+  });
 
   // Best-effort touch
   admin

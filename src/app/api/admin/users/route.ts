@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 import { verifyAdminToken } from "@/lib/admin-jwt";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +62,12 @@ export async function PATCH(req: Request) {
     .update({ disabled_at: disabled ? new Date().toISOString() : null })
     .eq("id", userId);
   if (colError) {
-    console.warn("[admin/users] disabled_at update skipped:", colError.message);
+    logger.warn("disabled_at update skipped", {
+      channel: "admin/users",
+      event: "disable.column_skipped",
+      userId,
+      reason: colError.message,
+    });
   }
 
   return NextResponse.json({ ok: true, disabled });

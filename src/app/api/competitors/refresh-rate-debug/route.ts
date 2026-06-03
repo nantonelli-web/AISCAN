@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 
 /**
  * Diagnostic endpoint for the "refresh rate" metric. For each competitor
@@ -192,7 +193,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: true, source, result });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    console.error("[refresh-rate-debug]", e);
+    logger.error(
+      "Refresh-rate debug failed",
+      { channel: "competitors/refresh-rate-debug", event: "debug.failed" },
+      e,
+    );
     return NextResponse.json({ error: "Server error", detail: message }, { status: 500 });
   }
 }

@@ -7,6 +7,7 @@ import {
   COLLECTION_ITEM_TYPES,
   type CollectionItemType,
 } from "@/lib/collections/item-types";
+import { logger } from "@/lib/logger";
 
 /**
  * Add/remove a polymorphic item (any channel creative) to/from a
@@ -99,7 +100,17 @@ export async function POST(
       { onConflict: "collection_id,item_type,item_id" },
     );
   if (error) {
-    console.error("[api/collections/:id/items]", error);
+    logger.error(
+      "Failed to add collection item",
+      {
+        channel: "collections/items",
+        event: "add.failed",
+        workspaceId,
+        userId: user.id,
+        collectionId: id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
   return NextResponse.json({ ok: true });
@@ -141,7 +152,17 @@ export async function DELETE(
     .eq("item_type", itemType)
     .eq("item_id", itemId);
   if (error) {
-    console.error("[api/collections/:id/items]", error);
+    logger.error(
+      "Failed to remove collection item",
+      {
+        channel: "collections/items",
+        event: "remove.failed",
+        workspaceId,
+        userId: user.id,
+        collectionId: id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
   return NextResponse.json({ ok: true });

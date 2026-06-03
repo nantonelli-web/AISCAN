@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getApifyCredentials } from "@/lib/billing/credentials";
+import { logger } from "@/lib/logger";
 
 /**
  * GET /api/apify/scan-google/poll-active
@@ -86,10 +87,17 @@ export async function GET() {
     return NextResponse.json({ ok: true, checked: 0, triggered: [] });
   }
 
-  console.log(
-    `[poll-active] workspace=${workspaceId} found ${jobs.length} running google job(s):`,
-    jobs.map((j) => ({ id: j.id, runId: j.apify_run_id, started: j.started_at })),
-  );
+  logger.debug(`found ${jobs.length} running google job(s)`, {
+    channel: "scan-google/poll-active",
+    event: "poll.found_jobs",
+    workspaceId,
+    userId: user.id,
+    jobs: jobs.map((j) => ({
+      id: j.id,
+      runId: j.apify_run_id,
+      started: j.started_at,
+    })),
+  });
 
   // Apify credentials del workspace.
   const creds = await getApifyCredentials(workspaceId).catch(() => null);
@@ -139,8 +147,14 @@ export async function GET() {
           return;
         }
         const isTerminal = TERMINAL_STATES.has(status);
-        console.log(
-          `[poll-active] job=${job.id} run=${job.apify_run_id} apify_status=${status} terminal=${isTerminal}`,
+        logger.debug(
+          `run=${job.apify_run_id} apify_status=${status} terminal=${isTerminal}`,
+          {
+            channel: "scan-google/poll-active",
+            event: "poll.run_status",
+            workspaceId,
+            jobId: job.id,
+          },
         );
         if (!isTerminal) {
           triggered.push({
@@ -152,9 +166,12 @@ export async function GET() {
         }
         // Apify ha finito → trigger reconcile fire-and-forget.
         if (appUrl && webhookSecret) {
-          console.log(
-            `[poll-active] triggering reconcile for job=${job.id} (apify ${status})`,
-          );
+          logger.info(`triggering reconcile (apify ${status})`, {
+            channel: "scan-google/poll-active",
+            event: "poll.reconcile_triggered",
+            workspaceId,
+            jobId: job.id,
+          });
           const ctrl = new AbortController();
           const abortTimer = setTimeout(() => ctrl.abort(), 3000);
           try {
@@ -180,9 +197,15 @@ export async function GET() {
           action: "reconcile_triggered",
         });
       } catch (e) {
-        console.error(
-          `[poll-active] error on job ${job.id}:`,
-          e instanceof Error ? e.message : e,
+        logger.error(
+          `error polling run=${job.apify_run_id}`,
+          {
+            channel: "scan-google/poll-active",
+            event: "poll.failed",
+            workspaceId,
+            jobId: job.id,
+          },
+          e,
         );
         triggered.push({
           job_id: job.id,

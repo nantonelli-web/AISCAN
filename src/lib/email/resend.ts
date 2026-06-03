@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { logger } from "@/lib/logger";
 
 let _client: Resend | null = null;
 
@@ -290,9 +291,10 @@ export async function sendCreditRechargeRequest(
 ): Promise<void> {
   const resend = getResend();
   if (!resend) {
-    console.error(
-      "[Resend] RESEND_API_KEY missing — credit recharge email NOT sent",
-    );
+    logger.error("RESEND_API_KEY missing — credit recharge email NOT sent", {
+      channel: "email",
+      event: "recharge.no_api_key",
+    });
     return;
   }
 
@@ -419,6 +421,10 @@ export async function sendCreditRechargeRequest(
   } catch (e) {
     // Log only — the DB row is the source of truth, the admin will
     // see the request from the panel anyway.
-    console.error("[Resend] sendCreditRechargeRequest failed:", e);
+    logger.error(
+      "sendCreditRechargeRequest failed",
+      { channel: "email", event: "recharge.send_failed" },
+      e,
+    );
   }
 }

@@ -26,6 +26,7 @@
  */
 
 import { getApifyCredentials } from "@/lib/billing/credentials";
+import { logger } from "@/lib/logger";
 
 const APIFY_BASE = "https://api.apify.com/v2";
 const ACTOR_ID = "silva95gustavo/tiktok-ads-scraper";
@@ -268,9 +269,16 @@ export async function scrapeTiktokAdsLibrary(
     resultsLimit: opts.maxResults ?? 200,
   };
 
-  console.log(
-    `[TikTokLib] Starting: actor=${ACTOR_ID} brand="${opts.brandName}" advId=${opts.advertiserId ?? "—"} region=${opts.region ?? "all"} max=${opts.maxResults ?? 200}`,
-  );
+  logger.info("Library scrape starting", {
+    channel: "tiktok-ads",
+    event: "library.started",
+    actor: ACTOR_ID,
+    brandName: opts.brandName,
+    advertiserId: opts.advertiserId ?? null,
+    region: opts.region ?? "all",
+    maxResults: opts.maxResults ?? 200,
+    workspaceId: opts.workspaceId,
+  });
 
   // Same maxTotalChargeUsd safety pattern as SERP — Apify rejects
   // pay-per-result runs whose cost ceiling falls below $0.50. silva
@@ -308,9 +316,14 @@ export async function scrapeTiktokAdsLibrary(
     const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
     status = runInfo.data?.status ?? runInfo.status ?? status;
     if (pollCount % 5 === 0) {
-      console.log(
-        `[TikTokLib] Poll #${pollCount}: status=${status} elapsed=${Math.round((Date.now() - startTime) / 1000)}s`,
-      );
+      logger.debug("Library poll", {
+        channel: "tiktok-ads",
+        event: "library.poll",
+        runId,
+        pollCount,
+        status,
+        elapsedS: Math.round((Date.now() - startTime) / 1000),
+      });
     }
   }
 
@@ -329,7 +342,13 @@ export async function scrapeTiktokAdsLibrary(
     ? dataset
     : dataset.items ?? [];
 
-  console.log(`[TikTokLib] Run ${runId} returned ${items.length} ads`);
+  logger.info("Library run completed", {
+    channel: "tiktok-ads",
+    event: "library.completed",
+    runId,
+    adCount: items.length,
+    workspaceId: opts.workspaceId,
+  });
 
   const ads = items
     .map(normalizeItem)

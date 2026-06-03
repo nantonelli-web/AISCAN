@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { logger } from "@/lib/logger";
 
 const patchSchema = z.object({
   label: z.string().max(160).nullable().optional(),
@@ -46,7 +47,16 @@ export async function PATCH(
     .eq("id", id);
 
   if (error) {
-    console.error("[api/maps/searches/:id PATCH]", error);
+    logger.error(
+      "update search failed",
+      {
+        channel: "maps/searches",
+        event: "searches.update_failed",
+        userId: user.id,
+        searchId: id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
   return NextResponse.json({ ok: true });
@@ -70,7 +80,16 @@ export async function DELETE(
     .eq("id", id);
 
   if (error) {
-    console.error("[api/maps/searches/:id DELETE]", error);
+    logger.error(
+      "delete search failed",
+      {
+        channel: "maps/searches",
+        event: "searches.delete_failed",
+        userId: user.id,
+        searchId: id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
   return NextResponse.json({ ok: true });

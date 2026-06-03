@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { scrapeMapsPlaces } from "@/lib/maps/service";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 import { checkScanBudget } from "@/lib/rate-limit/scan-concurrency";
+import { logger } from "@/lib/logger";
 
 export const maxDuration = 300; // seconds
 
@@ -168,7 +169,17 @@ export async function POST(req: Request) {
       .select("id, place_id");
 
     if (placesErr) {
-      console.error(`[Maps route] Places upsert error:`, placesErr);
+      logger.error(
+        "places upsert error",
+        {
+          channel: "maps/scan",
+          event: "scan.places_upsert_failed",
+          workspaceId: searchRow.workspace_id,
+          userId: user.id,
+          searchId: searchRow.id,
+        },
+        placesErr,
+      );
       throw placesErr;
     }
 
@@ -220,7 +231,17 @@ export async function POST(req: Request) {
         .from("mait_maps_reviews")
         .upsert(reviewRows, { onConflict: "workspace_id,place_id,review_id" });
       if (reviewsErr) {
-        console.error(`[Maps route] Reviews upsert error:`, reviewsErr);
+        logger.error(
+          "reviews upsert error",
+          {
+            channel: "maps/scan",
+            event: "scan.reviews_upsert_failed",
+            workspaceId: searchRow.workspace_id,
+            userId: user.id,
+            searchId: searchRow.id,
+          },
+          reviewsErr,
+        );
         throw reviewsErr;
       }
     }
@@ -244,7 +265,17 @@ export async function POST(req: Request) {
         .from("mait_maps_place_snapshots")
         .insert(snapshotRows);
       if (snapErr) {
-        console.error(`[Maps route] Snapshot insert error (non-fatal):`, snapErr);
+        logger.warn(
+          "snapshot insert error (non-fatal)",
+          {
+            channel: "maps/scan",
+            event: "scan.snapshot_insert_failed",
+            workspaceId: searchRow.workspace_id,
+            userId: user.id,
+            searchId: searchRow.id,
+          },
+          snapErr,
+        );
       }
     }
 
@@ -266,7 +297,17 @@ export async function POST(req: Request) {
       e && typeof e === "object" && "code" in (e as object)
         ? ((e as { code: unknown }).code as string)
         : null;
-    console.error(`[Maps route] FAILED:`, e);
+    logger.error(
+      `maps scan FAILED: ${message}`,
+      {
+        channel: "maps/scan",
+        event: "scan.failed",
+        workspaceId: searchRow.workspace_id,
+        userId: user.id,
+        searchId: searchRow.id,
+      },
+      e,
+    );
     await refundCredits(
       user.id,
       "scan_maps",

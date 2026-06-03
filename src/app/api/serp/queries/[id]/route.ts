@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { logger } from "@/lib/logger";
 
 const patchSchema = z.object({
   label: z.string().max(160).nullable().optional(),
@@ -108,7 +109,16 @@ export async function PATCH(
       .update(update)
       .eq("id", id);
     if (error) {
-      console.error("[api/serp/queries/:id PATCH]", error);
+      logger.error(
+        "update query failed",
+        {
+          channel: "serp/queries",
+          event: "queries.update_failed",
+          userId: user.id,
+          queryId: id,
+        },
+        error,
+      );
       return NextResponse.json({ error: "Server error" }, { status: 500 });
     }
   }
@@ -127,7 +137,17 @@ export async function PATCH(
       .delete()
       .eq("query_id", id);
     if (delErr) {
-      console.error("[api/serp/queries/:id PATCH delete links]", delErr);
+      logger.error(
+        "delete brand links failed",
+        {
+          channel: "serp/queries",
+          event: "queries.brand_unlink_failed",
+          workspaceId: q.workspace_id,
+          userId: user.id,
+          queryId: id,
+        },
+        delErr,
+      );
       return NextResponse.json({ error: "Server error" }, { status: 500 });
     }
     if (parsed.data.competitor_ids.length > 0) {
@@ -140,7 +160,17 @@ export async function PATCH(
         .from("mait_serp_query_brands")
         .insert(linkRows);
       if (insErr) {
-        console.error("[api/serp/queries/:id PATCH insert links]", insErr);
+        logger.error(
+          "insert brand links failed",
+          {
+            channel: "serp/queries",
+            event: "queries.brand_link_failed",
+            workspaceId: q.workspace_id,
+            userId: user.id,
+            queryId: id,
+          },
+          insErr,
+        );
         return NextResponse.json({ error: "Server error" }, { status: 500 });
       }
     }
@@ -167,7 +197,16 @@ export async function DELETE(
     .delete()
     .eq("id", id);
   if (error) {
-    console.error("[api/serp/queries/:id DELETE]", error);
+    logger.error(
+      "delete query failed",
+      {
+        channel: "serp/queries",
+        event: "queries.delete_failed",
+        userId: user.id,
+        queryId: id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
   return NextResponse.json({ ok: true });

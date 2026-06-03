@@ -13,6 +13,7 @@
  */
 
 import { getOpenRouterCredentials } from "@/lib/billing/credentials";
+import { logger } from "@/lib/logger";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -413,7 +414,11 @@ export async function analyzeCopy(
     const creds = await getOpenRouterCredentials(workspaceId);
     apiKey = creds.token;
   } catch (e) {
-    console.error("[analyzeCopy] credentials error:", e);
+    logger.error(
+      "analyzeCopy credentials error",
+      { channel: "ai-creative", event: "credentials.failed", workspaceId },
+      e,
+    );
     return null;
   }
 
@@ -587,18 +592,28 @@ Important:
       // fail with status alone makes diagnosis a pain. Cap the
       // length to avoid runaway logs on a misbehaving upstream.
       const errBody = await res.text().catch(() => "<no body>");
-      console.error(
-        `[analyzeCopy] OpenRouter ${res.status} ${res.statusText} (model=${modelsFor(tier).copywriter}): ${errBody.slice(0, 500)}`,
-      );
+      logger.error("analyzeCopy OpenRouter error response", {
+        channel: "ai-creative",
+        event: "copy.openrouter_error",
+        workspaceId,
+        status: res.status,
+        statusText: res.statusText,
+        model: modelsFor(tier).copywriter,
+        body: errBody.slice(0, 500),
+      });
       return null;
     }
 
     const body = await res.json();
     const text = body.choices?.[0]?.message?.content ?? null;
     if (!text) {
-      console.error(
-        `[analyzeCopy] OpenRouter returned no content (model=${modelsFor(tier).copywriter}): ${JSON.stringify(body).slice(0, 500)}`,
-      );
+      logger.error("analyzeCopy OpenRouter returned no content", {
+        channel: "ai-creative",
+        event: "copy.empty_content",
+        workspaceId,
+        model: modelsFor(tier).copywriter,
+        body: JSON.stringify(body).slice(0, 500),
+      });
       return null;
     }
 
@@ -613,19 +628,36 @@ Important:
       // array, we can still hand the user something useful.
       const salvaged = salvageTruncatedJson(clean);
       if (salvaged) {
-        console.warn(
-          `[analyzeCopy] JSON parse failed but salvage succeeded (model=${modelsFor(tier).copywriter})`,
-        );
+        logger.warn("analyzeCopy JSON parse failed but salvage succeeded", {
+          channel: "ai-creative",
+          event: "copy.parse_salvaged",
+          workspaceId,
+          model: modelsFor(tier).copywriter,
+        });
         return normalizeCopywriterReport(salvaged, allBrandNames, locale);
       }
-      console.error(
-        `[analyzeCopy] JSON parse failed (model=${modelsFor(tier).copywriter}, err=${parseErr instanceof Error ? parseErr.message : "unknown"}): ${clean.slice(0, 500)}`,
+      logger.error(
+        "analyzeCopy JSON parse failed",
+        {
+          channel: "ai-creative",
+          event: "copy.parse_failed",
+          workspaceId,
+          model: modelsFor(tier).copywriter,
+          preview: clean.slice(0, 500),
+        },
+        parseErr,
       );
       return null;
     }
   } catch (e) {
-    console.error(
-      `[analyzeCopy] threw (model=${modelsFor(tier).copywriter}):`,
+    logger.error(
+      "analyzeCopy threw",
+      {
+        channel: "ai-creative",
+        event: "copy.threw",
+        workspaceId,
+        model: modelsFor(tier).copywriter,
+      },
       e,
     );
     return null;
@@ -650,7 +682,11 @@ export async function analyzeVisuals(
     const creds = await getOpenRouterCredentials(workspaceId);
     apiKey = creds.token;
   } catch (e) {
-    console.error("[analyzeVisuals] credentials error:", e);
+    logger.error(
+      "analyzeVisuals credentials error",
+      { channel: "ai-creative", event: "credentials.failed", workspaceId },
+      e,
+    );
     return null;
   }
 
@@ -747,9 +783,15 @@ export async function analyzeVisuals(
             ? "Creative comparison is not available: the selected brands only have Google Search ads (text). They have no photo, video or original graphics — just formatted text in search-result style, so there is nothing visual to compare. Creative comparison is meaningful on brands with Image, Video or Shopping creatives."
             : "Creative comparison is not available: none of the selected brands has usable visual creatives (images, videos or shopping carousels) for comparison."
           : `Creative comparison was not run: ${missingNames} has no visual creatives (only text ads in Google Search), while the other brand does. A comparison across such asymmetric sides would be misleading. Retry when both brands have Image, Video or Shopping creatives to compare.`;
-    console.warn(
-      `[analyzeVisuals] skipping run — totalAds=${totalAds} textOnly=${textOnlyAds} dominantText=${dominantText} brandsMissingImages=${brandsWithoutImages.join(", ") || "none"}`,
-    );
+    logger.warn("analyzeVisuals skipping run", {
+      channel: "ai-creative",
+      event: "visuals.skipped",
+      workspaceId,
+      totalAds,
+      textOnlyAds,
+      dominantText,
+      brandsMissingImages: brandsWithoutImages.join(", ") || "none",
+    });
     // Empty brandAnalyses signals "skip the per-brand grid entirely"
     // to the renderer (analysis-report.tsx) — it now shows a single
     // centred message card instead of N empty per-brand cards filled
@@ -883,18 +925,28 @@ Important:
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "<no body>");
-      console.error(
-        `[analyzeVisuals] OpenRouter ${res.status} ${res.statusText} (model=${modelsFor(tier).creativeDirector}): ${errText.slice(0, 500)}`,
-      );
+      logger.error("analyzeVisuals OpenRouter error response", {
+        channel: "ai-creative",
+        event: "visuals.openrouter_error",
+        workspaceId,
+        status: res.status,
+        statusText: res.statusText,
+        model: modelsFor(tier).creativeDirector,
+        body: errText.slice(0, 500),
+      });
       return null;
     }
 
     const body = await res.json();
     const text = body.choices?.[0]?.message?.content ?? null;
     if (!text) {
-      console.error(
-        `[analyzeVisuals] OpenRouter returned no content (model=${modelsFor(tier).creativeDirector}): ${JSON.stringify(body).slice(0, 500)}`,
-      );
+      logger.error("analyzeVisuals OpenRouter returned no content", {
+        channel: "ai-creative",
+        event: "visuals.empty_content",
+        workspaceId,
+        model: modelsFor(tier).creativeDirector,
+        body: JSON.stringify(body).slice(0, 500),
+      });
       return null;
     }
 
@@ -906,19 +958,36 @@ Important:
     } catch (parseErr) {
       const salvaged = salvageTruncatedJson(clean);
       if (salvaged) {
-        console.warn(
-          `[analyzeVisuals] JSON parse failed but salvage succeeded (model=${modelsFor(tier).creativeDirector})`,
-        );
+        logger.warn("analyzeVisuals JSON parse failed but salvage succeeded", {
+          channel: "ai-creative",
+          event: "visuals.parse_salvaged",
+          workspaceId,
+          model: modelsFor(tier).creativeDirector,
+        });
         return normalizeCreativeDirectorReport(salvaged, allBrandNames, locale);
       }
-      console.error(
-        `[analyzeVisuals] JSON parse failed (model=${modelsFor(tier).creativeDirector}, err=${parseErr instanceof Error ? parseErr.message : "unknown"}): ${clean.slice(0, 500)}`,
+      logger.error(
+        "analyzeVisuals JSON parse failed",
+        {
+          channel: "ai-creative",
+          event: "visuals.parse_failed",
+          workspaceId,
+          model: modelsFor(tier).creativeDirector,
+          preview: clean.slice(0, 500),
+        },
+        parseErr,
       );
       return null;
     }
   } catch (e) {
-    console.error(
-      `[analyzeVisuals] threw (model=${modelsFor(tier).creativeDirector}):`,
+    logger.error(
+      "analyzeVisuals threw",
+      {
+        channel: "ai-creative",
+        event: "visuals.threw",
+        workspaceId,
+        model: modelsFor(tier).creativeDirector,
+      },
       e,
     );
     return null;

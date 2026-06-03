@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { logger } from "@/lib/logger";
 
 /**
  * Per-key fixed-window rate limit, backed by the atomic
@@ -30,8 +31,10 @@ export async function enforceRateLimit(
   });
   if (error) {
     // Most likely the migration isn't applied yet. Fail open + log once.
-    console.warn(
-      `[rate-limit] mait_rate_limit_hit RPC failed (fail-open): ${error.message}`,
+    logger.warn(
+      "mait_rate_limit_hit RPC failed (fail-open)",
+      { channel: "rate-limit", event: "rpc.failed", key: spec.key },
+      error,
     );
     return { ok: true };
   }

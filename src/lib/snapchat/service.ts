@@ -18,6 +18,7 @@
  */
 
 import { getApifyCredentials } from "@/lib/billing/credentials";
+import { logger } from "@/lib/logger";
 
 const APIFY_BASE = "https://api.apify.com/v2";
 const ACTOR_ID = "automation-lab/snapchat-scraper";
@@ -228,7 +229,13 @@ export async function scrapeSnapchatProfile(
     usernames: [handle],
   };
 
-  console.log(`[Snapchat] Starting: actor=${ACTOR_ID} user=${handle}`);
+  logger.info("Starting scrape", {
+    channel: "snapchat",
+    event: "scan.started",
+    actor: ACTOR_ID,
+    handle,
+    workspaceId: opts.workspaceId,
+  });
 
   const actorPath = `/acts/${encodeURIComponent(ACTOR_ID)}/runs`;
   const run = await apifyFetch(actorPath, {
@@ -240,7 +247,13 @@ export async function scrapeSnapchatProfile(
   const datasetId: string =
     run.data?.defaultDatasetId ?? run.defaultDatasetId ?? "";
 
-  console.log(`[Snapchat] Run created: runId=${runId} datasetId=${datasetId}`);
+  logger.info("Run created", {
+    channel: "snapchat",
+    event: "scan.run_created",
+    runId,
+    datasetId,
+    workspaceId: opts.workspaceId,
+  });
   if (!datasetId) {
     throw new Error("Apify run started but no datasetId returned.");
   }
@@ -260,22 +273,37 @@ export async function scrapeSnapchatProfile(
     pollCount++;
     const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
     status = runInfo.data?.status ?? runInfo.status ?? status;
-    console.log(
-      `[Snapchat] Poll #${pollCount}: status=${status} elapsed=${Math.round((Date.now() - startTime) / 1000)}s`,
-    );
+    logger.debug("Poll", {
+      channel: "snapchat",
+      event: "scan.poll",
+      runId,
+      pollCount,
+      status,
+      elapsedS: Math.round((Date.now() - startTime) / 1000),
+    });
   }
 
   if (status !== "SUCCEEDED") {
     const elapsed = Math.round((Date.now() - startTime) / 1000);
-    console.error(
-      `[Snapchat] FAILED: status=${status} after ${pollCount} polls, ${elapsed}s`,
-    );
+    logger.error("Actor run failed", {
+      channel: "snapchat",
+      event: "scan.failed",
+      runId,
+      status,
+      pollCount,
+      elapsedS: elapsed,
+      workspaceId: opts.workspaceId,
+    });
     throw new Error(
       `Snapchat actor ${status} after ${elapsed}s (user: ${handle})`,
     );
   }
 
-  console.log(`[Snapchat] Run succeeded, fetching dataset...`);
+  logger.debug("Run succeeded, fetching dataset", {
+    channel: "snapchat",
+    event: "scan.fetching_dataset",
+    runId,
+  });
   const dataset = await apifyFetch(
     `/datasets/${datasetId}/items?format=json&limit=1`,
     undefined,
@@ -285,9 +313,13 @@ export async function scrapeSnapchatProfile(
     ? dataset
     : dataset.items ?? [];
 
-  console.log(
-    `[Snapchat] Dataset: ${items.length} items. Sample keys: ${items[0] ? Object.keys(items[0]).join(", ") : "empty"}`,
-  );
+  logger.debug("Dataset received", {
+    channel: "snapchat",
+    event: "scan.dataset_received",
+    runId,
+    itemCount: items.length,
+    sampleKeys: items[0] ? Object.keys(items[0]).join(", ") : "empty",
+  });
 
   const profile = items[0] ? normalizeProfile(items[0]) : null;
 

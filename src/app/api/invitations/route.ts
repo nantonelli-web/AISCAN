@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 
 const createSchema = z.object({
   email: z.string().email(),
@@ -34,7 +35,16 @@ export async function GET() {
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("[api/invitations]", error);
+    logger.error(
+      "Failed to list invitations",
+      {
+        channel: "invitations",
+        event: "list.failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
   return NextResponse.json(data);
@@ -139,7 +149,16 @@ export async function POST(req: Request) {
     .single();
 
   if (error) {
-    console.error("[api/invitations]", error);
+    logger.error(
+      "Failed to create invitation",
+      {
+        channel: "invitations",
+        event: "create.failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 

@@ -21,6 +21,7 @@ import {
   ENRICH_PLATFORMS,
   type CollabPlatform,
 } from "@/lib/organic/collab-intel";
+import { logger } from "@/lib/logger";
 
 export interface EnrichResult {
   /** true se la piattaforma non e' ancora supportata (es. TikTok). */
@@ -123,7 +124,11 @@ export async function enrichCollaborators(opts: {
     .from("mait_collab_accounts")
     .upsert(rows, { onConflict: "workspace_id,handle,platform" });
   if (error) {
-    console.error("[collab-enrich] upsert error:", error);
+    logger.error(
+      "collab-enrich upsert error",
+      { channel: "collab-enrich", event: "upsert.failed", workspaceId },
+      error,
+    );
     throw new Error("collab enrichment upsert failed");
   }
 

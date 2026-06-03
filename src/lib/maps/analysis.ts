@@ -22,6 +22,7 @@
 
 import { createHash } from "crypto";
 import { getOpenRouterCredentials } from "@/lib/billing/credentials";
+import { logger } from "@/lib/logger";
 import { computeLocalSeoAudit } from "@/lib/maps/audit";
 import {
   markerOutputInstruction,
@@ -469,11 +470,19 @@ export async function runMapsAnalysis(
   opts: RunMapsAnalysisOptions,
 ): Promise<MapsAnalysisResult | null> {
   const creds = await getOpenRouterCredentials(opts.workspaceId).catch((e) => {
-    console.error("[maps-analysis] credentials error:", e);
+    logger.error("Analysis: credentials error", {
+      channel: "maps-analysis",
+      event: "analysis.credentials_failed",
+      workspaceId: opts.workspaceId,
+    }, e);
     return null;
   });
   if (!creds?.token) {
-    console.error("[maps-analysis] no OpenRouter credentials");
+    logger.error("Analysis: no OpenRouter credentials", {
+      channel: "maps-analysis",
+      event: "analysis.no_credentials",
+      workspaceId: opts.workspaceId,
+    });
     return null;
   }
 
@@ -504,16 +513,27 @@ export async function runMapsAnalysis(
     });
   } catch (e) {
     clearTimeout(timeout);
-    console.error("[maps-analysis] fetch error:", e);
+    logger.error("Analysis: OpenRouter fetch error", {
+      channel: "maps-analysis",
+      event: "analysis.fetch_failed",
+      workspaceId: opts.workspaceId,
+      model: opts.modelOpenrouterId,
+    }, e);
     return null;
   }
   clearTimeout(timeout);
 
   if (!res.ok) {
     const body = await res.text().catch(() => "<no body>");
-    console.error(
-      `[maps-analysis] OpenRouter ${res.status} ${res.statusText} (model=${opts.modelOpenrouterId}): ${body.slice(0, 500)}`,
-    );
+    logger.error("Analysis: OpenRouter non-OK response", {
+      channel: "maps-analysis",
+      event: "analysis.http_error",
+      workspaceId: opts.workspaceId,
+      model: opts.modelOpenrouterId,
+      status: res.status,
+      statusText: res.statusText,
+      body: body.slice(0, 500),
+    });
     return null;
   }
   const body = (await res.json()) as {
@@ -521,16 +541,24 @@ export async function runMapsAnalysis(
   };
   const text = body.choices?.[0]?.message?.content ?? null;
   if (!text) {
-    console.error("[maps-analysis] empty content");
+    logger.error("Analysis: empty content from model", {
+      channel: "maps-analysis",
+      event: "analysis.empty_content",
+      workspaceId: opts.workspaceId,
+      model: opts.modelOpenrouterId,
+    });
     return null;
   }
 
   const out = parseMarkerSections(text, sections);
   if (Object.keys(out).length === 0) {
-    console.error(
-      "[maps-analysis] no sections parsed from markers. raw:",
-      text.slice(0, 500),
-    );
+    logger.error("Analysis: no sections parsed from markers", {
+      channel: "maps-analysis",
+      event: "analysis.parse_empty",
+      workspaceId: opts.workspaceId,
+      model: opts.modelOpenrouterId,
+      raw: text.slice(0, 500),
+    });
     return null;
   }
   return { facts, sections: out, modelId: opts.modelOpenrouterId };

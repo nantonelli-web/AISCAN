@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { tagAdsBatch, tagPostsBatch } from "@/lib/ai/tagger";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 import { enforceAiRateLimit } from "@/lib/rate-limit/enforce";
+import { logger } from "@/lib/logger";
 
 export const maxDuration = 120;
 
@@ -65,7 +66,16 @@ export async function POST(req: Request) {
 
   const { data: ads, error } = await q;
   if (error) {
-    console.error("[api/ai/tag]", error);
+    logger.error(
+      "Failed to load untagged ads",
+      {
+        channel: "ai/tag",
+        event: "list.failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
   // No-op: nothing to tag → don't charge the user a credit for zero work.

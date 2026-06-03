@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyAccessToken } from "@/lib/oauth/verify";
 import { dispatch } from "@/lib/mcp/server";
+import { logger } from "@/lib/logger";
 import {
   type JsonRpcRequest,
   type JsonRpcResponse,
@@ -71,9 +72,14 @@ export async function POST(req: Request) {
   const host = req.headers.get("host");
   const xfwHost = req.headers.get("x-forwarded-host");
   const proto = req.headers.get("x-forwarded-proto");
-  console.log(
-    `[mcp] POST host=${host} xfw_host=${xfwHost} proto=${proto} headers=[${headerNames.join(",")}]`,
-  );
+  logger.debug("POST", {
+    channel: "mcp",
+    event: "request.received",
+    host,
+    xfwHost,
+    proto,
+    headerNames,
+  });
   const ctx = await verifyAccessToken(req.headers.get("authorization"));
   if (!ctx) return unauthorized(req);
 

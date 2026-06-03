@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getApifyCredentials } from "@/lib/billing/credentials";
+import { logger } from "@/lib/logger";
 
 /**
  * POST /api/apify/scan-google/batch/stop { batch_id }
@@ -113,16 +114,31 @@ export async function POST(req: Request) {
       aborted.push(j.id);
     } catch (e) {
       const reason = e instanceof Error ? e.message : "abort failed";
-      console.error(
-        `[Batch Stop] failed to abort job=${j.id} run=${j.apify_run_id}:`,
-        reason,
+      logger.error(
+        `failed to abort run=${j.apify_run_id}: ${reason}`,
+        {
+          channel: "scan-google/batch/stop",
+          event: "batch.abort_failed",
+          workspaceId,
+          userId: user.id,
+          competitorId: j.competitor_id,
+          jobId: j.id,
+        },
+        e,
       );
       failed.push({ job_id: j.id, reason });
     }
   }
 
-  console.log(
-    `[Batch Stop] batch=${parsed.data.batch_id} aborted=${aborted.length} failed=${failed.length}`,
+  logger.info(
+    `batch stop: aborted=${aborted.length} failed=${failed.length}`,
+    {
+      channel: "scan-google/batch/stop",
+      event: "batch.stopped",
+      workspaceId,
+      userId: user.id,
+      batchId: parsed.data.batch_id,
+    },
   );
 
   return NextResponse.json({

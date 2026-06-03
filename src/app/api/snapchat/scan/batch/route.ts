@@ -11,6 +11,7 @@ import {
   CONCURRENCY_CAP_PER_WORKSPACE,
   type SkipReason,
 } from "@/lib/apify/batch-safety";
+import { logger } from "@/lib/logger";
 
 /**
  * POST /api/snapchat/scan/batch { competitor_ids: [...] }
@@ -201,9 +202,16 @@ export async function POST(req: Request) {
     } else {
       const message =
         r.reason instanceof Error ? r.reason.message : "Start failed";
-      console.error(
-        `[Batch Snapchat] fail for ${c.id} (${c.page_name}):`,
-        message,
+      logger.error(
+        `start failed: ${message}`,
+        {
+          channel: "snapchat/scan/batch",
+          event: "scan.start_failed",
+          workspaceId,
+          userId: user.id,
+          competitorId: c.id,
+        },
+        r.reason,
       );
       skipped.push({
         competitor_id: c.id,
@@ -232,8 +240,15 @@ export async function POST(req: Request) {
       .is("batch_id", null);
   }
 
-  console.log(
-    `[Batch Snapchat] batchId=${batchId} started=${started.length} skipped=${skipped.length}`,
+  logger.info(
+    `batch done: started=${started.length} skipped=${skipped.length}`,
+    {
+      channel: "snapchat/scan/batch",
+      event: "batch.completed",
+      workspaceId,
+      userId: user.id,
+      batchId,
+    },
   );
 
   return NextResponse.json({

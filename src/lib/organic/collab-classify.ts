@@ -22,6 +22,7 @@ import type {
   CollabClassification,
   CollabPlatform,
 } from "@/lib/organic/collab-intel";
+import { logger } from "@/lib/logger";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -158,9 +159,13 @@ async function classifyChunk(
 
     if (!res.ok) {
       const errBody = await res.text().catch(() => "<no body>");
-      console.error(
-        `[collab-classify] OpenRouter ${res.status} (model=${modelId}): ${errBody.slice(0, 400)}`,
-      );
+      logger.error("collab-classify OpenRouter error response", {
+        channel: "collab-classify",
+        event: "chunk.openrouter_error",
+        status: res.status,
+        model: modelId,
+        body: errBody.slice(0, 400),
+      });
       return out;
     }
     const body = await res.json();
@@ -171,8 +176,14 @@ async function classifyChunk(
     try {
       parsed = JSON.parse(stripFences(text));
     } catch (e) {
-      console.error(
-        `[collab-classify] JSON parse failed (model=${modelId}): ${(e as Error).message}`,
+      logger.error(
+        "collab-classify JSON parse failed",
+        {
+          channel: "collab-classify",
+          event: "chunk.parse_failed",
+          model: modelId,
+        },
+        e,
       );
       return out;
     }
@@ -182,7 +193,11 @@ async function classifyChunk(
     }
   } catch (e) {
     clearTimeout(timeout);
-    console.error(`[collab-classify] threw (model=${modelId}):`, e);
+    logger.error(
+      "collab-classify chunk threw",
+      { channel: "collab-classify", event: "chunk.threw", model: modelId },
+      e,
+    );
   }
   return out;
 }
@@ -211,7 +226,15 @@ export async function classifyCollaborators(opts: {
     const creds = await getOpenRouterCredentials(workspaceId);
     apiKey = creds.token;
   } catch (e) {
-    console.error("[collab-classify] credentials error:", e);
+    logger.error(
+      "collab-classify credentials error",
+      {
+        channel: "collab-classify",
+        event: "credentials.failed",
+        workspaceId,
+      },
+      e,
+    );
     return { classified: 0, modelId };
   }
 
@@ -257,7 +280,11 @@ export async function classifyCollaborators(opts: {
       .from("mait_collab_accounts")
       .upsert(rows, { onConflict: "workspace_id,handle,platform" });
     if (error) {
-      console.error("[collab-classify] upsert error:", error);
+      logger.error(
+        "collab-classify upsert error",
+        { channel: "collab-classify", event: "upsert.failed", workspaceId },
+        error,
+      );
       throw new Error("collab classification upsert failed");
     }
   }

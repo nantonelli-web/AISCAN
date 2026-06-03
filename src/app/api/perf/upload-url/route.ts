@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser } from "@/lib/auth/session";
+import { logger } from "@/lib/logger";
 
 const schema = z.object({
   filename: z.string().min(1).max(300),
@@ -55,7 +56,16 @@ export async function POST(req: Request) {
     .createSignedUploadUrl(storagePath);
 
   if (error) {
-    console.error("[perf/upload-url] Failed:", error);
+    logger.error(
+      "upload URL generation failed",
+      {
+        channel: "perf/upload-url",
+        event: "upload.signed_url_failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+      },
+      error,
+    );
     return NextResponse.json(
       { error: "Upload URL generation failed" },
       { status: 500 },

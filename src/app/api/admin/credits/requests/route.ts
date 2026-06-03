@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 import { verifyAdminToken } from "@/lib/admin-jwt";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 
 /**
  * Admin: fulfil or reject a credit recharge request.
@@ -111,7 +112,15 @@ export async function PATCH(req: Request) {
     });
 
     if (rpcErr) {
-      console.error("[/api/admin/credits/requests] RPC error:", rpcErr);
+      logger.error(
+        "mait_add_credits RPC error",
+        {
+          channel: "admin/credits/requests",
+          event: "fulfill.rpc_failed",
+          workspaceId: request.workspace_id,
+        },
+        rpcErr,
+      );
       // Roll the claim back so the request can be retried.
       await supabase
         .from("mait_credit_requests")

@@ -9,6 +9,7 @@ import { sendNewAdsNotification } from "@/lib/email/resend";
 import { storeAdImages, storeProfilePicture } from "@/lib/media/store-ad-images";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 import { checkScanConcurrency } from "@/lib/rate-limit/scan-concurrency";
+import { logger } from "@/lib/logger";
 
 export const maxDuration = 300; // seconds (Vercel hobby allows 60; pro 300)
 
@@ -276,9 +277,13 @@ export async function POST(req: Request) {
         parsed.data.date_to,
       );
       if (inactivated > 0) {
-        console.log(
-          `[scan] Reconciled ${inactivated} stale ACTIVE ads for ${competitor.page_name}`,
-        );
+        logger.debug(`reconciled ${inactivated} stale ACTIVE ads`, {
+          channel: "scan",
+          event: "scan.status_reconciled",
+          workspaceId: competitor.workspace_id,
+          competitorId: competitor.id,
+          jobId: job.id,
+        });
       }
     }
 

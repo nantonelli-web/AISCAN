@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { coerceCountryForStorage } from "@/lib/meta/country-codes";
+import { logger } from "@/lib/logger";
 
 // Either a single alpha-2 ("IT") or a canonical CSV of alpha-2s ("IT,DE,GB").
 const CANONICAL_SHAPE = /^[A-Z]{2}(,[A-Z]{2})*$/;
@@ -31,7 +32,15 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (profileErr) {
-      console.error("[normalize-countries] profile", profileErr);
+      logger.error(
+        "Failed to load profile",
+        {
+          channel: "competitors/normalize-countries",
+          event: "profile.failed",
+          userId: user.id,
+        },
+        profileErr,
+      );
       return NextResponse.json({ error: "Server error" }, { status: 500 });
     }
     if (!profile?.workspace_id || !["super_admin", "admin"].includes(profile.role)) {
@@ -44,7 +53,16 @@ export async function POST(req: Request) {
       .select("id, page_name, country")
       .eq("workspace_id", profile.workspace_id);
     if (error) {
-      console.error("[normalize-countries] fetch", error);
+      logger.error(
+        "Failed to fetch competitors",
+        {
+          channel: "competitors/normalize-countries",
+          event: "fetch.failed",
+          workspaceId: profile.workspace_id,
+          userId: user.id,
+        },
+        error,
+      );
       return NextResponse.json({ error: "Server error" }, { status: 500 });
     }
 
@@ -100,7 +118,17 @@ export async function POST(req: Request) {
         .eq("id", r.id)
         .eq("workspace_id", profile.workspace_id);
       if (upErr) {
-        console.error("[normalize-countries] update", upErr);
+        logger.error(
+          "Failed to update country",
+          {
+            channel: "competitors/normalize-countries",
+            event: "update.failed",
+            workspaceId: profile.workspace_id,
+            userId: user.id,
+            competitorId: r.id,
+          },
+          upErr,
+        );
         skipped.push({
           id: r.id,
           page_name: r.page_name,
@@ -138,7 +166,14 @@ export async function POST(req: Request) {
     // a pattern to copy into user-facing routes.
     const message = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack?.split("\n").slice(0, 5).join("\n") : undefined;
-    console.error("[normalize-countries] unhandled", e);
+    logger.error(
+      "Unhandled error",
+      {
+        channel: "competitors/normalize-countries",
+        event: "unhandled",
+      },
+      e,
+    );
     return NextResponse.json(
       { error: "Server error", detail: message, stackHint: stack },
       { status: 500 }

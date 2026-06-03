@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveWorkspaceId } from "@/lib/auth/workspace";
+import { logger } from "@/lib/logger";
 
 const schema = z.object({
   ids: z.array(z.string().uuid()).min(1).max(100),
@@ -67,7 +68,16 @@ export async function DELETE(req: Request) {
     .select("id");
 
   if (error) {
-    console.error("[api/scrape-jobs/bulk]", error);
+    logger.error(
+      "Failed to bulk delete scrape jobs",
+      {
+        channel: "scrape-jobs/bulk",
+        event: "delete.failed",
+        workspaceId,
+        userId: user.id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
   return NextResponse.json({ ok: true, deleted: (deleted ?? []).length });

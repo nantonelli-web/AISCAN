@@ -10,6 +10,7 @@ import { cleanSnapchatHandle } from "@/lib/snapchat/service";
 import { cleanYouTubeChannelUrl } from "@/lib/youtube/service";
 import { cleanAdvertiserDomain } from "@/lib/apify/google-ads-service";
 import { coerceCountryForStorage } from "@/lib/meta/country-codes";
+import { logger } from "@/lib/logger";
 
 const patchSchema = z.object({
   // Monitor config fields
@@ -248,7 +249,16 @@ export async function PATCH(
     .single();
 
   if (error) {
-    console.error("[api/competitors/:id]", error);
+    logger.error(
+      "Failed to update competitor",
+      {
+        channel: "competitors",
+        event: "update.failed",
+        userId: user.id,
+        competitorId: id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
   if (updated?.workspace_id) revalidateTag(competitorsTag(updated.workspace_id));
@@ -344,7 +354,16 @@ export async function DELETE(
     .delete()
     .eq("competitor_id", id);
   if (adsDel.error) {
-    console.error("[api/competitors/:id ads cleanup]", adsDel.error);
+    logger.error(
+      "Ads cleanup failed during competitor delete",
+      {
+        channel: "competitors",
+        event: "delete.ads_cleanup_failed",
+        workspaceId,
+        competitorId: id,
+      },
+      adsDel.error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 
@@ -353,7 +372,16 @@ export async function DELETE(
     .delete()
     .eq("competitor_id", id);
   if (jobsDel.error) {
-    console.error("[api/competitors/:id jobs cleanup]", jobsDel.error);
+    logger.warn(
+      "Jobs cleanup failed during competitor delete",
+      {
+        channel: "competitors",
+        event: "delete.jobs_cleanup_failed",
+        workspaceId,
+        competitorId: id,
+      },
+      jobsDel.error,
+    );
   }
 
   const alertsDel = await admin
@@ -361,7 +389,16 @@ export async function DELETE(
     .delete()
     .eq("competitor_id", id);
   if (alertsDel.error) {
-    console.error("[api/competitors/:id alerts cleanup]", alertsDel.error);
+    logger.warn(
+      "Alerts cleanup failed during competitor delete",
+      {
+        channel: "competitors",
+        event: "delete.alerts_cleanup_failed",
+        workspaceId,
+        competitorId: id,
+      },
+      alertsDel.error,
+    );
   }
 
   // Saved comparisons that include this brand are deleted outright.
@@ -374,7 +411,16 @@ export async function DELETE(
     .delete()
     .contains("competitor_ids", [id]);
   if (compDel.error) {
-    console.error("[api/competitors/:id comparisons cleanup]", compDel.error);
+    logger.warn(
+      "Comparisons cleanup failed during competitor delete",
+      {
+        channel: "competitors",
+        event: "delete.comparisons_cleanup_failed",
+        workspaceId,
+        competitorId: id,
+      },
+      compDel.error,
+    );
   }
 
   const { error } = await admin
@@ -382,7 +428,16 @@ export async function DELETE(
     .delete()
     .eq("id", id);
   if (error) {
-    console.error("[api/competitors/:id]", error);
+    logger.error(
+      "Failed to delete competitor",
+      {
+        channel: "competitors",
+        event: "delete.failed",
+        workspaceId,
+        competitorId: id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 
@@ -397,9 +452,16 @@ export async function DELETE(
         .from("media")
         .remove(chunk);
       if (storageErr) {
-        console.error(
-          "[api/competitors/:id storage cleanup]",
-          storageErr.message,
+        logger.warn(
+          "Storage cleanup failed during competitor delete",
+          {
+            channel: "competitors",
+            event: "delete.storage_cleanup_failed",
+            workspaceId,
+            competitorId: id,
+            reason: storageErr.message,
+          },
+          storageErr,
         );
       }
     }

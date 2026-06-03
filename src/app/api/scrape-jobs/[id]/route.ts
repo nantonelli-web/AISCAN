@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveWorkspaceId } from "@/lib/auth/workspace";
+import { logger } from "@/lib/logger";
 
 export async function DELETE(
   req: Request,
@@ -67,7 +68,17 @@ export async function DELETE(
     .eq("id", id);
 
   if (error) {
-    console.error("[api/scrape-jobs/:id]", error);
+    logger.error(
+      "Failed to delete scrape job",
+      {
+        channel: "scrape-jobs",
+        event: "delete.failed",
+        workspaceId,
+        userId: user.id,
+        jobId: id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
   return NextResponse.json({ ok: true });

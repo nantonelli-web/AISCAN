@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { logger } from "@/lib/logger";
 
 function csvCell(v: unknown): string {
   if (v == null) return "";
@@ -30,7 +31,11 @@ export async function GET(req: Request) {
 
   const { data, error } = await q;
   if (error) {
-    console.error("[api/export/ads.csv]", error);
+    logger.error(
+      "Failed to export ads CSV",
+      { channel: "export/ads.csv", event: "export.failed", userId: user.id },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 
 /**
  * Returns the competitor row + the last 10 scrape_jobs for a given
@@ -593,7 +594,11 @@ export async function GET(req: Request) {
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    console.error("[scan-debug]", e);
+    logger.error(
+      "Scan debug failed",
+      { channel: "competitors/scan-debug", event: "debug.failed" },
+      e,
+    );
     return NextResponse.json(
       { error: "Server error", detail: message },
       { status: 500 },

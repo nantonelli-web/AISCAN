@@ -18,6 +18,7 @@ import { cleanInstagramUsername } from "@/lib/instagram/service";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 import { enforceAiRateLimit } from "@/lib/rate-limit/enforce";
 import { aiAnalysisAction } from "@/config/pricing";
+import { logger } from "@/lib/logger";
 
 export const maxDuration = 300;
 
@@ -1393,7 +1394,11 @@ export async function POST(req: Request) {
             // and a transient LLM/network failure must not wipe it.
             // Surface a structured error inside the section so the UI
             // can render a clean "analysis failed" state.
-            console.error("[api/comparisons] analyzeCopy threw:", err);
+            logger.error(
+              "analyzeCopy threw",
+              { channel: "comparisons", event: "ai.copy_failed", workspaceId },
+              err,
+            );
             payload.copy_analysis = null;
             aiErrors.push(
               err instanceof Error
@@ -1412,7 +1417,11 @@ export async function POST(req: Request) {
             if (result == null) aiErrors.push("Creative Director agent returned null");
           })
           .catch((err) => {
-            console.error("[api/comparisons] analyzeVisuals threw:", err);
+            logger.error(
+              "analyzeVisuals threw",
+              { channel: "comparisons", event: "ai.visual_failed", workspaceId },
+              err,
+            );
             payload.visual_analysis = null;
             aiErrors.push(
               err instanceof Error
@@ -1478,7 +1487,11 @@ export async function POST(req: Request) {
       .select("*")
       .single();
     if (error) {
-      console.error("[api/comparisons]", error);
+      logger.error(
+        "Failed to update comparison",
+        { channel: "comparisons", event: "update.failed", workspaceId },
+        error,
+      );
       return NextResponse.json({ error: "Server error" }, { status: 500 });
     }
     result = data;
@@ -1491,7 +1504,11 @@ export async function POST(req: Request) {
       .select("*")
       .single();
     if (error) {
-      console.error("[api/comparisons]", error);
+      logger.error(
+        "Failed to insert comparison",
+        { channel: "comparisons", event: "create.failed", workspaceId },
+        error,
+      );
       return NextResponse.json({ error: "Server error" }, { status: 500 });
     }
     result = data;

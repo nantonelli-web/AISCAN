@@ -8,6 +8,7 @@
  */
 
 import { getApifyCredentials } from "@/lib/billing/credentials";
+import { logger } from "@/lib/logger";
 
 const APIFY_BASE = "https://api.apify.com/v2";
 const ACTOR_ID = "apify/instagram-scraper";
@@ -189,7 +190,11 @@ export async function scrapeInstagramProfile(
 ): Promise<InstagramProfile | null> {
   const handle = cleanInstagramUsername(usernameInput);
   if (!handle) {
-    console.warn(`[Instagram profile] invalid handle: ${usernameInput}`);
+    logger.warn("Profile: invalid handle", {
+      channel: "instagram",
+      event: "profile.invalid_handle",
+      handle: usernameInput,
+    });
     return null;
   }
 
@@ -201,7 +206,11 @@ export async function scrapeInstagramProfile(
     const creds = await getApifyCredentials(workspaceId);
     token = creds.token;
   } catch (e) {
-    console.error("[Instagram profile] credentials error:", e);
+    logger.error("Profile: credentials error", {
+      channel: "instagram",
+      event: "profile.credentials_failed",
+      workspaceId,
+    }, e);
     return null;
   }
 
@@ -212,7 +221,12 @@ export async function scrapeInstagramProfile(
       resultsLimit: 1,
     };
 
-    console.log(`[Instagram profile] Starting: user=${handle}`);
+    logger.info("Profile: starting scrape", {
+      channel: "instagram",
+      event: "profile.started",
+      handle,
+      workspaceId,
+    });
 
     // maxItems must yield a max charge above Apify's minimum ($0.0027 for
     // this actor). maxItems=1 → $0.0023 → rejected; use 5 as a safe cap.
@@ -259,14 +273,23 @@ export async function scrapeInstagramProfile(
       ? ds
       : ((ds as { items?: RawInstagramProfile[] }).items ?? []);
     const p = list[0];
-    console.log(
-      `[Instagram profile] Fetched ${list.length} items for ${handle}. Keys: ${p ? Object.keys(p).slice(0, 20).join(",") : "none"}`
-    );
+    logger.debug("Profile: fetched items", {
+      channel: "instagram",
+      event: "profile.fetched",
+      handle,
+      itemCount: list.length,
+      keys: p ? Object.keys(p).slice(0, 20).join(",") : "none",
+    });
     if (!p) return null;
 
     return mapRawProfile(p, handle);
   } catch (err) {
-    console.error(`[Instagram profile] scrape failed for ${handle}:`, err);
+    logger.error("Profile: scrape failed", {
+      channel: "instagram",
+      event: "profile.scrape_failed",
+      handle,
+      workspaceId,
+    }, err);
     return null;
   }
 }
@@ -317,7 +340,11 @@ export async function scrapeInstagramProfiles(
     const creds = await getApifyCredentials(workspaceId);
     token = creds.token;
   } catch (e) {
-    console.error("[Instagram profiles batch] credentials error:", e);
+    logger.error("Profiles batch: credentials error", {
+      channel: "instagram",
+      event: "profiles_batch.credentials_failed",
+      workspaceId,
+    }, e);
     // Nessuna credenziale → tutto notFound (il chiamante lo gestisce).
     return { profiles, notFound: [...cleanedToOriginal.values()], costCu };
   }
@@ -386,10 +413,12 @@ export async function scrapeInstagramProfiles(
         /* ignore cost read */
       }
     } catch (err) {
-      console.error(
-        `[Instagram profiles batch] chunk ${i / chunkSize} failed:`,
-        err,
-      );
+      logger.error("Profiles batch: chunk failed", {
+        channel: "instagram",
+        event: "profiles_batch.chunk_failed",
+        chunkIndex: i / chunkSize,
+        workspaceId,
+      }, err);
       // Chunk fallito: lascia gli handle non visti tra i notFound sotto.
     }
 
@@ -432,9 +461,16 @@ export async function scrapeInstagramPosts(
     input.onlyPostsNewerThan = opts.dateFrom;
   }
 
-  console.log(
-    `[Instagram] Starting: actor=${ACTOR_ID} user=${handle} max=${maxPosts} from=${opts.dateFrom ?? "-"} to=${opts.dateTo ?? "-"}`
-  );
+  logger.info("Posts: starting scrape", {
+    channel: "instagram",
+    event: "scan.started",
+    actor: ACTOR_ID,
+    handle,
+    maxPosts,
+    dateFrom: opts.dateFrom ?? null,
+    dateTo: opts.dateTo ?? null,
+    workspaceId: opts.workspaceId,
+  });
 
   const actorPath = `/acts/${encodeURIComponent(ACTOR_ID)}/runs?maxItems=${maxPosts}`;
   const run = await apifyFetch(actorPath, {
@@ -446,7 +482,13 @@ export async function scrapeInstagramPosts(
   const datasetId: string =
     run.data?.defaultDatasetId ?? run.defaultDatasetId ?? "";
 
-  console.log(`[Instagram] Run created: runId=${runId} datasetId=${datasetId}`);
+  logger.info("Posts: run created", {
+    channel: "instagram",
+    event: "scan.run_created",
+    runId,
+    datasetId,
+    workspaceId: opts.workspaceId,
+  });
 
   if (!datasetId) {
     throw new Error("Apify run started but no datasetId returned.");
@@ -466,7 +508,14 @@ export async function scrapeInstagramPosts(
     pollCount++;
     const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
     status = runInfo.data?.status ?? runInfo.status ?? status;
-    console.log(`[Instagram] Poll #${pollCount}: status=${status} elapsed=${Math.round((Date.now() - startTime) / 1000)}s`);
+    logger.debug("Posts: poll", {
+      channel: "instagram",
+      event: "scan.poll",
+      runId,
+      pollCount,
+      status,
+      elapsedS: Math.round((Date.now() - startTime) / 1000),
+    });
   }
 
   if (status !== "SUCCEEDED") {
@@ -478,11 +527,24 @@ export async function scrapeInstagramPosts(
       errorDetail = ` | stats: ${JSON.stringify(stats)}`;
     } catch { /* ignore */ }
     const elapsed = Math.round((Date.now() - startTime) / 1000);
-    console.error(`[Instagram] FAILED: status=${status} after ${pollCount} polls, ${elapsed}s${errorDetail}`);
+    logger.error("Posts: actor run failed", {
+      channel: "instagram",
+      event: "scan.failed",
+      runId,
+      status,
+      pollCount,
+      elapsedS: elapsed,
+      detail: errorDetail,
+      workspaceId: opts.workspaceId,
+    });
     throw new Error(`Instagram actor ${status} after ${elapsed}s (user: ${handle})`);
   }
 
-  console.log(`[Instagram] Run succeeded, fetching dataset...`);
+  logger.debug("Posts: run succeeded, fetching dataset", {
+    channel: "instagram",
+    event: "scan.fetching_dataset",
+    runId,
+  });
 
   let dataset;
   try {
@@ -492,7 +554,12 @@ export async function scrapeInstagramPosts(
       token,
     );
   } catch (fetchErr) {
-    console.error(`[Instagram] Dataset fetch failed:`, fetchErr);
+    logger.error("Posts: dataset fetch failed", {
+      channel: "instagram",
+      event: "scan.dataset_fetch_failed",
+      runId,
+      datasetId,
+    }, fetchErr);
     throw fetchErr;
   }
 
@@ -500,7 +567,13 @@ export async function scrapeInstagramPosts(
     ? dataset
     : dataset.items ?? [];
 
-  console.log(`[Instagram] Dataset: ${items.length} items. Sample keys: ${items[0] ? Object.keys(items[0]).join(", ") : "empty"}`);
+  logger.debug("Posts: dataset received", {
+    channel: "instagram",
+    event: "scan.dataset_received",
+    runId,
+    itemCount: items.length,
+    sampleKeys: items[0] ? Object.keys(items[0]).join(", ") : "empty",
+  });
 
   let records: NormalizedPost[];
   try {
@@ -508,7 +581,11 @@ export async function scrapeInstagramPosts(
       .map(normalize)
       .filter((p): p is NormalizedPost => !!p.post_id);
   } catch (normErr) {
-    console.error(`[Instagram] Normalize failed:`, normErr);
+    logger.error("Posts: normalize failed", {
+      channel: "instagram",
+      event: "scan.normalize_failed",
+      runId,
+    }, normErr);
     throw normErr;
   }
 
@@ -535,12 +612,25 @@ export async function scrapeInstagramPosts(
       }
       return true;
     });
-    console.log(
-      `[Instagram] Date filter (from=${opts.dateFrom ?? "-"} to=${opts.dateTo ?? "-"}): ${rawCount} fetched, dropped ${droppedOlder} older + ${droppedNewer} newer → ${records.length} kept`
-    );
+    logger.debug("Posts: date filter applied", {
+      channel: "instagram",
+      event: "scan.date_filter",
+      dateFrom: opts.dateFrom ?? null,
+      dateTo: opts.dateTo ?? null,
+      rawCount,
+      droppedOlder,
+      droppedNewer,
+      kept: records.length,
+    });
   }
 
-  console.log(`[Instagram] Normalized: ${records.length} posts`);
+  logger.info("Posts: scrape completed", {
+    channel: "instagram",
+    event: "scan.completed",
+    runId,
+    postCount: records.length,
+    workspaceId: opts.workspaceId,
+  });
 
   let costCu = 0;
   try {

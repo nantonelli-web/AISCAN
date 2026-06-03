@@ -11,6 +11,7 @@ import { cleanSnapchatHandle } from "@/lib/snapchat/service";
 import { cleanYouTubeChannelUrl } from "@/lib/youtube/service";
 import { cleanAdvertiserDomain } from "@/lib/apify/google-ads-service";
 import { coerceCountryForStorage } from "@/lib/meta/country-codes";
+import { logger } from "@/lib/logger";
 
 const schema = z.object({
   page_name: z.string().min(1).max(160),
@@ -113,7 +114,16 @@ export async function POST(req: Request) {
     .single();
 
   if (error) {
-    console.error("[api/competitors]", error);
+    logger.error(
+      "Failed to create competitor",
+      {
+        channel: "competitors",
+        event: "create.failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+      },
+      error,
+    );
     // Surface a useful message to the client. Generic "Server error"
     // hid actionable causes — most often a NOT NULL violation on
     // page_url (when the 0036 migration hasn't been applied yet)
@@ -163,7 +173,17 @@ export async function DELETE(req: Request) {
 
   const { error } = await supabase.from("mait_competitors").delete().eq("id", id);
   if (error) {
-    console.error("[api/competitors]", error);
+    logger.error(
+      "Failed to delete competitor",
+      {
+        channel: "competitors",
+        event: "delete.failed",
+        workspaceId: existing?.workspace_id ?? null,
+        userId: user.id,
+        competitorId: id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
   if (existing?.workspace_id) revalidateTag(competitorsTag(existing.workspace_id));

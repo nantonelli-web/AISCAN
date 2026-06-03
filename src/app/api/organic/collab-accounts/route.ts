@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { logger } from "@/lib/logger";
 
 const ACCOUNT_COLUMNS =
   "handle, platform, full_name, biography, category, verified, followers_count, posts_count, follows_count, tier, profile_pic_url, external_url, enriched_at, enrich_status, classification, classification_confidence, classification_reason, classified_at";
@@ -41,7 +42,16 @@ export async function GET(req: Request) {
     .eq("platform", platform);
 
   if (error) {
-    console.error("[api/organic/collab-accounts]", error);
+    logger.error(
+      "Failed to load collab accounts",
+      {
+        channel: "organic/collab-accounts",
+        event: "list.failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 

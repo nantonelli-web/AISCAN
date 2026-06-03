@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 import { getApifyCredentials } from "@/lib/billing/credentials";
+import { logger } from "@/lib/logger";
 
 /**
  * POST /api/apify/scan-google/resume { job_id }
@@ -161,9 +162,14 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log(
-      `[Google Ads resume] resurrect OK: job=${jobData.id} runId=${jobData.apify_run_id}`,
-    );
+    logger.info(`resurrect OK runId=${jobData.apify_run_id}`, {
+      channel: "scan-google/resume",
+      event: "scan.resumed",
+      jobId: jobData.id,
+      workspaceId: jobData.workspace_id,
+      competitorId: jobData.competitor_id,
+      userId: user.id,
+    });
 
     return NextResponse.json({
       ok: true,
@@ -175,7 +181,18 @@ export async function POST(req: Request) {
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Resume failed";
-    console.error(`[Google Ads resume] FAILED job=${jobData.id}:`, message);
+    logger.error(
+      `resume FAILED: ${message}`,
+      {
+        channel: "scan-google/resume",
+        event: "scan.resume_failed",
+        jobId: jobData.id,
+        workspaceId: jobData.workspace_id,
+        competitorId: jobData.competitor_id,
+        userId: user.id,
+      },
+      e,
+    );
 
     // Rollback dello state e refund crediti
     await admin

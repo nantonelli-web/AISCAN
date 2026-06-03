@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { safeFetch } from "@/lib/security/ssrf";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -97,7 +98,16 @@ export async function GET(req: Request) {
     // token in the query string, no cookie needed.
     cache: "no-store",
   }, { httpsOnly: true }).catch((e) => {
-    console.error("[proxy/tiktok-video] fetch failed:", e);
+    logger.error(
+      "upstream fetch failed",
+      {
+        channel: "proxy/tiktok-video",
+        event: "proxy.fetch_failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+      },
+      e,
+    );
     return null;
   });
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyAdminToken } from "@/lib/admin-jwt";
+import { logger } from "@/lib/logger";
 
 /**
  * Admin Costs API.
@@ -66,11 +67,12 @@ async function fetchOpenRouter(): Promise<OpenRouterUsage> {
 
     if (!response.ok) {
       const text = await response.text().catch(() => "");
-      console.error(
-        "[admin/costs] OpenRouter API error:",
-        response.status,
-        text.slice(0, 200),
-      );
+      logger.error("OpenRouter API error", {
+        channel: "admin/costs",
+        event: "openrouter.http_error",
+        status: response.status,
+        body: text.slice(0, 200),
+      });
       return {
         usage: 0,
         limit: null,
@@ -92,7 +94,11 @@ async function fetchOpenRouter(): Promise<OpenRouterUsage> {
       label: keyData.label ?? null,
     };
   } catch (e) {
-    console.error("[admin/costs] OpenRouter fetch failed:", e);
+    logger.error(
+      "OpenRouter fetch failed",
+      { channel: "admin/costs", event: "openrouter.fetch_failed" },
+      e,
+    );
     return {
       usage: 0,
       limit: null,
@@ -237,7 +243,11 @@ async function fetchApify(): Promise<ApifyUsage> {
       email: typeof me.email === "string" ? me.email : null,
     };
   } catch (e) {
-    console.error("[admin/costs] Apify fetch failed:", e);
+    logger.error(
+      "Apify fetch failed",
+      { channel: "admin/costs", event: "apify.fetch_failed" },
+      e,
+    );
     return {
       planId: null,
       planBasePriceUsd: null,

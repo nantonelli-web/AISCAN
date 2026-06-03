@@ -10,6 +10,7 @@ import {
 import { storeAdImages, storeProfilePicture } from "@/lib/media/store-ad-images";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 import { checkScanConcurrency } from "@/lib/rate-limit/scan-concurrency";
+import { logger } from "@/lib/logger";
 
 export const maxDuration = 300; // seconds
 
@@ -258,14 +259,22 @@ export async function POST(req: Request) {
         if (permanent) {
           profile.profilePicUrl = permanent;
         } else {
-          console.warn(
-            `[Instagram scan] profile pic storage failed for ${competitor.page_name}, keeping CDN URL`
-          );
+          logger.warn("profile pic storage failed, keeping CDN URL", {
+            channel: "instagram/scan",
+            event: "scan.profile_pic_storage_failed",
+            workspaceId: competitor.workspace_id,
+            competitorId: competitor.id,
+            userId: user.id,
+          });
         }
       } else {
-        console.warn(
-          `[Instagram scan] scrape returned no profilePicUrl for ${competitor.page_name}`
-        );
+        logger.warn("scrape returned no profilePicUrl", {
+          channel: "instagram/scan",
+          event: "scan.no_profile_pic",
+          workspaceId: competitor.workspace_id,
+          competitorId: competitor.id,
+          userId: user.id,
+        });
       }
       await admin
         .from("mait_competitors")
@@ -295,9 +304,13 @@ export async function POST(req: Request) {
         raw_metrics: profile as unknown as Record<string, unknown>,
       });
     } else {
-      console.warn(
-        `[Instagram scan] profile scrape returned null for ${competitor.page_name}`
-      );
+      logger.warn("profile scrape returned null", {
+        channel: "instagram/scan",
+        event: "scan.profile_null",
+        workspaceId: competitor.workspace_id,
+        competitorId: competitor.id,
+        userId: user.id,
+      });
     }
 
     // Any cached comparison containing this brand is now out of date
@@ -308,7 +321,14 @@ export async function POST(req: Request) {
       .contains("competitor_ids", [competitor.id]);
 
     // Download images to permanent storage, then upsert
-    console.log(`[Instagram route] Scrape done: ${result.records.length} records, runId=${result.runId}`);
+    logger.info(`scrape done: ${result.records.length} records`, {
+      channel: "instagram/scan",
+      event: "scan.scrape_done",
+      workspaceId: competitor.workspace_id,
+      competitorId: competitor.id,
+      userId: user.id,
+      jobId: job.id,
+    });
     if (result.records.length > 0) {
       // Apify ha finito: stampa subito apify_run_id, PRIMA del
       // salvataggio immagini (la parte lenta: download + storage di
@@ -344,15 +364,38 @@ export async function POST(req: Request) {
         last_seen_in_scan_at: seenAt,
       }));
 
-      console.log(`[Instagram route] Upserting ${rows.length} posts...`);
+      logger.debug(`upserting ${rows.length} posts`, {
+        channel: "instagram/scan",
+        event: "scan.upsert_started",
+        workspaceId: competitor.workspace_id,
+        competitorId: competitor.id,
+        jobId: job.id,
+      });
       const { error: upErr } = await admin
         .from("mait_organic_posts")
         .upsert(rows, { onConflict: "workspace_id,platform,post_id" });
       if (upErr) {
-        console.error(`[Instagram route] Upsert error:`, upErr);
+        logger.error(
+          "posts upsert error",
+          {
+            channel: "instagram/scan",
+            event: "scan.upsert_failed",
+            workspaceId: competitor.workspace_id,
+            competitorId: competitor.id,
+            userId: user.id,
+            jobId: job.id,
+          },
+          upErr,
+        );
         throw upErr;
       }
-      console.log(`[Instagram route] Upsert OK`);
+      logger.debug("upsert OK", {
+        channel: "instagram/scan",
+        event: "scan.upsert_ok",
+        workspaceId: competitor.workspace_id,
+        competitorId: competitor.id,
+        jobId: job.id,
+      });
     }
 
     // Abort checkpoint #2: stop landed AFTER the upsert (rare race).

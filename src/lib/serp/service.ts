@@ -15,6 +15,7 @@
  */
 
 import { getApifyCredentials } from "@/lib/billing/credentials";
+import { logger } from "@/lib/logger";
 
 const APIFY_BASE = "https://api.apify.com/v2";
 const ACTOR_ID = "apify/google-search-scraper";
@@ -276,9 +277,16 @@ export async function scrapeSerpQuery(
     includeUnfilteredResults: false,
   };
 
-  console.log(
-    `[SERP] Starting: actor=${ACTOR_ID} query="${query}" country=${country} lang=${language} mobile=${mobileResults}`,
-  );
+  logger.info("Starting scrape", {
+    channel: "serp",
+    event: "scan.started",
+    actor: ACTOR_ID,
+    query,
+    country,
+    language,
+    mobile: mobileResults,
+    workspaceId: opts.workspaceId,
+  });
 
   // Cost cap — pay-per-result actor priced at $1.80 / 1000 pages.
   // We request a single page (maxPagesPerQuery: 1 above), so the
@@ -300,7 +308,13 @@ export async function scrapeSerpQuery(
   const datasetId: string =
     run.data?.defaultDatasetId ?? run.defaultDatasetId ?? "";
 
-  console.log(`[SERP] Run created: runId=${runId} datasetId=${datasetId}`);
+  logger.info("Run created", {
+    channel: "serp",
+    event: "scan.run_created",
+    runId,
+    datasetId,
+    workspaceId: opts.workspaceId,
+  });
   if (!datasetId) {
     throw new Error("Apify run started but no datasetId returned.");
   }
@@ -318,20 +332,35 @@ export async function scrapeSerpQuery(
     pollCount++;
     const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
     status = runInfo.data?.status ?? runInfo.status ?? status;
-    console.log(
-      `[SERP] Poll #${pollCount}: status=${status} elapsed=${Math.round((Date.now() - startTime) / 1000)}s`,
-    );
+    logger.debug("Poll", {
+      channel: "serp",
+      event: "scan.poll",
+      runId,
+      pollCount,
+      status,
+      elapsedS: Math.round((Date.now() - startTime) / 1000),
+    });
   }
 
   if (status !== "SUCCEEDED") {
     const elapsed = Math.round((Date.now() - startTime) / 1000);
-    console.error(
-      `[SERP] FAILED: status=${status} after ${pollCount} polls, ${elapsed}s`,
-    );
+    logger.error("Actor run failed", {
+      channel: "serp",
+      event: "scan.failed",
+      runId,
+      status,
+      pollCount,
+      elapsedS: elapsed,
+      workspaceId: opts.workspaceId,
+    });
     throw new Error(`SERP actor ${status} after ${elapsed}s (query: "${query}")`);
   }
 
-  console.log(`[SERP] Run succeeded, fetching dataset...`);
+  logger.debug("Run succeeded, fetching dataset", {
+    channel: "serp",
+    event: "scan.fetching_dataset",
+    runId,
+  });
   const dataset = await apifyFetch(
     `/datasets/${datasetId}/items?format=json&limit=10`,
     undefined,
@@ -341,9 +370,13 @@ export async function scrapeSerpQuery(
     ? dataset
     : dataset.items ?? [];
 
-  console.log(
-    `[SERP] Dataset: ${items.length} items. Sample keys: ${items[0] ? Object.keys(items[0]).join(", ") : "empty"}`,
-  );
+  logger.debug("Dataset received", {
+    channel: "serp",
+    event: "scan.dataset_received",
+    runId,
+    itemCount: items.length,
+    sampleKeys: items[0] ? Object.keys(items[0]).join(", ") : "empty",
+  });
 
   // The actor returns 1 dataset item per (query, page) — we asked
   // for 1 page so we expect exactly 1 row. Be defensive: if multiple

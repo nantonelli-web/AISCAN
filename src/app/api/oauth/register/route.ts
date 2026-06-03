@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 import {
   generateClientId,
   generateClientSecret,
@@ -84,15 +85,25 @@ export async function POST(req: Request) {
     is_dynamic: true,
   });
   if (error) {
-    console.error("[oauth/register] insert failed:", error.message);
+    logger.error(
+      "insert failed",
+      { channel: "oauth/register", event: "register.persist_failed", clientId },
+      error,
+    );
     return NextResponse.json(
       { error: "server_error", error_description: error.message },
       { status: 500 },
     );
   }
-  console.log(
-    `[oauth/register] new client=${clientId} name="${parsed.data.client_name ?? ""}" redirect=${parsed.data.redirect_uris.join("|")} auth_method=${authMethod} grants=${grantTypes.join(",")}`,
-  );
+  logger.info("new client registered", {
+    channel: "oauth/register",
+    event: "register.created",
+    clientId,
+    clientName: parsed.data.client_name ?? "",
+    redirectUris: parsed.data.redirect_uris.join("|"),
+    authMethod,
+    grants: grantTypes.join(","),
+  });
 
   // Response RFC 7591: client_secret presente solo per confidential.
   // L'utente non lo rivedra' MAI: dev'essere salvato subito dal client.

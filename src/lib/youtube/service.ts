@@ -22,6 +22,7 @@
  */
 
 import { getApifyCredentials } from "@/lib/billing/credentials";
+import { logger } from "@/lib/logger";
 
 const APIFY_BASE = "https://api.apify.com/v2";
 const ACTOR_ID = "streamers/youtube-channel-scraper";
@@ -359,9 +360,14 @@ export async function scrapeYouTubeChannel(
     sortVideosBy: "NEWEST",
   };
 
-  console.log(
-    `[YouTube] Starting: actor=${ACTOR_ID} url=${channelUrl} max=${maxVideos}`,
-  );
+  logger.info("Starting scrape", {
+    channel: "youtube",
+    event: "scan.started",
+    actor: ACTOR_ID,
+    channelUrl,
+    maxVideos,
+    workspaceId: opts.workspaceId,
+  });
 
   const actorPath = `/acts/${encodeURIComponent(ACTOR_ID)}/runs?maxItems=${maxVideos}`;
   const run = await apifyFetch(actorPath, {
@@ -373,7 +379,13 @@ export async function scrapeYouTubeChannel(
   const datasetId: string =
     run.data?.defaultDatasetId ?? run.defaultDatasetId ?? "";
 
-  console.log(`[YouTube] Run created: runId=${runId} datasetId=${datasetId}`);
+  logger.info("Run created", {
+    channel: "youtube",
+    event: "scan.run_created",
+    runId,
+    datasetId,
+    workspaceId: opts.workspaceId,
+  });
   if (!datasetId) {
     throw new Error("Apify run started but no datasetId returned.");
   }
@@ -391,9 +403,14 @@ export async function scrapeYouTubeChannel(
     pollCount++;
     const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
     status = runInfo.data?.status ?? runInfo.status ?? status;
-    console.log(
-      `[YouTube] Poll #${pollCount}: status=${status} elapsed=${Math.round((Date.now() - startTime) / 1000)}s`,
-    );
+    logger.debug("Poll", {
+      channel: "youtube",
+      event: "scan.poll",
+      runId,
+      pollCount,
+      status,
+      elapsedS: Math.round((Date.now() - startTime) / 1000),
+    });
   }
 
   if (status !== "SUCCEEDED") {
@@ -406,15 +423,26 @@ export async function scrapeYouTubeChannel(
       /* ignore */
     }
     const elapsed = Math.round((Date.now() - startTime) / 1000);
-    console.error(
-      `[YouTube] FAILED: status=${status} after ${pollCount} polls, ${elapsed}s${errorDetail}`,
-    );
+    logger.error("Actor run failed", {
+      channel: "youtube",
+      event: "scan.failed",
+      runId,
+      status,
+      pollCount,
+      elapsedS: elapsed,
+      detail: errorDetail,
+      workspaceId: opts.workspaceId,
+    });
     throw new Error(
       `YouTube actor ${status} after ${elapsed}s (url: ${channelUrl})`,
     );
   }
 
-  console.log(`[YouTube] Run succeeded, fetching dataset...`);
+  logger.debug("Run succeeded, fetching dataset", {
+    channel: "youtube",
+    event: "scan.fetching_dataset",
+    runId,
+  });
   const dataset = await apifyFetch(
     `/datasets/${datasetId}/items?format=json&limit=1000`,
     undefined,
@@ -424,9 +452,13 @@ export async function scrapeYouTubeChannel(
     ? dataset
     : dataset.items ?? [];
 
-  console.log(
-    `[YouTube] Dataset: ${items.length} items. Sample keys: ${items[0] ? Object.keys(items[0]).join(", ") : "empty"}`,
-  );
+  logger.debug("Dataset received", {
+    channel: "youtube",
+    event: "scan.dataset_received",
+    runId,
+    itemCount: items.length,
+    sampleKeys: items[0] ? Object.keys(items[0]).join(", ") : "empty",
+  });
 
   const videos = items
     .map(normalizeVideo)

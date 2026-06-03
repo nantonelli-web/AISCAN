@@ -10,6 +10,7 @@ import {
 import { refundCredits } from "@/lib/credits/consume";
 import { getApifyCredentials } from "@/lib/billing/credentials";
 import { applySubBrandAttribution } from "@/lib/apify/sub-brand-attribution";
+import { logger } from "@/lib/logger";
 
 /**
  * POST /api/apify/scan-google/reconcile { job_id? }
@@ -354,15 +355,26 @@ export async function POST(req: Request) {
             source: "google",
           });
           if (moved.some((m) => m.moved > 0)) {
-            console.log(
-              `[reconcile] sub-brand split for parent=${job.competitor_id}:`,
-              moved.filter((m) => m.moved > 0),
-            );
+            logger.info("sub-brand split applied", {
+              channel: "scan-google/reconcile",
+              event: "scan.sub_brand_split",
+              workspaceId: job.workspace_id,
+              competitorId: job.competitor_id,
+              jobId: job.id,
+              moved: moved.filter((m) => m.moved > 0),
+            });
           }
         } catch (e) {
-          console.error(
-            "[reconcile] sub-brand attribution failed:",
-            e instanceof Error ? e.message : e,
+          logger.error(
+            "sub-brand attribution failed",
+            {
+              channel: "scan-google/reconcile",
+              event: "scan.sub_brand_failed",
+              workspaceId: job.workspace_id,
+              competitorId: job.competitor_id,
+              jobId: job.id,
+            },
+            e,
           );
         }
       }
@@ -448,12 +460,29 @@ export async function POST(req: Request) {
         records_count: result.records.length,
       });
 
-      console.log(
-        `[Reconcile Google] job=${job.id} status=${finalStatus} records=${result.records.length}`,
+      logger.info(
+        `reconcile finalized: status=${finalStatus} records=${result.records.length}`,
+        {
+          channel: "scan-google/reconcile",
+          event: "scan.reconciled",
+          workspaceId: job.workspace_id,
+          competitorId: job.competitor_id,
+          jobId: job.id,
+        },
       );
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Finalize failed";
-      console.error(`[Reconcile Google] failed job=${job.id}:`, message);
+      logger.error(
+        `reconcile failed: ${message}`,
+        {
+          channel: "scan-google/reconcile",
+          event: "scan.reconcile_failed",
+          workspaceId: job.workspace_id,
+          competitorId: job.competitor_id,
+          jobId: job.id,
+        },
+        e,
+      );
       const transitioned = await applyFinalize(
         job.id,
         {

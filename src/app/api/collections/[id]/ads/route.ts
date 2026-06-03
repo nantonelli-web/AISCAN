@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 
 const addSchema = z.object({
   ad_id: z.string().uuid(),
@@ -75,7 +76,17 @@ export async function POST(
     );
 
   if (error) {
-    console.error("[api/collections/:id/ads]", error);
+    logger.error(
+      "Failed to add ad to collection",
+      {
+        channel: "collections/ads",
+        event: "add.failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+        collectionId: id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
   return NextResponse.json({ ok: true });
@@ -117,7 +128,17 @@ export async function DELETE(
     .eq("ad_id", adId);
 
   if (error) {
-    console.error("[api/collections/:id/ads]", error);
+    logger.error(
+      "Failed to remove ad from collection",
+      {
+        channel: "collections/ads",
+        event: "remove.failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+        collectionId: id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
   return NextResponse.json({ ok: true });

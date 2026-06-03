@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -16,7 +17,11 @@ export async function GET(req: Request) {
     await supabase.auth.exchangeCodeForSession(code);
 
   if (sessionError) {
-    console.error("OAuth code exchange failed:", sessionError.message);
+    logger.error(
+      "OAuth code exchange failed",
+      { channel: "auth/callback", event: "callback.exchange_failed" },
+      sessionError,
+    );
     return NextResponse.redirect(
       `${origin}/login?error=${encodeURIComponent(sessionError.message)}`
     );
@@ -110,7 +115,11 @@ export async function GET(req: Request) {
         .single();
 
       if (wsErr) {
-        console.error("OAuth: workspace creation failed:", wsErr.message);
+        logger.error(
+          "workspace creation failed",
+          { channel: "auth/callback", event: "callback.workspace_create_failed", userId: user.id },
+          wsErr,
+        );
         return NextResponse.redirect(
           `${origin}/login?error=${encodeURIComponent("Workspace failed: " + wsErr.message)}`
         );
@@ -125,7 +134,11 @@ export async function GET(req: Request) {
       });
 
       if (userErr) {
-        console.error("OAuth: user creation failed:", userErr.message);
+        logger.error(
+          "user creation failed",
+          { channel: "auth/callback", event: "callback.user_create_failed", userId: user.id, workspaceId: ws.id },
+          userErr,
+        );
         await admin.from("mait_workspaces").delete().eq("id", ws.id);
         return NextResponse.redirect(
           `${origin}/login?error=${encodeURIComponent("User creation failed: " + userErr.message)}`

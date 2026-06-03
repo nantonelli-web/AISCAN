@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { scrapeSerpQuery } from "@/lib/serp/service";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 import { checkScanBudget } from "@/lib/rate-limit/scan-concurrency";
+import { logger } from "@/lib/logger";
 
 export const maxDuration = 300; // seconds
 
@@ -119,7 +120,17 @@ export async function POST(req: Request) {
         .from("mait_serp_results")
         .insert(rows);
       if (insErr) {
-        console.error(`[SERP route] Results insert error:`, insErr);
+        logger.error(
+          "results insert error",
+          {
+            channel: "serp/scan",
+            event: "scan.results_insert_failed",
+            workspaceId: queryRow.workspace_id,
+            userId: user.id,
+            queryId: queryRow.id,
+          },
+          insErr,
+        );
         throw insErr;
       }
     }
@@ -171,7 +182,17 @@ export async function POST(req: Request) {
         .from("mait_serp_result_snapshots")
         .insert(snapshotRows);
       if (snapErr) {
-        console.error(`[SERP route] Snapshot insert error (non-fatal):`, snapErr);
+        logger.warn(
+          "snapshot insert error (non-fatal)",
+          {
+            channel: "serp/scan",
+            event: "scan.snapshot_insert_failed",
+            workspaceId: queryRow.workspace_id,
+            userId: user.id,
+            queryId: queryRow.id,
+          },
+          snapErr,
+        );
       }
     }
 
@@ -196,7 +217,17 @@ export async function POST(req: Request) {
       e && typeof e === "object" && "code" in (e as object)
         ? ((e as { code: unknown }).code as string)
         : null;
-    console.error(`[SERP route] FAILED:`, e);
+    logger.error(
+      `serp scan FAILED: ${message}`,
+      {
+        channel: "serp/scan",
+        event: "scan.failed",
+        workspaceId: queryRow.workspace_id,
+        userId: user.id,
+        queryId: queryRow.id,
+      },
+      e,
+    );
     await refundCredits(
       user.id,
       "scan_serp",

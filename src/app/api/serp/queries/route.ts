@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { cleanQuery } from "@/lib/serp/service";
+import { logger } from "@/lib/logger";
 
 const postSchema = z.object({
   query: z.string().min(1).max(200),
@@ -34,7 +35,15 @@ export async function GET() {
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("[api/serp/queries GET]", error);
+    logger.error(
+      "list queries failed",
+      {
+        channel: "serp/queries",
+        event: "queries.list_failed",
+        userId: user.id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 
@@ -99,7 +108,16 @@ export async function POST(req: Request) {
         { status: 409 },
       );
     }
-    console.error("[api/serp/queries POST]", error);
+    logger.error(
+      "create query failed",
+      {
+        channel: "serp/queries",
+        event: "queries.create_failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 
@@ -114,7 +132,17 @@ export async function POST(req: Request) {
       .from("mait_serp_query_brands")
       .insert(linkRows);
     if (linkErr) {
-      console.error("[api/serp/queries POST link]", linkErr);
+      logger.warn(
+        "brand link insert failed (non-fatal)",
+        {
+          channel: "serp/queries",
+          event: "queries.brand_link_failed",
+          workspaceId: profile.workspace_id,
+          userId: user.id,
+          queryId: inserted.id,
+        },
+        linkErr,
+      );
       // Non-fatal: the query is created; user can re-link manually.
     }
   }

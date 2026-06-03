@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 
 /** Delete an invitation */
 export async function DELETE(
@@ -31,7 +32,17 @@ export async function DELETE(
     .eq("workspace_id", profile.workspace_id);
 
   if (error) {
-    console.error("[api/invitations/:id]", error);
+    logger.error(
+      "Failed to delete invitation",
+      {
+        channel: "invitations",
+        event: "delete.failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+        invitationId: id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
   if (!count) return NextResponse.json({ error: "Not found" }, { status: 404 });

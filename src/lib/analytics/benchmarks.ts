@@ -6,6 +6,7 @@ import {
   normalizeCtaLabel as sharedNormalizeCta,
 } from "@/lib/analytics/ad-shared";
 import { classifyGoogleStrategy } from "@/lib/analytics/google-strategy";
+import { logger } from "@/lib/logger";
 
 export type InferredAudience =
   | "prospecting"
@@ -770,9 +771,15 @@ export async function computeBenchmarks(
       },
     );
     if (rpcErr) {
-      console.error(
-        "[benchmarks] volume RPC failed, falling back to row path:",
-        rpcErr.message,
+      logger.error(
+        "benchmarks volume RPC failed, falling back to row path",
+        {
+          channel: "benchmarks",
+          event: "volume_rpc.failed",
+          workspaceId,
+          source: source ?? null,
+        },
+        rpcErr,
       );
     } else if (rpcRows) {
       vol = volumeMapsFromRpc(rpcRows as VolumeRpcRow[]);

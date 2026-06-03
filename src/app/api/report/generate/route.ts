@@ -15,6 +15,7 @@ import { generateSinglePdf, generateComparisonPdf } from "@/lib/report/generate-
 import { analyzeCopy, analyzeVisuals, type BrandAdData, type CreativeAnalysisResult } from "@/lib/ai/creative-analysis";
 import { extractImagesFromTemplate, type ThemeConfig } from "@/lib/report/parse-template";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
+import { logger } from "@/lib/logger";
 
 export const maxDuration = 300;
 
@@ -569,7 +570,16 @@ export async function POST(req: Request) {
             cfg = { ...cfg, ...images };
           }
         } catch (err) {
-          console.warn("[report/generate] Failed to extract images from template:", err);
+          logger.warn(
+            "Failed to extract images from template",
+            {
+              channel: "report/generate",
+              event: "template.image_extract_failed",
+              workspaceId,
+              userId: user.id,
+            },
+            err,
+          );
         }
       }
       return cfg;
@@ -726,7 +736,16 @@ export async function POST(req: Request) {
       }
     }
   } catch (err) {
-    console.error("[report/generate] Generation failed:", err);
+    logger.error(
+      "Report generation failed",
+      {
+        channel: "report/generate",
+        event: "generate.failed",
+        workspaceId,
+        userId: user.id,
+      },
+      err,
+    );
     await refundCredits(user.id, creditAction, `Report generation: ${parsed.data.type}`);
     return NextResponse.json({ error: "Report generation failed" }, { status: 500 });
   }

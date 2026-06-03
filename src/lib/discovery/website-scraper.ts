@@ -26,6 +26,7 @@
  */
 
 import { safeFetch } from "@/lib/security/ssrf";
+import { logger } from "@/lib/logger";
 
 const FETCH_TIMEOUT_MS = 15_000;
 const MAX_HTML_BYTES = 1_500_000; // 1.5 MB cap — fashion sites can be heavy
@@ -151,7 +152,12 @@ async function fetchHtmlOnce(url: string): Promise<string | null> {
       },
     );
     if (!res.ok) {
-      console.warn(`[discovery] ${url} → HTTP ${res.status}`);
+      logger.warn("Homepage fetch returned non-OK", {
+        channel: "discovery",
+        event: "fetch.http_error",
+        url,
+        status: res.status,
+      });
       return null;
     }
 
@@ -171,10 +177,11 @@ async function fetchHtmlOnce(url: string): Promise<string | null> {
     }
     return html;
   } catch (e) {
-    const err = e as Error;
-    console.warn(
-      `[discovery] ${url} fetch failed: ${err.name}/${err.message}`,
-    );
+    logger.warn("Homepage fetch failed", {
+      channel: "discovery",
+      event: "fetch.failed",
+      url,
+    }, e);
     return null;
   } finally {
     clearTimeout(timer);
@@ -259,7 +266,11 @@ async function fetchViaApify(url: string): Promise<ApifyFallbackResult> {
   const token = process.env.APIFY_API_TOKEN;
   if (!token) return null;
   try {
-    console.log(`[discovery] Apify fallback for ${url}`);
+    logger.info("Apify fallback for homepage fetch", {
+      channel: "discovery",
+      event: "apify_fallback.started",
+      url,
+    });
     const res = await fetch(
       `https://api.apify.com/v2/acts/apify~cheerio-scraper/run-sync-get-dataset-items?token=${encodeURIComponent(token)}&format=json`,
       {
@@ -292,27 +303,49 @@ async function fetchViaApify(url: string): Promise<ApifyFallbackResult> {
           const approvalUrl =
             j.error.data?.approvalUrl ??
             "https://console.apify.com/actors/YrQuEkowkNCLdk4j2?approvePermissions=true";
-          console.warn(`[discovery] Apify needs approval: ${approvalUrl}`);
+          logger.warn("Apify actor needs one-time approval", {
+            channel: "discovery",
+            event: "apify_fallback.needs_approval",
+            url,
+            approvalUrl,
+          });
           return { needsApproval: approvalUrl };
         }
       } catch {
         /* not JSON, fall through */
       }
-      console.warn(`[discovery] Apify HTTP ${res.status}: ${body.slice(0, 200)}`);
+      logger.warn("Apify fallback returned non-OK", {
+        channel: "discovery",
+        event: "apify_fallback.http_error",
+        url,
+        status: res.status,
+        body: body.slice(0, 200),
+      });
       return null;
     }
     const data = (await res.json()) as Array<{ html?: string }>;
     const html = data[0]?.html ?? null;
     if (!html) {
-      console.warn(`[discovery] Apify returned no html`);
+      logger.warn("Apify fallback returned no html", {
+        channel: "discovery",
+        event: "apify_fallback.empty",
+        url,
+      });
       return null;
     }
-    console.log(`[discovery] Apify ok, ${html.length} bytes`);
+    logger.info("Apify fallback ok", {
+      channel: "discovery",
+      event: "apify_fallback.completed",
+      url,
+      bytes: html.length,
+    });
     return html.length > MAX_HTML_BYTES ? html.slice(0, MAX_HTML_BYTES) : html;
   } catch (e) {
-    console.warn(
-      `[discovery] Apify fallback failed: ${(e as Error).message}`,
-    );
+    logger.warn("Apify fallback failed", {
+      channel: "discovery",
+      event: "apify_fallback.failed",
+      url,
+    }, e);
     return null;
   }
 }

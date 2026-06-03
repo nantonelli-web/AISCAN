@@ -18,6 +18,7 @@
  */
 
 import { getApifyCredentials } from "@/lib/billing/credentials";
+import { logger } from "@/lib/logger";
 
 const APIFY_BASE = "https://api.apify.com/v2";
 const ACTOR_ID = "clockworks/tiktok-scraper";
@@ -332,9 +333,15 @@ export async function scrapeTikTokPosts(
     },
   };
 
-  console.log(
-    `[TikTok] Starting: actor=${ACTOR_ID} user=${handle} max=${maxPosts} country=${proxyCountry ?? "-"}`,
-  );
+  logger.info("Starting scrape", {
+    channel: "tiktok",
+    event: "scan.started",
+    actor: ACTOR_ID,
+    handle,
+    maxPosts,
+    proxyCountry: proxyCountry ?? null,
+    workspaceId: opts.workspaceId,
+  });
 
   const actorPath = `/acts/${encodeURIComponent(ACTOR_ID)}/runs?maxItems=${maxPosts}`;
   const run = await apifyFetch(actorPath, {
@@ -346,7 +353,13 @@ export async function scrapeTikTokPosts(
   const datasetId: string =
     run.data?.defaultDatasetId ?? run.defaultDatasetId ?? "";
 
-  console.log(`[TikTok] Run created: runId=${runId} datasetId=${datasetId}`);
+  logger.info("Run created", {
+    channel: "tiktok",
+    event: "scan.run_created",
+    runId,
+    datasetId,
+    workspaceId: opts.workspaceId,
+  });
   if (!datasetId) {
     throw new Error("Apify run started but no datasetId returned.");
   }
@@ -364,9 +377,14 @@ export async function scrapeTikTokPosts(
     pollCount++;
     const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
     status = runInfo.data?.status ?? runInfo.status ?? status;
-    console.log(
-      `[TikTok] Poll #${pollCount}: status=${status} elapsed=${Math.round((Date.now() - startTime) / 1000)}s`,
-    );
+    logger.debug("Poll", {
+      channel: "tiktok",
+      event: "scan.poll",
+      runId,
+      pollCount,
+      status,
+      elapsedS: Math.round((Date.now() - startTime) / 1000),
+    });
   }
 
   if (status !== "SUCCEEDED") {
@@ -379,15 +397,26 @@ export async function scrapeTikTokPosts(
       /* ignore */
     }
     const elapsed = Math.round((Date.now() - startTime) / 1000);
-    console.error(
-      `[TikTok] FAILED: status=${status} after ${pollCount} polls, ${elapsed}s${errorDetail}`,
-    );
+    logger.error("Actor run failed", {
+      channel: "tiktok",
+      event: "scan.failed",
+      runId,
+      status,
+      pollCount,
+      elapsedS: elapsed,
+      detail: errorDetail,
+      workspaceId: opts.workspaceId,
+    });
     throw new Error(
       `TikTok actor ${status} after ${elapsed}s (user: ${handle})`,
     );
   }
 
-  console.log(`[TikTok] Run succeeded, fetching dataset...`);
+  logger.debug("Run succeeded, fetching dataset", {
+    channel: "tiktok",
+    event: "scan.fetching_dataset",
+    runId,
+  });
   const dataset = await apifyFetch(
     `/datasets/${datasetId}/items?format=json&limit=1000`,
     undefined,
@@ -397,9 +426,13 @@ export async function scrapeTikTokPosts(
     ? dataset
     : dataset.items ?? [];
 
-  console.log(
-    `[TikTok] Dataset: ${items.length} items. Sample keys: ${items[0] ? Object.keys(items[0]).join(", ") : "empty"}`,
-  );
+  logger.debug("Dataset received", {
+    channel: "tiktok",
+    event: "scan.dataset_received",
+    runId,
+    itemCount: items.length,
+    sampleKeys: items[0] ? Object.keys(items[0]).join(", ") : "empty",
+  });
 
   const records = items.map(normalizePost);
   const profile = profileFromVideos(items);

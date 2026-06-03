@@ -24,6 +24,7 @@ import {
   classifyCollaborators,
   type AccountToClassify,
 } from "@/lib/organic/collab-classify";
+import { logger } from "@/lib/logger";
 
 // Enrichment fa polling sull'actor Apify (fino a ~5 min per chunk) +
 // la classificazione LLM (fino a ~2 min). 300s e' il margine dello
@@ -211,7 +212,17 @@ export async function POST(req: Request) {
       enriched = res.enriched;
       notFound = res.notFound;
     } catch (err) {
-      console.error("[collab-analyze] enrichment failed:", err);
+      logger.error(
+        "Enrichment failed",
+        {
+          channel: "organic/collab-analyze",
+          event: "enrich.failed",
+          workspaceId,
+          userId: user.id,
+          competitorId: competitor_id,
+        },
+        err,
+      );
       if (chargedClassify) {
         await refundCredits(user.id, classifyAction, "Collab classify");
       }
@@ -251,7 +262,17 @@ export async function POST(req: Request) {
       });
       classified = res.classified;
     } catch (err) {
-      console.error("[collab-analyze] classification failed:", err);
+      logger.error(
+        "Classification failed",
+        {
+          channel: "organic/collab-analyze",
+          event: "classify.failed",
+          workspaceId,
+          userId: user.id,
+          competitorId: competitor_id,
+        },
+        err,
+      );
       // L'enrichment e' andato a buon fine e resta salvato; rimborsiamo
       // solo la classificazione.
       await refundCredits(user.id, classifyAction, "Collab classify");

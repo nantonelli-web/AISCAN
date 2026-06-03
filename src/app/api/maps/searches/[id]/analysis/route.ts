@@ -16,6 +16,7 @@ import {
   type MapsPlaceInput,
 } from "@/lib/maps/analysis";
 import { enforceAiRateLimit } from "@/lib/rate-limit/enforce";
+import { logger } from "@/lib/logger";
 
 export const maxDuration = 150;
 
@@ -283,7 +284,17 @@ export async function POST(
       modelCost,
       "Maps store analysis: persist failed",
     );
-    console.error("[maps/analysis] upsert failed:", upsertErr.message);
+    logger.error(
+      `analysis upsert failed: ${upsertErr.message}`,
+      {
+        channel: "maps/searches/analysis",
+        event: "analysis.upsert_failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+        searchId: id,
+      },
+      upsertErr,
+    );
     return NextResponse.json(
       {
         error:

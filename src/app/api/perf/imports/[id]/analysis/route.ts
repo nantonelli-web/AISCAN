@@ -19,6 +19,7 @@ import {
 import { getLocale } from "@/lib/i18n/server";
 import { enforceAiRateLimit } from "@/lib/rate-limit/enforce";
 import type { ComparisonMode } from "@/lib/perf/comparisons";
+import { logger } from "@/lib/logger";
 
 export const maxDuration = 180;
 
@@ -369,11 +370,17 @@ export async function POST(
       .from("mait_perf_analyses")
       .upsert(row, { onConflict: "import_id,section,locale" });
     if (error) {
-      console.error(
-        `[perf/analysis] upsert failed (section=${section}):`,
-        error.message,
-        error.details ?? "",
-        error.hint ?? "",
+      logger.error(
+        `analysis upsert failed (section=${section}): ${error.message}`,
+        {
+          channel: "perf/imports/analysis",
+          event: "analysis.upsert_failed",
+          workspaceId: profile.workspace_id,
+          userId: user.id,
+          importId: id,
+          section,
+        },
+        error,
       );
       upsertErrors.push(`${section}: ${error.message}`);
       continue;

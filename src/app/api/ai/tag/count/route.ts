@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { logger } from "@/lib/logger";
 
 export async function GET(req: Request) {
   const supabase = await createClient();
@@ -33,7 +34,16 @@ export async function GET(req: Request) {
 
   const { count: adCount, error } = await query;
   if (error) {
-    console.error("[api/ai/tag/count]", error);
+    logger.error(
+      "Failed to count untagged ads",
+      {
+        channel: "ai/tag/count",
+        event: "count.failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 

@@ -9,6 +9,7 @@ import {
   isValidEmail,
   normaliseVat,
 } from "@/config/company";
+import { logger } from "@/lib/logger";
 
 /**
  * GET  /api/user-company  → returns the caller's own company row
@@ -161,7 +162,16 @@ export async function PUT(req: Request) {
     .single();
 
   if (error) {
-    console.error("[/api/user-company] upsert error:", error);
+    logger.error(
+      "Failed to upsert user company",
+      {
+        channel: "user-company",
+        event: "upsert.failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+      },
+      error,
+    );
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

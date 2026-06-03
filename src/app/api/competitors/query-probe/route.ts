@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 
 /**
  * Side-by-side comparison of the exact Benchmarks volume query run via
@@ -116,7 +117,11 @@ export async function GET(req: Request) {
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    console.error("[query-probe]", e);
+    logger.error(
+      "Query probe failed",
+      { channel: "competitors/query-probe", event: "probe.failed" },
+      e,
+    );
     return NextResponse.json({ error: "Server error", detail: message }, { status: 500 });
   }
 }

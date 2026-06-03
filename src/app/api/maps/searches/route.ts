@@ -5,6 +5,7 @@ import {
   cleanMapsSearchTerm,
   cleanMapsLocationQuery,
 } from "@/lib/maps/service";
+import { logger } from "@/lib/logger";
 
 const postSchema = z.object({
   search_term: z.string().min(1).max(200),
@@ -33,7 +34,15 @@ export async function GET() {
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("[api/maps/searches GET]", error);
+    logger.error(
+      "list searches failed",
+      {
+        channel: "maps/searches",
+        event: "searches.list_failed",
+        userId: user.id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 
@@ -134,7 +143,16 @@ export async function POST(req: Request) {
         { status: 409 },
       );
     }
-    console.error("[api/maps/searches POST]", error);
+    logger.error(
+      "create search failed",
+      {
+        channel: "maps/searches",
+        event: "searches.create_failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 

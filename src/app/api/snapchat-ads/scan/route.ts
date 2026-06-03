@@ -20,6 +20,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { scrapeSnapchatAds } from "@/lib/snapchat/ads-service";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 import { checkScanConcurrency } from "@/lib/rate-limit/scan-concurrency";
+import { logger } from "@/lib/logger";
 
 export const maxDuration = 300;
 
@@ -205,7 +206,17 @@ export async function POST(req: Request) {
         .from("mait_snapchat_ads")
         .upsert(rows, { onConflict: "workspace_id,ad_id" });
       if (upErr) {
-        console.error("[SnapchatAds route] Upsert error:", upErr);
+        logger.error(
+          "ads upsert error",
+          {
+            channel: "snapchat-ads/scan",
+            event: "scan.upsert_failed",
+            workspaceId: competitor.workspace_id,
+            competitorId: competitor.id,
+            userId: user.id,
+          },
+          upErr,
+        );
         throw upErr;
       }
     }

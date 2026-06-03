@@ -9,6 +9,7 @@ import {
 import { storeAdImages, storeProfilePicture } from "@/lib/media/store-ad-images";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 import { checkScanConcurrency } from "@/lib/rate-limit/scan-concurrency";
+import { logger } from "@/lib/logger";
 
 export const maxDuration = 300; // seconds
 
@@ -273,9 +274,14 @@ export async function POST(req: Request) {
       .update({ stale: true })
       .contains("competitor_ids", [competitor.id]);
 
-    console.log(
-      `[TikTok route] Scrape done: ${result.records.length} records, runId=${result.runId}`,
-    );
+    logger.info(`scrape done: ${result.records.length} records`, {
+      channel: "tiktok/scan",
+      event: "scan.scrape_done",
+      workspaceId: competitor.workspace_id,
+      competitorId: competitor.id,
+      userId: user.id,
+      jobId: job.id,
+    });
 
     // Apply user-requested date window AFTER the actor returns —
     // the TikTok scraper has no server-side filter, so we drop
@@ -345,10 +351,27 @@ export async function POST(req: Request) {
         .from("mait_tiktok_posts")
         .upsert(rows, { onConflict: "workspace_id,post_id" });
       if (upErr) {
-        console.error(`[TikTok route] Upsert error:`, upErr);
+        logger.error(
+          "posts upsert error",
+          {
+            channel: "tiktok/scan",
+            event: "scan.upsert_failed",
+            workspaceId: competitor.workspace_id,
+            competitorId: competitor.id,
+            userId: user.id,
+            jobId: job.id,
+          },
+          upErr,
+        );
         throw upErr;
       }
-      console.log(`[TikTok route] Upsert OK`);
+      logger.debug("upsert OK", {
+        channel: "tiktok/scan",
+        event: "scan.upsert_ok",
+        workspaceId: competitor.workspace_id,
+        competitorId: competitor.id,
+        jobId: job.id,
+      });
     }
 
     // Abort checkpoint #2: stop landed AFTER the upsert (rare race).

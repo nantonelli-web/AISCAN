@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 
 const createSchema = z.object({
   name: z.string().min(1).max(120),
@@ -32,7 +33,16 @@ export async function GET() {
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("[api/collections]", error);
+    logger.error(
+      "Failed to list collections",
+      {
+        channel: "collections",
+        event: "list.failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 
@@ -84,7 +94,16 @@ export async function POST(req: Request) {
     .single();
 
   if (error) {
-    console.error("[api/collections]", error);
+    logger.error(
+      "Failed to create collection",
+      {
+        channel: "collections",
+        event: "create.failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
   return NextResponse.json({ id: data.id });

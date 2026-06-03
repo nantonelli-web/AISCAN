@@ -8,6 +8,7 @@ import {
   MCP_PROTOCOL_VERSION,
 } from "./types";
 
+import { logger } from "@/lib/logger";
 import { listBrandsTool, searchBrandTool } from "./tools/brands";
 import { listProjectsTool } from "./tools/projects";
 import { getBrandOverviewTool } from "./tools/brand-overview";
@@ -124,7 +125,17 @@ async function handleToolsCall(
     return success(id, result);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "tool execution failed";
-    console.error(`[mcp] tool ${p.name} threw:`, msg);
+    logger.error(
+      "mcp tool threw",
+      {
+        channel: "mcp",
+        event: "tool.threw",
+        workspaceId: ctx.workspaceId,
+        userId: ctx.userId,
+        tool: p.name,
+      },
+      e,
+    );
     return fail(id, RPC_ERROR.INTERNAL_ERROR, msg);
   }
 }

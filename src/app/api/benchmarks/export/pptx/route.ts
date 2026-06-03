@@ -9,6 +9,7 @@ import {
 } from "@/lib/analytics/cached-benchmarks";
 import { buildBenchmarksPptx } from "@/lib/pptx/benchmarks-export";
 import { bufferToArrayBuffer } from "@/lib/pptx/common";
+import { logger } from "@/lib/logger";
 
 export const maxDuration = 180;
 
@@ -152,7 +153,17 @@ export async function GET(req: Request) {
       });
     }
   } catch (e) {
-    console.error("[benchmarks/export/pptx]", e);
+    logger.error(
+      "PPTX generation failed",
+      {
+        channel: "benchmarks/export/pptx",
+        event: "export.failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+        exportChannel: channel,
+      },
+      e,
+    );
     return NextResponse.json(
       {
         error: `Errore generazione PPTX: ${e instanceof Error ? e.message : "unknown"}`,

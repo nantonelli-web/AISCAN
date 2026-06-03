@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser } from "@/lib/auth/session";
+import { logger } from "@/lib/logger";
 
 /** GET /api/perf/imports/[id] — single import + diagnostics. */
 export async function GET(
@@ -77,19 +78,33 @@ export async function DELETE(
         .from("performance-imports")
         .remove([imp.file_path]);
       if (rmErr) {
-        console.warn(
-          `[perf/imports] storage cleanup failed for import ${id} (${imp.file_path}):`,
-          rmErr.message,
+        logger.warn(
+          `storage cleanup failed for import ${id}: ${rmErr.message}`,
+          {
+            channel: "perf/imports",
+            event: "import.storage_cleanup_failed",
+            workspaceId: imp.workspace_id,
+            userId: user.id,
+          },
         );
       } else if (!data || data.length === 0) {
-        console.warn(
-          `[perf/imports] storage cleanup: file ${imp.file_path} not found (already gone?)`,
-        );
+        logger.warn(`storage cleanup: file not found for import ${id}`, {
+          channel: "perf/imports",
+          event: "import.storage_cleanup_missing",
+          workspaceId: imp.workspace_id,
+          userId: user.id,
+        });
       }
     } catch (e) {
-      console.warn(
-        `[perf/imports] storage cleanup threw for import ${id} (${imp.file_path}):`,
-        e instanceof Error ? e.message : e,
+      logger.warn(
+        `storage cleanup threw for import ${id}`,
+        {
+          channel: "perf/imports",
+          event: "import.storage_cleanup_failed",
+          workspaceId: imp.workspace_id,
+          userId: user.id,
+        },
+        e,
       );
     }
   }

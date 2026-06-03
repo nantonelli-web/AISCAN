@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 
 const patchSchema = z.object({
   name: z.string().min(1).max(120).optional(),
@@ -39,7 +40,17 @@ export async function PATCH(
     .eq("workspace_id", profile.workspace_id);
 
   if (error) {
-    console.error("[api/clients/:id]", error);
+    logger.error(
+      "Failed to update client",
+      {
+        channel: "clients",
+        event: "update.failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+        clientId: id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
   if (!count) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -72,7 +83,17 @@ export async function DELETE(
     .eq("id", id)
     .eq("workspace_id", profile.workspace_id);
   if (error) {
-    console.error("[api/clients/:id]", error);
+    logger.error(
+      "Failed to delete client",
+      {
+        channel: "clients",
+        event: "delete.failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+        clientId: id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
   if (!count) return NextResponse.json({ error: "Not found" }, { status: 404 });

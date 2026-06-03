@@ -8,6 +8,7 @@ import {
 } from "@/lib/apify/google-ads-service";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 import { checkScanConcurrency } from "@/lib/rate-limit/scan-concurrency";
+import { logger } from "@/lib/logger";
 
 // Async fire-and-forget: lanciamo il run su Apify e ritorniamo
 // immediatamente. La finalizzazione (fetch dataset + upsert ads)
@@ -56,8 +57,15 @@ export async function POST(req: Request) {
     if (!process.env.APIFY_WEBHOOK_SECRET) missing.push("APIFY_WEBHOOK_SECRET");
     if (!process.env.NEXT_PUBLIC_APP_URL) missing.push("NEXT_PUBLIC_APP_URL");
     if (missing.length > 0) {
-      console.error(
-        `[Google scan] webhook env vars mancanti su questa function: ${missing.join(", ")}`,
+      logger.error(
+        `webhook env vars mancanti su questa function: ${missing.join(", ")}`,
+        {
+          channel: "scan-google",
+          event: "scan.config_missing",
+          userId: user.id,
+          competitorId: parsed.data.competitor_id,
+          missing,
+        },
       );
       return NextResponse.json(
         {

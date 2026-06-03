@@ -29,6 +29,7 @@
  */
 
 import { getApifyCredentials } from "@/lib/billing/credentials";
+import { logger } from "@/lib/logger";
 
 const APIFY_BASE = "https://api.apify.com/v2";
 const ACTOR_ID = "beyondops/tiktok-ad-library-scraper";
@@ -234,9 +235,17 @@ export async function scrapeTiktokCreativeCenter(
   if (opts.adFormat) input.adFormat = opts.adFormat;
   if (opts.orderBy) input.orderBy = opts.orderBy;
 
-  console.log(
-    `[TikTokCC] Starting: actor=${ACTOR_ID} country=${opts.country ?? "—"} industry=${opts.industry ?? "—"} obj=${opts.objective ?? "—"} period=${input.period} max=${input.maxResults}`,
-  );
+  logger.info("Creative Center scrape starting", {
+    channel: "tiktok-ads",
+    event: "creative_center.started",
+    actor: ACTOR_ID,
+    country: opts.country ?? null,
+    industry: opts.industry ?? null,
+    objective: opts.objective ?? null,
+    period: input.period,
+    maxResults: input.maxResults,
+    workspaceId: opts.workspaceId,
+  });
 
   // Same Apify cost-cap pattern. beyondops is paid-per-result
   // ($0.00001) so a 100-result run costs $0.001 — the platform
@@ -288,7 +297,13 @@ export async function scrapeTiktokCreativeCenter(
     ? dataset
     : dataset.items ?? [];
 
-  console.log(`[TikTokCC] Run ${runId} returned ${items.length} ads`);
+  logger.info("Creative Center run completed", {
+    channel: "tiktok-ads",
+    event: "creative_center.completed",
+    runId,
+    adCount: items.length,
+    workspaceId: opts.workspaceId,
+  });
 
   const ads = items
     .map(normalizeItem)

@@ -1,4 +1,5 @@
 import { SignJWT, jwtVerify } from "jose";
+import { logger } from "@/lib/logger";
 
 function getSecret(): Uint8Array {
   const dedicated = process.env.ADMIN_JWT_SECRET;
@@ -12,8 +13,9 @@ function getSecret(): Uint8Array {
   // secret. Falling back to NEXTAUTH_SECRET means a leak of the general
   // app secret also forges admin sessions. Warn loudly in production.
   if (!dedicated && process.env.NODE_ENV === "production") {
-    console.warn(
-      "[admin-jwt] ADMIN_JWT_SECRET not set — falling back to NEXTAUTH_SECRET. Set a dedicated ADMIN_JWT_SECRET to isolate the admin trust domain.",
+    logger.warn(
+      "ADMIN_JWT_SECRET not set — falling back to NEXTAUTH_SECRET. Set a dedicated ADMIN_JWT_SECRET to isolate the admin trust domain.",
+      { channel: "admin-jwt", event: "secret.fallback" },
     );
   }
   return new TextEncoder().encode(raw);
@@ -39,7 +41,12 @@ export async function verifyAdminToken(token: string) {
       email: string;
       role: string;
     };
-  } catch {
+  } catch (err) {
+    logger.debug("jwt verify failed", {
+      channel: "admin-jwt",
+      event: "jwt.verify_failed",
+      errorType: err instanceof Error ? err.name : typeof err,
+    });
     return null;
   }
 }

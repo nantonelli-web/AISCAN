@@ -34,6 +34,7 @@ import {
 } from "@/lib/tiktok-ads/beyondops-service";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 import { checkScanConcurrency } from "@/lib/rate-limit/scan-concurrency";
+import { logger } from "@/lib/logger";
 
 export const maxDuration = 300;
 
@@ -234,7 +235,17 @@ export async function POST(req: Request) {
           .from("mait_tiktok_ads")
           .upsert(rows, { onConflict: "workspace_id,ad_id,source" });
         if (upErr) {
-          console.error("[TikTokAds route] Library upsert error:", upErr);
+          logger.error(
+            "library ads upsert error",
+            {
+              channel: "tiktok-ads/scan",
+              event: "scan.upsert_failed",
+              workspaceId: competitor.workspace_id,
+              competitorId: competitor.id,
+              userId: user.id,
+            },
+            upErr,
+          );
           throw upErr;
         }
       }
@@ -376,7 +387,17 @@ export async function POST(req: Request) {
         .from("mait_tiktok_ads")
         .upsert(rows, { onConflict: "workspace_id,ad_id,source" });
       if (upErr) {
-        console.error("[TikTokAds route] CC upsert error:", upErr);
+        logger.error(
+          "creative-center ads upsert error",
+          {
+            channel: "tiktok-ads/scan",
+            event: "scan.cc_upsert_failed",
+            workspaceId,
+            competitorId: competitorRow?.id ?? null,
+            userId: user.id,
+          },
+          upErr,
+        );
         throw upErr;
       }
     }

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseTemplate } from "@/lib/report/parse-template";
+import { logger } from "@/lib/logger";
 
 /** GET — list templates, optionally filtered by client_id */
 export async function GET(req: Request) {
@@ -35,7 +36,16 @@ export async function GET(req: Request) {
 
   const { data, error } = await q;
   if (error) {
-    console.error("[api/report/templates GET]", error);
+    logger.error(
+      "Failed to list templates",
+      {
+        channel: "report/templates",
+        event: "list.failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+      },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
   return NextResponse.json(data);
@@ -91,7 +101,16 @@ export async function POST(req: Request) {
       .download(storage_path);
 
     if (dlErr || !fileData) {
-      console.error("[templates] Download failed:", dlErr);
+      logger.error(
+        "Template download failed",
+        {
+          channel: "report/templates",
+          event: "download.failed",
+          workspaceId: profile.workspace_id,
+          userId: user.id,
+        },
+        dlErr,
+      );
       return NextResponse.json(
         { error: "Template file not found in storage" },
         { status: 400 }
@@ -101,7 +120,16 @@ export async function POST(req: Request) {
     const buffer = await fileData.arrayBuffer();
     themeConfig = await parseTemplate(buffer);
   } catch (err) {
-    console.warn("[templates] Parse failed, using defaults:", err);
+    logger.warn(
+      "Template parse failed, using defaults",
+      {
+        channel: "report/templates",
+        event: "parse.failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+      },
+      err,
+    );
     const { DEFAULT_THEME } = await import("@/lib/report/parse-template");
     themeConfig = { ...DEFAULT_THEME };
   }
@@ -121,7 +149,16 @@ export async function POST(req: Request) {
     .single();
 
   if (insertErr) {
-    console.error("[templates] Insert failed:", insertErr);
+    logger.error(
+      "Template insert failed",
+      {
+        channel: "report/templates",
+        event: "create.failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+      },
+      insertErr,
+    );
     return NextResponse.json({ error: insertErr.message }, { status: 500 });
   }
 

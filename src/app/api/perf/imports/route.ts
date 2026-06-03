@@ -10,6 +10,7 @@ import {
 } from "@/lib/perf/meta-validator";
 import { parseSnapchatExport } from "@/lib/perf/snapchat-parser";
 import type { PerfDiagnostic } from "@/types/perf";
+import { logger } from "@/lib/logger";
 
 export const maxDuration = 60;
 
@@ -90,8 +91,15 @@ export async function POST(req: Request) {
     .from("performance-imports")
     .download(parsed.data.file_path);
   if (downloadRes.error || !downloadRes.data) {
-    console.error(
-      `[perf/imports] download failed: ${downloadRes.error?.message}`,
+    logger.error(
+      `download failed: ${downloadRes.error?.message}`,
+      {
+        channel: "perf/imports",
+        event: "import.download_failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+      },
+      downloadRes.error,
     );
     return NextResponse.json(
       {
@@ -251,9 +259,13 @@ export async function POST(req: Request) {
       /\bbrand_id\b/.test(first.error.message ?? "") &&
       /(schema cache|column|does not exist)/i.test(first.error.message ?? "")
     ) {
-      console.warn(
-        "[perf/imports] migration 0043 not applied — retrying without brand_id",
-      );
+      logger.warn("migration 0043 not applied — retrying without brand_id", {
+        channel: "perf/imports",
+        event: "import.migration_pending",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+        migration: "0043",
+      });
       diagnostics.push({
         severity: "warning",
         code: "migration_pending",
@@ -272,7 +284,16 @@ export async function POST(req: Request) {
     }
   }
   if (impErr || !imp) {
-    console.error("[perf/imports] insert header failed:", impErr);
+    logger.error(
+      "insert header failed",
+      {
+        channel: "perf/imports",
+        event: "import.header_insert_failed",
+        workspaceId: profile.workspace_id,
+        userId: user.id,
+      },
+      impErr,
+    );
     return NextResponse.json(
       { error: `Insert failed: ${impErr?.message}` },
       { status: 500 },
@@ -382,9 +403,13 @@ export async function POST(req: Request) {
       const isWeekMissing =
         !stripWeekField && schemaCacheMiss && /\bweek\b/.test(msg);
       if (isCreativeMissing) {
-        console.warn(
-          "[perf/imports] migration 0041 not applied — retry without creative_*",
-        );
+        logger.warn("migration 0041 not applied — retry without creative_*", {
+          channel: "perf/imports",
+          event: "import.migration_pending",
+          workspaceId: profile.workspace_id,
+          userId: user.id,
+          migration: "0041",
+        });
         stripCreativeFields = true;
         if (!warning0041Pushed) {
           diagnostics.push({
@@ -399,9 +424,13 @@ export async function POST(req: Request) {
         continue;
       }
       if (isWeekMissing) {
-        console.warn(
-          "[perf/imports] migration 0042 not applied — retry without week",
-        );
+        logger.warn("migration 0042 not applied — retry without week", {
+          channel: "perf/imports",
+          event: "import.migration_pending",
+          workspaceId: profile.workspace_id,
+          userId: user.id,
+          migration: "0042",
+        });
         stripWeekField = true;
         if (!warning0042Pushed) {
           diagnostics.push({
@@ -415,7 +444,17 @@ export async function POST(req: Request) {
         i -= CHUNK;
         continue;
       }
-      console.error("[perf/imports] insert rows failed:", error);
+      logger.error(
+        "insert rows failed",
+        {
+          channel: "perf/imports",
+          event: "import.rows_insert_failed",
+          workspaceId: profile.workspace_id,
+          userId: user.id,
+          importId: imp.id,
+        },
+        error,
+      );
       // Best-effort: roll back header
       await admin.from("mait_perf_imports").delete().eq("id", imp.id);
       return NextResponse.json(

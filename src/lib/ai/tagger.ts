@@ -9,6 +9,7 @@
  */
 
 import { getOpenRouterCredentials } from "@/lib/billing/credentials";
+import { logger } from "@/lib/logger";
 
 export interface AdTagResult {
   sector: string;
@@ -75,7 +76,12 @@ Return ONLY the JSON object, no markdown, no explanation.`;
     });
 
     if (!res.ok) {
-      console.error(`OpenRouter API error: ${res.status} ${res.statusText}`);
+      logger.error("OpenRouter API error", {
+        channel: "ai-tagger",
+        event: "ad.openrouter_error",
+        status: res.status,
+        statusText: res.statusText,
+      });
       return null;
     }
 
@@ -88,7 +94,11 @@ Return ONLY the JSON object, no markdown, no explanation.`;
     const parsed = JSON.parse(clean) as AdTagResult;
     return parsed;
   } catch (e) {
-    console.error("AI tagging failed:", e);
+    logger.error(
+      "AI ad tagging failed",
+      { channel: "ai-tagger", event: "ad.tag_failed" },
+      e,
+    );
     return null;
   }
 }
@@ -147,7 +157,11 @@ Return ONLY the JSON object, no markdown, no explanation.`;
     const clean = text.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
     return JSON.parse(clean) as AdTagResult;
   } catch (e) {
-    console.error("AI post tagging failed:", e);
+    logger.error(
+      "AI post tagging failed",
+      { channel: "ai-tagger", event: "post.tag_failed" },
+      e,
+    );
     return null;
   }
 }
@@ -161,7 +175,11 @@ async function resolveTaggerKey(workspaceId?: string): Promise<string | null> {
     const creds = await getOpenRouterCredentials(workspaceId);
     return creds.token || null;
   } catch (e) {
-    console.error("[tagger] credentials error:", e);
+    logger.error(
+      "tagger credentials error",
+      { channel: "ai-tagger", event: "credentials.failed", workspaceId },
+      e,
+    );
     return null;
   }
 }
@@ -183,7 +201,12 @@ export async function tagPostsBatch(
       })
     );
     for (const s of settled) {
-      if (s.status === "rejected") console.error("Tag post batch failed:", s.reason);
+      if (s.status === "rejected")
+        logger.error(
+          "Tag post batch item failed",
+          { channel: "ai-tagger", event: "post.batch_item_failed", workspaceId },
+          s.reason,
+        );
     }
   }
   return results;
@@ -209,7 +232,11 @@ export async function tagAdsBatch(
     );
     for (const s of settled) {
       if (s.status === "rejected") {
-        console.error("Tag batch item failed:", s.reason);
+        logger.error(
+          "Tag ad batch item failed",
+          { channel: "ai-tagger", event: "ad.batch_item_failed", workspaceId },
+          s.reason,
+        );
       }
     }
   }

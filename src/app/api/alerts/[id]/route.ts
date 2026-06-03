@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { logger } from "@/lib/logger";
 
 export async function PATCH(
   _req: Request,
@@ -17,7 +18,11 @@ export async function PATCH(
     .update({ read: true })
     .eq("id", id);
   if (error) {
-    console.error("[api/alerts/:id]", error);
+    logger.error(
+      "Failed to mark alert read",
+      { channel: "alerts", event: "update.failed", userId: user.id, alertId: id },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
   return NextResponse.json({ ok: true });

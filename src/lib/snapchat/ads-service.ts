@@ -15,6 +15,7 @@
  */
 
 import { SNAP_ADS_EU_COUNTRIES } from "@/lib/snapchat/eu-countries";
+import { logger } from "@/lib/logger";
 
 const SNAP_API_BASE = "https://adsapi.snapchat.com/v1/ads_library";
 
@@ -178,9 +179,11 @@ export async function scrapeSnapchatAds(
     ? requested.filter((c) => !SNAP_ADS_EU_COUNTRIES.has(c))
     : [];
   if (dropped.length > 0) {
-    console.log(
-      `[SnapchatAds] Dropping non-EU countries from request: ${dropped.join(", ")} (Snap DSA API is EU-only).`,
-    );
+    logger.debug("Dropping non-EU countries (Snap DSA API is EU-only)", {
+      channel: "snapchat-ads",
+      event: "search.countries_dropped",
+      dropped: dropped.join(", "),
+    });
   }
   const countries =
     filteredEu && filteredEu.length > 0 ? filteredEu : DEFAULT_EU_COUNTRIES;
@@ -204,9 +207,14 @@ export async function scrapeSnapchatAds(
     status,
   };
 
-  console.log(
-    `[SnapchatAds] Search start: brand="${brandName}" countries=${countries.length} status=${status} max=${maxResults}`,
-  );
+  logger.info("Search start", {
+    channel: "snapchat-ads",
+    event: "search.started",
+    brandName,
+    countries: countries.length,
+    status,
+    maxResults,
+  });
 
   const ads: NormalizedSnapchatAd[] = [];
   let cursorUrl: string | null = `${SNAP_API_BASE}/ads/search`;
@@ -244,14 +252,23 @@ export async function scrapeSnapchatAds(
     }
 
     cursorUrl = json.paging?.next_link ?? null;
-    console.log(
-      `[SnapchatAds] Page ${pagesFetched}: ${ads.length} ads so far${cursorUrl ? ", cursor present" : ", no more pages"}`,
-    );
+    logger.debug("Page fetched", {
+      channel: "snapchat-ads",
+      event: "search.page",
+      brandName,
+      page: pagesFetched,
+      adsSoFar: ads.length,
+      hasCursor: Boolean(cursorUrl),
+    });
   }
 
-  console.log(
-    `[SnapchatAds] Done: ${ads.length} ads in ${pagesFetched} pages.`,
-  );
+  logger.info("Search done", {
+    channel: "snapchat-ads",
+    event: "search.completed",
+    brandName,
+    adCount: ads.length,
+    pagesFetched,
+  });
 
   return { ads, pagesFetched, costCu: 0 };
 }

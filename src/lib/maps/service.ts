@@ -21,6 +21,7 @@
 import { normalizeDomain } from "@/lib/serp/service";
 
 import { getApifyCredentials } from "@/lib/billing/credentials";
+import { logger } from "@/lib/logger";
 
 const APIFY_BASE = "https://api.apify.com/v2";
 const ACTOR_ID = "compass/crawler-google-places";
@@ -206,7 +207,11 @@ async function geocodeLocation(
       },
     );
     if (!res.ok) {
-      console.warn(`[Maps] Nominatim ${res.status}, falling back to text search`);
+      logger.warn("Nominatim geocoding non-OK, falling back to text search", {
+        channel: "maps",
+        event: "geocode.http_error",
+        status: res.status,
+      });
       return null;
     }
     const data = (await res.json()) as Array<{ lat: string; lon: string }>;
@@ -216,7 +221,10 @@ async function geocodeLocation(
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
     return { lat, lng };
   } catch (err) {
-    console.warn(`[Maps] Nominatim error, falling back: ${(err as Error).message}`);
+    logger.warn("Nominatim geocoding error, falling back to text search", {
+      channel: "maps",
+      event: "geocode.failed",
+    }, err);
     return null;
   }
 }
@@ -511,16 +519,34 @@ export async function scrapeMapsPlaces(
   if (geo) {
     const url = buildMapsSearchUrl(searchTerm, geo);
     input.startUrls = [{ url }];
-    console.log(`[Maps] Geocoded "${locationQuery}" → ${geo.lat},${geo.lng}; startUrl=${url}`);
+    logger.debug("Geocoded location to viewport startUrl", {
+      channel: "maps",
+      event: "geocode.resolved",
+      locationQuery,
+      lat: geo.lat,
+      lng: geo.lng,
+      startUrl: url,
+    });
   } else {
     input.searchStringsArray = [searchTerm];
     input.locationQuery = locationQuery;
-    console.log(`[Maps] Geocoding failed for "${locationQuery}", fallback to text search`);
+    logger.debug("Geocoding unavailable, using text search fallback", {
+      channel: "maps",
+      event: "geocode.fallback",
+      locationQuery,
+    });
   }
 
-  console.log(
-    `[Maps] Starting: actor=${ACTOR_ID} term="${searchTerm}" loc="${locationQuery}" max=${maxPlaces} reviews=${maxReviewsPerPlace}`,
-  );
+  logger.info("Starting scrape", {
+    channel: "maps",
+    event: "scan.started",
+    actor: ACTOR_ID,
+    searchTerm,
+    locationQuery,
+    maxPlaces,
+    maxReviewsPerPlace,
+    workspaceId: opts.workspaceId,
+  });
 
   const actorPath = `/acts/${encodeURIComponent(ACTOR_ID)}/runs?maxItems=${maxPlaces}`;
   const run = await apifyFetch(actorPath, {
@@ -532,7 +558,13 @@ export async function scrapeMapsPlaces(
   const datasetId: string =
     run.data?.defaultDatasetId ?? run.defaultDatasetId ?? "";
 
-  console.log(`[Maps] Run created: runId=${runId} datasetId=${datasetId}`);
+  logger.info("Run created", {
+    channel: "maps",
+    event: "scan.run_created",
+    runId,
+    datasetId,
+    workspaceId: opts.workspaceId,
+  });
   if (!datasetId) {
     throw new Error("Apify run started but no datasetId returned.");
   }
@@ -550,22 +582,37 @@ export async function scrapeMapsPlaces(
     pollCount++;
     const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
     status = runInfo.data?.status ?? runInfo.status ?? status;
-    console.log(
-      `[Maps] Poll #${pollCount}: status=${status} elapsed=${Math.round((Date.now() - startTime) / 1000)}s`,
-    );
+    logger.debug("Poll", {
+      channel: "maps",
+      event: "scan.poll",
+      runId,
+      pollCount,
+      status,
+      elapsedS: Math.round((Date.now() - startTime) / 1000),
+    });
   }
 
   if (status !== "SUCCEEDED") {
     const elapsed = Math.round((Date.now() - startTime) / 1000);
-    console.error(
-      `[Maps] FAILED: status=${status} after ${pollCount} polls, ${elapsed}s`,
-    );
+    logger.error("Actor run failed", {
+      channel: "maps",
+      event: "scan.failed",
+      runId,
+      status,
+      pollCount,
+      elapsedS: elapsed,
+      workspaceId: opts.workspaceId,
+    });
     throw new Error(
       `Maps actor ${status} after ${elapsed}s (term: "${searchTerm}")`,
     );
   }
 
-  console.log(`[Maps] Run succeeded, fetching dataset...`);
+  logger.debug("Run succeeded, fetching dataset", {
+    channel: "maps",
+    event: "scan.fetching_dataset",
+    runId,
+  });
   const dataset = await apifyFetch(
     `/datasets/${datasetId}/items?format=json&limit=200`,
     undefined,
@@ -575,9 +622,13 @@ export async function scrapeMapsPlaces(
     ? dataset
     : dataset.items ?? [];
 
-  console.log(
-    `[Maps] Dataset: ${items.length} places. Sample keys: ${items[0] ? Object.keys(items[0]).slice(0, 12).join(", ") : "empty"}`,
-  );
+  logger.debug("Dataset received", {
+    channel: "maps",
+    event: "scan.dataset_received",
+    runId,
+    placeCount: items.length,
+    sampleKeys: items[0] ? Object.keys(items[0]).slice(0, 12).join(", ") : "empty",
+  });
 
   const places = items
     .map(normalizePlace)

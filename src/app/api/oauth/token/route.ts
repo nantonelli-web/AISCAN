@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 import {
   getClientById,
   verifyClientSecret,
@@ -42,10 +43,12 @@ function tokenError(
   status = 400,
   debug?: Record<string, unknown>,
 ): NextResponse {
-  console.error(
-    `[oauth/token] ${error}: ${description}`,
-    debug ? JSON.stringify(debug) : "",
-  );
+  logger.error(`${error}: ${description}`, {
+    channel: "oauth/token",
+    event: "token.error",
+    oauthError: error,
+    ...(debug ?? {}),
+  });
   return NextResponse.json(
     { error, error_description: description },
     {
@@ -164,9 +167,11 @@ async function authenticateClient(
   // handleAuthorizationCode) chiudera' il cerchio. Vale solo per
   // grant=authorization_code.
   if (body.grant_type === "authorization_code" && body.code_verifier) {
-    console.log(
-      `[oauth/token] PKCE-only auth accepted for confidential client ${clientId} (no secret presented)`,
-    );
+    logger.info("PKCE-only auth accepted for confidential client (no secret presented)", {
+      channel: "oauth/token",
+      event: "client.pkce_only_accepted",
+      clientId,
+    });
     return client;
   }
   // Refresh-token grant: il refresh_token stesso e' proof-of-
@@ -175,9 +180,11 @@ async function authenticateClient(
   // autenticato. Accettiamo senza secret per coerenza con il
   // downgrade PKCE-only applicato all'authorization_code.
   if (body.grant_type === "refresh_token" && body.refresh_token) {
-    console.log(
-      `[oauth/token] refresh_token auth accepted for confidential client ${clientId} (no secret presented)`,
-    );
+    logger.info("refresh_token auth accepted for confidential client (no secret presented)", {
+      channel: "oauth/token",
+      event: "client.refresh_token_accepted",
+      clientId,
+    });
     return client;
   }
   return {
@@ -207,12 +214,20 @@ async function issueTokensForGrant(
     refresh_token_expires_at: expiresAt(TOKEN_TTL.refreshTokenSecs),
   });
   if (error) {
-    console.error("[oauth/token] insert token failed:", error.message);
+    logger.error(
+      "insert token failed",
+      { channel: "oauth/token", event: "token.persist_failed", clientId: client.client_id, userId },
+      error,
+    );
     throw new Error(`Failed to persist token: ${error.message}`);
   }
-  console.log(
-    `[oauth/token] issued tokens for client=${client.client_id} user=${userId} scopes=${scopes.join(",")}`,
-  );
+  logger.info("issued tokens", {
+    channel: "oauth/token",
+    event: "token.issued",
+    clientId: client.client_id,
+    userId,
+    scopes: scopes.join(","),
+  });
   return {
     access_token: accessToken,
     token_type: "Bearer",
@@ -400,9 +415,13 @@ export async function POST(req: Request) {
   const grant = body.grant_type;
   // Log non-sensitive keys per debug. NON loggare valori dei
   // token / verifier / secret.
-  console.log(
-    `[oauth/token] POST grant=${grant} keys=${Object.keys(body).join(",")} basic=${!!req.headers.get("authorization")}`,
-  );
+  logger.info("POST", {
+    channel: "oauth/token",
+    event: "token.request",
+    grant,
+    bodyKeys: Object.keys(body).join(","),
+    hasBasicAuth: !!req.headers.get("authorization"),
+  });
   if (!grant) {
     return tokenError("invalid_request", "Missing grant_type", 400, {
       bodyKeys: Object.keys(body),
@@ -411,9 +430,12 @@ export async function POST(req: Request) {
 
   const auth = await authenticateClient(req, body);
   if ("error" in auth) {
-    console.error(
-      `[oauth/token] client auth failed: ${auth.error} — ${auth.reason}`,
-    );
+    logger.error("client auth failed", {
+      channel: "oauth/token",
+      event: "client.auth_failed",
+      oauthError: auth.error,
+      reason: auth.reason,
+    });
     return NextResponse.json(
       {
         error: auth.error,
@@ -429,9 +451,12 @@ export async function POST(req: Request) {
     );
   }
   const client = auth;
-  console.log(
-    `[oauth/token] client OK: ${client.client_id} (${client.client_name})`,
-  );
+  logger.info("client OK", {
+    channel: "oauth/token",
+    event: "client.auth_ok",
+    clientId: client.client_id,
+    clientName: client.client_name,
+  });
 
   if (grant === "authorization_code") {
     if (!client.grant_types.includes("authorization_code")) {

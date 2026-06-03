@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import { logger } from "@/lib/logger";
 
 /**
  * Theme configuration extracted from a PPTX template file.
@@ -182,7 +183,11 @@ export async function parseTemplate(buffer: ArrayBuffer): Promise<ThemeConfig> {
       contentBackground,
     };
   } catch (err) {
-    console.warn("[parse-template] Failed, using defaults:", err);
+    logger.warn(
+      "parse-template failed, using defaults",
+      { channel: "report", event: "template.parse_failed" },
+      err,
+    );
     return { ...DEFAULT_THEME };
   }
 }
@@ -247,7 +252,11 @@ export async function extractImagesFromTemplate(buffer: ArrayBuffer): Promise<{
 
     return { coverImageBase64, coverImageMimeType, logoBase64, logoMimeType };
   } catch (err) {
-    console.warn("[extractImages] Failed:", err);
+    logger.warn(
+      "extractImages failed",
+      { channel: "report", event: "template.extract_images_failed" },
+      err,
+    );
     return { coverImageBase64: null, coverImageMimeType: null, logoBase64: null, logoMimeType: null };
   }
 }

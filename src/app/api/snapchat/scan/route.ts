@@ -9,6 +9,7 @@ import {
 import { storeProfilePicture } from "@/lib/media/store-ad-images";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 import { checkScanConcurrency } from "@/lib/rate-limit/scan-concurrency";
+import { logger } from "@/lib/logger";
 
 export const maxDuration = 300; // seconds
 
@@ -257,7 +258,17 @@ export async function POST(req: Request) {
         competitor_id: competitor.id,
       });
     if (insertErr) {
-      console.error(`[Snapchat route] Insert error:`, insertErr);
+      logger.error(
+        "profile insert error",
+        {
+          channel: "snapchat/scan",
+          event: "scan.profile_insert_failed",
+          workspaceId: competitor.workspace_id,
+          competitorId: competitor.id,
+          userId: user.id,
+        },
+        insertErr,
+      );
       throw insertErr;
     }
 
@@ -272,7 +283,13 @@ export async function POST(req: Request) {
       followers_count: result.profile.subscriber_count ?? null,
       raw_metrics: result.profile as unknown as Record<string, unknown>,
     });
-    console.log(`[Snapchat route] Snapshot stored`);
+    logger.info("snapshot stored", {
+      channel: "snapchat/scan",
+      event: "scan.snapshot_stored",
+      workspaceId: competitor.workspace_id,
+      competitorId: competitor.id,
+      userId: user.id,
+    });
 
     // Any cached comparison containing this brand is now out of date.
     await admin

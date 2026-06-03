@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 import {
   generateToken,
   hashToken,
@@ -72,12 +73,28 @@ export async function approveConsent(args: {
     expires_at: expiresAt(TOKEN_TTL.authorizationCodeSecs),
   });
   if (error) {
-    console.error("[oauth/consent] insert authorization failed:", error.message);
+    logger.error(
+      "insert authorization failed",
+      {
+        channel: "oauth/consent",
+        event: "consent.persist_failed",
+        clientId: args.clientId,
+        userId: profile.id,
+        workspaceId: profile.workspace_id,
+      },
+      error,
+    );
     throw new Error("Errore interno");
   }
-  console.log(
-    `[oauth/consent] approved: client=${args.clientId} user=${profile.id} redirect=${args.redirectUri} scopes=${grantedScopes.join(",")}`,
-  );
+  logger.info("approved", {
+    channel: "oauth/consent",
+    event: "consent.approved",
+    clientId: args.clientId,
+    userId: profile.id,
+    workspaceId: profile.workspace_id,
+    redirectUri: args.redirectUri,
+    scopes: grantedScopes.join(","),
+  });
 
   const params = new URLSearchParams({
     code,
