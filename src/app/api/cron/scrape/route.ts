@@ -5,6 +5,7 @@ import { scrapeGoogleAds } from "@/lib/apify/google-ads-service";
 import { reconcileMetaAdStatus } from "@/lib/apify/reconcile-status";
 import { storeAdImages, storeProfilePicture } from "@/lib/media/store-ad-images";
 import { checkDailyCostCap, checkGlobalCostCap } from "@/lib/apify/batch-safety";
+import { logger } from "@/lib/logger";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
@@ -37,7 +38,11 @@ export async function GET(req: Request) {
     .select("id, workspace_id, page_id, page_name, page_url, country, monitor_config, google_advertiser_id, google_domain");
 
   if (error) {
-    console.error("[cron/scrape competitors list]", error);
+    logger.error(
+      "Failed to load competitors list",
+      { channel: "cron/scrape", event: "cron.competitors_list.failed" },
+      error,
+    );
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 
@@ -73,8 +78,14 @@ export async function GET(req: Request) {
   const due = dueAll.slice(0, MAX_PER_RUN);
   const skippedForCap = dueAll.length - due.length;
   if (skippedForCap > 0) {
-    console.warn(
-      `[cron/scrape] ${skippedForCap} brand(s) over the per-run cap (${MAX_PER_RUN}) — not scraped this run. Shard the cron or raise CRON_MAX_SCANS_PER_RUN.`,
+    logger.warn(
+      `${skippedForCap} brand(s) over the per-run cap (${MAX_PER_RUN}) — not scraped this run. Shard the cron or raise CRON_MAX_SCANS_PER_RUN.`,
+      {
+        channel: "cron/scrape",
+        event: "cron.per_run_cap.skipped",
+        skipped: skippedForCap,
+        cap: MAX_PER_RUN,
+      },
     );
   }
 
@@ -160,8 +171,15 @@ export async function GET(req: Request) {
           result.scannedCountries,
         );
         if (inactivated > 0) {
-          console.log(
-            `[cron/scrape] Reconciled ${inactivated} stale ACTIVE ads for ${c.page_name ?? c.id}`,
+          logger.info(
+            `Reconciled ${inactivated} stale ACTIVE ads for ${c.page_name ?? c.id}`,
+            {
+              channel: "cron/scrape",
+              event: "cron.reconcile.stale_ads",
+              workspaceId: c.workspace_id,
+              competitorId: c.id,
+              inactivated,
+            },
           );
         }
       }
@@ -190,8 +208,19 @@ export async function GET(req: Request) {
               .upsert(gRows, { onConflict: "workspace_id,ad_archive_id,source" });
             totalRecords += gResult.records.length;
           }
-        } catch {
-          // Google scrape failure should not block the Meta result
+        } catch (gErr) {
+          // Google scrape failure must not block the Meta result, but it
+          // must NOT be silent either (this used to be an empty catch).
+          logger.warn(
+            "Google scrape failed during cron (Meta result preserved)",
+            {
+              channel: "cron/scrape",
+              event: "scrape.google.failed",
+              workspaceId: c.workspace_id,
+              competitorId: c.id,
+            },
+            gErr,
+          );
         }
       }
 
@@ -227,6 +256,18 @@ export async function GET(req: Request) {
       });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Scrape failed";
+      logger.error(
+        "Cron scrape failed for competitor",
+        {
+          channel: "cron/scrape",
+          event: "scrape.failed",
+          workspaceId: c.workspace_id,
+          competitorId: c.id,
+          jobId: job.id,
+          frequency,
+        },
+        e,
+      );
       await admin
         .from("mait_scrape_jobs")
         .update({

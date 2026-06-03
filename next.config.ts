@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 // Baseline CSP compatible with Next.js App Router.
 // `unsafe-inline`/`unsafe-eval` for script-src are required by Next's runtime
@@ -36,6 +37,13 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Pin the workspace root to this project. Without it, a stray
+  // package-lock.json higher up the tree (e.g. in the user's home dir)
+  // makes Next infer the wrong root, which breaks next/font resolution
+  // ("fontLoader is not a function") on local builds. On Vercel the
+  // root is already correct; this just makes local builds deterministic
+  // and silences the multi-lockfile warning.
+  outputFileTracingRoot: process.cwd(),
   poweredByHeader: false,
   images: {
     remotePatterns: [
@@ -75,4 +83,18 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Wrap with Sentry. This preserves the nextConfig above (CSP, headers,
+// redirects, images) untouched — withSentryConfig only injects the
+// build-time bundler plugin (sourcemap upload) + the same-origin
+// `/monitoring` tunnel route. Sourcemap upload needs SENTRY_ORG /
+// SENTRY_PROJECT / SENTRY_AUTH_TOKEN at build time; without them the
+// build still succeeds (stacks just stay minified).
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  tunnelRoute: "/monitoring",
+  widenClientFileUpload: true,
+  sourcemaps: { deleteSourcemapsAfterUpload: true },
+});
