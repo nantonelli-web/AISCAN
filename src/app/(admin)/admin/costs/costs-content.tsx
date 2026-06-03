@@ -7,6 +7,7 @@ import {
   ExternalLink,
   Sparkles,
   Bot,
+  Scale,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,9 +41,39 @@ interface ApifyUsage {
   error?: string;
 }
 
+interface ChannelMargin {
+  source: string;
+  scans: number;
+  creditsPerScan: number;
+  realCostUsd: number;
+  revenueEur: number;
+  costEur: number;
+  marginEur: number;
+  marginPct: number | null;
+  lowMargin: boolean;
+}
+
+interface MarginBlock {
+  fxRate: number;
+  windowDays: number;
+  revenueEur30d: number;
+  scrapingCostUsd30d: number;
+  scrapingCostEur30d: number;
+  channels: ChannelMargin[];
+  upstream: {
+    revenueEur30d: number;
+    costUsdMtd: number;
+    costEurMtd: number;
+    marginEur: number;
+    marginPct: number | null;
+  };
+  error?: string;
+}
+
 interface CostsPayload {
   llm: OpenRouterUsage;
   apify: ApifyUsage;
+  margin: MarginBlock;
 }
 
 /**
@@ -52,6 +83,28 @@ interface CostsPayload {
 function fmtUsd(n: number, digits = 2): string {
   return `$${n.toFixed(digits)}`;
 }
+
+function fmtEur(n: number, digits = 2): string {
+  return `€${n.toFixed(digits)}`;
+}
+
+function fmtPct(n: number | null): string {
+  return n === null ? "—" : `${n.toFixed(0)}%`;
+}
+
+const APIFY_SOURCE_LABELS: Record<string, string> = {
+  meta: "Meta Ads",
+  google: "Google Ads",
+  instagram: "Instagram",
+  tiktok: "TikTok",
+  tiktok_ads: "TikTok Ads",
+  tiktok_cc: "TikTok Creative Center",
+  youtube: "YouTube",
+  snapchat: "Snapchat",
+  snapchat_ads: "Snapchat Ads",
+  serp: "Google SERP",
+  maps: "Google Maps",
+};
 
 function fmtDate(iso: string | null): string {
   if (!iso) return "—";
@@ -108,6 +161,7 @@ export function CostsContent() {
 
   const llm = data?.llm;
   const apify = data?.apify;
+  const margin = data?.margin;
   const llmRemaining =
     llm?.limit != null ? Math.max(0, llm.limit - llm.usage) : null;
   const llmPct = llm?.limit ? Math.min(100, (llm.usage / llm.limit) * 100) : 0;
@@ -134,6 +188,111 @@ export function CostsContent() {
           Refresh
         </Button>
       </div>
+
+      {/* ─── Margine (EUR ricavi vs USD costo reale) ───────── */}
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Scale className="size-4 text-gold" />
+            Margine — ricavi (€) vs costo reale ($)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {margin?.error && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-400/40 bg-amber-400/10 p-3 text-xs text-amber-300">
+              <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+              <span>{margin.error}</span>
+            </div>
+          )}
+
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            I crediti sono venduti in EUR, i costi reali (Apify/OpenRouter)
+            sono in USD. Stima al tasso manuale{" "}
+            <span className="font-medium text-foreground">
+              1€ = ${margin?.fxRate?.toFixed(2) ?? "—"}
+            </span>{" "}
+            (modificabile in <code>config/pricing.ts</code>). Non è
+            contabilità: è una bussola per capire se i prezzi in crediti
+            coprono i costi.
+          </p>
+
+          {/* P&L upstream */}
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Stat
+              label={`Ricavi (${margin?.windowDays ?? 30}g)`}
+              value={fmtEur(margin?.revenueEur30d ?? 0)}
+              hint="Richieste crediti evase nel periodo"
+            />
+            <Stat
+              label="Costo upstream (ciclo)"
+              value={fmtEur(margin?.upstream.costEurMtd ?? 0)}
+              hint={`Apify + OpenRouter, ${fmtUsd(margin?.upstream.costUsdMtd ?? 0)} → €`}
+            />
+            <Stat
+              label="Margine upstream"
+              value={fmtEur(margin?.upstream.marginEur ?? 0)}
+              hint={`${fmtPct(margin?.upstream.marginPct ?? null)} dei ricavi`}
+              warn={(margin?.upstream.marginEur ?? 0) < 0}
+            />
+          </div>
+
+          {/* Per-channel margin table */}
+          {margin && margin.channels.length > 0 && (
+            <div className="space-y-2 pt-3 border-t border-border">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Margine per canale (ultimi {margin.windowDays}g) — costo reale da cost_cu
+              </p>
+              <div className="rounded-md border border-border divide-y divide-border">
+                <div className="grid grid-cols-[1.4fr_auto_auto_auto_auto] gap-3 px-3 py-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <span>Canale</span>
+                  <span className="text-right">Scan</span>
+                  <span className="text-right">Costo $</span>
+                  <span className="text-right">Ricavo €</span>
+                  <span className="text-right">Margine</span>
+                </div>
+                {margin.channels.map((c) => (
+                  <div
+                    key={c.source}
+                    className="grid grid-cols-[1.4fr_auto_auto_auto_auto] gap-3 px-3 py-2 text-xs items-center"
+                  >
+                    <span className="text-foreground/80 truncate flex items-center gap-1.5">
+                      {APIFY_SOURCE_LABELS[c.source] ?? c.source}
+                      {c.lowMargin && (
+                        <Badge variant="outline" className="text-amber-400 border-amber-400/40">
+                          margine basso
+                        </Badge>
+                      )}
+                    </span>
+                    <span className="text-muted-foreground tabular-nums text-right">
+                      {c.scans}
+                    </span>
+                    <span className="text-muted-foreground tabular-nums text-right">
+                      {fmtUsd(c.realCostUsd, 2)}
+                    </span>
+                    <span className="text-muted-foreground tabular-nums text-right">
+                      {fmtEur(c.revenueEur, 2)}
+                    </span>
+                    <span
+                      className={
+                        c.marginPct !== null && c.marginPct < 0
+                          ? "font-medium text-amber-400 tabular-nums text-right"
+                          : "font-medium text-foreground tabular-nums text-right"
+                      }
+                    >
+                      {fmtEur(c.marginEur, 2)} ({fmtPct(c.marginPct)})
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground/80 leading-snug">
+                Ricavo per canale = scan × crediti/scan × €/credito del pack
+                più conveniente (stima conservativa). &quot;Margine basso&quot; ={" "}
+                &lt; 50% di margine: valuta di ri-tarare i crediti di quel canale.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* ─── OpenRouter (LLM) ─────────────────────────────── */}
       <Card>

@@ -107,6 +107,15 @@ export function getCreditPack(credits: number): CreditPack {
 
 export const creditCosts: Record<CreditAction, number> = {
   scan_meta: 5,
+  // ⚠️ COSTO REALE CAMBIATO 2026-06-12: l'actor Google
+  // (silva95gustavo/google-ads-scraper) è passato a pay-per-event
+  // ($1.60/1000 ads). Uno scan da ~200 ads ora costa ~$0.32 (≈ €0.30),
+  // NON più ~$0.0018 come quando furono fissati questi 2 crediti.
+  // 2 crediti ≈ €0.36–0.60 di ricavo a seconda del pack → margine
+  // sottile sui pack grandi. Tenuto a 2 per non alzare i prezzi ai
+  // clienti senza decisione esplicita; il margine reale è ora visibile
+  // nella pagina admin /admin/costs (sezione Margine). Alzare a 3 se
+  // il margine risulta troppo magro. Vedi memory project_apify_actor_switch.
   scan_google: 2,
   scan_instagram: 2,
   // TikTok actor (clockworks/tiktok-scraper) costs $1.70/1000 results
@@ -198,8 +207,43 @@ export function collabEnrichCost(accountCount: number): number {
 }
 
 // ---------------------------------------------------------------------------
-// Constants
+// Currency bridge (EUR sold ↔ USD real cost)
 // ---------------------------------------------------------------------------
+// I crediti sono venduti in EUR (creditPacks) ma i costi reali (Apify,
+// OpenRouter, cost cap) arrivano in USD. NON esiste un feed di cambio
+// live: questo è un tasso MANUALE, da aggiornare a mano quando l'euro si
+// muove molto. Serve solo a stimare il margine nella pagina admin costi —
+// non tocca prezzi né addebiti. Conservativo: un tasso più basso (euro
+// debole) gonfia il costo in € → margine stimato più prudente.
+export const EUR_USD_RATE = 1.08;
+
+/** Converte un importo USD in EUR usando il tasso manuale sopra. */
+export function usdToEur(usd: number): number {
+  if (!Number.isFinite(usd)) return 0;
+  return usd / EUR_USD_RATE;
+}
+
+/** €/credito del pack più conveniente (prezzo unitario minimo). Usato
+ *  come stima CONSERVATIVA del ricavo per credito: se un'azione è in
+ *  margine positivo a questo prezzo, lo è anche su tutti i pack più
+ *  piccoli (dove il credito costa di più al cliente). */
+export function minEurPerCredit(): number {
+  return Math.min(...creditPacks.map(pricePerCredit));
+}
+
+/** Stima di margine per un'azione, dato il costo reale in USD del run.
+ *  Ricavo = crediti addebitati × €/credito (conservativo). Costo = USD→EUR.
+ *  marginPct null se il ricavo è 0 (azione gratuita). */
+export function estimateActionMargin(
+  creditsCharged: number,
+  realCostUsd: number,
+): { revenueEur: number; costEur: number; marginEur: number; marginPct: number | null } {
+  const revenueEur = creditsCharged * minEurPerCredit();
+  const costEur = usdToEur(realCostUsd);
+  const marginEur = revenueEur - costEur;
+  const marginPct = revenueEur > 0 ? (marginEur / revenueEur) * 100 : null;
+  return { revenueEur, costEur, marginEur, marginPct };
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
