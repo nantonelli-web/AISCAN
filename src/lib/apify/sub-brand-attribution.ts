@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { logger } from "@/lib/logger";
 
 /**
  * Sub-brand attribution splitter.
@@ -36,9 +37,15 @@ export async function applySubBrandAttribution(
     .eq("parent_brand_id", args.parentBrandId)
     .not("attribution_url_patterns", "is", null);
   if (subErr) {
-    console.error(
-      "[sub-brand-attribution] subBrands lookup failed:",
-      subErr.message,
+    logger.error(
+      "Sub-brand lookup failed",
+      {
+        channel: "sub-brand-attribution",
+        event: "subbrand.lookup_failed",
+        workspaceId: args.workspaceId,
+        competitorId: args.parentBrandId,
+      },
+      subErr,
     );
     return [];
   }
@@ -69,16 +76,31 @@ export async function applySubBrandAttribution(
       .filter("landing_url", "~*", combined)
       .select("id");
     if (error) {
-      console.error(
-        `[sub-brand-attribution] update failed for sub ${sub.id} (${sub.page_name}):`,
-        error.message,
+      logger.error(
+        `Sub-brand attribution update failed for ${sub.page_name ?? sub.id}`,
+        {
+          channel: "sub-brand-attribution",
+          event: "subbrand.update_failed",
+          workspaceId: args.workspaceId,
+          competitorId: args.parentBrandId,
+          subBrandId: sub.id,
+        },
+        error,
       );
       continue;
     }
     const moved = (data as { id: string }[] | null)?.length ?? 0;
     if (moved > 0) {
-      console.log(
-        `[sub-brand-attribution] moved ${moved} ads from parent ${args.parentBrandId} → sub ${sub.id} (${sub.page_name}) — patterns: ${patterns.join("|")}`,
+      logger.info(
+        `Moved ${moved} ads from parent → sub ${sub.page_name ?? sub.id}`,
+        {
+          channel: "sub-brand-attribution",
+          event: "subbrand.moved",
+          workspaceId: args.workspaceId,
+          competitorId: args.parentBrandId,
+          subBrandId: sub.id,
+          moved,
+        },
       );
     }
     results.push({

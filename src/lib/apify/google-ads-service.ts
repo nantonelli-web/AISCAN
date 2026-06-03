@@ -35,6 +35,7 @@
 
 import type { NormalizedAd, ScrapeResult } from "./service";
 import { getApifyCredentials } from "@/lib/billing/credentials";
+import { logger } from "@/lib/logger";
 
 const APIFY_BASE = "https://api.apify.com/v2";
 const GOOGLE_ACTOR_ID =
@@ -767,9 +768,9 @@ export async function scrapeGoogleAds(
     // `Items in input.startUrls ... do not contain valid URLs`).
     const urls = regionList.map(urlForRegion);
     input.startUrls = urls.map((url) => ({ url }));
-    console.log(
-      `[Google Ads] silva startUrls (${regionList.length} regions):`,
-      input.startUrls,
+    logger.debug(
+      `silva startUrls (${regionList.length} regions)`,
+      { channel: "Google Ads", event: "scrape.starturls", startUrls: input.startUrls },
     );
   } else if (opts.advertiserId) {
     input.advertiserIds = [opts.advertiserId];
@@ -789,10 +790,23 @@ export async function scrapeGoogleAds(
     );
   }
 
-  console.log(
-    `[Google Ads] Starting: actor=${GOOGLE_ACTOR_ID} (mode=${isSilvaActor ? "silva" : "automation-lab"})`,
+  logger.info(
+    `Starting Google Ads scrape (actor=${GOOGLE_ACTOR_ID}, mode=${isSilvaActor ? "silva" : "automation-lab"})`,
+    {
+      channel: "Google Ads",
+      event: "scrape.start",
+      workspaceId: opts.workspaceId,
+      actor: GOOGLE_ACTOR_ID,
+      advertiserId: opts.advertiserId,
+      advertiserDomain: opts.advertiserDomain,
+      advertiserName: opts.advertiserName,
+    },
   );
-  console.log(`[Google Ads] Input:`, JSON.stringify(input));
+  logger.debug("Google Ads actor input", {
+    channel: "Google Ads",
+    event: "scrape.input",
+    input,
+  });
 
   const actorPath = `/acts/${encodeURIComponent(GOOGLE_ACTOR_ID)}/runs`;
   const run = await apifyFetch(actorPath, {
@@ -804,7 +818,13 @@ export async function scrapeGoogleAds(
   const datasetId: string =
     run.data?.defaultDatasetId ?? run.defaultDatasetId ?? "";
 
-  console.log(`[Google Ads] Run created: runId=${runId} datasetId=${datasetId}`);
+  logger.info(`Google Ads run created: ${runId}`, {
+    channel: "Google Ads",
+    event: "scrape.run_created",
+    workspaceId: opts.workspaceId,
+    runId,
+    datasetId,
+  });
 
   if (!datasetId) {
     throw new Error("Apify run started but no datasetId returned.");
@@ -828,7 +848,13 @@ export async function scrapeGoogleAds(
     pollCount++;
     const runInfo = await apifyFetch(`/actor-runs/${runId}`, undefined, token);
     status = runInfo.data?.status ?? runInfo.status ?? status;
-    console.log(`[Google Ads] Poll #${pollCount}: status=${status} elapsed=${Math.round((Date.now() - t0) / 1000)}s`);
+    logger.debug(`Poll #${pollCount}: status=${status}`, {
+      channel: "Google Ads",
+      event: "scrape.poll",
+      runId,
+      status,
+      elapsedSec: Math.round((Date.now() - t0) / 1000),
+    });
   }
 
   // Partial save: anche quando il run non e' SUCCEEDED, Apify
@@ -840,19 +866,34 @@ export async function scrapeGoogleAds(
   let partialSave = false;
   if (status !== "SUCCEEDED") {
     const elapsed = Math.round((Date.now() - t0) / 1000);
-    console.error(`[Google Ads] Run not SUCCEEDED: status=${status} after ${pollCount} polls, ${elapsed}s`);
+    logger.error(`Google Ads run not SUCCEEDED: status=${status}`, {
+      channel: "Google Ads",
+      event: "scrape.run_not_succeeded",
+      workspaceId: opts.workspaceId,
+      runId,
+      status,
+      polls: pollCount,
+      elapsedSec: elapsed,
+    });
     // Cost containment: se siamo noi a essere scaduti (status ancora
     // RUNNING/READY), abortiamo l'actor side cosi non continua a
     // consumare crediti Apify a vuoto. Best-effort.
     if (status === "RUNNING" || status === "READY") {
       try {
         await apifyFetch(`/actor-runs/${runId}/abort`, { method: "POST" }, token);
-        console.warn(`[Google Ads] Aborted run ${runId} on our side after ${elapsed}s`);
+        logger.warn(`Aborted Google Ads run ${runId} on our side after ${elapsed}s`, {
+          channel: "Google Ads",
+          event: "scrape.run_aborted",
+          workspaceId: opts.workspaceId,
+          runId,
+          elapsedSec: elapsed,
+        });
         partialSave = true;
       } catch (abortErr) {
-        console.error(
-          `[Google Ads] Failed to abort run ${runId}:`,
-          abortErr instanceof Error ? abortErr.message : abortErr,
+        logger.error(
+          `Failed to abort Google Ads run ${runId}`,
+          { channel: "Google Ads", event: "scrape.abort_failed", workspaceId: opts.workspaceId, runId },
+          abortErr,
         );
       }
     } else if (status === "ABORTED" || status === "TIMED-OUT" || status === "FAILED") {
@@ -863,8 +904,9 @@ export async function scrapeGoogleAds(
     if (!partialSave) {
       throw new Error(`Apify run ended with status: ${status}`);
     }
-    console.warn(
-      `[Google Ads] Partial save: status=${status}, tentiamo di leggere il dataset parziale`,
+    logger.warn(
+      `Partial save: status=${status}, leggo il dataset parziale`,
+      { channel: "Google Ads", event: "scrape.partial_save", workspaceId: opts.workspaceId, runId, status },
     );
   }
 
@@ -900,29 +942,43 @@ export async function scrapeGoogleAds(
         `Apify run ended with status: ${status} (no partial items to save)`,
       );
     }
-    console.warn(`[Google Ads] Dataset empty after SUCCEEDED run`);
+    logger.warn(`Google Ads dataset empty after SUCCEEDED run`, {
+      channel: "Google Ads",
+      event: "scrape.dataset_empty",
+      workspaceId: opts.workspaceId,
+      runId,
+    });
   } else {
     if (partialSave) {
-      console.warn(
-        `[Google Ads] Partial save: salvati ${items.length} items dal run abortito (status=${status})`,
+      logger.warn(
+        `Partial save: ${items.length} items dal run abortito (status=${status})`,
+        { channel: "Google Ads", event: "scrape.partial_items", workspaceId: opts.workspaceId, runId, status, items: items.length },
       );
     }
     // First-run debugging: log the keys of the first item (and the
     // first variant when a Transparency-style actor is in play) so
     // we can spot a real schema and tighten the normaliser without
     // guessing.
-    console.log(`[Google Ads] ${items.length} raw items. Sample keys:`, Object.keys(items[0]));
+    logger.debug(`${items.length} raw items`, {
+      channel: "Google Ads",
+      event: "scrape.raw_items",
+      runId,
+      items: items.length,
+      sampleKeys: Object.keys(items[0]),
+    });
     if (isSilvaActor) {
       const first = items[0] as SilvaRawGoogleAd;
       const variant = first.variations?.[0];
       if (variant) {
-        console.log(
-          `[Google Ads] Sample variation keys:`,
-          Object.keys(variant),
-        );
+        logger.debug(`Sample variation keys`, {
+          channel: "Google Ads",
+          event: "scrape.sample_variation",
+          variationKeys: Object.keys(variant),
+        });
       } else {
-        console.warn(
-          `[Google Ads] First item has NO variations array — schema may differ; check raw JSON.`,
+        logger.warn(
+          `First item has NO variations array — schema may differ`,
+          { channel: "Google Ads", event: "scrape.no_variations", workspaceId: opts.workspaceId, runId },
         );
       }
     }
@@ -951,8 +1007,9 @@ export async function scrapeGoogleAds(
       return typeof adv === "string" ? adv === expected : true;
     });
     if (beforeFilter !== records.length) {
-      console.log(
-        `[Google Ads] advertiser-id filter: ${beforeFilter} → ${records.length} (dropped ${beforeFilter - records.length} from other advertisers)`,
+      logger.debug(
+        `advertiser-id filter: ${beforeFilter} → ${records.length}`,
+        { channel: "Google Ads", event: "scrape.filter.advertiser_id", before: beforeFilter, after: records.length },
       );
     }
   } else if (isSilvaActor && opts.advertiserDomain) {
@@ -979,8 +1036,9 @@ export async function scrapeGoogleAds(
           (r.raw_data as Record<string, unknown>)?.advertiserId === dominant,
       );
       if (beforeFilter !== records.length) {
-        console.log(
-          `[Google Ads] dominant-advertiser filter: ${beforeFilter} → ${records.length} (kept ${dominant}, dropped ${beforeFilter - records.length} cross-advertiser rows)`,
+        logger.debug(
+          `dominant-advertiser filter: ${beforeFilter} → ${records.length} (kept ${dominant})`,
+          { channel: "Google Ads", event: "scrape.filter.dominant", before: beforeFilter, after: records.length, dominant },
         );
       }
     }
@@ -994,8 +1052,9 @@ export async function scrapeGoogleAds(
     const before = records.length;
     records = dedupeNormalizedByCreative(records);
     if (before !== records.length) {
-      console.log(
-        `[Google Ads] dedup: ${before} → ${records.length} (merged scan_countries on ${before - records.length} duplicates)`,
+      logger.debug(
+        `dedup: ${before} → ${records.length}`,
+        { channel: "Google Ads", event: "scrape.dedup", before, after: records.length },
       );
     }
   }
@@ -1008,7 +1067,19 @@ export async function scrapeGoogleAds(
   const costCu = await fetchRunCostUsd(runId, token);
 
   const elapsed = Math.round((Date.now() - t0) / 1000);
-  console.log(`[Google Ads] Done: ${items.length} raw → ${records.length} final in ${elapsed}s, cost $${costCu.toFixed(3)}`);
+  logger.info(
+    `Google Ads done: ${items.length} raw → ${records.length} final in ${elapsed}s, cost $${costCu.toFixed(3)}`,
+    {
+      channel: "Google Ads",
+      event: "scrape.done",
+      workspaceId: opts.workspaceId,
+      runId,
+      rawItems: items.length,
+      records: records.length,
+      elapsedSec: elapsed,
+      costUsd: costCu,
+    },
+  );
 
   const startUrl = `https://adstransparency.google.com/?domain=${opts.advertiserDomain ?? opts.advertiserName ?? opts.advertiserId}`;
   return {
@@ -1165,13 +1236,15 @@ export async function startGoogleAdsScan(
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
   const webhookSecret = process.env.APIFY_WEBHOOK_SECRET ?? "";
   if (!appUrl) {
-    console.warn(
-      "[Google Ads] NEXT_PUBLIC_APP_URL non settata: webhook non sara' raggiungibile (Apify non potra' callbackare).",
+    logger.warn(
+      "NEXT_PUBLIC_APP_URL non settata: webhook Apify non raggiungibile",
+      { channel: "Google Ads", event: "scrape.webhook.no_appurl" },
     );
   }
   if (!webhookSecret) {
-    console.warn(
-      "[Google Ads] APIFY_WEBHOOK_SECRET non settata: il webhook accettera' qualunque payload (insicuro).",
+    logger.warn(
+      "APIFY_WEBHOOK_SECRET non settata: il webhook accetta qualunque payload (insicuro)",
+      { channel: "Google Ads", event: "scrape.webhook.no_secret" },
     );
   }
   const webhooks =
@@ -1211,17 +1284,33 @@ export async function startGoogleAdsScan(
     error: e instanceof Error ? e.message : "ensure threw",
   })) as WebhookEnsureResult;
   if (!webhookRegistration.ok) {
-    console.error(
-      `[Google Ads start] webhook persistente NON registrato: ${webhookRegistration.error}`,
+    logger.error(
+      `Persistent webhook NOT registered: ${webhookRegistration.error}`,
+      { channel: "Google Ads", event: "scrape.webhook.register_failed", workspaceId: opts.workspaceId },
     );
   } else {
-    console.log(
-      `[Google Ads start] webhook persistente: ${webhookRegistration.created ? "CREATO" : "gia' esistente"} id=${webhookRegistration.webhookId} actorId=${webhookRegistration.resolvedActorId}`,
+    logger.debug(
+      `Persistent webhook ${webhookRegistration.created ? "created" : "already existed"}`,
+      {
+        channel: "Google Ads",
+        event: "scrape.webhook.registered",
+        webhookId: webhookRegistration.webhookId,
+        resolvedActorId: webhookRegistration.resolvedActorId,
+      },
     );
   }
 
-  console.log(
-    `[Google Ads start] actor=${GOOGLE_ACTOR_ID} (mode=${isSilvaActor ? "silva" : "automation-lab"}) timeoutSecs=${apifyTimeoutSecs} webhook(ad-hoc)=${webhooks ? "yes" : "no"} webhook(persistent)=${webhookRegistration.ok ? "yes" : "no"}`,
+  logger.info(
+    `Starting Google Ads scan (actor=${GOOGLE_ACTOR_ID}, mode=${isSilvaActor ? "silva" : "automation-lab"})`,
+    {
+      channel: "Google Ads",
+      event: "scrape.start_async",
+      workspaceId: opts.workspaceId,
+      actor: GOOGLE_ACTOR_ID,
+      timeoutSecs: apifyTimeoutSecs,
+      webhookAdHoc: !!webhooks,
+      webhookPersistent: webhookRegistration.ok,
+    },
   );
 
   // POST /acts/{actor}/runs?timeout=...&webhooks=...
@@ -1251,9 +1340,13 @@ export async function startGoogleAdsScan(
   const datasetId: string =
     run.data?.defaultDatasetId ?? run.defaultDatasetId ?? "";
 
-  console.log(
-    `[Google Ads start] Run created: runId=${runId} datasetId=${datasetId}`,
-  );
+  logger.info(`Google Ads run created: ${runId}`, {
+    channel: "Google Ads",
+    event: "scrape.run_created_async",
+    workspaceId: opts.workspaceId,
+    runId,
+    datasetId,
+  });
 
   if (!runId || !datasetId) {
     throw new Error("Apify run started but no runId/datasetId returned.");
@@ -1330,9 +1423,14 @@ export async function finalizeGoogleAdsScan(
     if (pageItems.length < pageSize) break;
   }
 
-  console.log(
-    `[Google Ads finalize] runId=${runId} status=${apifyStatus} rawItems=${items.length}`,
-  );
+  logger.info(`Google Ads finalize: status=${apifyStatus}, rawItems=${items.length}`, {
+    channel: "Google Ads",
+    event: "finalize.start",
+    workspaceId,
+    runId,
+    status: apifyStatus,
+    rawItems: items.length,
+  });
 
   if (items.length === 0) {
     const costCu = await fetchRunCostUsd(runId, token);
@@ -1387,8 +1485,18 @@ export async function finalizeGoogleAdsScan(
 
   const costCu = await fetchRunCostUsd(runId, token);
 
-  console.log(
-    `[Google Ads finalize] Done: rawItems=${items.length} → normalized=${records.length}, costCu=$${costCu.toFixed(3)}, complete=${complete}`,
+  logger.info(
+    `Google Ads finalize done: ${items.length} raw → ${records.length} normalized, cost $${costCu.toFixed(3)}, complete=${complete}`,
+    {
+      channel: "Google Ads",
+      event: "finalize.done",
+      workspaceId,
+      runId,
+      rawItems: items.length,
+      records: records.length,
+      costUsd: costCu,
+      complete,
+    },
   );
 
   return { records, costCu, complete, rawItemCount: items.length };

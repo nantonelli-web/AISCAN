@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { logger } from "@/lib/logger";
 
 /**
  * Mark previously-ACTIVE Meta ads INACTIVE when they did not surface
@@ -67,7 +68,11 @@ export async function reconcileMetaAdStatus(
   const { data: existing, error } = await query;
 
   if (error) {
-    console.error("[reconcile-status select]", error);
+    logger.error(
+      "Reconcile select of ACTIVE ads failed",
+      { channel: "reconcile-status", event: "reconcile.select_failed", competitorId },
+      error,
+    );
     return 0;
   }
 
@@ -91,7 +96,11 @@ export async function reconcileMetaAdStatus(
       .update({ status: "INACTIVE" })
       .in("id", slice);
     if (updErr) {
-      console.error("[reconcile-status update]", updErr);
+      logger.error(
+        "Reconcile update to INACTIVE failed",
+        { channel: "reconcile-status", event: "reconcile.update_failed", competitorId },
+        updErr,
+      );
       return 0;
     }
   }

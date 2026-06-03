@@ -18,6 +18,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 import type { CreditAction } from "@/config/pricing";
 import { creditCosts } from "@/config/pricing";
+import { logger } from "@/lib/logger";
 
 /** Canali supportati nel batch scan. Estendere quando un canale
  *  passa alla pipeline async (richiede webhook Apify configurato +
@@ -127,7 +128,11 @@ export async function checkDailyCostCap(
   // which fails open — here the downside is real money, and a DB error
   // usually means we can't scan anyway.)
   if (error) {
-    console.error("[batch-safety] cost-cap query failed (fail-closed):", error.message);
+    logger.error(
+      "Daily cost-cap query failed (fail-closed — scan blocked)",
+      { channel: "batch-safety", event: "cost_cap.daily.query_failed", workspaceId },
+      error,
+    );
     return { ok: false, spent: -1, cap };
   }
   const spent = (data ?? []).reduce(
@@ -161,7 +166,11 @@ export async function checkGlobalCostCap(
     .select("cost_cu")
     .gt("started_at", since);
   if (error) {
-    console.error("[batch-safety] global cost-cap query failed (fail-closed):", error.message);
+    logger.error(
+      "Global cost-cap query failed (fail-closed — scan blocked)",
+      { channel: "batch-safety", event: "cost_cap.global.query_failed" },
+      error,
+    );
     return { ok: false, spent: -1, cap };
   }
   const spent = (data ?? []).reduce(
@@ -190,7 +199,11 @@ export async function checkGlobalConcurrency(
     .select("id", { count: "exact", head: true })
     .eq("status", "running");
   if (error) {
-    console.error("[batch-safety] global concurrency query failed (fail-closed):", error.message);
+    logger.error(
+      "Global concurrency query failed (fail-closed — scan blocked)",
+      { channel: "batch-safety", event: "concurrency.global.query_failed" },
+      error,
+    );
     return { ok: false, running: -1, cap };
   }
   return { ok: (count ?? 0) < cap, running: count ?? 0, cap };

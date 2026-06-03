@@ -1,5 +1,6 @@
 import { buildAdLibraryUrl } from "@/lib/meta/url";
 import { getApifyCredentials } from "@/lib/billing/credentials";
+import { logger } from "@/lib/logger";
 
 /**
  * Service layer for the apify/facebook-ads-scraper actor (official).
@@ -71,8 +72,9 @@ async function apifyFetch(path: string, init?: RequestInit, token?: string) {
       ) {
         lastError = error;
         const delayMs = APIFY_BACKOFF_MS[attempt - 1] ?? 2000;
-        console.warn(
-          `[apify retry ${attempt}/${APIFY_MAX_ATTEMPTS - 1}] ${res.status} on ${path}, sleeping ${delayMs}ms`,
+        logger.warn(
+          `Apify ${res.status} on ${path}, retry ${attempt}/${APIFY_MAX_ATTEMPTS - 1} in ${delayMs}ms`,
+          { channel: "Meta", event: "apify.retry.http", status: res.status, path, attempt },
         );
         await new Promise((r) => setTimeout(r, delayMs));
         continue;
@@ -87,8 +89,9 @@ async function apifyFetch(path: string, init?: RequestInit, token?: string) {
       if (attempt < APIFY_MAX_ATTEMPTS) {
         lastError = err instanceof Error ? err : new Error(String(err));
         const delayMs = APIFY_BACKOFF_MS[attempt - 1] ?? 2000;
-        console.warn(
-          `[apify retry ${attempt}/${APIFY_MAX_ATTEMPTS - 1}] network error on ${path}, sleeping ${delayMs}ms`,
+        logger.warn(
+          `Apify network error on ${path}, retry ${attempt}/${APIFY_MAX_ATTEMPTS - 1} in ${delayMs}ms`,
+          { channel: "Meta", event: "apify.retry.network", path, attempt },
           err,
         );
         await new Promise((r) => setTimeout(r, delayMs));
@@ -251,8 +254,10 @@ export async function scrapeMetaAds(
           ? outcome.reason.message
           : String(outcome.reason);
       failedCountries.push({ country, error: message });
-      console.warn(
-        `[scrapeMetaAds] ${country} scan failed after retries: ${message}`,
+      logger.warn(
+        `Meta scan for ${country} failed after retries`,
+        { channel: "Meta", event: "scrape.country.failed", country },
+        outcome.reason,
       );
       return;
     }

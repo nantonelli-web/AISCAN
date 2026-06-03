@@ -20,6 +20,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { refundCredits } from "@/lib/credits/consume";
 import type { CreditAction } from "@/config/pricing";
+import { logger } from "@/lib/logger";
 import {
   BATCH_MAX,
   CONCURRENCY_CAP_PER_WORKSPACE,
@@ -86,12 +87,17 @@ async function cleanupZombieJobs(
         );
         refunded++;
       } catch (e) {
-        console.error(`[batch auto-cleanup] refund failed for ${z.id}:`, e);
+        logger.error(
+          `Auto-cleanup refund failed for zombie job ${z.id}`,
+          { channel: "batch-dispatch", event: "batch.cleanup.refund_failed", workspaceId, jobId: z.id, source },
+          e,
+        );
       }
     }
   }
-  console.log(
-    `[batch auto-cleanup] source=${source} cleaned=${list.length} refunded=${refunded}`,
+  logger.info(
+    `Auto-cleanup: source=${source} cleaned=${list.length} refunded=${refunded}`,
+    { channel: "batch-dispatch", event: "batch.cleanup.done", workspaceId, source, cleaned: list.length, refunded },
   );
   return { cleaned: list.length, refunded };
 }
@@ -311,8 +317,9 @@ export async function dispatchAsyncBatch<
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
 
-  console.log(
-    `[Batch ${cfg.channelLabel}] batchId=${batchId} pre-dispatch started=${started.length}`,
+  logger.info(
+    `Batch ${cfg.channelLabel}: pre-dispatch started=${started.length}`,
+    { channel: `Batch ${cfg.channelLabel}`, event: "batch.predispatch", workspaceId, jobId: batchId, started: started.length },
   );
 
   // CRITICO: usiamo Next.js after() per schedulare le fetch DOPO
@@ -336,8 +343,9 @@ export async function dispatchAsyncBatch<
   const launchedAt = new Date().toISOString();
 
   after(async () => {
-    console.log(
-      `[Batch ${cfg.channelLabel}] after() entered, dispatching ${toLaunch.length} scans via direct call`,
+    logger.info(
+      `Batch ${cfg.channelLabel}: after() dispatching ${toLaunch.length} scans`,
+      { channel: `Batch ${cfg.channelLabel}`, event: "batch.after.start", workspaceId, jobId: batchId, count: toLaunch.length },
     );
     await Promise.allSettled(
       toLaunch.map(async (c) => {
@@ -367,18 +375,30 @@ export async function dispatchAsyncBatch<
           const elapsed = Math.round((Date.now() - new Date(launchedAt).getTime()) / 1000);
           if (!res.ok) {
             const txt = await res.text().catch(() => "");
-            console.error(
-              `[Batch ${cfg.channelLabel}] scan ${c.id} non-2xx: ${res.status} ${txt.slice(0, 200)} (after ${elapsed}s)`,
+            logger.error(
+              `Batch ${cfg.channelLabel}: scan returned ${res.status}`,
+              {
+                channel: `Batch ${cfg.channelLabel}`,
+                event: "batch.scan.non_2xx",
+                workspaceId,
+                jobId,
+                competitorId: c.id,
+                status: res.status,
+                body: txt.slice(0, 200),
+                elapsedSec: elapsed,
+              },
             );
           } else {
-            console.log(
-              `[Batch ${cfg.channelLabel}] scan ${c.id} completed (took ${elapsed}s)`,
+            logger.info(
+              `Batch ${cfg.channelLabel}: scan completed in ${elapsed}s`,
+              { channel: `Batch ${cfg.channelLabel}`, event: "batch.scan.completed", workspaceId, jobId, competitorId: c.id, elapsedSec: elapsed },
             );
           }
         } catch (err) {
-          console.error(
-            `[Batch ${cfg.channelLabel}] dispatch error for ${c.id}:`,
-            err instanceof Error ? err.message : err,
+          logger.error(
+            `Batch ${cfg.channelLabel}: dispatch error`,
+            { channel: `Batch ${cfg.channelLabel}`, event: "batch.dispatch.error", workspaceId, jobId, competitorId: c.id },
+            err,
           );
           // Mark il job come failed e refund — la scan handler ha
           // lanciato un'eccezione invece di gestire l'errore. Refund SOLO
@@ -406,8 +426,9 @@ export async function dispatchAsyncBatch<
         }
       }),
     );
-    console.log(
-      `[Batch ${cfg.channelLabel}] after() finished, batchId=${batchId}`,
+    logger.info(
+      `Batch ${cfg.channelLabel}: after() finished`,
+      { channel: `Batch ${cfg.channelLabel}`, event: "batch.after.done", workspaceId, jobId: batchId },
     );
   });
 
@@ -580,7 +601,11 @@ export async function resolveStuckBatchJob(
         `Batch ${origin}: ${job.source} timeout`,
       );
     } catch (e) {
-      console.error(`[batch ${origin}] refund failed for ${job.id}:`, e);
+      logger.error(
+        `Batch ${origin}: refund failed for stuck job ${job.id}`,
+        { channel: "batch-dispatch", event: "batch.stuck.refund_failed", jobId: job.id, competitorId: job.competitor_id, source: job.source, origin },
+        e,
+      );
     }
   }
   return "failed";
@@ -620,8 +645,9 @@ async function reconcileStuckBatchJobs(
     if (outcome === "recovered") recovered++;
     else failed++;
   }
-  console.log(
-    `[batch reconcile] batchId=${batchId} source=${source} stuck=${list.length} recovered=${recovered} failed=${failed}`,
+  logger.info(
+    `Batch reconcile: source=${source} stuck=${list.length} recovered=${recovered} failed=${failed}`,
+    { channel: "batch-dispatch", event: "batch.reconcile.done", jobId: batchId, source, stuck: list.length, recovered, failed },
   );
   return { reconciled: list.length, recovered, failed };
 }
