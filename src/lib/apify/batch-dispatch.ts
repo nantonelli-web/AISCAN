@@ -28,6 +28,7 @@ import {
   chargeBatchCredits,
   filterEligibleBrands,
   refundOneBatchCredit,
+  refundJobCreditOnce,
   type BatchSource,
   type SkipReason,
 } from "@/lib/apify/batch-safety";
@@ -79,11 +80,14 @@ async function cleanupZombieJobs(
       .eq("status", "running")
       .select("id");
     if (z.created_by && failed && failed.length > 0) {
+      const refundUserId = z.created_by;
       try {
-        await refundCredits(
-          z.created_by,
-          `scan_${z.source}` as CreditAction,
-          `Auto-cleanup zombie ${z.source} scan`,
+        await refundJobCreditOnce(admin, z.id, () =>
+          refundCredits(
+            refundUserId,
+            `scan_${z.source}` as CreditAction,
+            `Auto-cleanup zombie ${z.source} scan`,
+          ),
         );
         refunded++;
       } catch (e) {
@@ -417,10 +421,12 @@ export async function dispatchAsyncBatch<
             .eq("status", "running")
             .select("id");
           if (failed && failed.length > 0) {
-            await refundOneBatchCredit(
-              user.id,
-              cfg.source,
-              `${cfg.channelLabel} dispatch failed: ${c.page_name}`,
+            await refundJobCreditOnce(admin, jobId, () =>
+              refundOneBatchCredit(
+                user.id,
+                cfg.source,
+                `${cfg.channelLabel} dispatch failed: ${c.page_name}`,
+              ),
             );
           }
         }
@@ -594,11 +600,14 @@ export async function resolveStuckBatchJob(
     })
     .eq("id", job.id);
   if (job.created_by) {
+    const refundUserId = job.created_by;
     try {
-      await refundCredits(
-        job.created_by,
-        `scan_${job.source}` as CreditAction,
-        `Batch ${origin}: ${job.source} timeout`,
+      await refundJobCreditOnce(admin, job.id, () =>
+        refundCredits(
+          refundUserId,
+          `scan_${job.source}` as CreditAction,
+          `Batch ${origin}: ${job.source} timeout`,
+        ),
       );
     } catch (e) {
       logger.error(

@@ -138,12 +138,17 @@ export async function POST(req: Request) {
     );
   }
 
-  // Niente charge crediti qui: la route per-brand /api/snapchat/scan
-  // fa il proprio charge atomico (1 credit). Se uno scan fallisce,
-  // si refunda da sola. Il batch e' un orchestratore — non duplica
-  // la logica di credit. La safety helper chargeBatchCredits NON e'
-  // chiamata qui perche' i singoli scan gestiscono i propri crediti.
-  // Questo evita double-charge tra batch + per-brand route.
+  // DIVERGENZA INTENZIONALE vs Google batch (rivista 2026-06-03):
+  // qui NON si usa chargeBatchCredits. La route per-brand
+  // /api/snapchat/scan e' l'UNICA autorita' di addebito: fa il proprio
+  // charge atomico (1 credit) e il proprio refund idempotente
+  // (refundJobCreditOnce, vedi #3). Centralizzare il charge nel batch
+  // richiederebbe aggiungere un ramo "batched → skip charge" alla route
+  // per-brand (che oggi addebita SEMPRE), introducendo rischio di
+  // doppio/mancato addebito senza alcun vantaggio: il pattern attuale e'
+  // gia' single-charge-authority e quindi privo di double-charge. Le
+  // altre safety (cost cap, concurrency, cooldown) SONO centralizzate
+  // sopra. Tenuto cosi' di proposito.
 
   const batchId = randomUUID();
 

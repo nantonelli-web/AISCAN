@@ -325,6 +325,50 @@ export async function refundOneBatchCredit(
 }
 
 /**
+ * Idempotent per-JOB refund gate.
+ *
+ * `mait_add_credits` is not idempotent and several independent paths can
+ * try to refund the SAME job (per-brand catch, abort checkpoint, batch
+ * reconcile/zombie-cleanup, dispatch error). This claims a one-shot flag
+ * on the job row (`credits_refunded_at`) atomically and runs `refund()`
+ * ONLY if this caller won the claim — so any number of attempts refund at
+ * most once.
+ *
+ * Safe to deploy BEFORE migration 0068: if the column doesn't exist yet
+ * the update errors, and we fall back to issuing the refund (today's
+ * behaviour) so a refund is never lost. Once the column exists the gate
+ * engages. Errors never propagate — a logging/DB hiccup must not break
+ * the request, and must never silently swallow a legitimate refund.
+ */
+export async function refundJobCreditOnce(
+  admin: SupabaseClient,
+  jobId: string,
+  refund: () => Promise<void>,
+): Promise<void> {
+  try {
+    const { data, error } = await admin
+      .from("mait_scrape_jobs")
+      .update({ credits_refunded_at: new Date().toISOString() })
+      .eq("id", jobId)
+      .is("credits_refunded_at", null)
+      .select("id");
+    if (error) {
+      // Pre-migration (column missing) or transient error → preserve the
+      // current always-refund behaviour rather than risk a lost refund.
+      await refund();
+      return;
+    }
+    if (data && data.length > 0) {
+      // We won the claim — this is the one and only refund for the job.
+      await refund();
+    }
+    // else: another path already claimed/refunded → skip (idempotent).
+  } catch {
+    await refund();
+  }
+}
+
+/**
  * Helper composito: applica TUTTI i safety checks pre-launch ai brand
  * passati come input. Non lancia nulla, NON fa charge crediti: solo
  * filtra eligible vs skipped.

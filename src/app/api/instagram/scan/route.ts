@@ -9,6 +9,7 @@ import {
 } from "@/lib/instagram/service";
 import { storeAdImages, storeProfilePicture } from "@/lib/media/store-ad-images";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
+import { refundJobCreditOnce } from "@/lib/apify/batch-safety";
 import { checkScanConcurrency } from "@/lib/rate-limit/scan-concurrency";
 import { logger } from "@/lib/logger";
 
@@ -232,10 +233,12 @@ export async function POST(req: Request) {
         .eq("id", job.id)
         .maybeSingle();
       if (jobNow?.status === "failed") {
-        await refundCredits(
-          user.id,
-          "scan_instagram",
-          `Instagram scan aborted: ${competitor.page_name}`,
+        await refundJobCreditOnce(admin, job.id, () =>
+          refundCredits(
+            user.id,
+            "scan_instagram",
+            `Instagram scan aborted: ${competitor.page_name}`,
+          ),
         );
         return NextResponse.json({
           ok: false,
@@ -408,10 +411,12 @@ export async function POST(req: Request) {
         .eq("id", job.id)
         .maybeSingle();
       if (jobNow?.status === "failed") {
-        await refundCredits(
-          user.id,
-          "scan_instagram",
-          `Instagram scan aborted (post-commit): ${competitor.page_name}`,
+        await refundJobCreditOnce(admin, job.id, () =>
+          refundCredits(
+            user.id,
+            "scan_instagram",
+            `Instagram scan aborted (post-commit): ${competitor.page_name}`,
+          ),
         );
         return NextResponse.json({
           ok: false,
@@ -483,8 +488,11 @@ export async function POST(req: Request) {
         error: message,
       })
       .eq("id", job.id);
-    // Refund credits on failure
-    await refundCredits(user.id, "scan_instagram", `Instagram scan: ${competitor.page_name}`);
+    // Refund credits on failure (idempotent: recovery jobs / abort may
+    // also try to refund this same job).
+    await refundJobCreditOnce(admin, job.id, () =>
+      refundCredits(user.id, "scan_instagram", `Instagram scan: ${competitor.page_name}`),
+    );
     const httpStatus =
       billingCode === "MISSING_KEY" || billingCode === "INVALID_KEY" ? 400 : 500;
     return NextResponse.json({ error: message, code: billingCode }, { status: httpStatus });

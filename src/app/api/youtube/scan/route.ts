@@ -8,6 +8,7 @@ import {
 } from "@/lib/youtube/service";
 import { storeAdImages, storeProfilePicture } from "@/lib/media/store-ad-images";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
+import { refundJobCreditOnce } from "@/lib/apify/batch-safety";
 import { checkScanConcurrency } from "@/lib/rate-limit/scan-concurrency";
 import { logger } from "@/lib/logger";
 
@@ -199,10 +200,12 @@ export async function POST(req: Request) {
         .eq("id", job.id)
         .maybeSingle();
       if (jobNow?.status === "failed") {
-        await refundCredits(
-          user.id,
-          "scan_youtube",
-          `YouTube scan aborted: ${competitor.page_name}`,
+        await refundJobCreditOnce(admin, job.id, () =>
+          refundCredits(
+            user.id,
+            "scan_youtube",
+            `YouTube scan aborted: ${competitor.page_name}`,
+          ),
         );
         return NextResponse.json({
           ok: false,
@@ -404,10 +407,12 @@ export async function POST(req: Request) {
         .eq("id", job.id)
         .maybeSingle();
       if (jobNow?.status === "failed") {
-        await refundCredits(
-          user.id,
-          "scan_youtube",
-          `YouTube scan aborted (post-commit): ${competitor.page_name}`,
+        await refundJobCreditOnce(admin, job.id, () =>
+          refundCredits(
+            user.id,
+            "scan_youtube",
+            `YouTube scan aborted (post-commit): ${competitor.page_name}`,
+          ),
         );
         return NextResponse.json({
           ok: false,
@@ -465,10 +470,12 @@ export async function POST(req: Request) {
         error: message,
       })
       .eq("id", job.id);
-    await refundCredits(
-      user.id,
-      "scan_youtube",
-      `YouTube scan: ${competitor.page_name}`,
+    await refundJobCreditOnce(admin, job.id, () =>
+      refundCredits(
+        user.id,
+        "scan_youtube",
+        `YouTube scan: ${competitor.page_name}`,
+      ),
     );
     const httpStatus =
       billingCode === "MISSING_KEY" || billingCode === "INVALID_KEY" ? 400 : 500;
