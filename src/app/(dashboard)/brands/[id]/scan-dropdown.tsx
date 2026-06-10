@@ -1158,25 +1158,6 @@ export function ScanDropdown({
                 {loading === "snapchat_ads" ? t("scan", "scanning") : "Snapchat Ads"}
               </Button>
             </div>
-            {/* Visible explanation strip — shown only when the
-                Snapchat Ads button is gated. We surface this here
-                instead of in a tooltip alone so the user understands
-                the reason without having to hover the disabled
-                button. Same warning tone as the missing-config strip
-                at the bottom of the panel. */}
-            {!snapchatAdsAvailable && (
-              <div className="flex items-start gap-2.5 rounded-md border border-warning/30 bg-warning-soft px-3 py-2.5 text-xs leading-relaxed">
-                <Info className="size-3.5 tone-warning shrink-0 mt-0.5" />
-                <p className="tone-warning">
-                  <span className="font-medium">
-                    {t("scan", "snapchatAdsGatedTitle")}
-                  </span>{" "}
-                  <span className="text-foreground/80">
-                    {t("scan", "snapchatAdsGatedBody")}
-                  </span>
-                </p>
-              </div>
-            )}
           </div>
 
           {/* ORGANIC column — 4 channels stacked in 2x2 mini-grid
@@ -1281,6 +1262,24 @@ export function ScanDropdown({
               </Link>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Snapchat Ads gated — full-width note BELOW the channel grid so
+          the text spreads across the whole panel instead of being
+          squeezed into the narrow Paid column (which left a tall, empty
+          square). Same warning tone as the missing-config strip. */}
+      {!showStop && !snapchatAdsAvailable && (
+        <div className="flex items-start gap-2.5 rounded-md border border-warning/30 bg-warning-soft px-3 py-2.5 text-xs leading-relaxed">
+          <Info className="size-3.5 tone-warning shrink-0 mt-0.5" />
+          <p className="tone-warning">
+            <span className="font-medium">
+              {t("scan", "snapchatAdsGatedTitle")}
+            </span>{" "}
+            <span className="text-foreground/80">
+              {t("scan", "snapchatAdsGatedBody")}
+            </span>
+          </p>
         </div>
       )}
 
