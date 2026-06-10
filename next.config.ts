@@ -81,24 +81,6 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  // API alias: the page directory moved /competitors → /brands
-  // (2026-05-04) and the client was switched to fetch /api/brands/*,
-  // but the API route HANDLERS were never moved — they still live under
-  // /api/competitors/* (API paths carry no SEO value, so the directory
-  // was intentionally left in place). Without this rewrite every
-  // /api/brands* call resolves to /_not-found and 404s: brand create
-  // (POST /api/brands), delete + scan-frequency (/api/brands/[id]),
-  // load-more ads (/api/brands/[id]/ads) and the Compare/Report channel
-  // check (/api/brands/check-channel) have all been silently broken
-  // since the rename. A rewrite (not a redirect) keeps the URL as
-  // /api/brands for the client while routing to the real handler;
-  // existing /api/competitors callers are unaffected.
-  async rewrites() {
-    return [
-      { source: "/api/brands", destination: "/api/competitors" },
-      { source: "/api/brands/:path*", destination: "/api/competitors/:path*" },
-    ];
-  },
 };
 
 // Wrap with Sentry. This preserves the nextConfig above (CSP, headers,
