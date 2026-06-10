@@ -2088,6 +2088,18 @@ const translations = {
       it: "Cerca place su Google Maps per termine + città: estrai rating, recensioni, contatti e ultime review in un solo scan.",
       en: "Search places on Google Maps by term + city: extract rating, reviews, contacts and latest reviews in one scan.",
     },
+    explainerTitle: {
+      it: "Oltre la scheda del brand",
+      en: "Beyond the brand listing",
+    },
+    explainerBody: {
+      it: "Google Maps va oltre la singola scheda del brand. Cerca per categoria e località (es. «gioiellerie a Milano»), mappa tutti i player di una zona, confronta rating e recensioni e individua i competitor locali. Usa un tuo brand come punto di partenza, poi esplora l'intero territorio.",
+      en: "Google Maps goes beyond a single brand listing. Search by category and location (e.g. “jewelry stores in Milan”), map every player in an area, compare ratings and reviews and spot local competitors. Use one of your brands as a starting point, then explore the whole territory.",
+    },
+    brandTabHint: {
+      it: "Parti da questo brand — ma su Google Maps puoi cercare per categoria e località, mappare tutti i competitor di una zona e confrontarne rating e recensioni.",
+      en: "Start from this brand — but on Google Maps you can search by category and location, map every competitor in an area and compare their ratings and reviews.",
+    },
     openDetailFor: { it: "Apri dettaglio per", en: "Open detail for" },
     addSearch: { it: "Aggiungi ricerca", en: "Add search" },
     closeForm: { it: "Chiudi", en: "Close" },
@@ -2288,6 +2300,18 @@ const translations = {
     subtitle: {
       it: "Traccia query su Google: chi compete in organico, chi in ads, chi presidia il ranking dei tuoi brand.",
       en: "Track Google queries: who competes organically, who competes in ads, who owns your brands' ranking.",
+    },
+    explainerTitle: {
+      it: "Oltre la ricerca del brand",
+      en: "Beyond brand search",
+    },
+    explainerBody: {
+      it: "Google SERP non è solo «cerca il mio brand». Ogni query vive di vita propria: monitora keyword di categoria, scopri chi presidia organico, ads, product listing e AI Overview, e confronta più brand sulla stessa ricerca. Parti dal posizionamento di un tuo brand e poi allarga l'analisi all'intero mercato di ricerca.",
+      en: "Google SERP is more than “search my brand”. Each query stands on its own: track category keywords, see who owns organic, ads, product listings and AI Overviews, and compare several brands on the same search. Start from one of your brands' ranking, then widen the analysis to the whole search market.",
+    },
+    brandTabHint: {
+      it: "Parti dal posizionamento di questo brand — ma su Google SERP puoi monitorare qualsiasi keyword di categoria e confrontare più brand sulla stessa ricerca.",
+      en: "Start from this brand's ranking — but on Google SERP you can track any category keyword and compare several brands on the same search.",
     },
     addQuery: { it: "Aggiungi query", en: "Add query" },
     closeForm: { it: "Chiudi", en: "Close" },
@@ -3145,6 +3169,7 @@ const translations = {
     ads: { it: "ads", en: "ads" },
     print: { it: "Stampa", en: "Print" },
     backToDashboard: { it: "Torna alla Dashboard", en: "Back to Dashboard" },
+    backToBrands: { it: "Torna ai Brand", en: "Back to Brands" },
     yes: { it: "Sì", en: "Yes" },
     no: { it: "No", en: "No" },
   },

@@ -1,8 +1,8 @@
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { Lightbulb } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { getLocale, serverT } from "@/lib/i18n/server";
+import { DynamicBackLink } from "@/components/ui/dynamic-back-link";
 import { MapsPageClient } from "./maps-page-client";
 
 export const dynamic = "force-dynamic";
@@ -56,19 +56,29 @@ export default async function MapsPage() {
 
   return (
     <div className="space-y-8">
-      <Link
-        href="/monitoring"
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground print:hidden"
-      >
-        <ArrowLeft className="size-4" /> {t("monitoring", "backLabel")}
-      </Link>
+      {/* Maps è uno strumento brand-driven raggiunto dal tab Maps del
+          dettaglio brand; il back torna ai Brand. */}
+      <DynamicBackLink fallbackHref="/brands" label={t("common", "backToBrands")} />
       <header className="space-y-1">
-        <p className="eyebrow">{t("monitoring", "title").toUpperCase()}</p>
         <h1 className="text-3xl font-serif tracking-tight">{t("maps", "title")}</h1>
         <p className="text-sm text-muted-foreground text-pretty">
           {t("maps", "subtitle")}
         </p>
       </header>
+
+      {/* Explainer: Maps va oltre la scheda del brand — ricerca per
+          categoria/località e mappatura competitor locali. */}
+      <div className="flex items-start gap-3 rounded-xl border border-border bg-muted/40 px-4 py-3.5">
+        <div className="size-8 rounded-lg bg-gold/15 text-gold grid place-items-center shrink-0">
+          <Lightbulb className="size-4" />
+        </div>
+        <div className="space-y-0.5">
+          <p className="text-sm font-semibold">{t("maps", "explainerTitle")}</p>
+          <p className="text-xs text-muted-foreground leading-relaxed text-pretty">
+            {t("maps", "explainerBody")}
+          </p>
+        </div>
+      </div>
 
       <MapsPageClient initialSearches={enriched as never[]} />
     </div>

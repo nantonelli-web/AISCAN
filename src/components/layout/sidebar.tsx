@@ -20,7 +20,6 @@ import {
   // FileText,
   LogOut,
   Coins,
-  Radar,
   TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -48,18 +47,17 @@ const navGroups: NavGroup[] = [
     key: "groupSetup",
     items: [
       { href: "/dashboard", key: "dashboard", icon: LayoutDashboard, aliases: [] },
-      { href: "/brands", key: "brands", icon: Users, aliases: ["/brands"] },
+      // /serp e /maps sono tool brand-driven: si raggiungono dai tab
+      // SERP/Maps del dettaglio brand (filosofia brand-based, vedi
+      // rimozione di Monitoring 2026-06-10). Come alias di "Brands"
+      // così la voce resta evidenziata mentre l'utente è dentro quegli
+      // strumenti, che fanno parte del flusso di analisi del brand.
+      { href: "/brands", key: "brands", icon: Users, aliases: ["/brands", "/serp", "/maps"] },
     ],
   },
   {
     key: "groupAnalyze",
     items: [
-      // Single "Monitoring" entry that hosts workspace-level tools
-      // (SERP + Maps today, future Hashtag / Trends / Reviews). The
-      // landing page at /monitoring lists each tool; aliases keep the
-      // entry highlighted while the user is inside /serp or /maps so
-      // the visual breadcrumb still works.
-      { href: "/monitoring", key: "monitoring", icon: Radar, aliases: ["/serp", "/maps"] },
       // /collections e' migrato come tab di /library (2026-05-10);
       // resta come alias per evidenziare Library quando l'utente e'
       // dentro /collections/[id] (detail).

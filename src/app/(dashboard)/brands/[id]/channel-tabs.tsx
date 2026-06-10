@@ -1655,6 +1655,11 @@ export function ChannelTabs({
               <p className="text-sm text-muted-foreground">
                 {t("competitors", "mapsComingSoon")}
               </p>
+              {/* Framing brand-based: si parte dal brand ma Maps fa molto
+                  di più (ricerca per categoria/località, competitor locali). */}
+              <p className="text-xs text-muted-foreground/90 leading-relaxed">
+                {t("maps", "brandTabHint")}
+              </p>
               <Link
                 href="/maps"
                 className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 h-8 text-xs hover:border-gold/40 hover:text-gold transition-colors cursor-pointer"
@@ -1677,6 +1682,11 @@ export function ChannelTabs({
               caption={`${visibleSerpQueries.length} ${visibleSerpQueries.length === 1 ? t("brandSerp", "querySingular") : t("brandSerp", "queryPlural")}`}
             />
           </div>
+          {/* Framing brand-based: si parte dal posizionamento del brand
+              ma la SERP permette analisi di mercato di ricerca più ampia. */}
+          <p className="text-xs text-muted-foreground/90 leading-relaxed">
+            {t("serp", "brandTabHint")}
+          </p>
           <div className="flex items-baseline justify-between gap-3">
             <p className="text-sm text-muted-foreground">
               {visibleSerpQueries.length}{" "}

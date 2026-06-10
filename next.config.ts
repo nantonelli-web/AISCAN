@@ -79,6 +79,15 @@ const nextConfig: NextConfig = {
         destination: "/brands/:path*",
         permanent: true,
       },
+      // Monitoring rimosso 2026-06-10: era una landing channel-first
+      // ridondante (6 card su 8 erano solo scorciatoie alla Library) e
+      // rompeva la filosofia brand-based. SERP e Maps vivono ora dentro
+      // il dettaglio brand. Redirect dei bookmark verso /brands.
+      {
+        source: "/monitoring",
+        destination: "/brands",
+        permanent: false,
+      },
     ];
   },
 };
