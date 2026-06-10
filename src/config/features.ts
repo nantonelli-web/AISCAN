@@ -59,3 +59,20 @@ export const COLLAB_ENRICH_ENABLED = true;
  * campi L3): la classifica e' molto piu' affidabile DOPO l'enrichment.
  */
 export const COLLAB_CLASSIFY_ENABLED = true;
+
+/**
+ * AI Relevance Check on Compare's "Latest ads" — a lightweight, on-demand
+ * pass that judges whether each displayed creative actually belongs to the
+ * brand's advertising universe, flagging off-brand / misattributed ones
+ * (e.g. an unrelated sneaker creative surfacing for a plus-size womenswear
+ * brand). It is an OPINION of the model, not platform data, so per the
+ * "real data only — AI classifications gated by feature flag" principle it
+ * lives behind a single switch.
+ *
+ * Non-destructive by design: flagged creatives are badged "possibile fuori
+ * target", never silently hidden — the user keeps the call. On-demand and
+ * billed (1 credit/run), so nothing fires automatically. Turning this off
+ * hides the "Verifica pertinenza" button and the badges; the deterministic
+ * geo + copy-language filters (lib/ads/ad-filters) stay on regardless.
+ */
+export const AI_RELEVANCE_CHECK_ENABLED = true;

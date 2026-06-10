@@ -28,6 +28,7 @@ import {
   X,
   Filter,
   Sparkles,
+  ScanSearch,
 } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/instagram-icon";
 import { MetaIcon } from "@/components/ui/meta-icon";
@@ -65,7 +66,13 @@ import type { CreativeAnalysisResult } from "@/lib/ai/creative-analysis";
 import type { MaitCompetitor, MaitClient } from "@/types";
 import { getCountries } from "@/config/countries";
 import { creditCosts } from "@/config/pricing";
+import { AI_RELEVANCE_CHECK_ENABLED } from "@/config/features";
 import { notifyCreditsChanged } from "@/lib/credits/events";
+
+/** Per-creative off-brand verdict (keyed by ad_archive_id) returned by the
+ *  AI relevance check. `relevant: false` → tile is badged "possibile fuori
+ *  target" with `reason` as the tooltip. */
+type RelevanceMap = Record<string, { relevant: boolean; reason: string }>;
 
 type Tab = "technical" | "copy" | "visual" | "benchmark";
 /**
@@ -400,6 +407,13 @@ export function CompareView({
   const [aiLoading, setAiLoading] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+
+  // AI relevance check (off-brand creatives) — verdicts keyed by
+  // ad_archive_id across all brands, plus its own loading/error state so
+  // it never blocks the copy/visual AI tabs.
+  const [relevance, setRelevance] = useState<RelevanceMap>({});
+  const [relevanceLoading, setRelevanceLoading] = useState(false);
+  const [relevanceError, setRelevanceError] = useState<string | null>(null);
 
   // Missing data state
   const [missingBrands, setMissingBrands] = useState<string[]>([]);
@@ -748,6 +762,11 @@ export function CompareView({
     if (selected.size >= 2 && channel !== null && isImplementedChannel(channel)) {
       fetchComparison(selectedIds);
     }
+    // Relevance verdicts are tied to a specific filtered creative set —
+    // drop them whenever the comparison (brands / channel / window) changes
+    // so a stale "off-brand" badge can't bleed onto a different creative.
+    setRelevance({});
+    setRelevanceError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedKey]);
 
@@ -848,6 +867,73 @@ export function CompareView({
       })
       .catch(() => setAiError(t("creativeAnalysis", "analysisFailed")))
       .finally(() => setAiLoading(false));
+  }
+
+  // AI relevance check — audits the displayed "Latest ads" for off-brand
+  // creatives. Forwards exactly the tiles on screen (the server's
+  // technical_data.latestAds, already geo+language filtered) so the model
+  // judges what the user sees. Verdicts merge into `relevance` keyed by
+  // ad_archive_id; the LatestAdTile badges the flagged ones. Billed flat
+  // 1 credit server-side.
+  function triggerRelevance() {
+    if (relevanceLoading || channel === null || !stats) return;
+    const relevanceAds = stats
+      .filter((s): s is AdsCompStats => s.kind === "ads")
+      .map((s) => ({
+        id: s.id,
+        name: s.name,
+        ads: s.latestAds.slice(0, 3).map((a) => ({
+          ad_archive_id: a.ad_archive_id,
+          headline: a.headline,
+          ad_text: a.ad_text,
+          image_url: a.image_url,
+          format: a.format ?? null,
+        })),
+      }))
+      .filter((b) => b.ads.length > 0);
+    if (relevanceAds.length === 0) return;
+    setRelevanceLoading(true);
+    setRelevanceError(null);
+    fetch("/api/comparisons", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        competitor_ids: selectedIds,
+        locale,
+        channel,
+        date_from: dateFrom,
+        date_to: dateTo,
+        sections: ["relevance"],
+        relevance_ads: relevanceAds,
+      }),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setRelevanceError(data.error ?? t("compare", "relevanceFailed"));
+          return;
+        }
+        const data = await res.json();
+        notifyCreditsChanged();
+        const analysis = (data.relevance_analysis ?? {}) as Record<
+          string,
+          { ad_archive_id: string; relevant: boolean; reason: string }[]
+        >;
+        setRelevance((prev) => {
+          const next = { ...prev };
+          for (const verdicts of Object.values(analysis)) {
+            for (const v of verdicts) {
+              next[v.ad_archive_id] = {
+                relevant: v.relevant,
+                reason: v.reason,
+              };
+            }
+          }
+          return next;
+        });
+      })
+      .catch(() => setRelevanceError(t("compare", "relevanceFailed")))
+      .finally(() => setRelevanceLoading(false));
   }
 
   // Fetch benchmark data when benchmark tab is selected
@@ -2315,6 +2401,10 @@ export function CompareView({
                   locale={locale}
                   refreshRateWindowDays={refreshRateWindowDays}
                   isGoogle={channel === "google"}
+                  relevance={relevance}
+                  relevanceLoading={relevanceLoading}
+                  relevanceError={relevanceError}
+                  onCheckRelevance={triggerRelevance}
                 />
               )
             ) : null)}
@@ -2608,6 +2698,10 @@ function AdsTechnicalView({
   locale,
   refreshRateWindowDays,
   isGoogle,
+  relevance,
+  relevanceLoading,
+  relevanceError,
+  onCheckRelevance,
 }: {
   stats: AdsCompStats[];
   t: (s: string, k: string) => string;
@@ -2617,6 +2711,11 @@ function AdsTechnicalView({
    *  (ad_text → avgCopyLength, cta → topCta) render as a single "N/A
    *  on this channel" cell so we don't lie with a misleading 0. */
   isGoogle: boolean;
+  /** Off-brand verdicts keyed by ad_archive_id (AI relevance check). */
+  relevance: RelevanceMap;
+  relevanceLoading: boolean;
+  relevanceError: string | null;
+  onCheckRelevance: () => void;
 }) {
   return (
     <div className="space-y-4">
@@ -2791,7 +2890,35 @@ function AdsTechnicalView({
       />
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">{t("compare", "latestAds")}</CardTitle>
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="text-sm">
+              {t("compare", "latestAds")}
+            </CardTitle>
+            {AI_RELEVANCE_CHECK_ENABLED && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={onCheckRelevance}
+                disabled={relevanceLoading}
+              >
+                {relevanceLoading ? (
+                  <Loader2 className="size-3 animate-spin mr-1.5" />
+                ) : (
+                  <ScanSearch className="size-3 mr-1.5" />
+                )}
+                {t("compare", "checkRelevance")} ({creditCosts.ai_relevance})
+              </Button>
+            )}
+          </div>
+          {AI_RELEVANCE_CHECK_ENABLED && (
+            <p className="text-xs text-muted-foreground">
+              {t("compare", "checkRelevanceHint")}
+            </p>
+          )}
+          {relevanceError && (
+            <p className="text-xs text-destructive">{relevanceError}</p>
+          )}
         </CardHeader>
         <CardContent>
           <div
@@ -2804,7 +2931,12 @@ function AdsTechnicalView({
               <div key={s.id} className="space-y-3">
                 <p className="text-xs font-medium text-gold">{s.name}</p>
                 {s.latestAds.slice(0, 3).map((ad) => (
-                  <LatestAdTile key={ad.ad_archive_id} ad={ad} t={t} />
+                  <LatestAdTile
+                    key={ad.ad_archive_id}
+                    ad={ad}
+                    t={t}
+                    verdict={relevance[ad.ad_archive_id]}
+                  />
                 ))}
               </div>
             ))}
@@ -3265,11 +3397,17 @@ function TiktokTechnicalView({
 function LatestAdTile({
   ad,
   t,
+  verdict,
 }: {
   ad: AdsCompStatsBase["latestAds"][number];
   t: (s: string, k: string) => string;
+  /** AI relevance verdict for this creative, when the user has run the
+   *  off-brand check. `relevant: false` badges the tile as a possible
+   *  off-brand / misattributed creative (non-destructive — never hides). */
+  verdict?: { relevant: boolean; reason: string };
 }) {
   const [imgFailed, setImgFailed] = useState(false);
+  const offBrand = verdict?.relevant === false;
 
   const isHtmlPreview =
     ad.image_url?.includes("/render_ad/") ||
@@ -3306,8 +3444,22 @@ function LatestAdTile({
             rel: "noreferrer",
           }
         : {})}
-      className="block rounded-lg border border-border overflow-hidden hover:border-gold/40 transition-colors"
+      className={cn(
+        "relative block rounded-lg border overflow-hidden transition-colors",
+        offBrand
+          ? "border-destructive/60 ring-1 ring-destructive/40"
+          : "border-border hover:border-gold/40",
+      )}
     >
+      {offBrand && (
+        <div
+          className="absolute top-1.5 left-1.5 z-10 flex items-center gap-1 rounded-md bg-destructive/90 px-1.5 py-0.5 text-[10px] font-medium text-white shadow-sm"
+          title={verdict?.reason || t("compare", "offBrandBadge")}
+        >
+          <AlertTriangle className="size-3" />
+          {t("compare", "offBrandBadge")}
+        </div>
+      )}
       {hasImage ? (
         // object-scale-down (≡ min(none, contain)) shows the image at
         // its NATURAL size when smaller than the tile, and downscales

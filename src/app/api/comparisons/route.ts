@@ -15,9 +15,20 @@ import {
   type ModelTier,
 } from "@/lib/ai/creative-analysis";
 import { cleanInstagramUsername } from "@/lib/instagram/service";
+import {
+  extractRegionCodes,
+  adMatchesCountries,
+  expectedLanguages,
+  adMatchesLanguages,
+} from "@/lib/ads/ad-filters";
 import { consumeCredits, refundCredits } from "@/lib/credits/consume";
 import { enforceAiRateLimit } from "@/lib/rate-limit/enforce";
 import { aiAnalysisAction } from "@/config/pricing";
+import {
+  checkAdRelevance,
+  type RelevanceVerdict,
+} from "@/lib/ai/relevance-check";
+import { AI_RELEVANCE_CHECK_ENABLED } from "@/config/features";
 import { logger } from "@/lib/logger";
 
 export const maxDuration = 300;
@@ -69,8 +80,17 @@ export const maxDuration = 300;
  *         "Video — preview unavailable" placeholder instead of a
  *         bare "No preview" when the actor returns null imageUrl
  *         for video creatives.
+ *   - v13: country chip is now a REAL filter for Google too — the whole
+ *         Google ad set is narrowed by ISO-2 region evidence pulled from
+ *         raw_data (regionStats.regionCode + creativeRegions) since
+ *         Google's scan_countries is NULL by design. latestAds also pass
+ *         a copy-language filter (drop creatives whose detected language
+ *         is off-target for the selected countries — e.g. German copy
+ *         under an IT selection). Both filters are conservative: ads
+ *         with no region/undetectable language are kept. Cached v12 rows
+ *         predate both filters and must regenerate.
  */
-const CURRENT_DATA_VERSION = 12;
+const CURRENT_DATA_VERSION = 13;
 
 /* ── Schemas ─────────────────────────────────────────────── */
 
@@ -84,7 +104,7 @@ const postSchema = z.object({
   date_from: z.string().optional(),
   date_to: z.string().optional(),
   sections: z
-    .array(z.enum(["technical", "copy", "visual"]))
+    .array(z.enum(["technical", "copy", "visual", "relevance"]))
     .min(1)
     .optional()
     .default(["technical"]),
@@ -93,6 +113,30 @@ const postSchema = z.object({
    *  charge. Optional → caller without a preference falls
    *  through to the pragmatic default. */
   tier: z.enum(["cheap", "pragmatic", "premium"]).optional(),
+  /** Creatives to run the off-brand relevance check on, forwarded by the
+   *  client from the displayed "Latest ads" tiles so we audit EXACTLY
+   *  what the user sees (and skip a redundant re-fetch). Required when
+   *  `sections` includes "relevance"; ignored otherwise. */
+  relevance_ads: z
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        name: z.string().optional(),
+        ads: z
+          .array(
+            z.object({
+              ad_archive_id: z.string(),
+              headline: z.string().nullable().optional(),
+              ad_text: z.string().nullable().optional(),
+              image_url: z.string().nullable().optional(),
+              format: z.string().nullable().optional(),
+            }),
+          )
+          .max(10),
+      }),
+    )
+    .max(3)
+    .optional(),
 });
 
 const deleteSchema = z.object({
@@ -145,6 +189,7 @@ type AdRow = {
   end_date: string | null;
   created_at: string;
   raw_data: Record<string, unknown> | null;
+  scan_countries: string[] | null;
 };
 
 async function computeTechnicalStats(
@@ -180,7 +225,7 @@ async function computeTechnicalStats(
           let q = admin
             .from("mait_ads_external")
             .select(
-              "ad_archive_id, headline, ad_text, description, cta, image_url, video_url, platforms, status, start_date, end_date, created_at, raw_data"
+              "ad_archive_id, headline, ad_text, description, cta, image_url, video_url, platforms, status, start_date, end_date, created_at, raw_data, scan_countries"
             )
             .eq("competitor_id", id)
             // created_at alone is not unique (bulk upserts share the
@@ -210,9 +255,10 @@ async function computeTechnicalStats(
           // google-ads-service.ts normalize). Applying the overlap
           // would drop 100% of them, which is what caused the empty
           // Compare technical view on Google channel. Skip the
-          // predicate when source==="google" so the country chip
-          // becomes a no-op for that channel — Meta still honours
-          // the filter as before.
+          // predicate when source==="google" HERE — instead the Google
+          // ad set is filtered app-side after the fetch, using the geo
+          // evidence inside raw_data (see the adMatchesCountries pass
+          // below). Meta still honours the filter at the SQL level.
           if (
             countriesFilter &&
             countriesFilter.length > 0 &&
@@ -237,7 +283,7 @@ async function computeTechnicalStats(
         return unique;
       }
 
-      const [{ data: comp }, adsList] = await Promise.all([
+      const [{ data: comp }, fetchedAds] = await Promise.all([
         admin
           .from("mait_competitors")
           .select("id, page_name")
@@ -245,6 +291,31 @@ async function computeTechnicalStats(
           .maybeSingle(),
         fetchAllAds(),
       ]);
+
+      // Region filter for Google. Meta is already country-scoped at the
+      // SQL level (scan_countries overlap, see fetchAllAds), but Google's
+      // scan_countries is NULL by design so the SQL overlap is skipped
+      // there. We recover the geo from raw_data here and narrow the whole
+      // Google ad set so EVERY metric (totals, format mix, latest ads,
+      // ...) reflects the country chip — not just a subset. Conservative:
+      // ads with no region evidence are kept (we can't prove they're
+      // off-geo). No-op for Meta (already filtered) and when no country
+      // is selected.
+      const adsList =
+        source === "google" && countriesFilter && countriesFilter.length > 0
+          ? fetchedAds.filter((a) =>
+              adMatchesCountries(
+                extractRegionCodes(a.raw_data, a.scan_countries),
+                countriesFilter,
+              ),
+            )
+          : fetchedAds;
+
+      // Expected copy languages for the selected countries (IT → it,
+      // DE → de, …). Drives the latest-ads language filter below. Null
+      // when no country is selected or none maps to a known language.
+      const langFilter = expectedLanguages(countriesFilter);
+
       const active = adsList.filter((a) => a.status === "ACTIVE");
 
       // Format mix — share the bucket logic with Benchmarks/Report.
@@ -368,6 +439,21 @@ async function computeTechnicalStats(
       }
       const latestAds = adsList
         .filter(hasUsablePreview)
+        // Copy-language filter: an ad served in the selected country but
+        // written in another language (e.g. German copy under an IT
+        // selection) must not surface as a "latest creative". Geo can't
+        // catch this — the ad really was served there — so we detect the
+        // language of headline + body and drop confident mismatches.
+        // Conservative: undetectable/short copy is kept. Applied only to
+        // the displayed creatives, NOT to the aggregate metrics, because
+        // the detector is a heuristic and we don't want a fuzzy verdict
+        // silently shrinking totals.
+        .filter((a) =>
+          adMatchesLanguages(
+            `${a.headline ?? ""} ${a.ad_text ?? ""}`.trim(),
+            langFilter,
+          ),
+        )
         .sort(
           (a, b) =>
             new Date(b.created_at).getTime() -
@@ -1461,6 +1547,99 @@ export async function POST(req: Request) {
     }
   }
 
+  // AI relevance check — flag-gated, on-demand, billed independently of
+  // copy/visual (flat 1 credit). Audits the displayed "Latest ads"
+  // creatives for off-brand / misattributed items the deterministic
+  // geo + copy-language filters can't catch (e.g. an unrelated sneaker
+  // surfacing for a womenswear brand). Non-destructive: returns a
+  // verdict per ad and the client badges the flagged ones. Verdicts are
+  // NOT persisted on mait_comparisons (they're tied to the exact
+  // filtered creatives on screen) — returned on the response only.
+  let relevanceAnalysis: Record<string, RelevanceVerdict[]> | undefined;
+  if (sections.includes("relevance")) {
+    if (!AI_RELEVANCE_CHECK_ENABLED) {
+      return NextResponse.json(
+        { error: "Relevance check disabled" },
+        { status: 403 },
+      );
+    }
+    if (!process.env.OPENROUTER_API_KEY) {
+      return NextResponse.json(
+        { error: "OPENROUTER_API_KEY non configurato." },
+        { status: 503 },
+      );
+    }
+    const relAds = parsed.data.relevance_ads ?? [];
+    const totalRelAds = relAds.reduce((s, b) => s + b.ads.length, 0);
+    if (totalRelAds === 0) {
+      return NextResponse.json(
+        { error: "No creatives to check" },
+        { status: 400 },
+      );
+    }
+    const userRes = await supabase.auth.getUser();
+    const userId = userRes.data.user?.id;
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    // Flat single charge per run regardless of brand/ad count — the whole
+    // pass is one cheap multimodal call per brand.
+    const credit = await consumeCredits(
+      userId,
+      "ai_relevance",
+      "AI Relevance check",
+    );
+    if (!credit.ok) {
+      return NextResponse.json(
+        { error: "Insufficient credits", balance: credit.balance },
+        { status: 402 },
+      );
+    }
+    const aiLocale = locale as "it" | "en";
+    const results = await Promise.all(
+      relAds.map((b) =>
+        checkAdRelevance(
+          b.name ?? "—",
+          b.ads.map((a) => ({
+            ad_archive_id: a.ad_archive_id,
+            headline: a.headline ?? null,
+            ad_text: a.ad_text ?? null,
+            image_url: a.image_url ?? null,
+            format: a.format ?? null,
+          })),
+          aiLocale,
+          workspaceId,
+        )
+          .then((verdicts) => ({ id: b.id, verdicts }))
+          .catch((err) => {
+            logger.error(
+              "checkAdRelevance threw",
+              {
+                channel: "comparisons",
+                event: "ai.relevance_failed",
+                workspaceId,
+              },
+              err,
+            );
+            return { id: b.id, verdicts: null as RelevanceVerdict[] | null };
+          }),
+      ),
+    );
+    // Total failure (every brand's check came back null) → refund + 502,
+    // same contract as the copy/visual path.
+    if (results.every((r) => r.verdicts == null)) {
+      await refundCredits(userId, "ai_relevance", "AI Relevance refund");
+      return NextResponse.json(
+        { error: "Relevance check failed — credits refunded.", refunded: true },
+        { status: 502 },
+      );
+    }
+    relevanceAnalysis = {};
+    for (const r of results) {
+      if (r.verdicts) relevanceAnalysis[r.id] = r.verdicts;
+    }
+  }
+
   // If the underlying content kind changed (ads ↔ organic) since we last
   // stored this comparison, any previously cached AI (copy/visual) refers
   // to the old content and must not leak. Compare by technical_data[0].kind
@@ -1521,6 +1700,7 @@ export async function POST(req: Request) {
     ...result,
     refresh_rate_window_days: refreshDays,
     current_data_version: CURRENT_DATA_VERSION,
+    ...(relevanceAnalysis ? { relevance_analysis: relevanceAnalysis } : {}),
   });
 }
 

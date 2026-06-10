@@ -1022,6 +1022,17 @@ const translations = {
     resetRange: { it: "Reset", en: "Reset" },
     latestAds: { it: "Ultime ads", en: "Latest ads" },
     noPreview: { it: "Nessuna anteprima", en: "No preview" },
+    // AI relevance (off-brand) check on the Latest ads card
+    checkRelevance: { it: "Verifica pertinenza", en: "Check relevance" },
+    checkRelevanceHint: {
+      it: "Controllo AI: segnala i creativi che sembrano fuori target o non riconducibili al brand.",
+      en: "AI check: flags creatives that look off-brand or unrelated to the advertiser.",
+    },
+    offBrandBadge: { it: "Possibile fuori target", en: "Possibly off-brand" },
+    relevanceFailed: {
+      it: "Verifica pertinenza non riuscita. Riprova tra poco.",
+      en: "Relevance check failed. Please try again shortly.",
+    },
     // Organic-specific Technical tab keys
     totalPosts: { it: "Post totali", en: "Total posts" },
     postsPerWeek: { it: "Frequenza post", en: "Posting cadence" },

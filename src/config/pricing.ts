@@ -42,6 +42,10 @@ export type CreditAction =
   | 'ai_analysis_cheap'
   | 'ai_analysis_pragmatic'
   | 'ai_analysis_premium'
+  // Off-brand relevance check on Compare's "Latest ads". A single
+  // multimodal pass over the ~3-5 displayed creatives per brand →
+  // negligible token cost (~$0.002). Flat 1 credit, not tiered.
+  | 'ai_relevance'
   | 'report_single'
   | 'report_comparison';
 
@@ -173,6 +177,7 @@ export const creditCosts: Record<CreditAction, number> = {
   ai_analysis_cheap: 1,
   ai_analysis_pragmatic: 3,
   ai_analysis_premium: 8,
+  ai_relevance: 1,
   report_single: 2,
   report_comparison: 3,
 };
