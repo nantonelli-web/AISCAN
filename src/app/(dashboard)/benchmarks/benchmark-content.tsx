@@ -850,6 +850,16 @@ async function TiktokContent({
     })
     .filter((c) => c.gapDays > TOLERANCE_DAYS);
 
+  // Freshness coverage (shared with Compare). TikTok scans have no
+  // server-side date filter, so the reliable freshness signal is the
+  // last scan's completed_at (computeFreshnessGaps falls back to it when
+  // date_to is null).
+  const scanCoverage = await getScanCoverage(
+    supabase,
+    data.coverageByCompetitor.map((c) => c.competitorId),
+    "tiktok",
+  );
+
   if (data.totals.totalPosts === 0) {
     return (
       <div className="space-y-6">
@@ -899,6 +909,14 @@ async function TiktokContent({
           </ul>
         </div>
       )}
+
+      {/* Freshness coverage — stale last scan vs window end (shared
+          component with Compare). */}
+      <CoverageAlert
+        coverage={scanCoverage}
+        windowTo={dateTo}
+        persistKey="bench-freshness-tiktok"
+      />
 
       {/* KPIs TikTok */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">

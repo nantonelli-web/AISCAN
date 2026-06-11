@@ -2122,6 +2122,7 @@ export interface TiktokBenchmarkData {
   avgCaptionLengthByCompetitor: { name: string; chars: number }[];
   /** Coverage: when was the brand first scanned on TikTok? */
   coverageByCompetitor: {
+    competitorId: string;
     competitor: string;
     earliestPost: string | null;
     postsInRange: number;
@@ -2359,6 +2360,7 @@ export async function computeTiktokBenchmarks(
   }
 
   const coverageByCompetitor = (comps ?? []).map((c) => ({
+    competitorId: c.id,
     competitor: c.page_name,
     earliestPost: earliestByComp.get(c.id) ?? null,
     postsInRange: inRangeByComp.get(c.id) ?? 0,
