@@ -143,7 +143,7 @@ export function Sidebar({
 
   return (
     <aside className="hidden md:flex md:w-60 md:flex-col border-r border-border bg-card sticky top-0 h-screen">
-      <div className="h-16 flex items-center px-6 border-b border-border shrink-0">
+      <div className="h-20 flex items-center px-6 border-b border-border shrink-0">
         <Link href="/dashboard" className="flex items-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.webp" alt="AISCAN" className="h-[70px]" />
