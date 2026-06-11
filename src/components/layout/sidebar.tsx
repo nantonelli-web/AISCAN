@@ -143,10 +143,16 @@ export function Sidebar({
 
   return (
     <aside className="hidden md:flex md:w-60 md:flex-col border-r border-border bg-card sticky top-0 h-screen">
-      <div className="h-20 flex items-center px-6 border-b border-border shrink-0">
+      <div className="h-16 flex items-center px-6 border-b border-border shrink-0">
         <Link href="/dashboard" className="flex items-center">
+          {/* Logo is 8500×2500 (aspect 3.4:1). The sidebar only has ~192px
+              of usable width, so sizing by HEIGHT makes the natural width
+              exceed the column → Tailwind preflight `max-width:100%` caps
+              the width while the forced height stays → stretched. Size by
+              WIDTH with h-auto instead so the aspect ratio is always
+              preserved and the logo fills the column cleanly. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.webp" alt="AISCAN" className="h-[70px]" />
+          <img src="/logo.webp" alt="AISCAN" className="w-[180px] h-auto" />
         </Link>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
