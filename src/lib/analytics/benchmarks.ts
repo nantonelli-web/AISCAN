@@ -94,6 +94,7 @@ export interface BenchmarkData {
    * than the range they asked to analyse.
    */
   coverageByCompetitor: {
+    competitorId: string;
     competitor: string;
     earliestStart: string | null;
     adsInRange: number;
@@ -847,6 +848,7 @@ export async function computeBenchmarks(
   const coverageByCompetitor = [...coverageIds]
     .filter((id) => inRangeIds.has(id) || earliestByComp.has(id) || coverageIds.has(id))
     .map((id) => ({
+      competitorId: id,
       competitor: compMap.get(id) ?? "N/A",
       earliestStart: earliestByComp.get(id) ?? null,
       adsInRange: inRangeByComp.get(id) ?? 0,
@@ -1578,6 +1580,7 @@ export interface OrganicBenchmarkData {
    * dateFrom".
    */
   coverageByCompetitor: {
+    competitorId: string;
     competitor: string;
     earliestPost: string | null;
     postsInRange: number;
@@ -1735,6 +1738,7 @@ export async function computeOrganicBenchmarks(
     ? competitorIds
     : comps.map((c) => c.id);
   const coverageByCompetitor = coverageIds.map((id) => ({
+    competitorId: id,
     competitor: compMap.get(id) ?? "N/A",
     earliestPost: earliestByComp.get(id) ?? null,
     postsInRange: inRangeCount.get(id) ?? 0,

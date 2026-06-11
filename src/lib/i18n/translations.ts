@@ -3163,6 +3163,26 @@ const translations = {
   },
 
   // ─── Common ────────────────────────────────────────────────
+  // Shared scan-coverage / freshness alert (Compare + Benchmarks).
+  coverageAlert: {
+    title: {
+      it: "Copertura scansioni non allineata",
+      en: "Uneven scan coverage",
+    },
+    body: {
+      it: "Alcuni brand non sono stati scansionati fino alla fine del periodo selezionato: i loro dati recenti mancano, quindi il confronto potrebbe non essere equo. Rilancia una scansione su questi brand per allineare le date.",
+      en: "Some brands weren't scanned up to the end of the selected period: their recent data is missing, so the comparison may not be fair. Re-run a scan on these brands to align the dates.",
+    },
+    coveredUntil: { it: "coperto fino al", en: "covered until" },
+    daysBehind: { it: "giorni indietro", en: "days behind" },
+    neverScanned: {
+      it: "mai scansionato su questo canale",
+      en: "never scanned on this channel",
+    },
+    brandSingular: { it: "brand", en: "brand" },
+    brandPlural: { it: "brand", en: "brands" },
+  },
+
   common: {
     error: { it: "Errore", en: "Error" },
     loading: { it: "Caricamento...", en: "Loading..." },

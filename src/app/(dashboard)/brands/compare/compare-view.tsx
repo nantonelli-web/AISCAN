@@ -68,6 +68,8 @@ import { getCountries } from "@/config/countries";
 import { creditCosts } from "@/config/pricing";
 import { AI_RELEVANCE_CHECK_ENABLED } from "@/config/features";
 import { notifyCreditsChanged } from "@/lib/credits/events";
+import { CoverageAlert } from "@/components/analytics/coverage-alert";
+import type { ScanCoverageEntry } from "@/lib/analytics/scan-coverage";
 
 /** Per-creative off-brand verdict (keyed by ad_archive_id) returned by the
  *  AI relevance check. `relevant: false` → tile is badged "possibile fuori
@@ -414,6 +416,11 @@ export function CompareView({
   const [relevance, setRelevance] = useState<RelevanceMap>({});
   const [relevanceLoading, setRelevanceLoading] = useState(false);
   const [relevanceError, setRelevanceError] = useState<string | null>(null);
+
+  // Scan-coverage freshness signal — per-brand last scan for the selected
+  // channel, used to warn when the brands aren't scanned up to the same
+  // recent date (the comparison would be apples-to-oranges otherwise).
+  const [scanCoverage, setScanCoverage] = useState<ScanCoverageEntry[]>([]);
 
   // Missing data state
   const [missingBrands, setMissingBrands] = useState<string[]>([]);
@@ -767,6 +774,28 @@ export function CompareView({
     // so a stale "off-brand" badge can't bleed onto a different creative.
     setRelevance({});
     setRelevanceError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedKey]);
+
+  // Fetch per-brand scan coverage for the selected channel so the
+  // CoverageAlert can warn about mis-aligned scan dates between brands.
+  // Only single-channel ad/organic selections map to a scan source;
+  // "all" (mixed) has no single coverage window so we skip it.
+  useEffect(() => {
+    setScanCoverage([]);
+    if (selected.size < 2 || channel === null) return;
+    if (!["meta", "google", "instagram", "tiktok"].includes(channel)) return;
+    const ids = selectedIds.join(",");
+    let cancelled = false;
+    fetch(`/api/competitors/scan-coverage?ids=${ids}&channel=${channel}`)
+      .then((r) => (r.ok ? r.json() : { coverage: [] }))
+      .then((d) => {
+        if (!cancelled && Array.isArray(d.coverage)) setScanCoverage(d.coverage);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedKey]);
 
@@ -2254,6 +2283,10 @@ export function CompareView({
               </Button>
             </div>
           )}
+          {/* Scan-coverage freshness — warns when the selected brands
+              weren't scanned up to the same recent date (the Born Outside
+              vs Golden Goose mismatch). Renders nothing when aligned. */}
+          <CoverageAlert coverage={scanCoverage} windowTo={dateTo} />
           <div className="flex items-center justify-between print:hidden">
             <p className="text-xs text-muted-foreground">
               {t("compare", "generatedAt")}{" "}

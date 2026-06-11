@@ -26,6 +26,8 @@ import {
   AudioStrategyChart,
 } from "@/components/dashboard/benchmark-charts";
 import { CollapsibleAlert } from "./collapsible-alert";
+import { CoverageAlert } from "@/components/analytics/coverage-alert";
+import { getScanCoverage } from "@/lib/analytics/scan-coverage";
 import { InfoPopover } from "@/components/ui/info-popover";
 import { getLocale, serverT } from "@/lib/i18n/server";
 import { STRATEGY_LABELS, type GoogleCampaignStrategy } from "@/lib/analytics/google-strategy";
@@ -161,6 +163,16 @@ export async function BenchmarkContent({
     })
     .filter((c) => c.gapDays > TOLERANCE_DAYS);
 
+  // Freshness coverage (shared signal with Compare): which of the
+  // benchmarked brands weren't scanned up to the END of the window. The
+  // earliestStart check above is blind to this — a brand with deep history
+  // but a stale last scan passes it yet still lacks recent data.
+  const scanCoverage = await getScanCoverage(
+    supabase,
+    data.coverageByCompetitor.map((c) => c.competitorId),
+    channel,
+  );
+
   // Empty state handles the "no scans at all in this selection" case, but we
   // still show the no-scan list so the user knows *which* brands need a scan.
   if (data.totals.totalAds === 0) {
@@ -223,6 +235,14 @@ export async function BenchmarkContent({
           </ul>
         </CollapsibleAlert>
       )}
+
+      {/* Freshness coverage — brands not scanned up to the window end
+          (stale last scan), shared component with Compare. */}
+      <CoverageAlert
+        coverage={scanCoverage}
+        windowTo={dateTo}
+        persistKey={`bench-freshness-${channel}`}
+      />
 
       {/* Country-scan coverage warning: brands whose configured
           countries returned 0 ads for this analysis window. Helps the
@@ -1154,6 +1174,15 @@ async function OrganicContent({
     })
     .filter((c) => c.gapDays > TOLERANCE_DAYS);
 
+  // Freshness coverage (shared with Compare): brands not scanned up to
+  // the window end — the case that bit Born Outside (deep history but a
+  // stale last Instagram scan), which earliestPost above can't catch.
+  const scanCoverage = await getScanCoverage(
+    supabase,
+    data.coverageByCompetitor.map((c) => c.competitorId),
+    "instagram",
+  );
+
   if (data.totals.totalPosts === 0) {
     return (
       <div className="space-y-6">
@@ -1201,6 +1230,14 @@ async function OrganicContent({
           </ul>
         </div>
       )}
+
+      {/* Freshness coverage — stale last scan vs window end (shared
+          component with Compare). */}
+      <CoverageAlert
+        coverage={scanCoverage}
+        windowTo={dateTo}
+        persistKey="bench-freshness-instagram"
+      />
 
       {/* KPIs — Total followers in testa quando disponibile, e' il
           segnale di posizionamento piu' rilevante sul canale organic
