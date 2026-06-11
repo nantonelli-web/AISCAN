@@ -58,13 +58,14 @@ const navGroups: NavGroup[] = [
   {
     key: "groupAnalyze",
     items: [
-      // /collections e' migrato come tab di /library (2026-05-10);
-      // resta come alias per evidenziare Library quando l'utente e'
-      // dentro /collections/[id] (detail).
-      { href: "/library", key: "library", icon: Library, aliases: ["/collections"] },
       { href: "/brands/compare", key: "compare", icon: GitCompareArrows, aliases: ["/brands/compare"] },
       { href: "/benchmarks", key: "benchmarks", icon: Target, aliases: [] },
       { href: "/adv-performance", key: "advPerformance", icon: TrendingUp, aliases: [] },
+      // /collections e' migrato come tab di /library (2026-05-10);
+      // resta come alias per evidenziare Library quando l'utente e'
+      // dentro /collections/[id] (detail). Posizionato in fondo al
+      // gruppo Analyze su richiesta (sotto Adv Performance).
+      { href: "/library", key: "library", icon: Library, aliases: ["/collections"] },
     ],
   },
   // groupBuild (Output) attualmente vuoto: Collections e' migrato
