@@ -8,9 +8,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // client-supplied userId/email, which let a caller attach their auth id
 // to a workspace with a pending invite for any claimed email, and made
 // free-credit farming trivial. Only profile labels come from the body.
+// Both optional: the signup form supplies them, but the login flow calls
+// this with an empty body to self-heal a confirmed user whose record was
+// never created — in that case the labels are derived from the auth user's
+// own metadata below. Identity (id/email) ALWAYS comes from the session.
 const schema = z.object({
-  name: z.string().min(1).max(120),
-  workspaceName: z.string().min(1).max(120),
+  name: z.string().min(1).max(120).optional(),
+  workspaceName: z.string().min(1).max(120).optional(),
 });
 
 export async function POST(req: Request) {
@@ -23,16 +27,31 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => null);
-  const parsed = schema.safeParse(body);
+  const parsed = schema.safeParse(body ?? {});
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
-  const { name, workspaceName } = parsed.data;
   const userId = user.id;
   const email = user.email ?? "";
   if (!email) {
     return NextResponse.json({ error: "Account has no email" }, { status: 400 });
   }
+
+  // Profile labels: prefer the explicit body (signup), else fall back to
+  // the auth user's metadata (set at signUp via options.data), else the
+  // email local-part. Mirrors the derivation in /api/auth/callback so a
+  // self-healed user gets the same name/workspace they'd have gotten there.
+  const md = (user.user_metadata ?? {}) as Record<string, unknown>;
+  const name =
+    parsed.data.name ??
+    (md.full_name as string | undefined) ??
+    (md.name as string | undefined) ??
+    email.split("@")[0] ??
+    "User";
+  const workspaceName =
+    parsed.data.workspaceName ??
+    (md.workspace_name as string | undefined) ??
+    `${name}'s workspace`;
 
   const admin = createAdminClient();
 

@@ -57,9 +57,26 @@ export function LoginForm() {
       email,
       password,
     });
-    setLoading(false);
     if (error) {
+      setLoading(false);
       toast.error(error.message);
+      return;
+    }
+    // Self-heal: ensure the app-level user record + workspace exist before
+    // entering the dashboard. Covers confirmed auth users whose mait_users
+    // row was never created (e.g. the email-confirmation callback never ran
+    // because emailRedirectTo / Supabase Site URL was misconfigured, which
+    // otherwise surfaces as the "no_profile" / "user not created" error on
+    // every login). Idempotent — returns the existing workspace if present.
+    const boot = await fetch("/api/auth/bootstrap", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    setLoading(false);
+    if (!boot.ok) {
+      const data = await boot.json().catch(() => ({}));
+      toast.error(data.error ?? t("auth", "errorNoProfile"));
       return;
     }
     toast.success(t("auth", "welcomeBack"));

@@ -35,6 +35,13 @@ export function RegisterForm() {
       password,
       options: {
         data: { name, workspace_name: workspaceName },
+        // Point the confirmation link straight at our callback (which
+        // provisions mait_users + workspace), instead of relying on the
+        // Supabase Site URL. Without this, when email confirmation is ON
+        // the link lands on the Site URL and the user is never provisioned
+        // → "user not created" at first login. The URL must also be in the
+        // Supabase Auth "Redirect URLs" allowlist.
+        emailRedirectTo: `${window.location.origin}/api/auth/callback`,
       },
     });
 
@@ -44,14 +51,13 @@ export function RegisterForm() {
       return;
     }
 
-    // If the Supabase project requires email confirmation, signUp returns
-    // a user but NO session — so the server-side bootstrap (which derives
-    // identity from the session) would 401. In that case the account is
-    // provisioned later by /api/auth/callback when the user clicks the
-    // confirmation link, so we just tell them to check their email and
-    // skip bootstrap. (Today confirmation is off and a session exists, so
-    // this branch is dormant — but it keeps signup from silently breaking
-    // if confirmation is ever turned on.)
+    // Email confirmation is ON: signUp returns a user but NO session, so
+    // the server-side bootstrap (which derives identity from the session)
+    // would 401. The account is provisioned when the user clicks the
+    // confirmation link → /api/auth/callback (see emailRedirectTo above);
+    // and as a belt-and-suspenders the login flow self-heals provisioning
+    // if the callback ever doesn't run. So here we just tell them to check
+    // their email and skip bootstrap.
     if (!data.session) {
       setLoading(false);
       toast.success(t("auth", "checkEmail"));
