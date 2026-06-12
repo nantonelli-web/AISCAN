@@ -1,14 +1,20 @@
 <!--
-  AISCAN — Email template "Confirm signup"
+  AISCAN — Email template "Confirm signup" (bilingue IT/EN, locale-aware)
   Incollare in: Supabase → Authentication → Email Templates → Confirm signup
-  Subject suggerito: Conferma la tua email per attivare AISCAN
-  Variabile Supabase usata: {{ .ConfirmationURL }}
 
-  Note di design:
-  - Layout a tabelle + stili inline (compatibilità client email, incl. Outlook).
-  - Wordmark testuale "AISCAN" invece del logo .webp (Outlook desktop non
-    renderizza webp → un'immagine rotta sembrerebbe più spam, non meno).
-  - Brand color #0e3590 (lo stesso --gold del tema, che è blu).
+  LINGUA:
+  - Il register-form salva la lingua scelta in user_metadata.locale al signup.
+  - Qui il template ramifica con Go template: {{ if eq .Data.locale "en" }}…{{ else }}…{{ end }}
+  - Default = italiano (quando .Data.locale è assente, es. utenti vecchi / OAuth).
+
+  SUBJECT (campo Subject di Supabase):
+  - Se il campo Subject supporta il templating, usa:
+      {{ if eq .Data.locale "en" }}Confirm your email to activate AISCAN{{ else }}Conferma la tua email per attivare AISCAN{{ end }}
+  - Altrimenti, subject bilingue di fallback:
+      AISCAN · Conferma la tua email / Confirm your email
+
+  Variabile link: {{ .ConfirmationURL }}
+  Brand color #0e3590. Wordmark testuale (i .webp non si vedono su Outlook desktop).
 -->
 <!DOCTYPE html>
 <html lang="it">
@@ -17,28 +23,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light only" />
     <meta name="supported-color-schemes" content="light only" />
-    <title>Conferma la tua email — AISCAN</title>
+    <title>AISCAN</title>
   </head>
   <body style="margin:0; padding:0; background-color:#f4f6fb; -webkit-text-size-adjust:100%;">
-    <!-- preheader (testo di anteprima nascosto in inbox) -->
+    <!-- preheader -->
     <div style="display:none; max-height:0; overflow:hidden; opacity:0;">
-      Conferma il tuo indirizzo email per attivare il tuo account AISCAN.
+      {{ if eq .Data.locale "en" }}Confirm your email address to activate your AISCAN account.{{ else }}Conferma il tuo indirizzo email per attivare il tuo account AISCAN.{{ end }}
     </div>
 
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f6fb;">
       <tr>
         <td align="center" style="padding:32px 16px;">
-          <!-- card -->
           <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:560px; max-width:100%; background-color:#ffffff; border:1px solid #e6e9f2; border-radius:14px; overflow:hidden;">
             <!-- header / wordmark -->
             <tr>
               <td align="center" style="padding:36px 40px 8px 40px;">
-                <div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:26px; font-weight:800; letter-spacing:2px; color:#0e3590;">
-                  AISCAN
-                </div>
-                <div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; font-weight:600; letter-spacing:4px; color:#8a93ab; margin-top:4px;">
-                  ADS ANALYSIS TOOL
-                </div>
+                <div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:26px; font-weight:800; letter-spacing:2px; color:#0e3590;">AISCAN</div>
+                <div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; font-weight:600; letter-spacing:4px; color:#8a93ab; margin-top:4px;">ADS ANALYSIS TOOL</div>
               </td>
             </tr>
 
@@ -53,25 +54,22 @@
             <tr>
               <td style="padding:28px 40px 8px 40px; font-family:'Helvetica Neue',Arial,sans-serif;">
                 <h1 style="margin:0 0 14px 0; font-size:21px; line-height:1.3; font-weight:700; color:#101426;">
-                  Conferma il tuo indirizzo email
+                  {{ if eq .Data.locale "en" }}Confirm your email address{{ else }}Conferma il tuo indirizzo email{{ end }}
                 </h1>
                 <p style="margin:0 0 10px 0; font-size:15px; line-height:1.6; color:#3a4156;">
-                  Grazie per esserti registrato su <strong style="color:#0e3590;">AISCAN</strong>.
-                  Per attivare il tuo account e iniziare ad analizzare le campagne dei brand,
-                  conferma il tuo indirizzo email cliccando il pulsante qui sotto.
+                  {{ if eq .Data.locale "en" }}Thanks for signing up to <strong style="color:#0e3590;">AISCAN</strong>. To activate your account and start analysing brands' ad campaigns, confirm your email by clicking the button below.{{ else }}Grazie per esserti registrato su <strong style="color:#0e3590;">AISCAN</strong>. Per attivare il tuo account e iniziare ad analizzare le campagne pubblicitarie dei brand, conferma il tuo indirizzo email cliccando il pulsante qui sotto.{{ end }}
                 </p>
               </td>
             </tr>
 
-            <!-- CTA button -->
+            <!-- CTA -->
             <tr>
               <td align="center" style="padding:18px 40px 8px 40px;">
                 <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                   <tr>
                     <td align="center" bgcolor="#0e3590" style="border-radius:10px;">
-                      <a href="{{ .ConfirmationURL }}" target="_blank"
-                         style="display:inline-block; padding:14px 34px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:15px; font-weight:700; color:#ffffff; text-decoration:none; border-radius:10px;">
-                        Conferma la mia email
+                      <a href="{{ .ConfirmationURL }}" target="_blank" style="display:inline-block; padding:14px 34px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:15px; font-weight:700; color:#ffffff; text-decoration:none; border-radius:10px;">
+                        {{ if eq .Data.locale "en" }}Confirm my email{{ else }}Conferma la mia email{{ end }}
                       </a>
                     </td>
                   </tr>
@@ -83,7 +81,7 @@
             <tr>
               <td style="padding:14px 40px 4px 40px; font-family:'Helvetica Neue',Arial,sans-serif;">
                 <p style="margin:0 0 6px 0; font-size:12px; line-height:1.5; color:#8a93ab;">
-                  Se il pulsante non funziona, copia e incolla questo link nel browser:
+                  {{ if eq .Data.locale "en" }}If the button doesn't work, copy and paste this link into your browser:{{ else }}Se il pulsante non funziona, copia e incolla questo link nel browser:{{ end }}
                 </p>
                 <p style="margin:0; font-size:12px; line-height:1.5; word-break:break-all;">
                   <a href="{{ .ConfirmationURL }}" target="_blank" style="color:#0e3590; text-decoration:underline;">{{ .ConfirmationURL }}</a>
@@ -102,7 +100,7 @@
             <tr>
               <td style="padding:18px 40px 34px 40px; font-family:'Helvetica Neue',Arial,sans-serif;">
                 <p style="margin:0 0 6px 0; font-size:12px; line-height:1.5; color:#9aa2b6;">
-                  Se non hai creato un account su AISCAN, puoi ignorare questa email: nessun account verrà attivato.
+                  {{ if eq .Data.locale "en" }}If you didn't create an AISCAN account, you can safely ignore this email — no account will be activated.{{ else }}Se non hai creato un account su AISCAN, puoi ignorare questa email: nessun account verrà attivato.{{ end }}
                 </p>
                 <p style="margin:0; font-size:12px; line-height:1.5; color:#9aa2b6;">
                   AISCAN · Ads Analysis Tool · <a href="https://www.aiscan.biz" target="_blank" style="color:#0e3590; text-decoration:none;">aiscan.biz</a>

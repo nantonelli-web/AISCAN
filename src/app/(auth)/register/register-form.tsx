@@ -19,7 +19,7 @@ export function RegisterForm() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const { t } = useT();
+  const { t, locale } = useT();
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -34,7 +34,9 @@ export function RegisterForm() {
       email,
       password,
       options: {
-        data: { name, workspace_name: workspaceName },
+        // `locale` is read by the Supabase email templates to pick the
+        // language of the confirmation email ({{ if eq .Data.locale "en" }}).
+        data: { name, workspace_name: workspaceName, locale },
         // Point the confirmation link straight at our callback (which
         // provisions mait_users + workspace), instead of relying on the
         // Supabase Site URL. Without this, when email confirmation is ON
