@@ -34,6 +34,7 @@ const schema = z.object({
   tiktok_username: z.string().max(60).nullable().optional(),
   snapchat_handle: z.string().max(60).nullable().optional(),
   youtube_channel_url: z.string().max(200).nullable().optional(),
+  linkedin_url: z.string().max(300).nullable().optional(),
   google_advertiser_id: z.string().max(80).nullable().optional(),
   google_domain: z.string().max(200).nullable().optional(),
 });
@@ -105,6 +106,8 @@ export async function POST(req: Request) {
       youtube_channel_url: parsed.data.youtube_channel_url
         ? cleanYouTubeChannelUrl(parsed.data.youtube_channel_url)
         : null,
+      // LinkedIn company page — plain URL, no scraping. Store trimmed.
+      linkedin_url: parsed.data.linkedin_url?.trim() || null,
       google_advertiser_id: parsed.data.google_advertiser_id ?? null,
       google_domain: parsed.data.google_domain
         ? cleanAdvertiserDomain(parsed.data.google_domain)

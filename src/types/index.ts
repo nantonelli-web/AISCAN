@@ -75,6 +75,7 @@ export interface MaitCompetitor {
   snapchat_profile: Record<string, unknown> | null;
   youtube_channel_url: string | null;
   youtube_profile: Record<string, unknown> | null;
+  linkedin_url: string | null;
   google_advertiser_id: string | null;
   google_domain: string | null;
   profile_picture_url: string | null;

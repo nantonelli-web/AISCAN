@@ -37,6 +37,7 @@ const patchSchema = z.object({
   tiktok_advertiser_id: z.string().max(80).nullable().optional(),
   snapchat_handle: z.string().max(60).nullable().optional(),
   youtube_channel_url: z.string().max(200).nullable().optional(),
+  linkedin_url: z.string().max(300).nullable().optional(),
   google_advertiser_id: z.string().max(80).nullable().optional(),
   google_domain: z.string().max(200).nullable().optional(),
   // Logo / avatar del brand. Setting a null lo cancella; al prossimo
@@ -74,7 +75,7 @@ export async function PATCH(
   const {
     frequency, max_items, page_name, page_url, country, category,
     client_id, instagram_username, tiktok_username, tiktok_advertiser_id,
-    snapchat_handle, youtube_channel_url, google_advertiser_id, google_domain,
+    snapchat_handle, youtube_channel_url, linkedin_url, google_advertiser_id, google_domain,
     parent_brand_id, attribution_url_patterns, profile_picture_url,
   } = parsed.data;
 
@@ -112,6 +113,10 @@ export async function PATCH(
     directUpdate.youtube_channel_url = youtube_channel_url
       ? cleanYouTubeChannelUrl(youtube_channel_url)
       : null;
+  }
+  if (linkedin_url !== undefined) {
+    // Plain URL, no scraping → store trimmed (or NULL when cleared).
+    directUpdate.linkedin_url = linkedin_url ? linkedin_url.trim() : null;
   }
   if (google_advertiser_id !== undefined) directUpdate.google_advertiser_id = google_advertiser_id;
   if (google_domain !== undefined) {

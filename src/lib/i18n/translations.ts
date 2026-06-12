@@ -486,6 +486,11 @@ const translations = {
       it: "URL canale o handle (es. @nike)",
       en: "Channel URL or handle (e.g. @nike)",
     },
+    linkedinLabel: { it: "Pagina LinkedIn", en: "LinkedIn page" },
+    linkedinPlaceholder: {
+      it: "es. https://www.linkedin.com/company/nike",
+      en: "e.g. https://www.linkedin.com/company/nike",
+    },
     googleAdsSection: { it: "Google Ads", en: "Google Ads" },
     googleDomainLabel: { it: "Dominio del sito web dell'inserzionista", en: "Advertiser website domain" },
     googleDomainPlaceholder: { it: "es. nike.com", en: "e.g. nike.com" },

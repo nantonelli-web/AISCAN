@@ -1,0 +1,11 @@
+-- AISCAN — LinkedIn company page URL on competitors
+--
+-- Mirrors youtube_channel_url (migration 0028-ish): a plain text URL
+-- field for the brand's LinkedIn company page. No scraping today — it's
+-- a reference/contact field surfaced in the create + edit brand forms,
+-- reserved for future enrichment.
+--
+-- ALTER on an EXISTING table, so the public Data-API grant + RLS block
+-- required for NEW tables (from 2026-10-30) is NOT needed here: the
+-- existing grants on mait_competitors already apply.
+alter table mait_competitors add column if not exists linkedin_url text;

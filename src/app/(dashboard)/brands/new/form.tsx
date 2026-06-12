@@ -53,6 +53,7 @@ export function NewCompetitorForm() {
   const [tiktokUsername, setTiktokUsername] = useState("");
   const [snapchatHandle, setSnapchatHandle] = useState("");
   const [youtubeChannelUrl, setYoutubeChannelUrl] = useState("");
+  const [linkedinUrl, setLinkedinUrl] = useState("");
   const [googleAdvertiserId, setGoogleAdvertiserId] = useState("");
   const [googleDomain, setGoogleDomain] = useState("");
   const [clientId, setClientId] = useState("");
@@ -210,6 +211,7 @@ export function NewCompetitorForm() {
         tiktok_username: tiktokUsername.replace(/^@/, "").trim() || null,
         snapchat_handle: snapchatHandle.replace(/^@/, "").trim() || null,
         youtube_channel_url: youtubeChannelUrl.trim() || null,
+        linkedin_url: linkedinUrl.trim() || null,
         google_advertiser_id: googleAdvertiserId.trim() || null,
         google_domain: googleDomain.trim() || null,
       }),
@@ -368,6 +370,18 @@ export function NewCompetitorForm() {
               onChange={(v) => setYoutubeChannelUrl(v)}
               placeholder={t("newCompetitor", "youtubePlaceholder")}
               verifyHref={youtubeChannelUrl.trim() || null}
+              verifyLabel={t("newCompetitor", "verifyOnSite")}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="linkedin">{t("newCompetitor", "linkedinLabel")}</Label>
+            <FieldWithVerifyLink
+              id="linkedin"
+              type="url"
+              value={linkedinUrl}
+              onChange={(v) => setLinkedinUrl(v)}
+              placeholder={t("newCompetitor", "linkedinPlaceholder")}
+              verifyHref={linkedinUrl.trim() || null}
               verifyLabel={t("newCompetitor", "verifyOnSite")}
             />
           </div>
