@@ -39,6 +39,14 @@ export async function GET(req: Request) {
     user.user_metadata?.name ??
     email.split("@")[0] ??
     "User";
+  // Honour the workspace name the user typed at signup (stored in
+  // user_metadata.workspace_name) instead of always defaulting to
+  // "<name>'s workspace". With email confirmation ON every signup is
+  // provisioned HERE, so without this the chosen workspace name was
+  // silently lost. Falls back to the personal-workspace default.
+  const workspaceName =
+    (user.user_metadata?.workspace_name as string | undefined)?.trim() ||
+    `${name}'s workspace`;
 
   // Check for pending invitation for this email
   const { data: pendingInvite } = await admin
@@ -110,7 +118,7 @@ export async function GET(req: Request) {
       const slug = `ws-${user.id.slice(0, 8)}`;
       const { data: ws, error: wsErr } = await admin
         .from("mait_workspaces")
-        .insert({ name: `${name}'s workspace`, slug })
+        .insert({ name: workspaceName, slug })
         .select("id")
         .single();
 
