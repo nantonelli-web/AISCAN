@@ -268,6 +268,47 @@ const translations = {
       it: "Profilo utente non trovato.",
       en: "User profile not found.",
     },
+    // ─── Password dimenticata / reset ───
+    forgotPasswordLink: { it: "Password dimenticata?", en: "Forgot password?" },
+    forgotTitle: { it: "Reimposta la password", en: "Reset your password" },
+    forgotDescription: {
+      it: "Inserisci la tua email: ti invieremo un link per reimpostare la password.",
+      en: "Enter your email and we'll send you a link to reset your password.",
+    },
+    forgotSubmit: { it: "Invia link di reset", en: "Send reset link" },
+    forgotLoading: { it: "Invio...", en: "Sending..." },
+    forgotSent: {
+      it: "Se esiste un account con questa email, riceverai a breve un link per reimpostare la password.",
+      en: "If an account exists for this email, you'll shortly receive a link to reset your password.",
+    },
+    forgotError: {
+      it: "Impossibile inviare il link. Riprova.",
+      en: "Couldn't send the link. Please try again.",
+    },
+    backToLogin: { it: "Torna all'accesso", en: "Back to sign in" },
+    resetTitle: { it: "Imposta una nuova password", en: "Set a new password" },
+    resetDescription: {
+      it: "Scegli una nuova password per il tuo account.",
+      en: "Choose a new password for your account.",
+    },
+    newPasswordLabel: { it: "Nuova password", en: "New password" },
+    confirmPasswordLabel: { it: "Conferma password", en: "Confirm password" },
+    resetSubmit: { it: "Aggiorna password", en: "Update password" },
+    resetLoading: { it: "Aggiornamento...", en: "Updating..." },
+    resetSuccess: {
+      it: "Password aggiornata. Verrai reindirizzato...",
+      en: "Password updated. Redirecting...",
+    },
+    resetMismatch: { it: "Le password non coincidono.", en: "Passwords don't match." },
+    resetError: {
+      it: "Impossibile aggiornare la password. Riprova.",
+      en: "Couldn't update the password. Please try again.",
+    },
+    resetNoSession: {
+      it: "Link non valido o scaduto. Richiedi un nuovo reset.",
+      en: "Invalid or expired link. Request a new reset.",
+    },
+    resetChecking: { it: "Verifica del link...", en: "Verifying link..." },
   },
 
   // ─── Dashboard ─────────────────────────────────────────────

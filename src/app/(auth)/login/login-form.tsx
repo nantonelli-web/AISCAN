@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -135,7 +136,15 @@ export function LoginForm() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="password">{t("auth", "passwordLabel")}</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password">{t("auth", "passwordLabel")}</Label>
+            <Link
+              href="/forgot-password"
+              className="text-xs text-muted-foreground hover:text-gold hover:underline"
+            >
+              {t("auth", "forgotPasswordLink")}
+            </Link>
+          </div>
           <Input
             id="password"
             type="password"

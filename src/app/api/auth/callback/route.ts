@@ -8,6 +8,16 @@ export async function GET(req: Request) {
   const code = url.searchParams.get("code");
   const origin = url.origin;
 
+  // Optional post-exchange destination. Used by the password-reset flow
+  // (next=/reset-password) so the user lands on the new-password form
+  // after the code is exchanged. Same-origin relative paths only (must
+  // start with "/" and not "//") — anything else falls back to dashboard.
+  const nextRaw = url.searchParams.get("next");
+  const nextPath =
+    nextRaw && nextRaw.startsWith("/") && !nextRaw.startsWith("//")
+      ? nextRaw
+      : "/dashboard";
+
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=no_code`);
   }
@@ -155,5 +165,5 @@ export async function GET(req: Request) {
     }
   }
 
-  return NextResponse.redirect(`${origin}/dashboard`);
+  return NextResponse.redirect(`${origin}${nextPath}`);
 }
